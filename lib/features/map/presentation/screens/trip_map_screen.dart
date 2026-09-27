@@ -29,8 +29,8 @@ class TripMapScreen extends StatefulWidget {
 }
 
 class _TripMapScreenState extends State<TripMapScreen> {
-  late final MapController _mapController;
-  late final PageController _carouselController;
+  final MapController _mapController = MapController();
+  final PageController _carouselController = PageController(viewportFraction: 0.82);
   bool _isMapReady = false;
 
   int _lastCameraIndex = -1;
@@ -42,8 +42,6 @@ class _TripMapScreenState extends State<TripMapScreen> {
   @override
   void initState() {
     super.initState();
-    _mapController = MapController();
-    _carouselController = PageController(viewportFraction: 0.82);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provider = context.read<MapProvider>();
