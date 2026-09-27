@@ -41,6 +41,9 @@ class MapProvider extends ChangeNotifier {
   List<RouteWaypoint> _waypoints = [];
   RouteData? _currentRoute;
   RouteWaypoint? _selectedWaypoint;
+  bool _isGroupRadarEnabled = false;
+  List<GroupMemberLocation> _groupMembers = [];
+  GroupMemberLocation? _selectedGroupMember;
 
   // Getters
   MapMode get currentMode => _currentMode;
@@ -56,6 +59,11 @@ class MapProvider extends ChangeNotifier {
   List<RouteWaypoint> get waypoints => _waypoints;
   RouteData? get currentRoute => _currentRoute;
   RouteWaypoint? get selectedWaypoint => _selectedWaypoint;
+  bool get isGroupRadarEnabled => _isGroupRadarEnabled;
+  List<GroupMemberLocation> get groupMembers => List<GroupMemberLocation>.unmodifiable(_groupMembers);
+  GroupMemberLocation? get selectedGroupMember => _selectedGroupMember;
+  bool get isDemoGroupRadar =>
+      _groupMembers.isNotEmpty && _groupMembers.every((member) => member.isDemo);
 
   bool get hasRoute => _currentRoute != null || _waypoints.isNotEmpty;
   bool get canBuildRoute => _destination != null && _destination != _origin;
@@ -144,6 +152,39 @@ class MapProvider extends ChangeNotifier {
   void selectWaypoint(RouteWaypoint? waypoint) {
     _selectedWaypoint = waypoint;
     notifyListeners();
+  }
+
+  void setGroupRadarEnabled(bool enabled) {
+    if (_isGroupRadarEnabled == enabled) return;
+    _isGroupRadarEnabled = enabled;
+    if (enabled && _groupMembers.isEmpty) {
+      _groupMembers = _presetService.getDemoGroupMembers();
+    }
+    if (!enabled) {
+      _selectedGroupMember = null;
+    }
+    notifyListeners();
+  }
+
+  void toggleGroupRadar() => setGroupRadarEnabled(!_isGroupRadarEnabled);
+
+  void selectGroupMember(String? memberId) {
+    GroupMemberLocation? selected;
+    if (_isGroupRadarEnabled && memberId != null) {
+      for (final member in _groupMembers) {
+        if (member.memberId == memberId) {
+          selected = member;
+          break;
+        }
+      }
+    }
+    if (_selectedGroupMember?.memberId == selected?.memberId) return;
+    _selectedGroupMember = selected;
+    notifyListeners();
+  }
+
+  double distanceToGroupMemberMeters(GroupMemberLocation member) {
+    return _locationService.calculateDistanceMeters(_origin, member.position);
   }
 
   Future<void> init({

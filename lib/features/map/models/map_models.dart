@@ -4,6 +4,48 @@ enum MapMode {
   routing,
 }
 
+enum GroupMemberStatus {
+  online,
+  idle,
+  offline,
+}
+
+class GroupMemberLocation {
+  final String memberId;
+  final String displayName;
+  final String avatarInitials;
+  final LatLng position;
+  final DateTime updatedAt;
+  final GroupMemberStatus status;
+  final bool isDemo;
+
+  const GroupMemberLocation({
+    required this.memberId,
+    required this.displayName,
+    required this.avatarInitials,
+    required this.position,
+    required this.updatedAt,
+    required this.status,
+    required this.isDemo,
+  });
+
+  GroupMemberLocation copyWith({
+    LatLng? position,
+    DateTime? updatedAt,
+    GroupMemberStatus? status,
+  }) {
+    return GroupMemberLocation(
+      memberId: memberId,
+      displayName: displayName,
+      avatarInitials: avatarInitials,
+      position: position ?? this.position,
+      updatedAt: updatedAt ?? this.updatedAt,
+      status: status ?? this.status,
+      isDemo: isDemo,
+    );
+  }
+}
+
 class RouteWaypoint {
   final String id;
   final String title;
