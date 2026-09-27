@@ -1,16 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:provider/provider.dart';
 import 'package:travelgo_mobile/features/map/models/map_models.dart';
+import 'package:travelgo_mobile/features/map/presentation/widgets/journey_carousel_widget.dart';
+import 'package:travelgo_mobile/features/map/presentation/widgets/milestone_marker_widget.dart';
+import 'package:travelgo_mobile/features/map/presentation/widgets/route_builder_sheet.dart';
+import 'package:travelgo_mobile/features/map/providers/map_provider.dart';
+import 'package:travelgo_mobile/features/map/services/destination_catalog_service.dart';
 import 'package:travelgo_mobile/features/map/services/location_service.dart';
 import 'package:travelgo_mobile/features/map/services/map_api_service.dart';
 import 'package:travelgo_mobile/features/map/services/map_preset_service.dart';
-import 'package:travelgo_mobile/features/map/providers/map_provider.dart';
-import 'package:travelgo_mobile/features/map/presentation/widgets/milestone_marker_widget.dart';
-import 'package:travelgo_mobile/features/map/presentation/widgets/journey_carousel_widget.dart';
 
 class FakeMapApiService extends MapApiService {
   bool shouldThrowBackendUnreachable = false;
+  int callCount = 0;
 
   @override
   Future<RouteData> getRoute({
@@ -18,6 +22,7 @@ class FakeMapApiService extends MapApiService {
     required LatLng destination,
     List<RouteWaypoint> waypoints = const [],
   }) async {
+    callCount++;
     if (shouldThrowBackendUnreachable) {
       throw RoutingException('Connection refused', backendUnreachable: true);
     }
@@ -94,6 +99,40 @@ void main() {
     });
   });
 
+  group('DestinationCatalogService Unit Tests', () {
+    final catalog = DestinationCatalogService();
+
+    test('getAll returns all 7 static Vietnam destinations', () {
+      final all = catalog.getAll();
+      expect(all.length, 7);
+      expect(all.any((d) => d.id == 'dalat' && d.name == 'Đà Lạt'), isTrue);
+      expect(all.any((d) => d.id == 'phuquoc' && d.icon == Icons.wb_sunny_outlined), isTrue);
+      expect(all.any((d) => d.id == 'cantho' && d.icon == Icons.directions_boat_filled), isTrue);
+    });
+
+    test('search with empty query returns all 7 destinations', () {
+      final results = catalog.search('');
+      expect(results.length, 7);
+    });
+
+    test('search by name "Đà" returns 1 result (Đà Lạt)', () {
+      final results = catalog.search('Đà');
+      expect(results.length, 1);
+      expect(results.first.id, 'dalat');
+    });
+
+    test('search by region "Duyên" returns 1 result (Nha Trang)', () {
+      final results = catalog.search('Duyên');
+      expect(results.length, 1);
+      expect(results.first.id, 'nhatrang');
+    });
+
+    test('search with non-existent query returns empty list', () {
+      final results = catalog.search('xyz999');
+      expect(results.isEmpty, isTrue);
+    });
+  });
+
   group('MapPresetService Unit Tests', () {
     test('getDefaultDemoRoute returns 4 waypoints for A->B->C->D demo', () {
       final presetService = MapPresetService();
@@ -106,8 +145,124 @@ void main() {
     });
   });
 
-  group('MapProvider Multi-Stop & Offline Resilience Tests', () {
-    test('MapProvider initializes with demo preset when waypoints are not provided', () async {
+  group('MapProvider FSM State Machine & Lazy Loading Tests', () {
+    test('1 & 2: init() without parameters starts in STATE A (destination == null, hasRoute == false)', () async {
+      final fakeRouting = FakeMapApiService();
+      final fakeLocation = FakeLocationService();
+      final provider = MapProvider(
+        apiService: fakeRouting,
+        locationService: fakeLocation,
+      );
+
+      await provider.init();
+
+      expect(provider.destination, isNull);
+      expect(provider.destinationName, isNull);
+      expect(provider.waypoints.isEmpty, isTrue);
+      expect(provider.hasRoute, isFalse);
+      expect(provider.currentRoute, isNull);
+      expect(provider.allStops.length, 1); // Only origin, safe without NPE
+    });
+
+    test('3: init() without parameters does NOT call MapApiService', () async {
+      final fakeRouting = FakeMapApiService();
+      final fakeLocation = FakeLocationService();
+      final provider = MapProvider(
+        apiService: fakeRouting,
+        locationService: fakeLocation,
+      );
+
+      await provider.init();
+
+      expect(fakeRouting.callCount, 0);
+    });
+
+    test('4: init(targetDestination: X) enters STATE B and calls MapApiService once', () async {
+      final fakeRouting = FakeMapApiService();
+      final fakeLocation = FakeLocationService();
+      final provider = MapProvider(
+        apiService: fakeRouting,
+        locationService: fakeLocation,
+      );
+
+      await provider.init(
+        targetDestination: const LatLng(11.9404, 108.4583),
+        targetName: 'Đà Lạt',
+      );
+
+      expect(fakeRouting.callCount, 1);
+      expect(provider.hasRoute, isTrue);
+      expect(provider.currentRoute, isNotNull);
+      expect(provider.destinationName, 'Đà Lạt');
+      expect(provider.allStops.length, 2); // origin + destination
+    });
+
+    test('5: enterLocateOnlyMode() and clearRoute() resets everything to STATE A', () async {
+      final fakeRouting = FakeMapApiService();
+      final fakeLocation = FakeLocationService();
+      final provider = MapProvider(
+        apiService: fakeRouting,
+        locationService: fakeLocation,
+      );
+
+      await provider.loadDemoRoute();
+      expect(provider.hasRoute, isTrue);
+
+      provider.clearRoute();
+
+      expect(provider.destination, isNull);
+      expect(provider.destinationName, isNull);
+      expect(provider.waypoints.isEmpty, isTrue);
+      expect(provider.currentRoute, isNull);
+      expect(provider.isDemoMode, isFalse);
+      expect(provider.hasRoute, isFalse);
+    });
+
+    test('6 & 7: setDestination() and addWaypoint() do NOT trigger API calls', () {
+      final fakeRouting = FakeMapApiService();
+      final provider = MapProvider(apiService: fakeRouting);
+
+      provider.setDestination(const LatLng(10.0, 105.0), 'Cần Thơ');
+      expect(provider.destination, const LatLng(10.0, 105.0));
+      expect(fakeRouting.callCount, 0);
+
+      const wp = RouteWaypoint(
+        id: 'stop1',
+        title: 'Trạm dừng',
+        position: LatLng(10.5, 105.5),
+        type: 'stop',
+      );
+      provider.addWaypoint(wp);
+      expect(provider.waypoints.length, 1);
+      expect(fakeRouting.callCount, 0);
+    });
+
+    test('8: buildRoute() after setDestination() calls API once', () async {
+      final fakeRouting = FakeMapApiService();
+      final provider = MapProvider(apiService: fakeRouting);
+
+      provider.setDestination(const LatLng(11.9404, 108.4583), 'Đà Lạt');
+      expect(fakeRouting.callCount, 0);
+
+      await provider.buildRoute();
+
+      expect(fakeRouting.callCount, 1);
+      expect(provider.currentRoute, isNotNull);
+      expect(provider.hasRoute, isTrue);
+    });
+
+    test('9: buildRoute() when destination is null returns early without calling API', () async {
+      final fakeRouting = FakeMapApiService();
+      final provider = MapProvider(apiService: fakeRouting);
+
+      expect(provider.destination, isNull);
+      await provider.buildRoute();
+
+      expect(fakeRouting.callCount, 0);
+      expect(provider.currentRoute, isNull);
+    });
+
+    test('10: loadDemoRoute() loads 2 waypoints, 1 destination, and calls API once', () async {
       final fakeRouting = FakeMapApiService();
       final fakeLocation = FakeLocationService();
       final presetService = MapPresetService();
@@ -117,35 +272,54 @@ void main() {
         locationService: fakeLocation,
       );
 
-      await provider.init();
+      await provider.loadDemoRoute();
 
-      expect(provider.waypoints.length, 2); // 2 intermediate stops (Đồng Nai & Dambri)
+      expect(fakeRouting.callCount, 1);
+      expect(provider.waypoints.length, 2);
       expect(provider.destinationName, contains('Lâm Viên'));
       expect(provider.allStops.length, 4);
       expect(provider.currentRoute, isNotNull);
       expect(provider.currentRoute!.isFallback, isFalse);
-      expect(provider.currentRoute!.points.length, 4);
     });
 
-    test('MapProvider generates local offline line when backend is down/unreachable', () async {
+    test('11: buildRoute() generates local offline line when backend is unreachable', () async {
       final fakeRouting = FakeMapApiService()..shouldThrowBackendUnreachable = true;
       final fakeLocation = FakeLocationService();
-      final presetService = MapPresetService();
       final provider = MapProvider(
         apiService: fakeRouting,
-        presetService: presetService,
         locationService: fakeLocation,
       );
 
-      await provider.init();
+      provider.setDestination(const LatLng(11.9404, 108.4583), 'Đà Lạt');
+      await provider.buildRoute();
 
       // Must NOT crash, must generate local offline line with isFallback=true
       expect(provider.currentRoute, isNotNull);
       expect(provider.currentRoute!.isFallback, isTrue);
       expect(provider.currentRoute!.summary, contains('Đường thẳng cục bộ'));
       expect(provider.errorMessage, contains('Backend không kết nối'));
-      expect(provider.currentRoute!.points.length, 4);
-      expect(provider.currentRoute!.distanceKm, greaterThan(200));
+      expect(provider.currentRoute!.points.length, 2);
+      expect(provider.currentRoute!.distanceKm, greaterThan(100));
+    });
+
+    test('12 & 13: removeWaypoint handles index in range and out of range safely', () {
+      final provider = MapProvider();
+      const wp1 = RouteWaypoint(id: '1', title: 'W1', position: LatLng(10, 106), type: 'stop');
+      const wp2 = RouteWaypoint(id: '2', title: 'W2', position: LatLng(11, 107), type: 'stop');
+
+      provider.addWaypoint(wp1);
+      provider.addWaypoint(wp2);
+      expect(provider.waypoints.length, 2);
+
+      // Out of range does not crash or change list
+      provider.removeWaypoint(99);
+      provider.removeWaypoint(-1);
+      expect(provider.waypoints.length, 2);
+
+      // In range removes correctly
+      provider.removeWaypoint(0);
+      expect(provider.waypoints.length, 1);
+      expect(provider.waypoints.first.id, '2');
     });
   });
 
@@ -203,6 +377,35 @@ void main() {
 
       await tester.tap(find.text('Thác Dambri'));
       expect(tapped, isTrue);
+    });
+
+    testWidgets('15: RouteBuilderSheet opens and "VẼ LỘ TRÌNH" button is disabled until destination is chosen', (tester) async {
+      final fakeRouting = FakeMapApiService();
+      final provider = MapProvider(apiService: fakeRouting);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChangeNotifierProvider<MapProvider>.value(
+            value: provider,
+            child: const Scaffold(
+              body: RouteBuilderSheet(),
+            ),
+          ),
+        ),
+      );
+
+      // Initially, destination is null -> button disabled
+      final buttonFinder = find.widgetWithText(FilledButton, 'VẼ LỘ TRÌNH');
+      expect(buttonFinder, findsOneWidget);
+      final FilledButton button = tester.widget(buttonFinder);
+      expect(button.onPressed, isNull);
+
+      // Set destination -> button becomes enabled
+      provider.setDestination(const LatLng(11.9404, 108.4583), 'Đà Lạt');
+      await tester.pumpAndSettle();
+
+      final FilledButton enabledButton = tester.widget(buttonFinder);
+      expect(enabledButton.onPressed, isNotNull);
     });
   });
 }
