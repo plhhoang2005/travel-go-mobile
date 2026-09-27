@@ -4,7 +4,6 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../models/map_models.dart';
 import '../../providers/map_provider.dart';
-import '../widgets/member_radar_sheet.dart';
 
 class TripMapScreen extends StatefulWidget {
   final LatLng? initialDestination;
@@ -35,7 +34,6 @@ class _TripMapScreenState extends State<TripMapScreen> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provider = context.read<MapProvider>();
-      provider.setMode(widget.initialMode);
       provider.init(
         targetDestination: widget.initialDestination,
         targetName: widget.initialDestinationName,
@@ -51,29 +49,13 @@ class _TripMapScreenState extends State<TripMapScreen> {
   void _fitCameraToBounds(MapProvider provider) {
     if (!mounted || !_isMapReady) return;
     try {
-      if (provider.currentMode == MapMode.routing) {
-        final route = provider.currentRoute;
-        if (route != null && route.points.length >= 2) {
-          final bounds = LatLngBounds.fromPoints(route.points);
-          _mapController.fitCamera(
-            CameraFit.bounds(
-              bounds: bounds,
-              padding: const EdgeInsets.fromLTRB(40, 100, 40, 220),
-            ),
-          );
-          return;
-        }
-      }
-
-      // Radar mode: Fit all group members
-      final members = provider.groupMembers;
-      if (members.isNotEmpty) {
-        final points = members.map((m) => m.position).toList();
-        final bounds = LatLngBounds.fromPoints(points);
+      final route = provider.currentRoute;
+      if (route != null && route.points.length >= 2) {
+        final bounds = LatLngBounds.fromPoints(route.points);
         _mapController.fitCamera(
           CameraFit.bounds(
             bounds: bounds,
-            padding: const EdgeInsets.fromLTRB(50, 100, 50, 300),
+            padding: const EdgeInsets.fromLTRB(40, 100, 40, 220),
           ),
         );
       }
@@ -85,13 +67,12 @@ class _TripMapScreenState extends State<TripMapScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<MapProvider>();
-    final mode = provider.currentMode;
     final primaryColor = Theme.of(context).colorScheme.primary;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'Bản Đồ OpenStreetMap',
+          'Lộ Trình Du Lịch',
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
         ),
         actions: [
@@ -101,53 +82,10 @@ class _TripMapScreenState extends State<TripMapScreen> {
             onPressed: () => _fitCameraToBounds(provider),
           ),
         ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(56),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
-            ),
-            child: Container(
-              height: 40,
-              decoration: BoxDecoration(
-                color: const Color(0xFFF1F5F9),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _buildSegmentButton(
-                      title: 'Lộ Trình Du Lịch',
-                      icon: Icons.directions_outlined,
-                      isSelected: mode == MapMode.routing,
-                      onTap: () {
-                        provider.setMode(MapMode.routing);
-                        _fitCameraToBounds(provider);
-                      },
-                    ),
-                  ),
-                  Expanded(
-                    child: _buildSegmentButton(
-                      title: 'Radar Nhóm',
-                      icon: Icons.radar_outlined,
-                      isSelected: mode == MapMode.radar,
-                      onTap: () {
-                        provider.setMode(MapMode.radar);
-                        _fitCameraToBounds(provider);
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
       ),
       body: Stack(
         children: [
-          // 1. OpenStreetMap Canvas
+          // 1. OpenStreetMap Canvas (Powered by CartoDB OSM CDN)
           FlutterMap(
             mapController: _mapController,
             options: MapOptions(
@@ -165,17 +103,14 @@ class _TripMapScreenState extends State<TripMapScreen> {
             ),
             children: [
               TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                urlTemplate: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+                subdomains: const ['a', 'b', 'c', 'd'],
                 userAgentPackageName: 'com.travelgo.travelgo_mobile',
-                tileProvider: NetworkTileProvider(
-                  headers: {
-                    'User-Agent': 'TravelGO-Mobile/1.0 (contact: support@travelgo.vn)',
-                  },
-                ),
+                tileProvider: NetworkTileProvider(),
               ),
 
               // Routing Mode Polyline
-              if (mode == MapMode.routing && provider.currentRoute != null)
+              if (provider.currentRoute != null)
                 PolylineLayer(
                   polylines: [
                     Polyline(
@@ -188,23 +123,9 @@ class _TripMapScreenState extends State<TripMapScreen> {
                   ],
                 ),
 
-              // Radar Mode Lines (Dashed connection lines from members to leader)
-              if (mode == MapMode.radar && provider.leader != null)
-                PolylineLayer(
-                  polylines: provider.groupMembers.where((m) => !m.isLeader).map((m) {
-                    return Polyline(
-                      points: [m.position, provider.leader!.position],
-                      strokeWidth: 2.2,
-                      color: m.status.color.withValues(alpha: 0.8),
-                    );
-                  }).toList(),
-                ),
-
               // Markers Layer
               MarkerLayer(
-                markers: mode == MapMode.routing
-                    ? _buildRoutingMarkers(provider)
-                    : _buildRadarMarkers(provider),
+                markers: _buildRoutingMarkers(provider),
               ),
             ],
           ),
@@ -223,7 +144,7 @@ class _TripMapScreenState extends State<TripMapScreen> {
                     bgColor: const Color(0xFFF0F9FF),
                     text: 'Đang dùng tọa độ xuất phát mặc định: Cổng ĐH Bách Khoa TP.HCM',
                   ),
-                if (mode == MapMode.routing && provider.currentRoute?.isFallback == true)
+                if (provider.currentRoute?.isFallback == true)
                   _buildNotificationBanner(
                     icon: Icons.warning_amber_rounded,
                     color: const Color(0xFFD97706),
@@ -269,78 +190,15 @@ class _TripMapScreenState extends State<TripMapScreen> {
               ),
             ),
 
-          // 4. Floating Routing Summary Card (in routing mode)
-          if (mode == MapMode.routing && provider.currentRoute != null)
+          // 4. Floating Routing Summary Card
+          if (provider.currentRoute != null)
             Positioned(
               left: 16,
               right: 16,
               bottom: 20,
               child: _buildRouteSummaryCard(context, provider),
             ),
-
-          // 5. Member Radar Bottom Sheet (in radar mode)
-          if (mode == MapMode.radar)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: MemberRadarSheet(
-                provider: provider,
-                onMemberSelected: () {
-                  final selected = provider.selectedMember;
-                  if (selected != null) {
-                    _mapController.move(selected.position, 16.0);
-                  }
-                },
-              ),
-            ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildSegmentButton({
-    required String title,
-    required IconData icon,
-    required bool isSelected,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        decoration: BoxDecoration(
-          color: isSelected ? Colors.white : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
-          boxShadow: isSelected
-              ? const [
-                  BoxShadow(
-                    color: Color(0x0F000000),
-                    blurRadius: 4,
-                    offset: Offset(0, 1),
-                  ),
-                ]
-              : null,
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              size: 16,
-              color: isSelected ? const Color(0xFF086C61) : const Color(0xFF64748B),
-            ),
-            const SizedBox(width: 6),
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                color: isSelected ? const Color(0xFF086C61) : const Color(0xFF64748B),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -434,60 +292,6 @@ class _TripMapScreenState extends State<TripMapScreen> {
     }
 
     return markers;
-  }
-
-  List<Marker> _buildRadarMarkers(MapProvider provider) {
-    return provider.groupMembers.map((member) {
-      final isSelected = provider.selectedMember?.id == member.id;
-      final status = member.status;
-
-      return Marker(
-        point: member.position,
-        width: 80,
-        height: 70,
-        child: GestureDetector(
-          onTap: () {
-            provider.selectMember(member);
-            _mapController.move(member.position, 16.0);
-          },
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: isSelected ? const Color(0xFF0F172A) : status.backgroundColor,
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: status.color, width: 1.2),
-                ),
-                child: Text(
-                  member.name,
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: isSelected ? Colors.white : status.color,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              const SizedBox(height: 3),
-              CircleAvatar(
-                radius: member.isLeader ? 18 : 15,
-                backgroundColor: member.avatarColor,
-                child: Text(
-                  member.avatarText,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }).toList();
   }
 
   Widget _buildRouteSummaryCard(BuildContext context, MapProvider provider) {

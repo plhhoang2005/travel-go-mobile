@@ -14,7 +14,7 @@ class MapProvider extends ChangeNotifier {
   })  : _apiService = apiService ?? MapApiService(),
         _locationService = locationService ?? LocationService();
 
-  MapMode _currentMode = MapMode.routing;
+  final MapMode _currentMode = MapMode.routing;
   bool _isLoading = false;
   String? _errorMessage;
   bool _isMockGps = false;
@@ -28,9 +28,6 @@ class MapProvider extends ChangeNotifier {
 
   List<RouteWaypoint> _waypoints = [];
   RouteData? _currentRoute;
-
-  List<GroupMember> _groupMembers = [];
-  GroupMember? _selectedMember;
   RouteWaypoint? _selectedWaypoint;
 
   // Getters
@@ -44,26 +41,7 @@ class MapProvider extends ChangeNotifier {
   String get destinationName => _destinationName;
   List<RouteWaypoint> get waypoints => _waypoints;
   RouteData? get currentRoute => _currentRoute;
-  List<GroupMember> get groupMembers => _groupMembers;
-  GroupMember? get selectedMember => _selectedMember;
   RouteWaypoint? get selectedWaypoint => _selectedWaypoint;
-
-  GroupMember? get leader => _groupMembers.cast<GroupMember?>().firstWhere(
-        (m) => m?.isLeader == true,
-        orElse: () => null,
-      );
-
-  void setMode(MapMode mode) {
-    if (_currentMode != mode) {
-      _currentMode = mode;
-      notifyListeners();
-    }
-  }
-
-  void selectMember(GroupMember? member) {
-    _selectedMember = member;
-    notifyListeners();
-  }
 
   void selectWaypoint(RouteWaypoint? waypoint) {
     _selectedWaypoint = waypoint;
@@ -97,10 +75,7 @@ class MapProvider extends ChangeNotifier {
         _waypoints = waypoints;
       }
 
-      // 3. Initialize group members around user/origin
-      _groupMembers = _locationService.generateInitialGroupMembers(_origin);
-
-      // 4. Fetch initial trip route
+      // 3. Fetch initial trip route
       await _fetchRoute();
     } catch (e) {
       _errorMessage = 'Không thể khởi tạo bản đồ: $e';
@@ -143,41 +118,5 @@ class MapProvider extends ChangeNotifier {
       destination: _destination,
       waypoints: _waypoints,
     );
-  }
-
-  /// Triggered when tapping "Chỉ đường quay lại nhóm" for a lost/separated member
-  Future<void> routeBackToLeader(GroupMember member) async {
-    final leaderMember = leader;
-    if (leaderMember == null) return;
-
-    _currentMode = MapMode.routing;
-    _origin = member.position;
-    _originName = 'Vị trí của ${member.name}';
-    _destination = leaderMember.position;
-    _destinationName = 'Vị trí Trưởng nhóm (${leaderMember.name})';
-    _waypoints = [];
-    _selectedMember = member;
-
-    await loadRoute();
-  }
-
-  void refreshRadarDistances() {
-    final leaderMember = leader;
-    if (leaderMember == null) return;
-
-    final updated = _groupMembers.map((m) {
-      if (m.isLeader) return m;
-      final distance = _locationService.calculateDistanceMeters(
-        m.position,
-        leaderMember.position,
-      );
-      return m.copyWith(
-        distanceToLeaderMeters: distance,
-        lastUpdated: DateTime.now(),
-      );
-    }).toList();
-
-    _groupMembers = updated;
-    notifyListeners();
   }
 }
