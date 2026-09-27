@@ -1,36 +1,41 @@
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import '../models/map_models.dart';
-import '../services/map_api_service.dart';
+import '../services/destination_catalog_service.dart';
 import '../services/location_service.dart';
+import '../services/map_api_service.dart';
+import '../services/map_preset_service.dart';
 
 class MapProvider extends ChangeNotifier {
   final MapApiService _apiService;
+  final MapPresetService _presetService;
   final LocationService _locationService;
+  final DestinationCatalogService _catalogService;
 
   MapProvider({
     MapApiService? apiService,
+    MapPresetService? presetService,
     LocationService? locationService,
+    DestinationCatalogService? catalogService,
   })  : _apiService = apiService ?? MapApiService(),
-        _locationService = locationService ?? LocationService();
+        _presetService = presetService ?? MapPresetService(),
+        _locationService = locationService ?? LocationService(),
+        _catalogService = catalogService ?? DestinationCatalogService();
 
-  MapMode _currentMode = MapMode.routing;
+  final MapMode _currentMode = MapMode.routing;
   bool _isLoading = false;
   String? _errorMessage;
   bool _isMockGps = false;
+  bool _isDemoMode = false;
 
   LatLng _origin = LocationService.defaultUniversityOrigin;
   String _originName = LocationService.defaultOriginName;
 
-  // Default demo destination: Đà Lạt
-  LatLng _destination = const LatLng(11.9404, 108.4583);
-  String _destinationName = 'Đà Lạt (Lâm Đồng)';
+  LatLng? _destination;
+  String? _destinationName;
 
   List<RouteWaypoint> _waypoints = [];
   RouteData? _currentRoute;
-
-  List<GroupMember> _groupMembers = [];
-  GroupMember? _selectedMember;
   RouteWaypoint? _selectedWaypoint;
 
   // Getters
@@ -38,31 +43,96 @@ class MapProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   bool get isMockGps => _isMockGps;
+  bool get isDemoMode => _isDemoMode;
   LatLng get origin => _origin;
   String get originName => _originName;
-  LatLng get destination => _destination;
-  String get destinationName => _destinationName;
+  LatLng? get destination => _destination;
+  String? get destinationName => _destinationName;
   List<RouteWaypoint> get waypoints => _waypoints;
   RouteData? get currentRoute => _currentRoute;
-  List<GroupMember> get groupMembers => _groupMembers;
-  GroupMember? get selectedMember => _selectedMember;
   RouteWaypoint? get selectedWaypoint => _selectedWaypoint;
 
-  GroupMember? get leader => _groupMembers.cast<GroupMember?>().firstWhere(
-        (m) => m?.isLeader == true,
-        orElse: () => null,
-      );
+  bool get hasRoute => _currentRoute != null || _waypoints.isNotEmpty;
+  List<Destination> get availableDestinations => _catalogService.getAll();
 
-  void setMode(MapMode mode) {
-    if (_currentMode != mode) {
-      _currentMode = mode;
+  int _selectedDay = 1;
+  int get selectedDay => _selectedDay;
+
+  int get totalDays {
+    if (_isDemoMode) return 3;
+    if (allStops.isEmpty) return 1;
+    final maxDay = allStops.map((w) => w.dayNumber).fold<int>(1, (prev, elem) => elem > prev ? elem : prev);
+    return maxDay.clamp(1, 7);
+  }
+
+  List<RouteWaypoint> get currentDayStops {
+    final stops = allStops;
+    final dayFiltered = stops.where((w) => w.dayNumber == _selectedDay).toList();
+    return dayFiltered.isNotEmpty ? dayFiltered : stops;
+  }
+
+  void selectDay(int day) {
+    if (_selectedDay != day) {
+      _selectedDay = day;
+      _selectedWaypoint = null;
       notifyListeners();
     }
   }
 
-  void selectMember(GroupMember? member) {
-    _selectedMember = member;
+  void toggleStopCompleted(String id) {
+    _waypoints = _waypoints.map((wp) {
+      if (wp.id == id) {
+        return wp.copyWith(isCompleted: !wp.isCompleted);
+      }
+      return wp;
+    }).toList();
     notifyListeners();
+  }
+
+  Future<void> applyAiReorder(List<RouteWaypoint> reorderedStops) async {
+    _waypoints = reorderedStops.where((w) => w.type == 'stop').toList();
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _fetchRoute();
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  List<RouteWaypoint> get allStops {
+    final stops = <RouteWaypoint>[
+      RouteWaypoint(
+        id: 'origin',
+        title: _originName,
+        position: _origin,
+        type: 'origin',
+      ),
+      ..._waypoints,
+    ];
+    if (_destination != null) {
+      stops.add(
+        RouteWaypoint(
+          id: 'destination',
+          title: _destinationName ?? 'Điểm đến',
+          position: _destination!,
+          type: 'destination',
+        ),
+      );
+    }
+    return stops;
+  }
+
+  int get selectedWaypointIndex {
+    if (_selectedWaypoint == null) return 0;
+    final stops = allStops;
+    final index = stops.indexWhere(
+      (w) => w.id == _selectedWaypoint!.id || w.position == _selectedWaypoint!.position,
+    );
+    return index >= 0 ? index : 0;
   }
 
   void selectWaypoint(RouteWaypoint? waypoint) {
@@ -86,24 +156,97 @@ class MapProvider extends ChangeNotifier {
       _originName = locationResult.locationName;
       _isMockGps = locationResult.isMock;
 
-      // 2. Set destination and waypoints if supplied
+      // 2. Set waypoints if passed explicitly
+      if (waypoints != null && waypoints.isNotEmpty) {
+        _waypoints = List<RouteWaypoint>.from(waypoints);
+      } else {
+        _waypoints = [];
+      }
+
+      // 3. Override destination if explicitly passed
       if (targetDestination != null) {
         _destination = targetDestination;
-      }
-      if (targetName != null && targetName.isNotEmpty) {
-        _destinationName = targetName;
-      }
-      if (waypoints != null) {
-        _waypoints = waypoints;
+        _destinationName = targetName ?? 'Điểm đến';
       }
 
-      // 3. Initialize group members around user/origin
-      _groupMembers = _locationService.generateInitialGroupMembers(_origin);
-
-      // 4. Fetch initial trip route
-      await _fetchRoute();
+      // 4. Lazy evaluation: Only fetch route if destination is provided!
+      if (_destination != null) {
+        await _fetchRoute();
+      }
     } catch (e) {
       _errorMessage = 'Không thể khởi tạo bản đồ: $e';
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  void enterLocateOnlyMode() {
+    _destination = null;
+    _destinationName = null;
+    _waypoints = [];
+    _currentRoute = null;
+    _selectedWaypoint = null;
+    _isDemoMode = false;
+    _selectedDay = 1;
+    _errorMessage = null;
+    notifyListeners();
+  }
+
+  void clearRoute() => enterLocateOnlyMode();
+
+  void setDestination(LatLng position, String name) {
+    _destination = position;
+    _destinationName = name;
+    notifyListeners();
+  }
+
+  void addWaypoint(RouteWaypoint wp) {
+    _waypoints = [..._waypoints, wp];
+    notifyListeners();
+  }
+
+  void removeWaypoint(int index) {
+    if (index >= 0 && index < _waypoints.length) {
+      _waypoints = List<RouteWaypoint>.from(_waypoints)..removeAt(index);
+      notifyListeners();
+    }
+  }
+
+  Future<void> loadDemoRoute() async {
+    final demoRoute = _presetService.getDefaultDemoRoute();
+    if (demoRoute.isNotEmpty) {
+      _origin = demoRoute.first.position;
+      _originName = demoRoute.first.title;
+      _destination = demoRoute.last.position;
+      _destinationName = demoRoute.last.title;
+      if (demoRoute.length > 2) {
+        _waypoints = demoRoute.sublist(1, demoRoute.length - 1);
+      } else {
+        _waypoints = [];
+      }
+      _isDemoMode = true;
+      _isLoading = true;
+      _errorMessage = null;
+      notifyListeners();
+
+      try {
+        await _fetchRoute();
+      } finally {
+        _isLoading = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  Future<void> buildRoute() async {
+    if (_destination == null) return;
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _fetchRoute();
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -138,46 +281,51 @@ class MapProvider extends ChangeNotifier {
   }
 
   Future<void> _fetchRoute() async {
-    _currentRoute = await _apiService.getRoute(
-      origin: _origin,
-      destination: _destination,
+    if (_destination == null) return;
+    try {
+      _currentRoute = await _apiService.getRoute(
+        origin: _origin,
+        destination: _destination!,
+        waypoints: _waypoints,
+      );
+      _errorMessage = null;
+    } on RoutingException catch (e) {
+      if (e.backendUnreachable) {
+        _currentRoute = _generateLocalOfflineLine();
+        _errorMessage = 'Backend không kết nối - đang hiển thị đường thẳng cục bộ';
+      } else {
+        _errorMessage = e.message;
+        _currentRoute = null;
+      }
+    } catch (e) {
+      _errorMessage = 'Lỗi không xác định: $e';
+      _currentRoute = _generateLocalOfflineLine();
+    }
+  }
+
+  RouteData? _generateLocalOfflineLine() {
+    if (_destination == null) return null;
+    final points = <LatLng>[
+      _origin,
+      ..._waypoints.map((w) => w.position),
+      _destination!,
+    ];
+
+    double totalDistKm = 0.0;
+    const distanceCalc = Distance();
+    for (int i = 0; i < points.length - 1; i++) {
+      totalDistKm += distanceCalc.as(LengthUnit.Kilometer, points[i], points[i + 1]);
+    }
+
+    final durationMins = (totalDistKm / 40.0 * 60).round().clamp(15, 1440);
+
+    return RouteData(
+      points: points,
+      distanceKm: totalDistKm,
+      durationMinutes: durationMins,
+      isFallback: true,
+      summary: 'Đường thẳng cục bộ [BE Down]',
       waypoints: _waypoints,
     );
-  }
-
-  /// Triggered when tapping "Chỉ đường quay lại nhóm" for a lost/separated member
-  Future<void> routeBackToLeader(GroupMember member) async {
-    final leaderMember = leader;
-    if (leaderMember == null) return;
-
-    _currentMode = MapMode.routing;
-    _origin = member.position;
-    _originName = 'Vị trí của ${member.name}';
-    _destination = leaderMember.position;
-    _destinationName = 'Vị trí Trưởng nhóm (${leaderMember.name})';
-    _waypoints = [];
-    _selectedMember = member;
-
-    await loadRoute();
-  }
-
-  void refreshRadarDistances() {
-    final leaderMember = leader;
-    if (leaderMember == null) return;
-
-    final updated = _groupMembers.map((m) {
-      if (m.isLeader) return m;
-      final distance = _locationService.calculateDistanceMeters(
-        m.position,
-        leaderMember.position,
-      );
-      return m.copyWith(
-        distanceToLeaderMeters: distance,
-        lastUpdated: DateTime.now(),
-      );
-    }).toList();
-
-    _groupMembers = updated;
-    notifyListeners();
   }
 }

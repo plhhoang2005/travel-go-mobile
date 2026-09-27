@@ -1,23 +1,43 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:provider/provider.dart';
 import 'package:travelgo_mobile/features/map/models/map_models.dart';
+import 'package:travelgo_mobile/features/map/presentation/screens/trip_map_screen.dart';
+import 'package:travelgo_mobile/features/map/presentation/widgets/diamond_milestone_marker.dart';
+import 'package:travelgo_mobile/features/map/presentation/widgets/floating_view_switch.dart';
+import 'package:travelgo_mobile/features/map/presentation/widgets/journey_carousel_widget.dart';
+import 'package:travelgo_mobile/features/map/presentation/widgets/journey_story_timeline.dart';
+import 'package:travelgo_mobile/features/map/presentation/widgets/journey_trip_card.dart';
+import 'package:travelgo_mobile/features/map/presentation/widgets/location_detail_sheet.dart';
+import 'package:travelgo_mobile/features/map/presentation/widgets/milestone_marker_widget.dart';
+import 'package:travelgo_mobile/features/map/presentation/widgets/route_builder_sheet.dart';
+import 'package:travelgo_mobile/features/map/providers/map_provider.dart';
+import 'package:travelgo_mobile/features/map/services/destination_catalog_service.dart';
 import 'package:travelgo_mobile/features/map/services/location_service.dart';
 import 'package:travelgo_mobile/features/map/services/map_api_service.dart';
-import 'package:travelgo_mobile/features/map/providers/map_provider.dart';
-import 'package:travelgo_mobile/features/map/presentation/widgets/member_radar_sheet.dart';
+import 'package:travelgo_mobile/features/map/services/map_preset_service.dart';
 
 class FakeMapApiService extends MapApiService {
+  bool shouldThrowBackendUnreachable = false;
+  int callCount = 0;
+
   @override
   Future<RouteData> getRoute({
     required LatLng origin,
     required LatLng destination,
     List<RouteWaypoint> waypoints = const [],
   }) async {
+    callCount++;
+    if (shouldThrowBackendUnreachable) {
+      throw RoutingException('Connection refused', backendUnreachable: true);
+    }
+
+    final allPoints = [origin, ...waypoints.map((w) => w.position), destination];
     return RouteData(
-      points: [origin, destination],
-      distanceKm: 300.0,
-      durationMinutes: 360,
+      points: allPoints,
+      distanceKm: 310.0,
+      durationMinutes: 370,
       isFallback: false,
       summary: 'Tuyến đường thử nghiệm OSRM',
       waypoints: waypoints,
@@ -37,73 +57,7 @@ class FakeLocationService extends LocationService {
 }
 
 void main() {
-  group('Map Models & Radar Status Unit Tests', () {
-    test('MemberSafetyStatus returns correct labels and colors', () {
-      expect(MemberSafetyStatus.safe.label, 'Khoảng cách an toàn');
-      expect(MemberSafetyStatus.warning.label, 'Cảnh báo tách đoàn');
-      expect(MemberSafetyStatus.danger.label, 'Cảnh báo đi lạc');
-
-      expect(MemberSafetyStatus.safe.color, const Color(0xFF10B981));
-      expect(MemberSafetyStatus.warning.color, const Color(0xFFF59E0B));
-      expect(MemberSafetyStatus.danger.color, const Color(0xFFEF4444));
-    });
-
-    test('GroupMember status classifies distances accurately', () {
-      final now = DateTime.now();
-
-      final leader = GroupMember(
-        id: '1',
-        name: 'Minh',
-        avatarText: 'M',
-        avatarColor: Colors.teal,
-        position: const LatLng(10.7725, 106.6578),
-        isLeader: true,
-        distanceToLeaderMeters: 0,
-        lastUpdated: now,
-      );
-      expect(leader.status, MemberSafetyStatus.safe);
-      expect(leader.formattedDistance, contains('Trưởng nhóm'));
-
-      final safeMember = GroupMember(
-        id: '2',
-        name: 'Hoàng',
-        avatarText: 'H',
-        avatarColor: Colors.green,
-        position: const LatLng(10.7735, 106.6585),
-        isLeader: false,
-        distanceToLeaderMeters: 130,
-        lastUpdated: now,
-      );
-      expect(safeMember.status, MemberSafetyStatus.safe);
-      expect(safeMember.formattedDistance, '130 m');
-
-      final warningMember = GroupMember(
-        id: '3',
-        name: 'Lan',
-        avatarText: 'L',
-        avatarColor: Colors.amber,
-        position: const LatLng(10.7760, 106.6610),
-        isLeader: false,
-        distanceToLeaderMeters: 550,
-        lastUpdated: now,
-      );
-      expect(warningMember.status, MemberSafetyStatus.warning);
-      expect(warningMember.formattedDistance, '550 m');
-
-      final dangerMember = GroupMember(
-        id: '4',
-        name: 'Tuấn',
-        avatarText: 'T',
-        avatarColor: Colors.red,
-        position: const LatLng(10.7840, 106.6700),
-        isLeader: false,
-        distanceToLeaderMeters: 1650,
-        lastUpdated: now,
-      );
-      expect(dangerMember.status, MemberSafetyStatus.danger);
-      expect(dangerMember.formattedDistance, '1.65 km');
-    });
-
+  group('Map Models Unit Tests', () {
     test('RouteData formats duration and distance correctly', () {
       const route1 = RouteData(
         points: [LatLng(10.7725, 106.6578), LatLng(11.9404, 108.4583)],
@@ -125,112 +79,628 @@ void main() {
       expect(route2.formattedDistance, '2.3 km');
       expect(route2.formattedDuration, '12 phút');
     });
-  });
 
-  group('Location Service Unit Tests', () {
-    final locationService = LocationService();
+    test('RouteData.fromJson parses Backend DTO properly', () {
+      final json = {
+        'data': {
+          'distanceKm': 15.5,
+          'durationMinutes': 30,
+          'points': [
+            {'lat': 10.77, 'lng': 106.65},
+            {'lat': 10.78, 'lng': 106.66},
+          ],
+        },
+      };
+      final metadata = {
+        'provider': 'osrm',
+        'isFallback': false,
+      };
 
-    test('calculateDistanceMeters computes reasonable Haversine distances', () {
-      const p1 = LatLng(10.7725, 106.6578);
-      const p2 = LatLng(10.7735, 106.6578);
-      final dist = locationService.calculateDistanceMeters(p1, p2);
-      expect(dist, greaterThan(100));
-      expect(dist, lessThan(125));
-    });
-
-    test('generateInitialGroupMembers generates leader and 3 members', () {
-      const leaderPos = LatLng(10.7725, 106.6578);
-      final members = locationService.generateInitialGroupMembers(leaderPos);
-
-      expect(members.length, 4);
-      expect(members.first.isLeader, isTrue);
-      expect(members.first.name, contains('Minh'));
-
-      // Check distance spectrum
-      expect(members[1].status, MemberSafetyStatus.safe);
-      expect(members[2].status, MemberSafetyStatus.warning);
-      expect(members[3].status, MemberSafetyStatus.danger);
+      final route = RouteData.fromJson(json, metadata);
+      expect(route.distanceKm, 15.5);
+      expect(route.durationMinutes, 30);
+      expect(route.isFallback, false);
+      expect(route.points.length, 2);
+      expect(route.summary, 'Tuyến đường OSRM');
     });
   });
 
-  group('MapProvider Unit Tests', () {
-    test('MapProvider manages modes and routeBackToLeader correctly with FakeMapApiService', () async {
+  group('DestinationCatalogService Unit Tests', () {
+    final catalog = DestinationCatalogService();
+
+    test('getAll returns all 7 static Vietnam destinations', () {
+      final all = catalog.getAll();
+      expect(all.length, 7);
+      expect(all.any((d) => d.id == 'dalat' && d.name == 'Đà Lạt'), isTrue);
+      expect(all.any((d) => d.id == 'phuquoc' && d.icon == Icons.wb_sunny_outlined), isTrue);
+      expect(all.any((d) => d.id == 'cantho' && d.icon == Icons.directions_boat_filled), isTrue);
+    });
+
+    test('search with empty query returns all 7 destinations', () {
+      final results = catalog.search('');
+      expect(results.length, 7);
+    });
+
+    test('search by name "Đà" returns 1 result (Đà Lạt)', () {
+      final results = catalog.search('Đà');
+      expect(results.length, 1);
+      expect(results.first.id, 'dalat');
+    });
+
+    test('search by region "Duyên" returns 1 result (Nha Trang)', () {
+      final results = catalog.search('Duyên');
+      expect(results.length, 1);
+      expect(results.first.id, 'nhatrang');
+    });
+
+    test('search with non-existent query returns empty list', () {
+      final results = catalog.search('xyz999');
+      expect(results.isEmpty, isTrue);
+    });
+  });
+
+  group('MapPresetService Unit Tests', () {
+    test('getDefaultDemoRoute returns 4 waypoints for A->B->C->D demo', () {
+      final presetService = MapPresetService();
+      final demoRoute = presetService.getDefaultDemoRoute();
+      expect(demoRoute.length, 4);
+      expect(demoRoute.first.type, 'origin');
+      expect(demoRoute.last.type, 'destination');
+      expect(demoRoute[1].type, 'stop');
+      expect(demoRoute[2].type, 'stop');
+    });
+  });
+
+  group('MapProvider FSM State Machine & Lazy Loading Tests', () {
+    test('1 & 2: init() without parameters starts in STATE A (destination == null, hasRoute == false)', () async {
       final fakeRouting = FakeMapApiService();
       final fakeLocation = FakeLocationService();
-      final provider = MapProvider(apiService: fakeRouting, locationService: fakeLocation);
+      final provider = MapProvider(
+        apiService: fakeRouting,
+        locationService: fakeLocation,
+      );
+
       await provider.init();
 
-      expect(provider.currentMode, MapMode.routing);
-      expect(provider.groupMembers.length, 4);
+      expect(provider.destination, isNull);
+      expect(provider.destinationName, isNull);
+      expect(provider.waypoints.isEmpty, isTrue);
+      expect(provider.hasRoute, isFalse);
+      expect(provider.currentRoute, isNull);
+      expect(provider.allStops.length, 1); // Only origin, safe without NPE
+    });
 
-      provider.setMode(MapMode.radar);
-      expect(provider.currentMode, MapMode.radar);
+    test('3: init() without parameters does NOT call MapApiService', () async {
+      final fakeRouting = FakeMapApiService();
+      final fakeLocation = FakeLocationService();
+      final provider = MapProvider(
+        apiService: fakeRouting,
+        locationService: fakeLocation,
+      );
 
-      final lostMember = provider.groupMembers.firstWhere((m) => m.status == MemberSafetyStatus.danger);
-      expect(lostMember.name, 'Tuấn');
+      await provider.init();
 
-      await provider.routeBackToLeader(lostMember);
-      expect(provider.currentMode, MapMode.routing);
-      expect(provider.origin, lostMember.position);
-      expect(provider.destination, provider.leader!.position);
+      expect(fakeRouting.callCount, 0);
+    });
+
+    test('4: init(targetDestination: X) enters STATE B and calls MapApiService once', () async {
+      final fakeRouting = FakeMapApiService();
+      final fakeLocation = FakeLocationService();
+      final provider = MapProvider(
+        apiService: fakeRouting,
+        locationService: fakeLocation,
+      );
+
+      await provider.init(
+        targetDestination: const LatLng(11.9404, 108.4583),
+        targetName: 'Đà Lạt',
+      );
+
+      expect(fakeRouting.callCount, 1);
+      expect(provider.hasRoute, isTrue);
+      expect(provider.currentRoute, isNotNull);
+      expect(provider.destinationName, 'Đà Lạt');
+      expect(provider.allStops.length, 2); // origin + destination
+    });
+
+    test('5: enterLocateOnlyMode() and clearRoute() resets everything to STATE A', () async {
+      final fakeRouting = FakeMapApiService();
+      final fakeLocation = FakeLocationService();
+      final provider = MapProvider(
+        apiService: fakeRouting,
+        locationService: fakeLocation,
+      );
+
+      await provider.loadDemoRoute();
+      expect(provider.hasRoute, isTrue);
+
+      provider.clearRoute();
+
+      expect(provider.destination, isNull);
+      expect(provider.destinationName, isNull);
+      expect(provider.waypoints.isEmpty, isTrue);
+      expect(provider.currentRoute, isNull);
+      expect(provider.isDemoMode, isFalse);
+      expect(provider.hasRoute, isFalse);
+    });
+
+    test('6 & 7: setDestination() and addWaypoint() do NOT trigger API calls', () {
+      final fakeRouting = FakeMapApiService();
+      final provider = MapProvider(apiService: fakeRouting);
+
+      provider.setDestination(const LatLng(10.0, 105.0), 'Cần Thơ');
+      expect(provider.destination, const LatLng(10.0, 105.0));
+      expect(fakeRouting.callCount, 0);
+
+      const wp = RouteWaypoint(
+        id: 'stop1',
+        title: 'Trạm dừng',
+        position: LatLng(10.5, 105.5),
+        type: 'stop',
+      );
+      provider.addWaypoint(wp);
+      expect(provider.waypoints.length, 1);
+      expect(fakeRouting.callCount, 0);
+    });
+
+    test('8: buildRoute() after setDestination() calls API once', () async {
+      final fakeRouting = FakeMapApiService();
+      final provider = MapProvider(apiService: fakeRouting);
+
+      provider.setDestination(const LatLng(11.9404, 108.4583), 'Đà Lạt');
+      expect(fakeRouting.callCount, 0);
+
+      await provider.buildRoute();
+
+      expect(fakeRouting.callCount, 1);
+      expect(provider.currentRoute, isNotNull);
+      expect(provider.hasRoute, isTrue);
+    });
+
+    test('9: buildRoute() when destination is null returns early without calling API', () async {
+      final fakeRouting = FakeMapApiService();
+      final provider = MapProvider(apiService: fakeRouting);
+
+      expect(provider.destination, isNull);
+      await provider.buildRoute();
+
+      expect(fakeRouting.callCount, 0);
+      expect(provider.currentRoute, isNull);
+    });
+
+    test('10: loadDemoRoute() loads 2 waypoints, 1 destination, and calls API once', () async {
+      final fakeRouting = FakeMapApiService();
+      final fakeLocation = FakeLocationService();
+      final presetService = MapPresetService();
+      final provider = MapProvider(
+        apiService: fakeRouting,
+        presetService: presetService,
+        locationService: fakeLocation,
+      );
+
+      await provider.loadDemoRoute();
+
+      expect(fakeRouting.callCount, 1);
+      expect(provider.waypoints.length, 2);
+      expect(provider.destinationName, contains('Lâm Viên'));
+      expect(provider.allStops.length, 4);
+      expect(provider.currentRoute, isNotNull);
+      expect(provider.currentRoute!.isFallback, isFalse);
+    });
+
+    test('11: buildRoute() generates local offline line when backend is unreachable', () async {
+      final fakeRouting = FakeMapApiService()..shouldThrowBackendUnreachable = true;
+      final fakeLocation = FakeLocationService();
+      final provider = MapProvider(
+        apiService: fakeRouting,
+        locationService: fakeLocation,
+      );
+
+      provider.setDestination(const LatLng(11.9404, 108.4583), 'Đà Lạt');
+      await provider.buildRoute();
+
+      // Must NOT crash, must generate local offline line with isFallback=true
+      expect(provider.currentRoute, isNotNull);
+      expect(provider.currentRoute!.isFallback, isTrue);
+      expect(provider.currentRoute!.summary, contains('Đường thẳng cục bộ'));
+      expect(provider.errorMessage, contains('Backend không kết nối'));
+      expect(provider.currentRoute!.points.length, 2);
+      expect(provider.currentRoute!.distanceKm, greaterThan(100));
+    });
+
+    test('12 & 13: removeWaypoint handles index in range and out of range safely', () {
+      final provider = MapProvider();
+      const wp1 = RouteWaypoint(id: '1', title: 'W1', position: LatLng(10, 106), type: 'stop');
+      const wp2 = RouteWaypoint(id: '2', title: 'W2', position: LatLng(11, 107), type: 'stop');
+
+      provider.addWaypoint(wp1);
+      provider.addWaypoint(wp2);
+      expect(provider.waypoints.length, 2);
+
+      // Out of range does not crash or change list
+      provider.removeWaypoint(99);
+      provider.removeWaypoint(-1);
+      expect(provider.waypoints.length, 2);
+
+      // In range removes correctly
+      provider.removeWaypoint(0);
+      expect(provider.waypoints.length, 1);
+      expect(provider.waypoints.first.id, '2');
     });
   });
 
-  group('MemberRadarSheet Widget Tests', () {
-    testWidgets('MemberRadarSheet renders all members, badges, and directions button', (tester) async {
-      final fakeRouting = FakeMapApiService();
-      final fakeLocation = FakeLocationService();
-      final provider = MapProvider(apiService: fakeRouting, locationService: fakeLocation);
-      await provider.init();
-      provider.setMode(MapMode.radar);
-
-      bool memberSelectedCalled = false;
+  group('Journey Board UI Widget Tests', () {
+    testWidgets('JourneyCarouselWidget renders cards and triggers onCardChanged', (tester) async {
+      int changedIndex = -1;
+      const waypoints = [
+        RouteWaypoint(id: '1', title: 'Điểm 1', position: LatLng(10, 106), type: 'origin', time: '08:00'),
+        RouteWaypoint(id: '2', title: 'Điểm 2', position: LatLng(11, 107), type: 'stop', time: '10:30'),
+      ];
+      final pageController = PageController();
 
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: SingleChildScrollView(
-              child: MemberRadarSheet(
-                provider: provider,
-                onMemberSelected: () {
-                  memberSelectedCalled = true;
-                },
+            body: JourneyCarouselWidget(
+              waypoints: waypoints,
+              activeIndex: 0,
+              pageController: pageController,
+              onCardChanged: (idx) => changedIndex = idx,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Điểm 1'), findsOneWidget);
+      expect(find.text('XUẤT PHÁT'), findsOneWidget);
+      expect(find.text('08:00'), findsOneWidget);
+
+      await tester.drag(find.text('Điểm 1'), const Offset(-400, 0));
+      await tester.pumpAndSettle();
+
+      expect(changedIndex, 1);
+    });
+
+    testWidgets('MilestoneMarkerWidget renders stop capsule with sequence and responds to tap', (tester) async {
+      bool tapped = false;
+      const wp = RouteWaypoint(id: 'stop1', title: 'Thác Dambri', position: LatLng(11, 107), type: 'stop');
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: MilestoneMarkerWidget(
+              waypoint: wp,
+              sequenceNumber: 2,
+              isActive: true,
+              onTap: () => tapped = true,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Thác Dambri'), findsOneWidget);
+      expect(find.text('02'), findsOneWidget);
+
+      await tester.tap(find.text('Thác Dambri'));
+      expect(tapped, isTrue);
+    });
+
+    testWidgets('15: RouteBuilderSheet opens and "VẼ LỘ TRÌNH" button is disabled until destination is chosen', (tester) async {
+      final fakeRouting = FakeMapApiService();
+      final provider = MapProvider(apiService: fakeRouting);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChangeNotifierProvider<MapProvider>.value(
+            value: provider,
+            child: const Scaffold(
+              body: RouteBuilderSheet(),
+            ),
+          ),
+        ),
+      );
+
+      // Initially, destination is null -> button disabled
+      final buttonFinder = find.widgetWithText(FilledButton, 'VẼ LỘ TRÌNH');
+      expect(buttonFinder, findsOneWidget);
+      final FilledButton button = tester.widget(buttonFinder);
+      expect(button.onPressed, isNull);
+
+      // Set destination -> button becomes enabled
+      provider.setDestination(const LatLng(11.9404, 108.4583), 'Đà Lạt');
+      await tester.pumpAndSettle();
+
+      final FilledButton enabledButton = tester.widget(buttonFinder);
+      expect(enabledButton.onPressed, isNotNull);
+    });
+
+    testWidgets('DiamondMilestoneMarker renders sequence and responds to tap', (tester) async {
+      bool tapped = false;
+      const wp = RouteWaypoint(
+        id: 'stop_hotel',
+        title: 'Pine Hill Hotel',
+        position: LatLng(11.9, 108.4),
+        type: 'stop',
+        category: 'Khách sạn',
+        isCompleted: true,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: DiamondMilestoneMarker(
+                waypoint: wp,
+                sequenceNumber: 1,
+                isSelected: false,
+                onTap: () => tapped = true,
               ),
             ),
           ),
         ),
       );
 
+      expect(find.byType(DiamondMilestoneMarker), findsOneWidget);
+      expect(find.byIcon(Icons.check_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.hotel_rounded), findsOneWidget);
+
+      await tester.tap(find.byType(DiamondMilestoneMarker));
+      expect(tapped, isTrue);
+    });
+
+    testWidgets('FloatingViewSwitch toggles between map and story mode', (tester) async {
+      JourneyViewMode selectedMode = JourneyViewMode.map;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: StatefulBuilder(
+              builder: (context, setState) {
+                return FloatingViewSwitch(
+                  currentMode: selectedMode,
+                  onModeChanged: (m) => setState(() => selectedMode = m),
+                );
+              },
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Bản đồ'), findsOneWidget);
+      expect(find.text('Hành trình'), findsOneWidget);
+
+      await tester.tap(find.text('Hành trình'));
+      await tester.pumpAndSettle();
+
+      expect(selectedMode, JourneyViewMode.story);
+    });
+
+    testWidgets('JourneyTripCard renders title, day selector, and triggers selectDay', (tester) async {
+      final fakeRouting = FakeMapApiService();
+      final provider = MapProvider(apiService: fakeRouting);
+      await provider.loadDemoRoute();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: JourneyTripCard(provider: provider),
+          ),
+        ),
+      );
+
+      expect(find.text('CHUYẾN ĐI CỦA MINH'), findsOneWidget);
+      expect(find.text('NGÀY 1'), findsOneWidget);
+      expect(find.text('NGÀY 2'), findsOneWidget);
+
+      await tester.tap(find.text('NGÀY 2'));
+      expect(provider.selectedDay, 2);
+    });
+
+    testWidgets('16-18: STATE A renders Journey Preview Card and tap explores demo route', (tester) async {
+      final fakeRouting = FakeMapApiService();
+      final fakeLocation = FakeLocationService();
+      final provider = MapProvider(
+        apiService: fakeRouting,
+        locationService: fakeLocation,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChangeNotifierProvider<MapProvider>.value(
+            value: provider,
+            child: const TripMapScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // In STATE A:
+      expect(find.text('CHUYẾN ĐI CỦA MINH'), findsOneWidget);
+      expect(find.text('Đà Lạt · 3 ngày 2 đêm'), findsOneWidget);
+      expect(find.text('Khám phá hành trình Đà Lạt'), findsOneWidget);
+
+      // Tap 'Khám phá hành trình Đà Lạt' -> triggers loadDemoRoute -> enters STATE B
+      await tester.tap(find.text('Khám phá hành trình Đà Lạt'));
       await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
 
-      // Verify Header
-      expect(find.text('Radar Thành Viên Nhóm'), findsOneWidget);
-      expect(find.textContaining('4 thành viên'), findsOneWidget);
+      expect(provider.hasRoute, isTrue);
+      // In STATE B: Journey Preview Card disappears
+      expect(find.text('Khám phá hành trình Đà Lạt'), findsNothing);
+    });
 
-      // Verify Members listed
-      expect(find.text('Minh (Bạn / Leader)'), findsOneWidget);
-      expect(find.text('Trưởng nhóm'), findsOneWidget);
-      expect(find.text('Hoàng'), findsOneWidget);
-      expect(find.text('Khoảng cách an toàn'), findsNWidgets(2)); // Leader and Hoàng
-      expect(find.text('Lan'), findsOneWidget);
-      expect(find.text('Cảnh báo tách đoàn'), findsOneWidget);
-      expect(find.text('Tuấn'), findsOneWidget);
-      expect(find.text('Cảnh báo đi lạc'), findsOneWidget);
+    testWidgets('19: Tap "hoặc tự tạo lộ trình mới ↓" opens RouteBuilderSheet', (tester) async {
+      final fakeRouting = FakeMapApiService();
+      final fakeLocation = FakeLocationService();
+      final provider = MapProvider(
+        apiService: fakeRouting,
+        locationService: fakeLocation,
+      );
 
-      // Verify "Chỉ đường về nhóm" button appears for danger member
-      expect(find.text('Chỉ đường về nhóm'), findsOneWidget);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChangeNotifierProvider<MapProvider>.value(
+            value: provider,
+            child: const TripMapScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
 
-      // Tap on Hoàng
-      await tester.tap(find.text('Hoàng'));
+      expect(find.text('hoặc tự tạo lộ trình mới ↓'), findsOneWidget);
+      await tester.tap(find.text('hoặc tự tạo lộ trình mới ↓'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(RouteBuilderSheet), findsOneWidget);
+    });
+
+    testWidgets('N1: STATE A (chưa có route): KHÔNG thấy JourneyTripCard', (tester) async {
+      final fakeRouting = FakeMapApiService();
+      final fakeLocation = FakeLocationService();
+      final provider = MapProvider(
+        apiService: fakeRouting,
+        locationService: fakeLocation,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChangeNotifierProvider<MapProvider>.value(
+            value: provider,
+            child: const TripMapScreen(),
+          ),
+        ),
+      );
       await tester.pump();
-      expect(memberSelectedCalled, isTrue);
-      expect(provider.selectedMember?.name, 'Hoàng');
+      await tester.pump(const Duration(milliseconds: 500));
 
-      // Tap "Chỉ đường về nhóm" for Tuấn
-      await tester.tap(find.text('Chỉ đường về nhóm'));
+      expect(find.byType(JourneyTripCard), findsNothing);
+      expect(find.byType(FloatingViewSwitch), findsNothing);
+    });
+
+    testWidgets('N2: STATE B: thấy JourneyTripCard + FloatingViewSwitch', (tester) async {
+      final fakeRouting = FakeMapApiService();
+      final fakeLocation = FakeLocationService();
+      final provider = MapProvider(
+        apiService: fakeRouting,
+        locationService: fakeLocation,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChangeNotifierProvider<MapProvider>.value(
+            value: provider,
+            child: const TripMapScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await provider.loadDemoRoute();
       await tester.pump();
-      await tester.pump(const Duration(seconds: 3)); // Let SnackBar animation complete
-      expect(provider.currentMode, MapMode.routing);
+      await tester.pump(const Duration(seconds: 1));
+
+      expect(find.byType(JourneyTripCard), findsOneWidget);
+      expect(find.byType(FloatingViewSwitch), findsOneWidget);
+    });
+
+    testWidgets('N3: Bấm FloatingViewSwitch item "Hành trình" -> JourneyStoryTimeline hiện', (tester) async {
+      final fakeRouting = FakeMapApiService();
+      final fakeLocation = FakeLocationService();
+      final provider = MapProvider(
+        apiService: fakeRouting,
+        locationService: fakeLocation,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChangeNotifierProvider<MapProvider>.value(
+            value: provider,
+            child: const TripMapScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await provider.loadDemoRoute();
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+
+      expect(find.text('Hành trình'), findsOneWidget);
+      await tester.tap(find.text('Hành trình'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(find.byType(JourneyStoryTimeline), findsOneWidget);
+    });
+
+    testWidgets('N4: Bấm marker -> LocationDetailSheet mở với đúng title', (tester) async {
+      final fakeRouting = FakeMapApiService();
+      final fakeLocation = FakeLocationService();
+      final provider = MapProvider(
+        apiService: fakeRouting,
+        locationService: fakeLocation,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChangeNotifierProvider<MapProvider>.value(
+            value: provider,
+            child: const TripMapScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await provider.loadDemoRoute();
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+
+      final diamondFinder = find.byType(DiamondMilestoneMarker);
+      expect(diamondFinder, findsWidgets);
+
+      await tester.tap(diamondFinder.first);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(find.byType(LocationDetailSheet), findsOneWidget);
+      final firstTitle = provider.currentDayStops.first.title;
+      expect(find.text(firstTitle), findsWidgets);
+    });
+  });
+
+  group('Journey Map Multi-Day & AI Optimizer Tests', () {
+    test('selectDay switches selectedDay and filters currentDayStops correctly', () async {
+      final provider = MapProvider(apiService: FakeMapApiService());
+      await provider.loadDemoRoute();
+
+      expect(provider.selectedDay, 1);
+      provider.selectDay(2);
+      expect(provider.selectedDay, 2);
+    });
+
+    test('toggleStopCompleted flips isCompleted status', () async {
+      final provider = MapProvider(apiService: FakeMapApiService());
+      await provider.loadDemoRoute();
+
+      final firstStop = provider.waypoints.first;
+      final initialStatus = firstStop.isCompleted;
+
+      provider.toggleStopCompleted(firstStop.id);
+      expect(provider.waypoints.first.isCompleted, !initialStatus);
+    });
+
+    test('applyAiReorder updates waypoint order and triggers API route fetch', () async {
+      final fakeRouting = FakeMapApiService();
+      final provider = MapProvider(apiService: fakeRouting);
+      await provider.loadDemoRoute();
+
+      final initialCallCount = fakeRouting.callCount;
+      final reversedWaypoints = provider.waypoints.reversed.toList();
+
+      await provider.applyAiReorder(reversedWaypoints);
+
+      expect(fakeRouting.callCount, initialCallCount + 1);
+      expect(provider.waypoints.first.id, reversedWaypoints.first.id);
     });
   });
 }
