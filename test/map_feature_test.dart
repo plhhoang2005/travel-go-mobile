@@ -516,6 +516,9 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(TileLayer), findsNothing);
+      expect(find.byType(SimpleAttributionWidget), findsOneWidget);
+      expect(find.text('OpenStreetMap contributors'), findsOneWidget);
+      expect(find.byTooltip('Chế độ bản đồ'), findsNothing);
 
       // In STATE A:
       expect(find.text('CHUYẾN ĐI CỦA MINH'), findsOneWidget);

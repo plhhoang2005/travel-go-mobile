@@ -40,9 +40,6 @@ class _TripMapScreenState extends State<TripMapScreen> {
   // View Mode: Map or Story Timeline
   JourneyViewMode _viewMode = JourneyViewMode.map;
 
-  // Layer toggle: standard OSM vs Topo/Clean
-  bool _isAlternateTileLayer = false;
-
   @override
   void initState() {
     super.initState();
@@ -209,7 +206,7 @@ class _TripMapScreenState extends State<TripMapScreen> {
     return Scaffold(
       body: Stack(
         children: [
-          // 1. OpenStreetMap Canvas (tile.openstreetmap.de with TravelGO Styling)
+          // 1. OpenStreetMap Canvas with permanently visible attribution
           FlutterMap(
             mapController: _mapController,
             options: MapOptions(
@@ -232,12 +229,15 @@ class _TripMapScreenState extends State<TripMapScreen> {
             children: [
               if (widget.enableNetworkTiles)
                 TileLayer(
-                  urlTemplate: _isAlternateTileLayer
-                      ? 'https://tile.openstreetmap.de/{z}/{x}/{y}.png'
-                      : 'https://tile.openstreetmap.de/{z}/{x}/{y}.png',
+                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                   userAgentPackageName: 'com.travelgo.travelgo_mobile',
                   tileProvider: NetworkTileProvider(),
                 ),
+
+              const SimpleAttributionWidget(
+                source: Text('OpenStreetMap contributors'),
+                alignment: Alignment.bottomLeft,
+              ),
 
               // Ribbon Polyline Layer (Only in STATE B)
               if (hasRoute && provider.currentRoute != null)
@@ -379,7 +379,7 @@ class _TripMapScreenState extends State<TripMapScreen> {
               ),
             ),
 
-          // 5. Floating Controls (Right side: Fit Camera, Zoom In, My Location, Layers)
+          // 5. Floating Controls (Right side: Fit Camera, Zoom In, My Location)
           Positioned(
             right: 14,
             top: topPadding + (hasRoute ? 240 : 190),
@@ -406,16 +406,6 @@ class _TripMapScreenState extends State<TripMapScreen> {
                   icon: Icons.my_location_rounded,
                   tooltip: 'Vị trí của bạn',
                   onTap: () => _mapController.move(provider.origin, 15.0),
-                ),
-                const SizedBox(height: 8),
-                _buildFloatingToolButton(
-                  icon: Icons.layers_outlined,
-                  tooltip: 'Chế độ bản đồ',
-                  onTap: () {
-                    setState(() {
-                      _isAlternateTileLayer = !_isAlternateTileLayer;
-                    });
-                  },
                 ),
               ],
             ),
