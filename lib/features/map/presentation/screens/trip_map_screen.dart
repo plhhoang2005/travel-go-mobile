@@ -18,6 +18,7 @@ class TripMapScreen extends StatefulWidget {
   final String? initialDestinationName;
   final List<RouteWaypoint>? initialWaypoints;
   final MapMode initialMode;
+  final bool enableNetworkTiles;
 
   const TripMapScreen({
     super.key,
@@ -25,6 +26,7 @@ class TripMapScreen extends StatefulWidget {
     this.initialDestinationName,
     this.initialWaypoints,
     this.initialMode = MapMode.routing,
+    this.enableNetworkTiles = true,
   });
 
   @override
@@ -228,13 +230,14 @@ class _TripMapScreenState extends State<TripMapScreen> {
               },
             ),
             children: [
-              TileLayer(
-                urlTemplate: _isAlternateTileLayer
-                    ? 'https://tile.openstreetmap.de/{z}/{x}/{y}.png'
-                    : 'https://tile.openstreetmap.de/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.travelgo.travelgo_mobile',
-                tileProvider: NetworkTileProvider(),
-              ),
+              if (widget.enableNetworkTiles)
+                TileLayer(
+                  urlTemplate: _isAlternateTileLayer
+                      ? 'https://tile.openstreetmap.de/{z}/{x}/{y}.png'
+                      : 'https://tile.openstreetmap.de/{z}/{x}/{y}.png',
+                  userAgentPackageName: 'com.travelgo.travelgo_mobile',
+                  tileProvider: NetworkTileProvider(),
+                ),
 
               // Ribbon Polyline Layer (Only in STATE B)
               if (hasRoute && provider.currentRoute != null)

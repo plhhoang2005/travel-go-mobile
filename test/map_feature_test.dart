@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
@@ -508,11 +509,13 @@ void main() {
         MaterialApp(
           home: ChangeNotifierProvider<MapProvider>.value(
             value: provider,
-            child: const TripMapScreen(),
+            child: const TripMapScreen(enableNetworkTiles: false),
           ),
         ),
       );
       await tester.pumpAndSettle();
+
+      expect(find.byType(TileLayer), findsNothing);
 
       // In STATE A:
       expect(find.text('CHUYẾN ĐI CỦA MINH'), findsOneWidget);
@@ -541,7 +544,7 @@ void main() {
         MaterialApp(
           home: ChangeNotifierProvider<MapProvider>.value(
             value: provider,
-            child: const TripMapScreen(),
+            child: const TripMapScreen(enableNetworkTiles: false),
           ),
         ),
       );
@@ -566,7 +569,7 @@ void main() {
         MaterialApp(
           home: ChangeNotifierProvider<MapProvider>.value(
             value: provider,
-            child: const TripMapScreen(),
+            child: const TripMapScreen(enableNetworkTiles: false),
           ),
         ),
       );
@@ -589,7 +592,7 @@ void main() {
         MaterialApp(
           home: ChangeNotifierProvider<MapProvider>.value(
             value: provider,
-            child: const TripMapScreen(),
+            child: const TripMapScreen(enableNetworkTiles: false),
           ),
         ),
       );
@@ -615,7 +618,7 @@ void main() {
         MaterialApp(
           home: ChangeNotifierProvider<MapProvider>.value(
             value: provider,
-            child: const TripMapScreen(),
+            child: const TripMapScreen(enableNetworkTiles: false),
           ),
         ),
       );
@@ -645,7 +648,7 @@ void main() {
         MaterialApp(
           home: ChangeNotifierProvider<MapProvider>.value(
             value: provider,
-            child: const TripMapScreen(),
+            child: const TripMapScreen(enableNetworkTiles: false),
           ),
         ),
       );
