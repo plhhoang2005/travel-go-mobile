@@ -1,0 +1,13 @@
+com\travelgo\backend\map\dto\RouteResultDto$RouteData.class
+com\travelgo\backend\map\service\MapService.class
+com\travelgo\backend\map\provider\fallback\FallbackRoutingProvider.class
+com\travelgo\backend\map\provider\RoutingProvider.class
+com\travelgo\backend\map\provider\osm\OsrmRoutingProvider.class
+com\travelgo\backend\map\dto\RouteResultDto.class
+com\travelgo\backend\map\dto\RouteRequestDto.class
+com\travelgo\backend\BackendApplication.class
+com\travelgo\backend\map\controller\MapController.class
+com\travelgo\backend\config\CacheConfig.class
+com\travelgo\backend\config\RestTemplateConfig.class
+com\travelgo\backend\map\dto\RouteResultDto$RouteMetadata.class
+com\travelgo\backend\map\dto\LatLngDto.class
