@@ -46,6 +46,30 @@ class MapProvider extends ChangeNotifier {
   RouteData? get currentRoute => _currentRoute;
   RouteWaypoint? get selectedWaypoint => _selectedWaypoint;
 
+  List<RouteWaypoint> get allStops {
+    return [
+      RouteWaypoint(
+        id: 'origin',
+        title: _originName,
+        position: _origin,
+        type: 'origin',
+      ),
+      ..._waypoints,
+      RouteWaypoint(
+        id: 'destination',
+        title: _destinationName,
+        position: _destination,
+        type: 'destination',
+      ),
+    ];
+  }
+
+  int get selectedWaypointIndex {
+    if (_selectedWaypoint == null) return 0;
+    final index = allStops.indexWhere((w) => w.id == _selectedWaypoint!.id || w.position == _selectedWaypoint!.position);
+    return index >= 0 ? index : 0;
+  }
+
   void selectWaypoint(RouteWaypoint? waypoint) {
     _selectedWaypoint = waypoint;
     notifyListeners();

@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:travelgo_mobile/features/map/models/map_models.dart';
@@ -5,6 +6,8 @@ import 'package:travelgo_mobile/features/map/services/location_service.dart';
 import 'package:travelgo_mobile/features/map/services/map_api_service.dart';
 import 'package:travelgo_mobile/features/map/services/map_preset_service.dart';
 import 'package:travelgo_mobile/features/map/providers/map_provider.dart';
+import 'package:travelgo_mobile/features/map/presentation/widgets/milestone_marker_widget.dart';
+import 'package:travelgo_mobile/features/map/presentation/widgets/journey_carousel_widget.dart';
 
 class FakeMapApiService extends MapApiService {
   bool shouldThrowBackendUnreachable = false;
@@ -118,6 +121,7 @@ void main() {
 
       expect(provider.waypoints.length, 2); // 2 intermediate stops (Đồng Nai & Dambri)
       expect(provider.destinationName, contains('Lâm Viên'));
+      expect(provider.allStops.length, 4);
       expect(provider.currentRoute, isNotNull);
       expect(provider.currentRoute!.isFallback, isFalse);
       expect(provider.currentRoute!.points.length, 4);
@@ -142,6 +146,63 @@ void main() {
       expect(provider.errorMessage, contains('Backend không kết nối'));
       expect(provider.currentRoute!.points.length, 4);
       expect(provider.currentRoute!.distanceKm, greaterThan(200));
+    });
+  });
+
+  group('Journey Board UI Widget Tests', () {
+    testWidgets('JourneyCarouselWidget renders cards and triggers onCardChanged', (tester) async {
+      int changedIndex = -1;
+      const waypoints = [
+        RouteWaypoint(id: '1', title: 'Điểm 1', position: LatLng(10, 106), type: 'origin', time: '08:00'),
+        RouteWaypoint(id: '2', title: 'Điểm 2', position: LatLng(11, 107), type: 'stop', time: '10:30'),
+      ];
+      final pageController = PageController();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: JourneyCarouselWidget(
+              waypoints: waypoints,
+              activeIndex: 0,
+              pageController: pageController,
+              onCardChanged: (idx) => changedIndex = idx,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Điểm 1'), findsOneWidget);
+      expect(find.text('XUẤT PHÁT'), findsOneWidget);
+      expect(find.text('08:00'), findsOneWidget);
+
+      await tester.drag(find.text('Điểm 1'), const Offset(-400, 0));
+      await tester.pumpAndSettle();
+
+      expect(changedIndex, 1);
+    });
+
+    testWidgets('MilestoneMarkerWidget renders stop capsule with sequence and responds to tap', (tester) async {
+      bool tapped = false;
+      const wp = RouteWaypoint(id: 'stop1', title: 'Thác Dambri', position: LatLng(11, 107), type: 'stop');
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: MilestoneMarkerWidget(
+              waypoint: wp,
+              sequenceNumber: 2,
+              isActive: true,
+              onTap: () => tapped = true,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Thác Dambri'), findsOneWidget);
+      expect(find.text('02'), findsOneWidget);
+
+      await tester.tap(find.text('Thác Dambri'));
+      expect(tapped, isTrue);
     });
   });
 }
