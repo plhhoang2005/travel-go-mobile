@@ -34,7 +34,7 @@ public class MapService {
                 return fallbackProvider.calculateRoute(request);
             } catch (Exception fallbackEx) {
                 log.error("Fallback provider also failed", fallbackEx);
-                RouteResultDto.RouteMetadata metadata = new RouteResultDto.RouteMetadata("none", false, false, "All providers failed");
+                RouteResultDto.RouteMetadata metadata = new RouteResultDto.RouteMetadata("none", true, false, "All providers failed");
                 return new RouteResultDto(false, metadata, null);
             }
         }

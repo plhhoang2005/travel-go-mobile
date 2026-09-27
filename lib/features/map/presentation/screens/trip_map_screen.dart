@@ -50,7 +50,7 @@ class _TripMapScreenState extends State<TripMapScreen> {
     if (!mounted || !_isMapReady) return;
     try {
       final route = provider.currentRoute;
-      if (route != null && route.points.length >= 2) {
+      if (route != null && route.points.toSet().length >= 2) {
         final bounds = LatLngBounds.fromPoints(route.points);
         _mapController.fitCamera(
           CameraFit.bounds(

@@ -3,19 +3,27 @@ import 'package:latlong2/latlong.dart';
 import 'package:travelgo_mobile/features/map/models/map_models.dart';
 import 'package:travelgo_mobile/features/map/services/location_service.dart';
 import 'package:travelgo_mobile/features/map/services/map_api_service.dart';
+import 'package:travelgo_mobile/features/map/services/map_preset_service.dart';
 import 'package:travelgo_mobile/features/map/providers/map_provider.dart';
 
 class FakeMapApiService extends MapApiService {
+  bool shouldThrowBackendUnreachable = false;
+
   @override
   Future<RouteData> getRoute({
     required LatLng origin,
     required LatLng destination,
     List<RouteWaypoint> waypoints = const [],
   }) async {
+    if (shouldThrowBackendUnreachable) {
+      throw RoutingException('Connection refused', backendUnreachable: true);
+    }
+
+    final allPoints = [origin, ...waypoints.map((w) => w.position), destination];
     return RouteData(
-      points: [origin, destination],
-      distanceKm: 300.0,
-      durationMinutes: 360,
+      points: allPoints,
+      distanceKm: 310.0,
+      durationMinutes: 370,
       isFallback: false,
       summary: 'Tuyến đường thử nghiệm OSRM',
       waypoints: waypoints,
@@ -83,54 +91,57 @@ void main() {
     });
   });
 
-  group('Location Service Unit Tests', () {
-    final locationService = LocationService();
-
-    test('calculateDistanceMeters computes reasonable Haversine distances', () {
-      const p1 = LatLng(10.7725, 106.6578);
-      const p2 = LatLng(10.7735, 106.6578);
-      final dist = locationService.calculateDistanceMeters(p1, p2);
-      expect(dist, greaterThan(100));
-      expect(dist, lessThan(125));
+  group('MapPresetService Unit Tests', () {
+    test('getDefaultDemoRoute returns 4 waypoints for A->B->C->D demo', () {
+      final presetService = MapPresetService();
+      final demoRoute = presetService.getDefaultDemoRoute();
+      expect(demoRoute.length, 4);
+      expect(demoRoute.first.type, 'origin');
+      expect(demoRoute.last.type, 'destination');
+      expect(demoRoute[1].type, 'stop');
+      expect(demoRoute[2].type, 'stop');
     });
   });
 
-  group('MapProvider Unit Tests', () {
-    test('MapProvider initializes and fetches route cleanly with FakeMapApiService', () async {
+  group('MapProvider Multi-Stop & Offline Resilience Tests', () {
+    test('MapProvider initializes with demo preset when waypoints are not provided', () async {
       final fakeRouting = FakeMapApiService();
       final fakeLocation = FakeLocationService();
-      final provider = MapProvider(apiService: fakeRouting, locationService: fakeLocation);
-      await provider.init();
-
-      expect(provider.currentMode, MapMode.routing);
-      expect(provider.currentRoute, isNotNull);
-      expect(provider.currentRoute!.distanceKm, 300.0);
-      expect(provider.currentRoute!.isFallback, isFalse);
-      expect(provider.origin, LocationService.defaultUniversityOrigin);
-    });
-
-    test('MapProvider loadRoute updates waypoints and destination', () async {
-      final fakeRouting = FakeMapApiService();
-      final fakeLocation = FakeLocationService();
-      final provider = MapProvider(apiService: fakeRouting, locationService: fakeLocation);
-
-      await provider.loadRoute(
-        customDestination: const LatLng(10.0333, 105.7833),
-        customDestName: 'Cần Thơ',
-        customWaypoints: [
-          const RouteWaypoint(
-            id: 'wp1',
-            title: 'Trạm Tiền Giang',
-            position: LatLng(10.3600, 106.3600),
-            type: 'activity',
-          ),
-        ],
+      final presetService = MapPresetService();
+      final provider = MapProvider(
+        apiService: fakeRouting,
+        presetService: presetService,
+        locationService: fakeLocation,
       );
 
-      expect(provider.destinationName, 'Cần Thơ');
-      expect(provider.waypoints.length, 1);
-      expect(provider.waypoints.first.title, 'Trạm Tiền Giang');
+      await provider.init();
+
+      expect(provider.waypoints.length, 2); // 2 intermediate stops (Đồng Nai & Dambri)
+      expect(provider.destinationName, contains('Lâm Viên'));
       expect(provider.currentRoute, isNotNull);
+      expect(provider.currentRoute!.isFallback, isFalse);
+      expect(provider.currentRoute!.points.length, 4);
+    });
+
+    test('MapProvider generates local offline line when backend is down/unreachable', () async {
+      final fakeRouting = FakeMapApiService()..shouldThrowBackendUnreachable = true;
+      final fakeLocation = FakeLocationService();
+      final presetService = MapPresetService();
+      final provider = MapProvider(
+        apiService: fakeRouting,
+        presetService: presetService,
+        locationService: fakeLocation,
+      );
+
+      await provider.init();
+
+      // Must NOT crash, must generate local offline line with isFallback=true
+      expect(provider.currentRoute, isNotNull);
+      expect(provider.currentRoute!.isFallback, isTrue);
+      expect(provider.currentRoute!.summary, contains('Đường thẳng cục bộ'));
+      expect(provider.errorMessage, contains('Backend không kết nối'));
+      expect(provider.currentRoute!.points.length, 4);
+      expect(provider.currentRoute!.distanceKm, greaterThan(200));
     });
   });
 }

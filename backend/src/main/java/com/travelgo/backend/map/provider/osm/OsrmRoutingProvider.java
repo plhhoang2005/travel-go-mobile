@@ -42,29 +42,44 @@ public class OsrmRoutingProvider implements RoutingProvider {
         // Spring will automatically throw ResourceAccessException on timeout, HttpClientErrorException on 4xx
         JsonNode response = restTemplate.getForObject(url, JsonNode.class);
 
-        if (response != null && response.has("routes") && response.get("routes").isArray() && response.get("routes").size() > 0) {
+        if (response != null && response.has("code") && "Ok".equalsIgnoreCase(response.get("code").asText())
+                && response.has("routes") && response.get("routes").isArray() && response.get("routes").size() > 0) {
             JsonNode routeNode = response.get("routes").get(0);
-            
+
             double distanceMeters = routeNode.has("distance") ? routeNode.get("distance").asDouble() : 0.0;
             double durationSeconds = routeNode.has("duration") ? routeNode.get("duration").asDouble() : 0.0;
-            
-            List<LatLngDto> points = new ArrayList<>();
+
+            List<LatLngDto> rawPoints = new ArrayList<>();
             if (routeNode.has("geometry") && routeNode.get("geometry").has("coordinates")) {
                 JsonNode coordsNode = routeNode.get("geometry").get("coordinates");
                 for (JsonNode coord : coordsNode) {
                     double lon = coord.get(0).asDouble();
                     double lat = coord.get(1).asDouble();
-                    points.add(new LatLngDto(lat, lon)); // Swap back to LatLng
+                    rawPoints.add(new LatLngDto(lat, lon)); // Swap back to LatLng
                 }
             }
-            
+
+            // Simplify points to max 250 points if too large
+            List<LatLngDto> points = simplifyPoints(rawPoints, 250);
+
             RouteResultDto.RouteMetadata metadata = new RouteResultDto.RouteMetadata(getProviderName(), false, false, "Success");
             RouteResultDto.RouteData data = new RouteResultDto.RouteData(distanceMeters / 1000.0, (int) Math.round(durationSeconds / 60.0), points);
-            
+
             return new RouteResultDto(true, metadata, data);
         }
-        
-        throw new RuntimeException("Empty response from OSRM");
+
+        throw new RuntimeException("Empty or invalid response from OSRM");
+    }
+
+    private List<LatLngDto> simplifyPoints(List<LatLngDto> points, int maxPoints) {
+        if (points.size() <= maxPoints) return points;
+        List<LatLngDto> simplified = new ArrayList<>();
+        double step = (double) (points.size() - 1) / (maxPoints - 1);
+        for (int i = 0; i < maxPoints - 1; i++) {
+            simplified.add(points.get((int) Math.round(i * step)));
+        }
+        simplified.add(points.get(points.size() - 1)); // Always include last point
+        return simplified;
     }
 
     @Override
