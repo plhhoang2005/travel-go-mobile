@@ -61,6 +61,7 @@ class _TripMapScreenState extends State<TripMapScreen> {
   void dispose() {
     _debounceTimer?.cancel();
     _carouselController.dispose();
+    _mapController.dispose();
     super.dispose();
   }
 
