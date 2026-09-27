@@ -7,7 +7,9 @@ import 'package:travelgo_mobile/features/map/presentation/screens/trip_map_scree
 import 'package:travelgo_mobile/features/map/presentation/widgets/diamond_milestone_marker.dart';
 import 'package:travelgo_mobile/features/map/presentation/widgets/floating_view_switch.dart';
 import 'package:travelgo_mobile/features/map/presentation/widgets/journey_carousel_widget.dart';
+import 'package:travelgo_mobile/features/map/presentation/widgets/journey_story_timeline.dart';
 import 'package:travelgo_mobile/features/map/presentation/widgets/journey_trip_card.dart';
+import 'package:travelgo_mobile/features/map/presentation/widgets/location_detail_sheet.dart';
 import 'package:travelgo_mobile/features/map/presentation/widgets/milestone_marker_widget.dart';
 import 'package:travelgo_mobile/features/map/presentation/widgets/route_builder_sheet.dart';
 import 'package:travelgo_mobile/features/map/providers/map_provider.dart';
@@ -550,6 +552,119 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(RouteBuilderSheet), findsOneWidget);
+    });
+
+    testWidgets('N1: STATE A (chưa có route): KHÔNG thấy JourneyTripCard', (tester) async {
+      final fakeRouting = FakeMapApiService();
+      final fakeLocation = FakeLocationService();
+      final provider = MapProvider(
+        apiService: fakeRouting,
+        locationService: fakeLocation,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChangeNotifierProvider<MapProvider>.value(
+            value: provider,
+            child: const TripMapScreen(),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(find.byType(JourneyTripCard), findsNothing);
+      expect(find.byType(FloatingViewSwitch), findsNothing);
+    });
+
+    testWidgets('N2: STATE B: thấy JourneyTripCard + FloatingViewSwitch', (tester) async {
+      final fakeRouting = FakeMapApiService();
+      final fakeLocation = FakeLocationService();
+      final provider = MapProvider(
+        apiService: fakeRouting,
+        locationService: fakeLocation,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChangeNotifierProvider<MapProvider>.value(
+            value: provider,
+            child: const TripMapScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await provider.loadDemoRoute();
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+
+      expect(find.byType(JourneyTripCard), findsOneWidget);
+      expect(find.byType(FloatingViewSwitch), findsOneWidget);
+    });
+
+    testWidgets('N3: Bấm FloatingViewSwitch item "Hành trình" -> JourneyStoryTimeline hiện', (tester) async {
+      final fakeRouting = FakeMapApiService();
+      final fakeLocation = FakeLocationService();
+      final provider = MapProvider(
+        apiService: fakeRouting,
+        locationService: fakeLocation,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChangeNotifierProvider<MapProvider>.value(
+            value: provider,
+            child: const TripMapScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await provider.loadDemoRoute();
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+
+      expect(find.text('Hành trình'), findsOneWidget);
+      await tester.tap(find.text('Hành trình'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(find.byType(JourneyStoryTimeline), findsOneWidget);
+    });
+
+    testWidgets('N4: Bấm marker -> LocationDetailSheet mở với đúng title', (tester) async {
+      final fakeRouting = FakeMapApiService();
+      final fakeLocation = FakeLocationService();
+      final provider = MapProvider(
+        apiService: fakeRouting,
+        locationService: fakeLocation,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChangeNotifierProvider<MapProvider>.value(
+            value: provider,
+            child: const TripMapScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await provider.loadDemoRoute();
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+
+      final diamondFinder = find.byType(DiamondMilestoneMarker);
+      expect(diamondFinder, findsWidgets);
+
+      await tester.tap(diamondFinder.first);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(find.byType(LocationDetailSheet), findsOneWidget);
+      final firstTitle = provider.currentDayStops.first.title;
+      expect(find.text(firstTitle), findsWidgets);
     });
   });
 

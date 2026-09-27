@@ -121,6 +121,79 @@ class _TripMapScreenState extends State<TripMapScreen> {
     });
   }
 
+  void _showMoreOptionsMenu(BuildContext context, MapProvider provider) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => Container(
+        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 36,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFCBD5E1),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            if (provider.hasRoute) ...[
+              ListTile(
+                leading: const Icon(Icons.fit_screen_rounded, color: Color(0xFF086C61)),
+                title: const Text('Toàn cảnh lộ trình', style: TextStyle(fontWeight: FontWeight.w600)),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _fitCameraToBounds(provider);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.edit_outlined, color: Color(0xFF086C61)),
+                title: const Text('Chỉnh sửa lộ trình', style: TextStyle(fontWeight: FontWeight.w600)),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _openRouteBuilderSheet(context);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete_outline_rounded, color: Color(0xFFE11D48)),
+                title: const Text('Xóa lộ trình hiện tại', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFFE11D48))),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: const Text('Đã xóa lộ trình hiện tại'),
+                      action: SnackBarAction(
+                        label: 'HOÀN TÁC',
+                        onPressed: () => provider.loadDemoRoute(),
+                      ),
+                    ),
+                  );
+                  provider.clearRoute();
+                  _mapController.move(provider.origin, 15.0);
+                },
+              ),
+            ] else ...[
+              ListTile(
+                leading: const Icon(Icons.add_location_alt_outlined, color: Color(0xFF086C61)),
+                title: const Text('Tạo lộ trình mới', style: TextStyle(fontWeight: FontWeight.w600)),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _openRouteBuilderSheet(context);
+                },
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<MapProvider>();
@@ -129,42 +202,9 @@ class _TripMapScreenState extends State<TripMapScreen> {
     final hasRoute = provider.hasRoute;
     final allStops = provider.currentDayStops;
     final activeIndex = provider.selectedWaypointIndex;
+    final topPadding = MediaQuery.of(context).padding.top;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Lộ Trình Du Lịch',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
-        ),
-        actions: [
-          if (hasRoute) ...[
-            IconButton(
-              icon: const Icon(Icons.crop_free_rounded),
-              tooltip: 'Căn chỉnh toàn cảnh',
-              onPressed: () => _fitCameraToBounds(provider),
-            ),
-            IconButton(
-              icon: const Icon(Icons.delete_outline_rounded, color: Color(0xFFE11D48)),
-              tooltip: 'Xóa lộ trình',
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: const Text('Xóa lộ trình hiện tại?'),
-                    action: SnackBarAction(
-                      label: 'XÓA',
-                      textColor: const Color(0xFFF43F5E),
-                      onPressed: () {
-                        provider.clearRoute();
-                        _mapController.move(provider.origin, 15.0);
-                      },
-                    ),
-                  ),
-                );
-              },
-            ),
-          ],
-        ],
-      ),
       body: Stack(
         children: [
           // 1. OpenStreetMap Canvas (tile.openstreetmap.de with TravelGO Styling)
@@ -202,11 +242,9 @@ class _TripMapScreenState extends State<TripMapScreen> {
                   polylines: [
                     Polyline(
                       points: provider.currentRoute!.points,
-                      strokeWidth: provider.currentRoute!.isFallback ? 4.0 : 5.5,
-                      borderStrokeWidth: provider.currentRoute!.isFallback ? 1.5 : 2.0,
-                      borderColor: provider.currentRoute!.isFallback
-                          ? const Color(0xFFFFFDF7)
-                          : const Color(0xFFFFFFFF),
+                      strokeWidth: provider.currentRoute!.isFallback ? 4.0 : 5.0,
+                      borderStrokeWidth: 2.0,
+                      borderColor: Colors.white,
                       color: provider.currentRoute!.isFallback
                           ? const Color(0xFFF59E0B) // Amber Sun
                           : const Color(0xFF086C61), // Emerald Teal
@@ -223,10 +261,36 @@ class _TripMapScreenState extends State<TripMapScreen> {
             ],
           ),
 
-          // 2. STATE A: Top Search Bar & Journey Preview Card
-          if (!hasRoute) ...[
+          // 2. Floating Top Bar (Always visible)
+          Positioned(
+            top: topPadding + 8,
+            left: 16,
+            right: 16,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _buildFloatingToolButton(
+                  icon: Icons.chevron_left_rounded,
+                  tooltip: 'Quay lại',
+                  onTap: () {
+                    if (Navigator.of(context).canPop()) {
+                      Navigator.of(context).pop();
+                    }
+                  },
+                ),
+                _buildFloatingToolButton(
+                  icon: Icons.more_horiz_rounded,
+                  tooltip: 'Tùy chọn',
+                  onTap: () => _showMoreOptionsMenu(context, provider),
+                ),
+              ],
+            ),
+          ),
+
+          // 3. STATE A: Top Search Bar & Journey Preview Card
+          if (!hasRoute && !provider.isLoading) ...[
             Positioned(
-              top: 12,
+              top: topPadding + 62,
               left: 16,
               right: 16,
               child: GestureDetector(
@@ -271,19 +335,18 @@ class _TripMapScreenState extends State<TripMapScreen> {
                 ),
               ),
             ),
-            if (!provider.isLoading)
-              Positioned(
-                top: 76,
-                left: 16,
-                right: 16,
-                child: _buildJourneyPreviewCard(context, provider),
-              ),
+            Positioned(
+              top: topPadding + 128,
+              left: 16,
+              right: 16,
+              child: _buildJourneyPreviewCard(context, provider),
+            ),
           ],
 
-          // 3. STATE B: Top Journey Trip Card
-          if (hasRoute)
+          // 4. STATE B: Top Journey Trip Card
+          if (hasRoute && !provider.isLoading)
             Positioned(
-              top: 12,
+              top: topPadding + 62,
               left: 16,
               right: 16,
               child: Column(
@@ -313,25 +376,34 @@ class _TripMapScreenState extends State<TripMapScreen> {
               ),
             ),
 
-          // 4. Floating Tools (Right side)
+          // 5. Floating Controls (Right side: Fit Camera, Zoom In, My Location, Layers)
           Positioned(
             right: 14,
-            top: hasRoute ? 185 : 265,
+            top: topPadding + (hasRoute ? 240 : 190),
             child: Column(
               children: [
-                _buildFloatingToolButton(
-                  icon: Icons.explore_outlined,
-                  tooltip: 'Về điểm xuất phát',
-                  onTap: () => _mapController.move(provider.origin, 15.0),
-                ),
                 if (hasRoute) ...[
-                  const SizedBox(height: 8),
                   _buildFloatingToolButton(
-                    icon: Icons.fit_screen_outlined,
+                    icon: Icons.fit_screen_rounded,
                     tooltip: 'Toàn cảnh hành trình',
                     onTap: () => _fitCameraToBounds(provider),
                   ),
+                  const SizedBox(height: 8),
+                  _buildFloatingToolButton(
+                    icon: Icons.add_rounded,
+                    tooltip: 'Phóng to',
+                    onTap: () {
+                      final cam = _mapController.camera;
+                      _mapController.move(cam.center, (cam.zoom + 1.0).clamp(4.0, 18.0));
+                    },
+                  ),
+                  const SizedBox(height: 8),
                 ],
+                _buildFloatingToolButton(
+                  icon: Icons.my_location_rounded,
+                  tooltip: 'Vị trí của bạn',
+                  onTap: () => _mapController.move(provider.origin, 15.0),
+                ),
                 const SizedBox(height: 8),
                 _buildFloatingToolButton(
                   icon: Icons.layers_outlined,
@@ -346,10 +418,10 @@ class _TripMapScreenState extends State<TripMapScreen> {
             ),
           ),
 
-          // 5. Loading Overlay
+          // 6. Loading Overlay
           if (provider.isLoading)
             Positioned(
-              top: 70,
+              top: topPadding + 70,
               left: 0,
               right: 0,
               child: Center(
@@ -381,10 +453,10 @@ class _TripMapScreenState extends State<TripMapScreen> {
               ),
             ),
 
-          // 6. STATE B: Story Mode Timeline (Over Map Canvas)
+          // 7. STATE B: Story Mode Timeline (Over Map Canvas)
           if (hasRoute && _viewMode == JourneyViewMode.story)
             Positioned(
-              top: 180,
+              top: topPadding + 225,
               left: 16,
               right: 16,
               bottom: 84,
@@ -398,8 +470,8 @@ class _TripMapScreenState extends State<TripMapScreen> {
               ),
             ),
 
-          // 7. STATE B: Bottom Floating View Switch
-          if (hasRoute) ...[
+          // 8. STATE B: Bottom Floating View Switch
+          if (hasRoute && !provider.isLoading) ...[
             Positioned(
               bottom: 24,
               left: 0,
@@ -426,8 +498,8 @@ class _TripMapScreenState extends State<TripMapScreen> {
             ),
           ],
 
-          // 8. STATE A Primary FAB
-          if (!hasRoute)
+          // 9. STATE A Primary FAB
+          if (!hasRoute && !provider.isLoading)
             Positioned(
               bottom: 24,
               right: 16,
