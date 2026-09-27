@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -6,8 +5,11 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../models/map_models.dart';
 import '../../providers/map_provider.dart';
-import '../widgets/milestone_marker_widget.dart';
-import '../widgets/journey_carousel_widget.dart';
+import '../widgets/diamond_milestone_marker.dart';
+import '../widgets/floating_view_switch.dart';
+import '../widgets/journey_story_timeline.dart';
+import '../widgets/journey_trip_card.dart';
+import '../widgets/location_detail_sheet.dart';
 import '../widgets/pulsing_ring_marker.dart';
 import '../widgets/route_builder_sheet.dart';
 
@@ -31,11 +33,10 @@ class TripMapScreen extends StatefulWidget {
 
 class _TripMapScreenState extends State<TripMapScreen> {
   final MapController _mapController = MapController();
-  final PageController _carouselController = PageController(viewportFraction: 0.82);
   bool _isMapReady = false;
 
-  int _lastCameraIndex = -1;
-  Timer? _debounceTimer;
+  // View Mode: Map or Story Timeline
+  JourneyViewMode _viewMode = JourneyViewMode.map;
 
   // Layer toggle: standard OSM vs Topo/Clean
   bool _isAlternateTileLayer = false;
@@ -66,8 +67,6 @@ class _TripMapScreenState extends State<TripMapScreen> {
 
   @override
   void dispose() {
-    _debounceTimer?.cancel();
-    _carouselController.dispose();
     _mapController.dispose();
     super.dispose();
   }
@@ -81,7 +80,7 @@ class _TripMapScreenState extends State<TripMapScreen> {
         _mapController.fitCamera(
           CameraFit.bounds(
             bounds: bounds,
-            padding: const EdgeInsets.fromLTRB(40, 100, 40, 220),
+            padding: const EdgeInsets.fromLTRB(40, 180, 40, 120),
           ),
         );
       }
@@ -90,36 +89,19 @@ class _TripMapScreenState extends State<TripMapScreen> {
     }
   }
 
-  void _onCardChanged(int index, MapProvider provider) {
-    _debounceTimer?.cancel();
-    _debounceTimer = Timer(const Duration(milliseconds: 100), () {
-      if (!mounted || !_isMapReady) return;
-      if (index == _lastCameraIndex) return;
-
-      final allStops = provider.allStops;
-      if (index >= 0 && index < allStops.length) {
-        final wp = allStops[index];
-        _lastCameraIndex = index;
-        provider.selectWaypoint(wp);
-        _mapController.move(wp.position, 13.5);
-      }
-    });
-  }
-
-  void _onMarkerTapped(RouteWaypoint wp, MapProvider provider) {
-    final allStops = provider.allStops;
-    final index = allStops.indexWhere((item) => item.id == wp.id || item.position == wp.position);
-    if (index >= 0) {
-      provider.selectWaypoint(wp);
-      if (_carouselController.hasClients) {
-        _carouselController.animateToPage(
-          index,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      }
-      _mapController.move(wp.position, 13.5);
-    }
+  void _onDiamondMarkerTapped(RouteWaypoint wp, int index, MapProvider provider) {
+    provider.selectWaypoint(wp);
+    _mapController.move(wp.position, 14.0);
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => LocationDetailSheet(
+        waypoint: wp,
+        sequenceNumber: index,
+        provider: provider,
+      ),
+    );
   }
 
   void _openRouteBuilderSheet(BuildContext context) {
@@ -142,7 +124,7 @@ class _TripMapScreenState extends State<TripMapScreen> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final hasRoute = provider.hasRoute;
-    final allStops = provider.allStops;
+    final allStops = provider.currentDayStops;
     final activeIndex = provider.selectedWaypointIndex;
 
     return Scaffold(
@@ -152,17 +134,37 @@ class _TripMapScreenState extends State<TripMapScreen> {
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
         ),
         actions: [
-          if (hasRoute)
+          if (hasRoute) ...[
             IconButton(
               icon: const Icon(Icons.crop_free_rounded),
               tooltip: 'Căn chỉnh toàn cảnh',
               onPressed: () => _fitCameraToBounds(provider),
             ),
+            IconButton(
+              icon: const Icon(Icons.delete_outline_rounded, color: Color(0xFFE11D48)),
+              tooltip: 'Xóa lộ trình',
+              onPressed: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: const Text('Xóa lộ trình hiện tại?'),
+                    action: SnackBarAction(
+                      label: 'XÓA',
+                      textColor: const Color(0xFFF43F5E),
+                      onPressed: () {
+                        provider.clearRoute();
+                        _mapController.move(provider.origin, 15.0);
+                      },
+                    ),
+                  ),
+                );
+              },
+            ),
+          ],
         ],
       ),
       body: Stack(
         children: [
-          // 1. OpenStreetMap Canvas (Free OSM DE with Ribbon Styling)
+          // 1. OpenStreetMap Canvas (tile.openstreetmap.de with TravelGO Styling)
           FlutterMap(
             mapController: _mapController,
             options: MapOptions(
@@ -209,10 +211,10 @@ class _TripMapScreenState extends State<TripMapScreen> {
                   ],
                 ),
 
-              // Markers Layer: 1 marker in STATE A, Milestones in STATE B
+              // Markers Layer: 1 marker in STATE A, Diamond Milestones in STATE B
               MarkerLayer(
                 markers: hasRoute
-                    ? _buildMilestoneMarkers(provider, allStops, activeIndex)
+                    ? _buildDiamondMilestoneMarkers(provider, allStops, activeIndex)
                     : _buildLocateOnlyMarkers(provider),
               ),
             ],
@@ -267,78 +269,43 @@ class _TripMapScreenState extends State<TripMapScreen> {
               ),
             ),
 
-          // 3. STATE B: Law 3 Transparency Banner & Clear Route Button
-          if (hasRoute) ...[
+          // 3. STATE B: Top Journey Trip Card
+          if (hasRoute)
             Positioned(
               top: 12,
               left: 16,
-              right: 70,
+              right: 16,
               child: Column(
                 children: [
+                  JourneyTripCard(provider: provider),
                   if (provider.isMockGps)
-                    _buildNotificationBanner(
-                      icon: Icons.info_outline,
-                      color: const Color(0xFF0284C7),
-                      bgColor: const Color(0xFFF0F9FF),
-                      text: 'Tọa độ mặc định: Cổng ĐH Bách Khoa TP.HCM',
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: _buildNotificationBanner(
+                        icon: Icons.info_outline,
+                        color: const Color(0xFF0284C7),
+                        bgColor: const Color(0xFFF0F9FF),
+                        text: 'Tọa độ mặc định: Cổng ĐH Bách Khoa TP.HCM',
+                      ),
                     ),
                   if (provider.currentRoute?.isFallback == true)
-                    _buildNotificationBanner(
-                      icon: Icons.warning_amber_rounded,
-                      color: const Color(0xFFD97706),
-                      bgColor: const Color(0xFFFFFBEB),
-                      text: 'Dữ liệu lộ trình ngoại tuyến [OSRM Offline]',
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: _buildNotificationBanner(
+                        icon: Icons.warning_amber_rounded,
+                        color: const Color(0xFFD97706),
+                        bgColor: const Color(0xFFFFFBEB),
+                        text: 'Dữ liệu lộ trình ngoại tuyến [OSRM Offline]',
+                      ),
                     ),
                 ],
               ),
             ),
-            Positioned(
-              top: 12,
-              right: 14,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(22),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                  child: Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withAlpha(220),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
-                      boxShadow: const [
-                        BoxShadow(color: Color(0x1A000000), blurRadius: 6, offset: Offset(0, 2)),
-                      ],
-                    ),
-                    child: IconButton(
-                      icon: const Icon(Icons.close_rounded, size: 20, color: Color(0xFFE11D48)),
-                      tooltip: 'Xóa lộ trình',
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: const Text('Xóa lộ trình hiện tại?'),
-                            action: SnackBarAction(
-                              label: 'XÓA',
-                              textColor: const Color(0xFFF43F5E),
-                              onPressed: () {
-                                provider.clearRoute();
-                                _mapController.move(provider.origin, 15.0);
-                              },
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
 
           // 4. Floating Tools (Right side)
           Positioned(
             right: 14,
-            top: hasRoute ? 72 : 80,
+            top: hasRoute ? 185 : 80,
             child: Column(
               children: [
                 _buildFloatingToolButton(
@@ -403,21 +370,52 @@ class _TripMapScreenState extends State<TripMapScreen> {
               ),
             ),
 
-          // 6. STATE B: Journey Carousel
-          if (hasRoute && allStops.isNotEmpty)
+          // 6. STATE B: Story Mode Timeline (Over Map Canvas)
+          if (hasRoute && _viewMode == JourneyViewMode.story)
             Positioned(
-              left: 0,
-              right: 0,
-              bottom: 16,
-              child: JourneyCarouselWidget(
-                waypoints: allStops,
-                activeIndex: activeIndex,
-                pageController: _carouselController,
-                onCardChanged: (idx) => _onCardChanged(idx, provider),
+              top: 180,
+              left: 16,
+              right: 16,
+              bottom: 84,
+              child: JourneyStoryTimeline(
+                provider: provider,
+                onStopSelected: (stop) {
+                  setState(() => _viewMode = JourneyViewMode.map);
+                  final idx = allStops.indexWhere((s) => s.id == stop.id || s.position == stop.position);
+                  _onDiamondMarkerTapped(stop, idx >= 0 ? idx : 0, provider);
+                },
               ),
             ),
 
-          // 7. FABs
+          // 7. STATE B: Bottom Floating View Switch
+          if (hasRoute) ...[
+            Positioned(
+              bottom: 24,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: FloatingViewSwitch(
+                  currentMode: _viewMode,
+                  onModeChanged: (mode) => setState(() => _viewMode = mode),
+                ),
+              ),
+            ),
+            // Edit Route FAB on right
+            Positioned(
+              bottom: 24,
+              right: 16,
+              child: FloatingActionButton.small(
+                heroTag: 'fab_edit_journey',
+                tooltip: 'Chỉnh sửa lộ trình',
+                backgroundColor: const Color(0xFF086C61),
+                foregroundColor: Colors.white,
+                onPressed: () => _openRouteBuilderSheet(context),
+                child: const Icon(Icons.edit_outlined, size: 20),
+              ),
+            ),
+          ],
+
+          // 8. STATE A FABs
           if (!hasRoute) ...[
             // Secondary FAB: Bolt (Demo)
             Positioned(
@@ -446,20 +444,6 @@ class _TripMapScreenState extends State<TripMapScreen> {
                 onPressed: () => _openRouteBuilderSheet(context),
                 icon: const Icon(Icons.add_location_alt_outlined),
                 label: const Text('Tạo Lộ Trình', style: TextStyle(fontWeight: FontWeight.bold)),
-                backgroundColor: const Color(0xFF086C61),
-                foregroundColor: Colors.white,
-              ),
-            ),
-          ] else ...[
-            // STATE B FAB: Chỉnh Sửa
-            Positioned(
-              bottom: 128,
-              right: 16,
-              child: FloatingActionButton.extended(
-                heroTag: 'fab_edit_route',
-                onPressed: () => _openRouteBuilderSheet(context),
-                icon: const Icon(Icons.edit_outlined),
-                label: const Text('Chỉnh Sửa', style: TextStyle(fontWeight: FontWeight.bold)),
                 backgroundColor: const Color(0xFF086C61),
                 foregroundColor: Colors.white,
               ),
@@ -519,7 +503,7 @@ class _TripMapScreenState extends State<TripMapScreen> {
     ];
   }
 
-  List<Marker> _buildMilestoneMarkers(
+  List<Marker> _buildDiamondMilestoneMarkers(
     MapProvider provider,
     List<RouteWaypoint> allStops,
     int activeIndex,
@@ -528,34 +512,36 @@ class _TripMapScreenState extends State<TripMapScreen> {
 
     for (int i = 0; i < allStops.length; i++) {
       final wp = allStops[i];
-      final isActive = i == activeIndex;
+      final isSelected = (provider.selectedWaypoint != null &&
+              (provider.selectedWaypoint!.id == wp.id || provider.selectedWaypoint!.position == wp.position)) ||
+          (provider.selectedWaypoint == null && i == 0);
 
-      // If active, add pulsing ring underneath
-      if (isActive) {
+      // If active/selected, add pulsing ring underneath
+      if (isSelected) {
         markers.add(
           Marker(
             point: wp.position,
-            width: 72,
-            height: 72,
+            width: 76,
+            height: 76,
             child: const PulsingRingMarker(
-              size: 72,
+              size: 76,
               color: Color(0xFF086C61),
             ),
           ),
         );
       }
 
-      // Add Milestone Marker badge
+      // Add Diamond Milestone Marker (-45deg rotated pin)
       markers.add(
         Marker(
           point: wp.position,
-          width: wp.type == 'stop' ? 100 : 50,
-          height: wp.type == 'stop' ? 52 : 50,
-          child: MilestoneMarkerWidget(
+          width: 60,
+          height: 60,
+          child: DiamondMilestoneMarker(
             waypoint: wp,
             sequenceNumber: i,
-            isActive: isActive,
-            onTap: () => _onMarkerTapped(wp, provider),
+            isSelected: isSelected,
+            onTap: () => _onDiamondMarkerTapped(wp, i, provider),
           ),
         ),
       );

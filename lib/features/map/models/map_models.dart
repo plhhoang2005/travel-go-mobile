@@ -8,8 +8,14 @@ class RouteWaypoint {
   final String id;
   final String title;
   final LatLng position;
-  final String type; // 'origin', 'destination', 'activity'
+  final String type; // 'origin', 'destination', 'stop', 'activity'
   final String? time;
+  final int dayNumber;
+  final String? category;
+  final String? imageUrl;
+  final String? openingHours;
+  final double? rating;
+  final bool isCompleted;
 
   const RouteWaypoint({
     required this.id,
@@ -17,7 +23,41 @@ class RouteWaypoint {
     required this.position,
     required this.type,
     this.time,
+    this.dayNumber = 1,
+    this.category,
+    this.imageUrl,
+    this.openingHours,
+    this.rating,
+    this.isCompleted = false,
   });
+
+  RouteWaypoint copyWith({
+    String? id,
+    String? title,
+    LatLng? position,
+    String? type,
+    String? time,
+    int? dayNumber,
+    String? category,
+    String? imageUrl,
+    String? openingHours,
+    double? rating,
+    bool? isCompleted,
+  }) {
+    return RouteWaypoint(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      position: position ?? this.position,
+      type: type ?? this.type,
+      time: time ?? this.time,
+      dayNumber: dayNumber ?? this.dayNumber,
+      category: category ?? this.category,
+      imageUrl: imageUrl ?? this.imageUrl,
+      openingHours: openingHours ?? this.openingHours,
+      rating: rating ?? this.rating,
+      isCompleted: isCompleted ?? this.isCompleted,
+    );
+  }
 }
 
 class RouteData {

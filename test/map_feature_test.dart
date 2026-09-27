@@ -3,7 +3,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import 'package:travelgo_mobile/features/map/models/map_models.dart';
+import 'package:travelgo_mobile/features/map/presentation/widgets/diamond_milestone_marker.dart';
+import 'package:travelgo_mobile/features/map/presentation/widgets/floating_view_switch.dart';
 import 'package:travelgo_mobile/features/map/presentation/widgets/journey_carousel_widget.dart';
+import 'package:travelgo_mobile/features/map/presentation/widgets/journey_trip_card.dart';
 import 'package:travelgo_mobile/features/map/presentation/widgets/milestone_marker_widget.dart';
 import 'package:travelgo_mobile/features/map/presentation/widgets/route_builder_sheet.dart';
 import 'package:travelgo_mobile/features/map/providers/map_provider.dart';
@@ -406,6 +409,124 @@ void main() {
 
       final FilledButton enabledButton = tester.widget(buttonFinder);
       expect(enabledButton.onPressed, isNotNull);
+    });
+
+    testWidgets('DiamondMilestoneMarker renders sequence and responds to tap', (tester) async {
+      bool tapped = false;
+      const wp = RouteWaypoint(
+        id: 'stop_hotel',
+        title: 'Pine Hill Hotel',
+        position: LatLng(11.9, 108.4),
+        type: 'stop',
+        category: 'Khách sạn',
+        isCompleted: true,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: DiamondMilestoneMarker(
+                waypoint: wp,
+                sequenceNumber: 1,
+                isSelected: false,
+                onTap: () => tapped = true,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.byType(DiamondMilestoneMarker), findsOneWidget);
+      expect(find.byIcon(Icons.check_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.hotel_rounded), findsOneWidget);
+
+      await tester.tap(find.byType(DiamondMilestoneMarker));
+      expect(tapped, isTrue);
+    });
+
+    testWidgets('FloatingViewSwitch toggles between map and story mode', (tester) async {
+      JourneyViewMode selectedMode = JourneyViewMode.map;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: StatefulBuilder(
+              builder: (context, setState) {
+                return FloatingViewSwitch(
+                  currentMode: selectedMode,
+                  onModeChanged: (m) => setState(() => selectedMode = m),
+                );
+              },
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Bản đồ'), findsOneWidget);
+      expect(find.text('Hành trình'), findsOneWidget);
+
+      await tester.tap(find.text('Hành trình'));
+      await tester.pumpAndSettle();
+
+      expect(selectedMode, JourneyViewMode.story);
+    });
+
+    testWidgets('JourneyTripCard renders title, day selector, and triggers selectDay', (tester) async {
+      final fakeRouting = FakeMapApiService();
+      final provider = MapProvider(apiService: fakeRouting);
+      await provider.loadDemoRoute();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: JourneyTripCard(provider: provider),
+          ),
+        ),
+      );
+
+      expect(find.text('CHUYẾN ĐI CỦA MINH'), findsOneWidget);
+      expect(find.text('NGÀY 1'), findsOneWidget);
+      expect(find.text('NGÀY 2'), findsOneWidget);
+
+      await tester.tap(find.text('NGÀY 2'));
+      expect(provider.selectedDay, 2);
+    });
+  });
+
+  group('Journey Map Multi-Day & AI Optimizer Tests', () {
+    test('selectDay switches selectedDay and filters currentDayStops correctly', () async {
+      final provider = MapProvider(apiService: FakeMapApiService());
+      await provider.loadDemoRoute();
+
+      expect(provider.selectedDay, 1);
+      provider.selectDay(2);
+      expect(provider.selectedDay, 2);
+    });
+
+    test('toggleStopCompleted flips isCompleted status', () async {
+      final provider = MapProvider(apiService: FakeMapApiService());
+      await provider.loadDemoRoute();
+
+      final firstStop = provider.waypoints.first;
+      final initialStatus = firstStop.isCompleted;
+
+      provider.toggleStopCompleted(firstStop.id);
+      expect(provider.waypoints.first.isCompleted, !initialStatus);
+    });
+
+    test('applyAiReorder updates waypoint order and triggers API route fetch', () async {
+      final fakeRouting = FakeMapApiService();
+      final provider = MapProvider(apiService: fakeRouting);
+      await provider.loadDemoRoute();
+
+      final initialCallCount = fakeRouting.callCount;
+      final reversedWaypoints = provider.waypoints.reversed.toList();
+
+      await provider.applyAiReorder(reversedWaypoints);
+
+      expect(fakeRouting.callCount, initialCallCount + 1);
+      expect(provider.waypoints.first.id, reversedWaypoints.first.id);
     });
   });
 }

@@ -55,6 +55,54 @@ class MapProvider extends ChangeNotifier {
   bool get hasRoute => _currentRoute != null || _waypoints.isNotEmpty;
   List<Destination> get availableDestinations => _catalogService.getAll();
 
+  int _selectedDay = 1;
+  int get selectedDay => _selectedDay;
+
+  int get totalDays {
+    if (_isDemoMode) return 3;
+    if (allStops.isEmpty) return 1;
+    final maxDay = allStops.map((w) => w.dayNumber).fold<int>(1, (prev, elem) => elem > prev ? elem : prev);
+    return maxDay.clamp(1, 7);
+  }
+
+  List<RouteWaypoint> get currentDayStops {
+    final stops = allStops;
+    final dayFiltered = stops.where((w) => w.dayNumber == _selectedDay).toList();
+    return dayFiltered.isNotEmpty ? dayFiltered : stops;
+  }
+
+  void selectDay(int day) {
+    if (_selectedDay != day) {
+      _selectedDay = day;
+      _selectedWaypoint = null;
+      notifyListeners();
+    }
+  }
+
+  void toggleStopCompleted(String id) {
+    _waypoints = _waypoints.map((wp) {
+      if (wp.id == id) {
+        return wp.copyWith(isCompleted: !wp.isCompleted);
+      }
+      return wp;
+    }).toList();
+    notifyListeners();
+  }
+
+  Future<void> applyAiReorder(List<RouteWaypoint> reorderedStops) async {
+    _waypoints = reorderedStops.where((w) => w.type == 'stop').toList();
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _fetchRoute();
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
   List<RouteWaypoint> get allStops {
     final stops = <RouteWaypoint>[
       RouteWaypoint(
@@ -140,6 +188,7 @@ class MapProvider extends ChangeNotifier {
     _currentRoute = null;
     _selectedWaypoint = null;
     _isDemoMode = false;
+    _selectedDay = 1;
     _errorMessage = null;
     notifyListeners();
   }
