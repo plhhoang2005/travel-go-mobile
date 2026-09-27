@@ -63,6 +63,30 @@ class FakeLocationService extends LocationService {
 
 void main() {
   group('Map Models Unit Tests', () {
+    test('GroupMemberLocation copyWith preserves identity and demo disclosure', () {
+      final updatedAt = DateTime.utc(2026, 9, 27, 12);
+      final member = GroupMemberLocation(
+        memberId: 'demo-an',
+        displayName: 'An Nguyễn',
+        avatarInitials: 'AN',
+        position: const LatLng(10.7740, 106.6591),
+        updatedAt: updatedAt,
+        status: GroupMemberStatus.online,
+        isDemo: true,
+      );
+
+      final moved = member.copyWith(
+        position: const LatLng(10.7750, 106.6600),
+        status: GroupMemberStatus.idle,
+      );
+
+      expect(moved.memberId, member.memberId);
+      expect(moved.displayName, member.displayName);
+      expect(moved.position, isNot(member.position));
+      expect(moved.status, GroupMemberStatus.idle);
+      expect(moved.isDemo, isTrue);
+    });
+
     test('RouteData formats duration and distance correctly', () {
       const route1 = RouteData(
         points: [LatLng(10.7725, 106.6578), LatLng(11.9404, 108.4583)],
@@ -154,6 +178,18 @@ void main() {
       expect(demoRoute[1].type, 'stop');
       expect(demoRoute[2].type, 'stop');
     });
+
+    test('getDemoGroupMembers returns deterministic disclosed demo members', () {
+      final presetService = MapPresetService();
+      final referenceTime = DateTime.utc(2026, 9, 27, 12);
+      final members = presetService.getDemoGroupMembers(referenceTime: referenceTime);
+
+      expect(members.length, 4);
+      expect(members.map((member) => member.memberId).toSet().length, members.length);
+      expect(members.every((member) => member.isDemo), isTrue);
+      expect(members.every((member) => !member.updatedAt.isAfter(referenceTime)), isTrue);
+      expect(members.any((member) => member.status == GroupMemberStatus.offline), isTrue);
+    });
   });
 
   group('MapProvider FSM State Machine & Lazy Loading Tests', () {
@@ -186,6 +222,35 @@ void main() {
       await provider.init();
 
       expect(fakeRouting.callCount, 0);
+    });
+
+    test('group radar loads demo members lazily and selects members by id', () {
+      final fakeRouting = FakeMapApiService();
+      final fakeLocation = FakeLocationService();
+      final provider = MapProvider(
+        apiService: fakeRouting,
+        locationService: fakeLocation,
+      );
+
+      expect(provider.isGroupRadarEnabled, isFalse);
+      expect(provider.groupMembers, isEmpty);
+
+      provider.setGroupRadarEnabled(true);
+
+      expect(provider.isGroupRadarEnabled, isTrue);
+      expect(provider.groupMembers.length, 4);
+      expect(provider.isDemoGroupRadar, isTrue);
+      expect(fakeRouting.callCount, 0);
+
+      final firstMember = provider.groupMembers.first;
+      provider.selectGroupMember(firstMember.memberId);
+      expect(provider.selectedGroupMember?.memberId, firstMember.memberId);
+      expect(provider.distanceToGroupMemberMeters(firstMember), greaterThan(0));
+
+      provider.setGroupRadarEnabled(false);
+      expect(provider.isGroupRadarEnabled, isFalse);
+      expect(provider.selectedGroupMember, isNull);
+      expect(provider.groupMembers.length, 4);
     });
 
     test('4: init(targetDestination: X) enters STATE B and calls MapApiService once', () async {
