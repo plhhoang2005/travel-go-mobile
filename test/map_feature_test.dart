@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -15,6 +17,7 @@ import 'package:travelgo_mobile/features/map/presentation/widgets/milestone_mark
 import 'package:travelgo_mobile/features/map/presentation/widgets/route_builder_sheet.dart';
 import 'package:travelgo_mobile/features/map/providers/map_provider.dart';
 import 'package:travelgo_mobile/features/map/services/destination_catalog_service.dart';
+import 'package:travelgo_mobile/features/map/services/group_location_service.dart';
 import 'package:travelgo_mobile/features/map/services/location_service.dart';
 import 'package:travelgo_mobile/features/map/services/map_api_service.dart';
 import 'package:travelgo_mobile/features/map/services/map_preset_service.dart';
@@ -51,6 +54,9 @@ class FakeMapApiService extends MapApiService {
 }
 
 class FakeLocationService extends LocationService {
+  final StreamController<LocationResult> locationController =
+      StreamController<LocationResult>.broadcast();
+
   @override
   Future<LocationResult> getCurrentUserLocation() async {
     return const LocationResult(
@@ -59,6 +65,51 @@ class FakeLocationService extends LocationService {
       locationName: LocationService.defaultOriginName,
     );
   }
+
+  @override
+  Stream<LocationResult> watchUserLocation() => locationController.stream;
+
+  Future<void> close() => locationController.close();
+}
+
+class FakeGroupLocationService implements GroupLocationGateway {
+  final StreamController<List<GroupMemberLocation>> membersController =
+      StreamController<List<GroupMemberLocation>>.broadcast();
+  bool shouldFailJoin = false;
+  int joinCalls = 0;
+  int markOfflineCalls = 0;
+  final List<LatLng> publishedPositions = [];
+
+  @override
+  Future<String> joinGroup({
+    required String roomCode,
+    required String displayName,
+    required String avatarInitials,
+  }) async {
+    joinCalls++;
+    if (shouldFailJoin) throw StateError('network unavailable');
+    return 'group-01';
+  }
+
+  @override
+  Stream<List<GroupMemberLocation>> watchMembers(String groupId) {
+    return membersController.stream;
+  }
+
+  @override
+  Future<void> publishLocation({
+    required String groupId,
+    required LatLng position,
+  }) async {
+    publishedPositions.add(position);
+  }
+
+  @override
+  Future<void> markOffline(String groupId) async {
+    markOfflineCalls++;
+  }
+
+  Future<void> close() => membersController.close();
 }
 
 void main() {
@@ -426,6 +477,105 @@ void main() {
       provider.removeWaypoint(0);
       expect(provider.waypoints.length, 1);
       expect(provider.waypoints.first.id, '2');
+    });
+  });
+
+  group('MapProvider Group Radar Realtime Tests', () {
+    test('connects, deduplicates members, publishes real GPS, and disconnects', () async {
+      final groupService = FakeGroupLocationService();
+      final locationService = FakeLocationService();
+      final provider = MapProvider(
+        groupLocationService: groupService,
+        locationService: locationService,
+      );
+
+      await provider.connectGroupRadar(
+        userId: 'user-01',
+        displayName: 'Hoàng Minh',
+        avatarInitials: 'HM',
+      );
+      expect(provider.groupRadarConnectionState, GroupRadarConnectionState.realtime);
+      expect(groupService.joinCalls, 1);
+
+      final member = GroupMemberLocation(
+        memberId: 'user-02',
+        displayName: 'Lan Trần',
+        avatarInitials: 'LT',
+        position: const LatLng(10.773, 106.658),
+        updatedAt: DateTime(2026, 9, 27),
+        status: GroupMemberStatus.online,
+        isDemo: false,
+      );
+      groupService.membersController.add([member, member]);
+      await pumpEventQueue();
+      expect(provider.groupMembers, hasLength(1));
+      expect(provider.isDemoGroupRadar, isFalse);
+
+      locationService.locationController.add(
+        const LocationResult(
+          position: LatLng(10.774, 106.659),
+          isMock: false,
+          locationName: 'GPS',
+        ),
+      );
+      await pumpEventQueue();
+      expect(groupService.publishedPositions, [const LatLng(10.774, 106.659)]);
+
+      await provider.disconnectGroupRadar();
+      expect(provider.groupRadarConnectionState, GroupRadarConnectionState.idle);
+      expect(provider.isGroupRadarEnabled, isFalse);
+      expect(groupService.markOfflineCalls, 1);
+      await locationService.close();
+      await groupService.close();
+      provider.dispose();
+    });
+
+    test('does not publish mock GPS as realtime data', () async {
+      final groupService = FakeGroupLocationService();
+      final locationService = FakeLocationService();
+      final provider = MapProvider(
+        groupLocationService: groupService,
+        locationService: locationService,
+      );
+      await provider.connectGroupRadar(
+        userId: 'user-01',
+        displayName: 'Hoàng Minh',
+        avatarInitials: 'HM',
+      );
+
+      locationService.locationController.add(
+        const LocationResult(
+          position: LocationService.defaultUniversityOrigin,
+          isMock: true,
+          locationName: LocationService.defaultOriginName,
+        ),
+      );
+      await pumpEventQueue();
+      expect(groupService.publishedPositions, isEmpty);
+      expect(provider.groupRadarMessage, contains('vị trí giả'));
+
+      await provider.disconnectGroupRadar();
+      await locationService.close();
+      await groupService.close();
+      provider.dispose();
+    });
+
+    test('Supabase failure activates explicitly disclosed demo fallback', () async {
+      final groupService = FakeGroupLocationService()..shouldFailJoin = true;
+      final provider = MapProvider(groupLocationService: groupService);
+
+      await provider.connectGroupRadar(
+        userId: 'user-01',
+        displayName: 'Hoàng Minh',
+        avatarInitials: 'HM',
+      );
+
+      expect(provider.groupRadarConnectionState, GroupRadarConnectionState.demoFallback);
+      expect(provider.groupRadarMessage, contains('dữ liệu demo'));
+      expect(provider.groupMembers, isNotEmpty);
+      expect(provider.groupMembers.every((member) => member.isDemo), isTrue);
+      await groupService.close();
+      provider.dispose();
     });
   });
 
