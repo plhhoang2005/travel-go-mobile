@@ -22,6 +22,8 @@ import 'package:travelgo_mobile/features/map/services/map_preset_service.dart';
 class FakeMapApiService extends MapApiService {
   bool shouldThrowBackendUnreachable = false;
   int callCount = 0;
+  LatLng? lastOrigin;
+  LatLng? lastDestination;
 
   @override
   Future<RouteData> getRoute({
@@ -30,6 +32,8 @@ class FakeMapApiService extends MapApiService {
     List<RouteWaypoint> waypoints = const [],
   }) async {
     callCount++;
+    lastOrigin = origin;
+    lastDestination = destination;
     if (shouldThrowBackendUnreachable) {
       throw RoutingException('Connection refused', backendUnreachable: true);
     }
@@ -244,6 +248,36 @@ void main() {
       expect(fakeRouting.callCount, 0);
     });
 
+    test('changing origin is lazy and buildRoute sends selected A and B to API', () async {
+      final fakeRouting = FakeMapApiService();
+      final fakeLocation = FakeLocationService();
+      final provider = MapProvider(
+        apiService: fakeRouting,
+        locationService: fakeLocation,
+      );
+      await provider.init();
+
+      const customOrigin = LatLng(10.0452, 105.7469);
+      const destination = LatLng(11.9404, 108.4583);
+      provider.setOrigin(customOrigin, 'Cần Thơ');
+      provider.setDestination(destination, 'Đà Lạt');
+
+      expect(provider.isUsingCurrentLocation, isFalse);
+      expect(fakeRouting.callCount, 0);
+
+      await provider.buildRoute();
+
+      expect(fakeRouting.callCount, 1);
+      expect(fakeRouting.lastOrigin, customOrigin);
+      expect(fakeRouting.lastDestination, destination);
+
+      provider.useCurrentLocationAsOrigin();
+      expect(provider.isUsingCurrentLocation, isTrue);
+      expect(provider.origin, LocationService.defaultUniversityOrigin);
+      expect(provider.isMockGps, isTrue);
+      expect(provider.currentRoute, isNull);
+    });
+
     test('8: buildRoute() after setDestination() calls API once', () async {
       final fakeRouting = FakeMapApiService();
       final provider = MapProvider(apiService: fakeRouting);
@@ -413,6 +447,18 @@ void main() {
 
       final FilledButton enabledButton = tester.widget(buttonFinder);
       expect(enabledButton.onPressed, isNotNull);
+
+      await tester.tap(find.byTooltip('Đổi điểm xuất phát'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Chọn Điểm Xuất Phát'), findsOneWidget);
+      expect(find.text('Dùng vị trí hiện tại'), findsOneWidget);
+      await tester.tap(find.text('TP. Hồ Chí Minh').last);
+      await tester.pumpAndSettle();
+
+      expect(provider.originName, 'TP. Hồ Chí Minh');
+      expect(provider.isUsingCurrentLocation, isFalse);
+      expect(fakeRouting.callCount, 0);
     });
 
     testWidgets('DiamondMilestoneMarker renders sequence and responds to tap', (tester) async {
@@ -490,11 +536,31 @@ void main() {
       );
 
       expect(find.text('CHUYẾN ĐI CỦA MINH'), findsOneWidget);
+      expect(find.text('OSRM'), findsOneWidget);
+      expect(find.textContaining('→'), findsOneWidget);
       expect(find.text('NGÀY 1'), findsOneWidget);
       expect(find.text('NGÀY 2'), findsOneWidget);
 
       await tester.tap(find.text('NGÀY 2'));
       expect(provider.selectedDay, 2);
+    });
+
+    testWidgets('JourneyTripCard labels offline route as FALLBACK', (tester) async {
+      final fakeRouting = FakeMapApiService()..shouldThrowBackendUnreachable = true;
+      final provider = MapProvider(apiService: fakeRouting);
+      provider.setDestination(const LatLng(11.9404, 108.4583), 'Đà Lạt');
+      await provider.buildRoute();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: JourneyTripCard(provider: provider),
+          ),
+        ),
+      );
+
+      expect(find.text('FALLBACK'), findsOneWidget);
+      expect(find.textContaining('→'), findsOneWidget);
     });
 
     testWidgets('16-18: STATE A renders Journey Preview Card and tap explores demo route', (tester) async {

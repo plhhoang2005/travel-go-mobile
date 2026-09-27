@@ -30,6 +30,10 @@ class MapProvider extends ChangeNotifier {
 
   LatLng _origin = LocationService.defaultUniversityOrigin;
   String _originName = LocationService.defaultOriginName;
+  LatLng _currentLocationOrigin = LocationService.defaultUniversityOrigin;
+  String _currentLocationName = LocationService.defaultOriginName;
+  bool _currentLocationIsMock = true;
+  bool _isUsingCurrentLocation = true;
 
   LatLng? _destination;
   String? _destinationName;
@@ -46,6 +50,7 @@ class MapProvider extends ChangeNotifier {
   bool get isDemoMode => _isDemoMode;
   LatLng get origin => _origin;
   String get originName => _originName;
+  bool get isUsingCurrentLocation => _isUsingCurrentLocation;
   LatLng? get destination => _destination;
   String? get destinationName => _destinationName;
   List<RouteWaypoint> get waypoints => _waypoints;
@@ -53,6 +58,7 @@ class MapProvider extends ChangeNotifier {
   RouteWaypoint? get selectedWaypoint => _selectedWaypoint;
 
   bool get hasRoute => _currentRoute != null || _waypoints.isNotEmpty;
+  bool get canBuildRoute => _destination != null && _destination != _origin;
   List<Destination> get availableDestinations => _catalogService.getAll();
 
   int _selectedDay = 1;
@@ -155,6 +161,10 @@ class MapProvider extends ChangeNotifier {
       _origin = locationResult.position;
       _originName = locationResult.locationName;
       _isMockGps = locationResult.isMock;
+      _currentLocationOrigin = locationResult.position;
+      _currentLocationName = locationResult.locationName;
+      _currentLocationIsMock = locationResult.isMock;
+      _isUsingCurrentLocation = true;
 
       // 2. Set waypoints if passed explicitly
       if (waypoints != null && waypoints.isNotEmpty) {
@@ -195,10 +205,36 @@ class MapProvider extends ChangeNotifier {
 
   void clearRoute() => enterLocateOnlyMode();
 
+  void setOrigin(LatLng position, String name) {
+    _origin = position;
+    _originName = name;
+    _isUsingCurrentLocation = false;
+    _isMockGps = false;
+    _invalidateCurrentRoute();
+    notifyListeners();
+  }
+
+  void useCurrentLocationAsOrigin() {
+    _origin = _currentLocationOrigin;
+    _originName = _currentLocationName;
+    _isUsingCurrentLocation = true;
+    _isMockGps = _currentLocationIsMock;
+    _invalidateCurrentRoute();
+    notifyListeners();
+  }
+
   void setDestination(LatLng position, String name) {
     _destination = position;
     _destinationName = name;
+    _invalidateCurrentRoute();
     notifyListeners();
+  }
+
+  void _invalidateCurrentRoute() {
+    _currentRoute = null;
+    _selectedWaypoint = null;
+    _isDemoMode = false;
+    _errorMessage = null;
   }
 
   void addWaypoint(RouteWaypoint wp) {
@@ -218,6 +254,8 @@ class MapProvider extends ChangeNotifier {
     if (demoRoute.isNotEmpty) {
       _origin = demoRoute.first.position;
       _originName = demoRoute.first.title;
+      _isUsingCurrentLocation = false;
+      _isMockGps = false;
       _destination = demoRoute.last.position;
       _destinationName = demoRoute.last.title;
       if (demoRoute.length > 2) {
@@ -240,7 +278,7 @@ class MapProvider extends ChangeNotifier {
   }
 
   Future<void> buildRoute() async {
-    if (_destination == null) return;
+    if (!canBuildRoute) return;
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
