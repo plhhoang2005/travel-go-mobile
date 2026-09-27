@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import 'package:travelgo_mobile/features/map/models/map_models.dart';
+import 'package:travelgo_mobile/features/map/presentation/screens/trip_map_screen.dart';
 import 'package:travelgo_mobile/features/map/presentation/widgets/diamond_milestone_marker.dart';
 import 'package:travelgo_mobile/features/map/presentation/widgets/floating_view_switch.dart';
 import 'package:travelgo_mobile/features/map/presentation/widgets/journey_carousel_widget.dart';
@@ -491,6 +492,64 @@ void main() {
 
       await tester.tap(find.text('NGÀY 2'));
       expect(provider.selectedDay, 2);
+    });
+
+    testWidgets('16-18: STATE A renders Journey Preview Card and tap explores demo route', (tester) async {
+      final fakeRouting = FakeMapApiService();
+      final fakeLocation = FakeLocationService();
+      final provider = MapProvider(
+        apiService: fakeRouting,
+        locationService: fakeLocation,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChangeNotifierProvider<MapProvider>.value(
+            value: provider,
+            child: const TripMapScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // In STATE A:
+      expect(find.text('CHUYẾN ĐI CỦA MINH'), findsOneWidget);
+      expect(find.text('Đà Lạt · 3 ngày 2 đêm'), findsOneWidget);
+      expect(find.text('Khám phá hành trình Đà Lạt'), findsOneWidget);
+
+      // Tap 'Khám phá hành trình Đà Lạt' -> triggers loadDemoRoute -> enters STATE B
+      await tester.tap(find.text('Khám phá hành trình Đà Lạt'));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+
+      expect(provider.hasRoute, isTrue);
+      // In STATE B: Journey Preview Card disappears
+      expect(find.text('Khám phá hành trình Đà Lạt'), findsNothing);
+    });
+
+    testWidgets('19: Tap "hoặc tự tạo lộ trình mới ↓" opens RouteBuilderSheet', (tester) async {
+      final fakeRouting = FakeMapApiService();
+      final fakeLocation = FakeLocationService();
+      final provider = MapProvider(
+        apiService: fakeRouting,
+        locationService: fakeLocation,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChangeNotifierProvider<MapProvider>.value(
+            value: provider,
+            child: const TripMapScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('hoặc tự tạo lộ trình mới ↓'), findsOneWidget);
+      await tester.tap(find.text('hoặc tự tạo lộ trình mới ↓'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(RouteBuilderSheet), findsOneWidget);
     });
   });
 
