@@ -543,6 +543,205 @@ values
   ('tphcm', 'TP. Hồ Chí Minh', 'Nam', 'Đô thị năng động nhất Việt Nam, trung tâm thương mại và dịch vụ', 'https://images.unsplash.com/photo-1583417319070-4a69db38a482?w=800', 31.0)
 on conflict (id) do nothing;
 
+-- ==============================================================================
+-- 16. MAP GROUP RADAR (Foreground-only realtime location sharing)
+-- ==============================================================================
+create table if not exists public.map_groups (
+  id uuid default gen_random_uuid() primary key,
+  join_code text unique not null,
+  owner_id uuid references auth.users on delete cascade not null,
+  created_at timestamptz default timezone('utc'::text, now()) not null
+);
+
+create table if not exists public.map_group_members (
+  group_id uuid references public.map_groups(id) on delete cascade not null,
+  user_id uuid references auth.users on delete cascade not null,
+  display_name text not null,
+  avatar_initials text not null,
+  joined_at timestamptz default timezone('utc'::text, now()) not null,
+  primary key (group_id, user_id)
+);
+
+create table if not exists public.map_member_locations (
+  group_id uuid not null,
+  user_id uuid not null,
+  display_name text not null,
+  avatar_initials text not null,
+  latitude double precision not null check (latitude between -90 and 90),
+  longitude double precision not null check (longitude between -180 and 180),
+  status text not null default 'online' check (status in ('online', 'idle', 'offline')),
+  is_demo boolean not null default false,
+  updated_at timestamptz default timezone('utc'::text, now()) not null,
+  primary key (group_id, user_id),
+  foreign key (group_id, user_id)
+    references public.map_group_members(group_id, user_id) on delete cascade
+);
+
+alter table public.map_groups enable row level security;
+alter table public.map_group_members enable row level security;
+alter table public.map_member_locations enable row level security;
+
+create or replace function public.is_map_group_member(p_group_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.map_group_members
+    where group_id = p_group_id and user_id = auth.uid()
+  );
+$$;
+
+create policy "Members view joined map groups"
+  on public.map_groups for select using (public.is_map_group_member(id));
+
+create policy "Members view peers in joined map groups"
+  on public.map_group_members for select using (public.is_map_group_member(group_id));
+
+create policy "Members view locations in joined map groups"
+  on public.map_member_locations for select using (public.is_map_group_member(group_id));
+
+create or replace function public.join_map_group(
+  p_join_code text,
+  p_display_name text,
+  p_avatar_initials text
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  current_user_id uuid := auth.uid();
+  target_group_id uuid;
+  normalized_code text := upper(trim(p_join_code));
+begin
+  if current_user_id is null then
+    raise exception 'Authentication required';
+  end if;
+  if normalized_code = '' then
+    raise exception 'Join code is required';
+  end if;
+
+  insert into public.map_groups (join_code, owner_id)
+  values (normalized_code, current_user_id)
+  on conflict (join_code) do nothing;
+
+  select id into target_group_id
+  from public.map_groups
+  where join_code = normalized_code;
+
+  insert into public.map_group_members (
+    group_id,
+    user_id,
+    display_name,
+    avatar_initials
+  ) values (
+    target_group_id,
+    current_user_id,
+    trim(p_display_name),
+    upper(left(trim(p_avatar_initials), 2))
+  )
+  on conflict (group_id, user_id) do update set
+    display_name = excluded.display_name,
+    avatar_initials = excluded.avatar_initials;
+
+  return target_group_id;
+end;
+$$;
+
+create or replace function public.publish_map_location(
+  p_group_id uuid,
+  p_latitude double precision,
+  p_longitude double precision
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  current_user_id uuid := auth.uid();
+  member_record public.map_group_members%rowtype;
+begin
+  if current_user_id is null then
+    raise exception 'Authentication required';
+  end if;
+
+  select * into member_record
+  from public.map_group_members
+  where group_id = p_group_id and user_id = current_user_id;
+
+  if not found then
+    raise exception 'Map group membership required';
+  end if;
+
+  insert into public.map_member_locations (
+    group_id,
+    user_id,
+    display_name,
+    avatar_initials,
+    latitude,
+    longitude,
+    status,
+    is_demo,
+    updated_at
+  ) values (
+    p_group_id,
+    current_user_id,
+    member_record.display_name,
+    member_record.avatar_initials,
+    p_latitude,
+    p_longitude,
+    'online',
+    false,
+    timezone('utc'::text, now())
+  )
+  on conflict (group_id, user_id) do update set
+    display_name = excluded.display_name,
+    avatar_initials = excluded.avatar_initials,
+    latitude = excluded.latitude,
+    longitude = excluded.longitude,
+    status = 'online',
+    is_demo = false,
+    updated_at = timezone('utc'::text, now());
+end;
+$$;
+
+create or replace function public.mark_map_location_offline(p_group_id uuid)
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  update public.map_member_locations
+  set status = 'offline', updated_at = timezone('utc'::text, now())
+  where group_id = p_group_id and user_id = auth.uid();
+$$;
+
+revoke all on function public.join_map_group(text, text, text) from public, anon;
+revoke all on function public.publish_map_location(uuid, double precision, double precision) from public, anon;
+revoke all on function public.mark_map_location_offline(uuid) from public, anon;
+revoke all on function public.is_map_group_member(uuid) from public, anon;
+grant execute on function public.join_map_group(text, text, text) to authenticated;
+grant execute on function public.publish_map_location(uuid, double precision, double precision) to authenticated;
+grant execute on function public.mark_map_location_offline(uuid) to authenticated;
+grant execute on function public.is_map_group_member(uuid) to authenticated;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'map_member_locations'
+  ) then
+    alter publication supabase_realtime add table public.map_member_locations;
+  end if;
+end $$;
+
 -- Core Services
 insert into public.services (id, destination_id, service_type, title, description, location, base_price, rating, review_count, cancellation_policy, is_featured, images, amenities)
 values
