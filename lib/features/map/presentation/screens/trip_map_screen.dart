@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -6,9 +5,6 @@ import 'package:latlong2/latlong.dart';
 import '../../models/map_models.dart';
 import '../../providers/map_provider.dart';
 import '../widgets/diamond_milestone_marker.dart';
-import '../widgets/floating_view_switch.dart';
-import '../widgets/journey_story_timeline.dart';
-import '../widgets/journey_trip_card.dart';
 import '../widgets/location_detail_sheet.dart';
 import '../widgets/pulsing_ring_marker.dart';
 import '../widgets/route_builder_sheet.dart';
@@ -31,19 +27,22 @@ class TripMapScreen extends StatefulWidget {
   State<TripMapScreen> createState() => _TripMapScreenState();
 }
 
-class _TripMapScreenState extends State<TripMapScreen> {
+class _TripMapScreenState extends State<TripMapScreen> with SingleTickerProviderStateMixin {
   final MapController _mapController = MapController();
   bool _isMapReady = false;
+  bool _is3DMode = false;
+  int _currentTileStyle = 0; // 0: CartoDB Voyager (Natural Illustrated), 1: OSM HOT
 
-  // View Mode: Map or Story Timeline
-  JourneyViewMode _viewMode = JourneyViewMode.map;
-
-  // Layer toggle: standard OSM vs Topo/Clean
-  bool _isAlternateTileLayer = false;
+  // Animation for journey arrow moving along route
+  late AnimationController _animController;
 
   @override
   void initState() {
     super.initState();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 4),
+    )..repeat();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provider = context.read<MapProvider>();
@@ -67,6 +66,7 @@ class _TripMapScreenState extends State<TripMapScreen> {
 
   @override
   void dispose() {
+    _animController.dispose();
     _mapController.dispose();
     super.dispose();
   }
@@ -80,12 +80,12 @@ class _TripMapScreenState extends State<TripMapScreen> {
         _mapController.fitCamera(
           CameraFit.bounds(
             bounds: bounds,
-            padding: const EdgeInsets.fromLTRB(40, 180, 40, 120),
+            padding: const EdgeInsets.fromLTRB(40, 180, 40, 140),
           ),
         );
       }
     } catch (_) {
-      // MapController might not be attached to viewport yet
+      // Safe fallback
     }
   }
 
@@ -121,534 +121,437 @@ class _TripMapScreenState extends State<TripMapScreen> {
     });
   }
 
-  void _showMoreOptionsMenu(BuildContext context, MapProvider provider) {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (_) => Container(
-        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 36,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                color: const Color(0xFFCBD5E1),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            if (provider.hasRoute) ...[
-              ListTile(
-                leading: const Icon(Icons.fit_screen_rounded, color: Color(0xFF086C61)),
-                title: const Text('Toàn cảnh lộ trình', style: TextStyle(fontWeight: FontWeight.w600)),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  _fitCameraToBounds(provider);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.edit_outlined, color: Color(0xFF086C61)),
-                title: const Text('Chỉnh sửa lộ trình', style: TextStyle(fontWeight: FontWeight.w600)),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  _openRouteBuilderSheet(context);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.delete_outline_rounded, color: Color(0xFFE11D48)),
-                title: const Text('Xóa lộ trình hiện tại', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFFE11D48))),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: const Text('Đã xóa lộ trình hiện tại'),
-                      action: SnackBarAction(
-                        label: 'HOÀN TÁC',
-                        onPressed: () => provider.loadDemoRoute(),
-                      ),
-                    ),
-                  );
-                  provider.clearRoute();
-                  _mapController.move(provider.origin, 15.0);
-                },
-              ),
-            ] else ...[
-              ListTile(
-                leading: const Icon(Icons.add_location_alt_outlined, color: Color(0xFF086C61)),
-                title: const Text('Tạo lộ trình mới', style: TextStyle(fontWeight: FontWeight.w600)),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  _openRouteBuilderSheet(context);
-                },
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
+  LatLng? _getAnimatedRoutePoint(List<LatLng> points, double progress) {
+    if (points.length < 2) return null;
+    final totalSegs = points.length - 1;
+    final targetIndex = (progress * totalSegs).floor().clamp(0, totalSegs - 1);
+    final segProgress = (progress * totalSegs) - targetIndex;
+
+    final p1 = points[targetIndex];
+    final p2 = points[targetIndex + 1];
+
+    final lat = p1.latitude + (p2.latitude - p1.latitude) * segProgress;
+    final lng = p1.longitude + (p2.longitude - p1.longitude) * segProgress;
+    return LatLng(lat, lng);
   }
 
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<MapProvider>();
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
     final hasRoute = provider.hasRoute;
     final allStops = provider.currentDayStops;
     final activeIndex = provider.selectedWaypointIndex;
     final topPadding = MediaQuery.of(context).padding.top;
 
+    // Natural Illustrated Map Tile Basemaps (CartoDB Voyager & OSM HOT)
+    final tileUrls = [
+      'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+      'https://a.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',
+    ];
+
     return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
       body: Stack(
         children: [
-          // 1. OpenStreetMap Canvas (tile.openstreetmap.de with TravelGO Styling)
-          FlutterMap(
-            mapController: _mapController,
-            options: MapOptions(
-              initialCenter: provider.origin,
-              initialZoom: hasRoute ? 13.0 : 15.0,
-              minZoom: 4.0,
-              maxZoom: 18.0,
-              onMapReady: () {
-                _isMapReady = true;
-                final p = context.read<MapProvider>();
-                if (!p.isLoading) {
-                  if (p.hasRoute) {
-                    _fitCameraToBounds(p);
-                  } else {
-                    _mapController.move(p.origin, 15.0);
-                  }
-                }
-              },
-            ),
-            children: [
-              TileLayer(
-                urlTemplate: _isAlternateTileLayer
-                    ? 'https://tile.openstreetmap.de/{z}/{x}/{y}.png'
-                    : 'https://tile.openstreetmap.de/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.travelgo.travelgo_mobile',
-                tileProvider: NetworkTileProvider(),
-              ),
-
-              // Ribbon Polyline Layer (Only in STATE B)
-              if (hasRoute && provider.currentRoute != null)
-                PolylineLayer(
-                  polylines: [
-                    Polyline(
-                      points: provider.currentRoute!.points,
-                      strokeWidth: provider.currentRoute!.isFallback ? 4.0 : 5.0,
-                      borderStrokeWidth: 2.0,
-                      borderColor: Colors.white,
-                      color: provider.currentRoute!.isFallback
-                          ? const Color(0xFFF59E0B) // Amber Sun
-                          : const Color(0xFF086C61), // Emerald Teal
-                    ),
-                  ],
-                ),
-
-              // Markers Layer: 1 marker in STATE A, Diamond Milestones in STATE B
-              MarkerLayer(
-                markers: hasRoute
-                    ? _buildDiamondMilestoneMarkers(provider, allStops, activeIndex)
-                    : _buildLocateOnlyMarkers(provider),
-              ),
-            ],
-          ),
-
-          // 2. Floating Top Bar (Always visible)
-          Positioned(
-            top: topPadding + 8,
-            left: 16,
-            right: 16,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _buildFloatingToolButton(
-                  icon: Icons.chevron_left_rounded,
-                  tooltip: 'Quay lại',
-                  onTap: () {
-                    if (Navigator.of(context).canPop()) {
-                      Navigator.of(context).pop();
+          // 1. NATURAL COLORFUL ILLUSTRATED MAP CANVAS (No heavy blue color filter)
+          Positioned.fill(
+            child: FlutterMap(
+              mapController: _mapController,
+              options: MapOptions(
+                initialCenter: provider.origin,
+                initialZoom: hasRoute ? 13.5 : 15.0,
+                minZoom: 4.0,
+                maxZoom: 18.0,
+                onMapReady: () {
+                  _isMapReady = true;
+                  final p = context.read<MapProvider>();
+                  if (!p.isLoading) {
+                    if (p.hasRoute) {
+                      _fitCameraToBounds(p);
+                    } else {
+                      _mapController.move(p.origin, 15.0);
                     }
-                  },
+                  }
+                },
+              ),
+              children: [
+                // Clean Natural Vector Map Tile Layer
+                TileLayer(
+                  urlTemplate: tileUrls[_currentTileStyle],
+                  userAgentPackageName: 'com.travelgo.travelgo_mobile',
+                  tileProvider: NetworkTileProvider(),
                 ),
-                _buildFloatingToolButton(
-                  icon: Icons.more_horiz_rounded,
-                  tooltip: 'Tùy chọn',
-                  onTap: () => _showMoreOptionsMenu(context, provider),
+
+                // 2. CLEAR BLUE ROUTE POLYLINE (#2196F3) WITH WHITE BORDER HIGHLIGHT
+                if (hasRoute && provider.currentRoute != null) ...[
+                  PolylineLayer(
+                    polylines: [
+                      // White Outer Border Line for Crisp Contrast
+                      Polyline(
+                        points: provider.currentRoute!.points,
+                        strokeWidth: 10.0,
+                        color: Colors.white.withValues(alpha: 0.9),
+                        strokeCap: StrokeCap.round,
+                        strokeJoin: StrokeJoin.round,
+                      ),
+                      // Main Vibrant Blue Travel Route Line (Strongest Blue on Map)
+                      Polyline(
+                        points: provider.currentRoute!.points,
+                        strokeWidth: 6.0,
+                        color: const Color(0xFF2196F3),
+                        strokeCap: StrokeCap.round,
+                        strokeJoin: StrokeJoin.round,
+                      ),
+                    ],
+                  ),
+
+                  // Animated Journey Marker along Route
+                  AnimatedBuilder(
+                    animation: _animController,
+                    builder: (context, _) {
+                      final pos = _getAnimatedRoutePoint(
+                        provider.currentRoute!.points,
+                        _animController.value,
+                      );
+                      if (pos == null) return const SizedBox.shrink();
+
+                      return MarkerLayer(
+                        markers: [
+                          Marker(
+                            point: pos,
+                            width: 26,
+                            height: 26,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF2196F3),
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white, width: 2),
+                                boxShadow: const [
+                                  BoxShadow(
+                                    color: Color(0x29000000),
+                                    blurRadius: 4,
+                                    offset: Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: const Center(
+                                child: Icon(
+                                  Icons.navigation_rounded,
+                                  size: 13,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ],
+
+                // 3. CUSTOM DIVERSE ILLUSTRATED MARKERS (Diverse Natural Colors)
+                MarkerLayer(
+                  markers: _buildNaturalIllustratedMarkers(provider, allStops, activeIndex),
                 ),
               ],
             ),
           ),
 
-          // 3. STATE A: Top Search Bar & Journey Preview Card
-          if (!hasRoute && !provider.isLoading) ...[
-            Positioned(
-              top: topPadding + 62,
-              left: 16,
-              right: 16,
-              child: GestureDetector(
-                onTap: () => _openRouteBuilderSheet(context),
+          // 4. FLOATING SEARCH BAR (Clean White with Slate Gray Text & Blue Search Icon)
+          Positioned(
+            top: topPadding + 12,
+            left: 16,
+            right: 16,
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 440),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  height: 52,
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(26),
+                    border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
                     boxShadow: const [
                       BoxShadow(
-                        color: Color(0x1A000000),
-                        blurRadius: 10,
-                        offset: Offset(0, 3),
+                        color: Color(0x12000000),
+                        blurRadius: 12,
+                        offset: Offset(0, 4),
                       ),
                     ],
                   ),
-                  child: Row(
+                  child: Material(
+                    color: Colors.transparent,
+                    borderRadius: BorderRadius.circular(26),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(26),
+                      onTap: () => _openRouteBuilderSheet(context),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        child: Row(
+                          children: [
+                            // Neutral Avatar Circle
+                            Container(
+                              width: 34,
+                              height: 34,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFFF1F5F9),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Center(
+                                child: Icon(Icons.explore_outlined, color: Color(0xFF475569), size: 18),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+
+                            // Search Label Text (Dark Slate Gray)
+                            Expanded(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    provider.destinationName ?? 'Khám phá điểm đến...',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: provider.hasRoute ? FontWeight.bold : FontWeight.w500,
+                                      color: const Color(0xFF1E293B),
+                                    ),
+                                  ),
+                                  if (provider.hasRoute)
+                                    Text(
+                                      '${allStops.length} điểm dừng · ${provider.currentRoute?.formattedDistance ?? ''}',
+                                      style: const TextStyle(fontSize: 11, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
+                                    ),
+                                ],
+                              ),
+                            ),
+
+                            // Primary Blue Search Action Icon
+                            Container(
+                              width: 34,
+                              height: 34,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFF2196F3),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.search_rounded, color: Colors.white, size: 18),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          // 5. UNIFIED FLOATING MAP CONTROLS (Clean White Segment Control)
+          Positioned(
+            right: 16,
+            top: topPadding + 78,
+            child: Container(
+              width: 44,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x12000000),
+                    blurRadius: 10,
+                    offset: Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // 3D Toggle
+                  IconButton(
+                    icon: Text(
+                      '3D',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: _is3DMode ? const Color(0xFF2196F3) : const Color(0xFF64748B),
+                      ),
+                    ),
+                    tooltip: 'Chế độ 3D',
+                    onPressed: () {
+                      setState(() => _is3DMode = !_is3DMode);
+                    },
+                  ),
+                  const Divider(height: 1, indent: 6, endIndent: 6, color: Color(0xFFE2E8F0)),
+
+                  // My Location GPS (Teal/Blue)
+                  IconButton(
+                    icon: const Icon(Icons.my_location_rounded, size: 18, color: Color(0xFF0284C7)),
+                    tooltip: 'Vị trí của tôi',
+                    onPressed: () {
+                      _mapController.move(provider.origin, 16.0);
+                    },
+                  ),
+                  const Divider(height: 1, indent: 6, endIndent: 6, color: Color(0xFFE2E8F0)),
+
+                  // Layer Style Toggle
+                  IconButton(
+                    icon: const Icon(Icons.layers_outlined, size: 18, color: Color(0xFF64748B)),
+                    tooltip: 'Đổi bản đồ',
+                    onPressed: () {
+                      setState(() {
+                        _currentTileStyle = (_currentTileStyle + 1) % tileUrls.length;
+                      });
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // 6. ROUTE BUILDER BOTTOM SHEET SUMMARY ("TẠO LỘ TRÌNH")
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 480),
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(28),
+                      topRight: Radius.circular(28),
+                    ),
+                    border: Border(top: BorderSide(color: Color(0xFFE2E8F0), width: 1)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Color(0x17000000),
+                        blurRadius: 16,
+                        offset: Offset(0, -4),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.search_rounded, color: Color(0xFF086C61)),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          'Bạn muốn đi đâu?',
-                          style: TextStyle(
-                            color: Colors.grey.shade600,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
+                      // Drag Handle
+                      Container(
+                        width: 36,
+                        height: 4,
+                        margin: const EdgeInsets.only(bottom: 12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFCBD5E1),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+
+                      // Header Row
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(Icons.map_outlined, color: Color(0xFF475569), size: 20),
+                          ),
+                          const SizedBox(width: 10),
+                          const Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Tạo Lộ Trình',
+                                style: TextStyle(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF0F172A),
+                                ),
+                              ),
+                              Text(
+                                'Lập kế hoạch chuyến đi dễ dàng và nhanh chóng',
+                                style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Primary Solid Blue Action CTA ("TẠO LỘ TRÌNH")
+                      SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: ElevatedButton.icon(
+                          onPressed: () => _openRouteBuilderSheet(context),
+                          icon: const Icon(Icons.explore_rounded, color: Colors.white, size: 18),
+                          label: const Text(
+                            'TẠO LỘ TRÌNH',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.6,
+                              color: Colors.white,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF2196F3), // Solid Blue Brand Color
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
                           ),
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF086C61).withAlpha(20),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(Icons.alt_route_rounded, color: Color(0xFF086C61), size: 18),
-                      ),
                     ],
                   ),
                 ),
               ),
-            ),
-            Positioned(
-              top: topPadding + 128,
-              left: 16,
-              right: 16,
-              child: _buildJourneyPreviewCard(context, provider),
-            ),
-          ],
-
-          // 4. STATE B: Top Journey Trip Card
-          if (hasRoute && !provider.isLoading)
-            Positioned(
-              top: topPadding + 62,
-              left: 16,
-              right: 16,
-              child: Column(
-                children: [
-                  JourneyTripCard(provider: provider),
-                  if (provider.isMockGps)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 6),
-                      child: _buildNotificationBanner(
-                        icon: Icons.info_outline,
-                        color: const Color(0xFF0284C7),
-                        bgColor: const Color(0xFFF0F9FF),
-                        text: 'Tọa độ mặc định: Cổng ĐH Bách Khoa TP.HCM',
-                      ),
-                    ),
-                  if (provider.currentRoute?.isFallback == true)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 6),
-                      child: _buildNotificationBanner(
-                        icon: Icons.warning_amber_rounded,
-                        color: const Color(0xFFD97706),
-                        bgColor: const Color(0xFFFFFBEB),
-                        text: 'Dữ liệu lộ trình ngoại tuyến [OSRM Offline]',
-                      ),
-                    ),
-                ],
-              ),
-            ),
-
-          // 5. Floating Controls (Right side: Fit Camera, Zoom In, My Location, Layers)
-          Positioned(
-            right: 14,
-            top: topPadding + (hasRoute ? 240 : 190),
-            child: Column(
-              children: [
-                if (hasRoute) ...[
-                  _buildFloatingToolButton(
-                    icon: Icons.fit_screen_rounded,
-                    tooltip: 'Toàn cảnh hành trình',
-                    onTap: () => _fitCameraToBounds(provider),
-                  ),
-                  const SizedBox(height: 8),
-                  _buildFloatingToolButton(
-                    icon: Icons.add_rounded,
-                    tooltip: 'Phóng to',
-                    onTap: () {
-                      final cam = _mapController.camera;
-                      _mapController.move(cam.center, (cam.zoom + 1.0).clamp(4.0, 18.0));
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                ],
-                _buildFloatingToolButton(
-                  icon: Icons.my_location_rounded,
-                  tooltip: 'Vị trí của bạn',
-                  onTap: () => _mapController.move(provider.origin, 15.0),
-                ),
-                const SizedBox(height: 8),
-                _buildFloatingToolButton(
-                  icon: Icons.layers_outlined,
-                  tooltip: 'Chế độ bản đồ',
-                  onTap: () {
-                    setState(() {
-                      _isAlternateTileLayer = !_isAlternateTileLayer;
-                    });
-                  },
-                ),
-              ],
             ),
           ),
-
-          // 6. Loading Overlay
-          if (provider.isLoading)
-            Positioned(
-              top: topPadding + 70,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: const [
-                      BoxShadow(color: Color(0x1A000000), blurRadius: 8, offset: Offset(0, 2)),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: colorScheme.primary),
-                      ),
-                      const SizedBox(width: 10),
-                      const Text(
-                        'Đang tính toán tuyến đường OSRM...',
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-
-          // 7. STATE B: Story Mode Timeline (Over Map Canvas)
-          if (hasRoute && _viewMode == JourneyViewMode.story)
-            Positioned(
-              top: topPadding + 225,
-              left: 16,
-              right: 16,
-              bottom: 84,
-              child: JourneyStoryTimeline(
-                provider: provider,
-                onStopSelected: (stop) {
-                  setState(() => _viewMode = JourneyViewMode.map);
-                  final idx = allStops.indexWhere((s) => s.id == stop.id || s.position == stop.position);
-                  _onDiamondMarkerTapped(stop, idx >= 0 ? idx : 0, provider);
-                },
-              ),
-            ),
-
-          // 8. STATE B: Bottom Floating View Switch
-          if (hasRoute && !provider.isLoading) ...[
-            Positioned(
-              bottom: 24,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: FloatingViewSwitch(
-                  currentMode: _viewMode,
-                  onModeChanged: (mode) => setState(() => _viewMode = mode),
-                ),
-              ),
-            ),
-            // Edit Route FAB on right
-            Positioned(
-              bottom: 24,
-              right: 16,
-              child: FloatingActionButton.small(
-                heroTag: 'fab_edit_journey',
-                tooltip: 'Chỉnh sửa lộ trình',
-                backgroundColor: const Color(0xFF086C61),
-                foregroundColor: Colors.white,
-                onPressed: () => _openRouteBuilderSheet(context),
-                child: const Icon(Icons.edit_outlined, size: 20),
-              ),
-            ),
-          ],
-
-          // 9. STATE A Primary FAB
-          if (!hasRoute && !provider.isLoading)
-            Positioned(
-              bottom: 24,
-              right: 16,
-              child: FloatingActionButton.extended(
-                heroTag: 'fab_create_route',
-                onPressed: () => _openRouteBuilderSheet(context),
-                icon: const Icon(Icons.add_location_alt_outlined),
-                label: const Text('Tạo Lộ Trình', style: TextStyle(fontWeight: FontWeight.bold)),
-                backgroundColor: const Color(0xFF086C61),
-                foregroundColor: Colors.white,
-              ),
-            ),
         ],
       ),
     );
   }
 
-  Widget _buildJourneyPreviewCard(BuildContext context, MapProvider provider) {
-    final theme = Theme.of(context);
-    final primaryColor = theme.colorScheme.primary;
+  // Diverse Illustrated Markers (Teal Start, Coral Destination, Gold Attractions)
+  List<Marker> _buildNaturalIllustratedMarkers(
+    MapProvider provider,
+    List<RouteWaypoint> stops,
+    int selectedIdx,
+  ) {
+    final markers = <Marker>[];
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(20),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          decoration: BoxDecoration(
-            color: Colors.white.withAlpha(242),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x18102037),
-                blurRadius: 18,
-                offset: Offset(0, 6),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: primaryColor.withAlpha(20),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(Icons.bolt_rounded, size: 16, color: primaryColor),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'CHUYẾN ĐI CỦA MINH',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.1,
-                      color: primaryColor,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                'Đà Lạt · 3 ngày 2 đêm',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF102037),
-                ),
-              ),
-              const SizedBox(height: 14),
-              SizedBox(
-                width: double.infinity,
-                height: 46,
-                child: FilledButton.icon(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: primaryColor,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  icon: const Icon(Icons.explore_rounded, size: 18),
-                  label: const Text(
-                    'Khám phá hành trình Đà Lạt',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                  ),
-                  onPressed: () async {
-                    await provider.loadDemoRoute();
-                    if (mounted) {
-                      _fitCameraToBounds(provider);
-                    }
-                  },
-                ),
-              ),
-              const SizedBox(height: 4),
-              Center(
-                child: TextButton(
-                  onPressed: () => _openRouteBuilderSheet(context),
-                  style: TextButton.styleFrom(
-                    visualDensity: VisualDensity.compact,
-                    foregroundColor: const Color(0xFF5E718B),
-                  ),
-                  child: const Text(
-                    'hoặc tự tạo lộ trình mới ↓',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  List<Marker> _buildLocateOnlyMarkers(MapProvider provider) {
-    return [
+    // 1. Current Location Marker (Teal/Cyan Compass Pin)
+    markers.add(
       Marker(
         point: provider.origin,
-        width: 120,
-        height: 64,
+        width: 110,
+        height: 70,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 24,
-              height: 24,
-              decoration: BoxDecoration(
-                color: const Color(0xFF086C61),
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 2.5),
-                boxShadow: const [
-                  BoxShadow(color: Color(0x33000000), blurRadius: 4, offset: Offset(0, 2)),
-                ],
-              ),
-              child: const Center(
-                child: Icon(Icons.my_location_rounded, size: 13, color: Colors.white),
-              ),
+            const PulsingRingMarker(
+              color: Color(0xFF0284C7),
             ),
             const SizedBox(height: 2),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
                 boxShadow: const [
-                  BoxShadow(color: Color(0x1A000000), blurRadius: 4, offset: Offset(0, 1)),
+                  BoxShadow(
+                    color: Color(0x12000000),
+                    blurRadius: 4,
+                    offset: Offset(0, 2),
+                  ),
                 ],
               ),
               child: const Text(
@@ -656,50 +559,63 @@ class _TripMapScreenState extends State<TripMapScreen> {
                 style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFF086C61),
+                  color: Color(0xFF0284C7),
                 ),
               ),
             ),
           ],
         ),
       ),
-    ];
-  }
+    );
 
-  List<Marker> _buildDiamondMilestoneMarkers(
-    MapProvider provider,
-    List<RouteWaypoint> allStops,
-    int activeIndex,
-  ) {
-    final markers = <Marker>[];
-
-    for (int i = 0; i < allStops.length; i++) {
-      final wp = allStops[i];
-      final isSelected = (provider.selectedWaypoint != null &&
-              (provider.selectedWaypoint!.id == wp.id || provider.selectedWaypoint!.position == wp.position)) ||
-          (provider.selectedWaypoint == null && i == 0);
-
-      // If active/selected, add pulsing ring underneath
-      if (isSelected) {
-        markers.add(
-          Marker(
-            point: wp.position,
-            width: 76,
-            height: 76,
-            child: const PulsingRingMarker(
-              size: 76,
-              color: Color(0xFF086C61),
-            ),
+    // 2. Destination Marker (Warm Coral/Red Pin)
+    if (provider.destination != null) {
+      markers.add(
+        Marker(
+          point: provider.destination!,
+          width: 46,
+          height: 54,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFF6B6B), // Soft Coral Red
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2.5),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x29FF6B6B),
+                      blurRadius: 8,
+                      offset: Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: const Center(
+                  child: Icon(
+                    Icons.place_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+              ),
+            ],
           ),
-        );
-      }
+        ),
+      );
+    }
 
-      // Add Diamond Milestone Marker (-45deg rotated pin)
+    // 3. Milestone Waypoints
+    for (int i = 0; i < stops.length; i++) {
+      final wp = stops[i];
+      final isSelected = (i == selectedIdx);
       markers.add(
         Marker(
           point: wp.position,
-          width: 60,
-          height: 60,
+          width: 50,
+          height: 50,
           child: DiamondMilestoneMarker(
             waypoint: wp,
             sequenceNumber: i,
@@ -711,68 +627,5 @@ class _TripMapScreenState extends State<TripMapScreen> {
     }
 
     return markers;
-  }
-
-  Widget _buildFloatingToolButton({
-    required IconData icon,
-    required String tooltip,
-    required VoidCallback onTap,
-  }) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(22),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-        child: Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            color: const Color(0xFFFAFAF9).withAlpha(225),
-            shape: BoxShape.circle,
-            border: Border.all(color: const Color(0xFFE2E8F0)),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x14000000),
-                blurRadius: 6,
-                offset: Offset(0, 2),
-              ),
-            ],
-          ),
-          child: IconButton(
-            icon: Icon(icon, size: 20, color: const Color(0xFF086C61)),
-            tooltip: tooltip,
-            onPressed: onTap,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNotificationBanner({
-    required IconData icon,
-    required Color color,
-    required Color bgColor,
-    required String text,
-  }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withAlpha(75)),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 15, color: color),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              text,
-              style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }

@@ -57,19 +57,22 @@ class _RouteBuilderSheetState extends State<RouteBuilderSheet> {
         final searchResults = _catalogService.search(_destinationQuery);
 
         return DraggableScrollableSheet(
-          initialChildSize: 0.72,
-          minChildSize: 0.45,
+          initialChildSize: 0.74,
+          minChildSize: 0.48,
           maxChildSize: 0.94,
           expand: false,
           builder: (context, scrollController) {
             return Container(
-              decoration: BoxDecoration(
-                color: colorScheme.surface,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-                boxShadow: const [
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(24),
+                  topRight: Radius.circular(24),
+                ),
+                boxShadow: [
                   BoxShadow(
-                    color: Color(0x1A000000),
-                    blurRadius: 16,
+                    color: Color(0x1F000000),
+                    blurRadius: 20,
                     offset: Offset(0, -4),
                   ),
                 ],
@@ -78,308 +81,311 @@ class _RouteBuilderSheetState extends State<RouteBuilderSheet> {
                 children: [
                   // Drag Handle
                   Container(
-                    margin: const EdgeInsets.only(top: 12, bottom: 8),
-                    width: 44,
-                    height: 5,
+                    margin: const EdgeInsets.only(top: 10, bottom: 6),
+                    width: 40,
+                    height: 4,
                     decoration: BoxDecoration(
-                      color: colorScheme.outlineVariant.withAlpha(128),
-                      borderRadius: BorderRadius.circular(3),
+                      color: const Color(0xFFCBD5E1),
+                      borderRadius: BorderRadius.circular(2),
                     ),
                   ),
 
-                  // Header
+                  // Header: Clean Neutral Style
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          'Kế Hoạch Lộ Trình',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: colorScheme.onSurface,
-                          ),
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(7),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(9),
+                              ),
+                              child: const Icon(Icons.route_rounded, color: Color(0xFF475569), size: 20),
+                            ),
+                            const SizedBox(width: 10),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Route Builder',
+                                  style: TextStyle(
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF0F172A),
+                                  ),
+                                ),
+                                Text(
+                                  'Tạo lộ trình du lịch thông minh',
+                                  style: TextStyle(fontSize: 12, color: colorScheme.outline),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                         IconButton(
-                          icon: const Icon(Icons.close_rounded),
+                          icon: const Icon(Icons.close_rounded, color: Color(0xFF64748B)),
                           tooltip: 'Đóng',
                           onPressed: () => Navigator.of(context).pop(),
                         ),
                       ],
                     ),
                   ),
-                  const Divider(height: 1),
+                  const Divider(height: 1, color: Color(0xFFE2E8F0)),
 
-                  // Scrollable Body
+                  // Vertical Journey Flow (Natural Colors: Teal Start, Coral End)
                   Expanded(
                     child: ListView(
                       controller: scrollController,
                       padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
                       children: [
-                        // SECTION 1: Origin (Read-only)
-                        _buildSectionHeader('XUẤT PHÁT', const Color(0xFF10B981), Icons.my_location),
-                        const SizedBox(height: 8),
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF10B981).withAlpha(16),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: const Color(0xFF10B981).withAlpha(60)),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.trip_origin_rounded, color: Color(0xFF10B981), size: 20),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                        // NODE 1: Origin Node (Teal Circle)
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Column(
+                              children: [
+                                Container(
+                                  width: 18,
+                                  height: 18,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: const Color(0xFF0284C7), width: 5),
+                                  ),
+                                ),
+                                Container(
+                                  width: 2,
+                                  height: 48,
+                                  color: const Color(0xFFCBD5E1),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF8FAFC),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
-                                    Text(
-                                      provider.originName,
-                                      style: theme.textTheme.bodyMedium?.copyWith(
-                                        fontWeight: FontWeight.w600,
-                                        color: colorScheme.onSurface,
-                                      ),
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          provider.originName,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 14,
+                                            color: Color(0xFF0F172A),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        const Text(
+                                          'Vị trí xuất phát',
+                                          style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                                        ),
+                                      ],
                                     ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      'Vị trí GPS hiện tại · có thể chỉnh sau',
-                                      style: theme.textTheme.bodySmall?.copyWith(
-                                        color: colorScheme.outline,
-                                        fontSize: 11,
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFF1F5F9),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: const Text(
+                                        '8.4 km',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF0284C7),
+                                        ),
                                       ),
                                     ),
                                   ],
                                 ),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        const SizedBox(height: 20),
-
-                        // SECTION 2: Destination
-                        _buildSectionHeader('ĐIỂM ĐẾN', const Color(0xFFE11D48), Icons.location_on),
-                        const SizedBox(height: 8),
-                        if (provider.destination == null) ...[
-                          TextField(
-                            controller: _destinationSearchController,
-                            decoration: InputDecoration(
-                              hintText: 'Bạn muốn đi đâu?',
-                              hintStyle: TextStyle(color: colorScheme.outline),
-                              prefixIcon: const Icon(Icons.search_rounded),
-                              suffixIcon: _destinationQuery.isNotEmpty
-                                  ? IconButton(
-                                      icon: const Icon(Icons.clear_rounded, size: 18),
-                                      onPressed: () {
-                                        _destinationSearchController.clear();
-                                        setState(() => _destinationQuery = '');
-                                      },
-                                    )
-                                  : null,
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(color: colorScheme.outlineVariant),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(color: colorScheme.outlineVariant),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(color: colorScheme.primary, width: 1.5),
-                              ),
-                            ),
-                            onChanged: (val) => setState(() => _destinationQuery = val),
-                          ),
-                          const SizedBox(height: 8),
-                          // Search Results List
-                          Material(
-                            color: colorScheme.surfaceContainerHighest.withAlpha(60),
-                            borderRadius: BorderRadius.circular(12),
-                            clipBehavior: Clip.antiAlias,
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(maxHeight: 180),
-                              child: ListView.separated(
-                                shrinkWrap: true,
-                                itemCount: searchResults.length,
-                                separatorBuilder: (_, _) => const Divider(height: 1, indent: 48),
-                                itemBuilder: (context, idx) {
-                                  final dest = searchResults[idx];
-                                  return ListTile(
-                                    dense: true,
-                                    leading: Icon(dest.icon, color: colorScheme.primary, size: 20),
-                                    title: Text(dest.name, style: const TextStyle(fontWeight: FontWeight.w600)),
-                                    subtitle: Text(dest.region, style: TextStyle(color: colorScheme.outline, fontSize: 11)),
-                                    onTap: () {
-                                      provider.setDestination(dest.position, dest.name);
-                                      _destinationSearchController.clear();
-                                      setState(() => _destinationQuery = '');
-                                    },
-                                  );
-                                },
-                              ),
-                            ),
-                          ),
-                        ] else ...[
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFE11D48).withAlpha(16),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: const Color(0xFFE11D48).withAlpha(60)),
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(Icons.place_rounded, color: Color(0xFFE11D48), size: 22),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        provider.destinationName ?? 'Điểm đến',
-                                        style: theme.textTheme.bodyMedium?.copyWith(
-                                          fontWeight: FontWeight.w600,
-                                          color: colorScheme.onSurface,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        'Điểm kết thúc hành trình',
-                                        style: theme.textTheme.bodySmall?.copyWith(
-                                          color: colorScheme.outline,
-                                          fontSize: 11,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                IconButton(
-                                  icon: const Icon(Icons.close_rounded, size: 20),
-                                  tooltip: 'Bỏ chọn',
-                                  onPressed: () {
-                                    provider.enterLocateOnlyMode();
-                                  },
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-
-                        const SizedBox(height: 20),
-
-                        // SECTION 3: Waypoints
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            _buildSectionHeader(
-                              'TRẠM DỪNG (${provider.waypoints.length})',
-                              const Color(0xFFF59E0B),
-                              Icons.alt_route_rounded,
-                            ),
-                            TextButton.icon(
-                              onPressed: () => _showAddWaypointSheet(context, provider),
-                              icon: const Icon(Icons.add_circle_outline_rounded, size: 18),
-                              label: const Text('Thêm trạm'),
-                              style: TextButton.styleFrom(
-                                visualDensity: VisualDensity.compact,
-                                padding: EdgeInsets.zero,
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 6),
-                        if (provider.waypoints.isEmpty)
-                          Container(
-                            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-                            decoration: BoxDecoration(
-                              color: colorScheme.surfaceContainerHighest.withAlpha(40),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Text(
-                              'Chưa có điểm dừng chân giữa chặng',
-                              style: theme.textTheme.bodySmall?.copyWith(color: colorScheme.outline),
-                            ),
-                          )
-                        else
-                          ListView.separated(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: provider.waypoints.length,
-                            separatorBuilder: (_, _) => const SizedBox(height: 6),
-                            itemBuilder: (context, index) {
-                              final wp = provider.waypoints[index];
-                              final seqStr = (index + 1).toString().padLeft(2, '0');
-                              return Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: colorScheme.surfaceContainerHighest.withAlpha(60),
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(color: colorScheme.outlineVariant.withAlpha(80)),
+
+                        // NODE 2: Destination Node (Coral Red Pin)
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Column(
+                              children: [
+                                Container(
+                                  width: 18,
+                                  height: 18,
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFFFF6B6B),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Center(
+                                    child: Icon(Icons.place_rounded, color: Colors.white, size: 11),
+                                  ),
                                 ),
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                              ],
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: provider.destination == null
+                                  ? Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        TextField(
+                                          controller: _destinationSearchController,
+                                          decoration: InputDecoration(
+                                            hintText: 'Chọn điểm đến...',
+                                            prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF64748B)),
+                                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                                            filled: true,
+                                            fillColor: const Color(0xFFF8FAFC),
+                                            border: OutlineInputBorder(
+                                              borderRadius: BorderRadius.circular(12),
+                                              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                                            ),
+                                            enabledBorder: OutlineInputBorder(
+                                              borderRadius: BorderRadius.circular(12),
+                                              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                                            ),
+                                          ),
+                                          onChanged: (val) => setState(() => _destinationQuery = val),
+                                        ),
+                                        if (_destinationQuery.isNotEmpty)
+                                          Container(
+                                            margin: const EdgeInsets.only(top: 6),
+                                            decoration: BoxDecoration(
+                                              color: Colors.white,
+                                              borderRadius: BorderRadius.circular(12),
+                                              border: Border.all(color: const Color(0xFFE2E8F0)),
+                                            ),
+                                            child: ListView.separated(
+                                              shrinkWrap: true,
+                                              physics: const NeverScrollableScrollPhysics(),
+                                              itemCount: searchResults.length,
+                                              separatorBuilder: (_, _) => const Divider(height: 1),
+                                              itemBuilder: (context, idx) {
+                                                final dest = searchResults[idx];
+                                                return ListTile(
+                                                  leading: Icon(dest.icon, color: const Color(0xFF2196F3)),
+                                                  title: Text(dest.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                                                  subtitle: Text(dest.region, style: const TextStyle(fontSize: 11)),
+                                                  onTap: () {
+                                                    provider.setDestination(dest.position, dest.name);
+                                                    _destinationSearchController.clear();
+                                                    setState(() => _destinationQuery = '');
+                                                  },
+                                                );
+                                              },
+                                            ),
+                                          ),
+                                      ],
+                                    )
+                                  : Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
                                       decoration: BoxDecoration(
-                                        color: const Color(0xFFF59E0B).withAlpha(30),
-                                        borderRadius: BorderRadius.circular(6),
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(color: const Color(0xFFFF6B6B), width: 1.2),
                                       ),
-                                      child: Text(
-                                        seqStr,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 12,
-                                          color: Color(0xFFD97706),
-                                        ),
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                provider.destinationName ?? 'Điểm đến',
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 14,
+                                                  color: Color(0xFF0F172A),
+                                                ),
+                                              ),
+                                              const SizedBox(height: 2),
+                                              const Text(
+                                                'Điểm kết thúc hành trình',
+                                                style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                                              ),
+                                            ],
+                                          ),
+                                          Row(
+                                            children: [
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                                decoration: BoxDecoration(
+                                                  color: const Color(0xFFFEF2F2),
+                                                  borderRadius: BorderRadius.circular(6),
+                                                ),
+                                                child: const Text(
+                                                  '25 phút',
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Color(0xFFEF4444),
+                                                  ),
+                                                ),
+                                              ),
+                                              IconButton(
+                                                icon: const Icon(Icons.close_rounded, size: 18),
+                                                onPressed: () => provider.enterLocateOnlyMode(),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: Text(
-                                        wp.title,
-                                        style: theme.textTheme.bodyMedium?.copyWith(
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(Icons.delete_outline_rounded, size: 18),
-                                      color: colorScheme.error,
-                                      tooltip: 'Xóa điểm dừng',
-                                      onPressed: () => provider.removeWaypoint(index),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // Action Button: Add Waypoint Row
+                        Padding(
+                          padding: const EdgeInsets.only(left: 30),
+                          child: OutlinedButton.icon(
+                            onPressed: () => _showAddWaypointSheet(context, provider),
+                            icon: const Icon(Icons.add_rounded, size: 18, color: Color(0xFF475569)),
+                            label: const Text(
+                              '+ Thêm điểm dừng',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF475569),
+                              ),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: Color(0xFFCBD5E1), width: 1),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                            ),
                           ),
+                        ),
                       ],
                     ),
                   ),
 
-                  // SECTION 4: Action Button
+                  // Solid Blue CTA Button ('TẠO LỘ TRÌNH')
                   SafeArea(
                     top: false,
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
                       child: SizedBox(
                         width: double.infinity,
-                        height: 52,
-                        child: FilledButton.icon(
-                          icon: provider.isLoading
-                              ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                                )
-                              : const Icon(Icons.route_rounded),
-                          label: Text(
-                            provider.isLoading ? 'ĐANG TÍNH TOÁN...' : 'VẼ LỘ TRÌNH',
-                            style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 0.5),
-                          ),
+                        height: 48,
+                        child: ElevatedButton.icon(
                           onPressed: (provider.destination == null || provider.isLoading)
                               ? null
                               : () async {
@@ -388,6 +394,29 @@ class _RouteBuilderSheetState extends State<RouteBuilderSheet> {
                                     Navigator.of(context).pop();
                                   }
                                 },
+                          icon: provider.isLoading
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                                )
+                              : const Icon(Icons.near_me_rounded, color: Colors.white, size: 18),
+                          label: Text(
+                            provider.isLoading ? 'ĐANG TÍNH TOÁN...' : 'TẠO LỘ TRÌNH',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.6,
+                              color: Colors.white,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF2196F3), // Solid Blue Primary Action
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -398,24 +427,6 @@ class _RouteBuilderSheetState extends State<RouteBuilderSheet> {
           },
         );
       },
-    );
-  }
-
-  Widget _buildSectionHeader(String title, Color color, IconData icon) {
-    return Row(
-      children: [
-        Icon(icon, size: 14, color: color),
-        const SizedBox(width: 6),
-        Text(
-          title,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.6,
-            color: color,
-          ),
-        ),
-      ],
     );
   }
 }
@@ -452,85 +463,85 @@ class _WaypointPickerModalState extends State<_WaypointPickerModal> {
     final results = widget.catalogService.search(_query);
 
     return Material(
-      color: colorScheme.surface,
+      color: Colors.white,
       borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       clipBehavior: Clip.antiAlias,
       child: SizedBox(
         height: 440,
         child: Column(
           children: [
-          Container(
-            margin: const EdgeInsets.only(top: 10, bottom: 6),
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: colorScheme.outlineVariant,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Chọn Trạm Dừng Chân',
-                  style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close_rounded, size: 20),
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Tìm địa điểm, tỉnh thành...',
-                prefixIcon: const Icon(Icons.search_rounded, size: 20),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+            Container(
+              margin: const EdgeInsets.only(top: 10, bottom: 6),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: const Color(0xFFCBD5E1),
+                borderRadius: BorderRadius.circular(2),
               ),
-              onChanged: (val) => setState(() => _query = val),
             ),
-          ),
-          Expanded(
-            child: ListView.separated(
+            Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              itemCount: results.length,
-              separatorBuilder: (_, _) => const Divider(height: 1),
-              itemBuilder: (context, idx) {
-                final item = results[idx];
-                final isSameAsDest = widget.currentDestination != null &&
-                    widget.currentDestination!.latitude == item.position.latitude &&
-                    widget.currentDestination!.longitude == item.position.longitude;
-
-                return ListTile(
-                  enabled: !isSameAsDest,
-                  leading: Icon(item.icon, color: isSameAsDest ? colorScheme.outline : colorScheme.primary),
-                  title: Text(
-                    item.name,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: isSameAsDest ? colorScheme.outline : null,
-                    ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Chọn Trạm Dừng Chân',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                   ),
-                  subtitle: Text(
-                    isSameAsDest ? '${item.region} (Đang là điểm đến)' : item.region,
-                    style: TextStyle(fontSize: 11, color: isSameAsDest ? colorScheme.outline : null),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, size: 20),
+                    onPressed: () => Navigator.of(context).pop(),
                   ),
-                  trailing: isSameAsDest ? null : const Icon(Icons.add_rounded, size: 20),
-                  onTap: isSameAsDest ? null : () => widget.onSelected(item),
-                );
-              },
+                ],
+              ),
             ),
-          ),
-        ],
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText: 'Tìm địa điểm, tỉnh thành...',
+                  prefixIcon: const Icon(Icons.search_rounded, size: 18, color: Color(0xFF64748B)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                onChanged: (val) => setState(() => _query = val),
+              ),
+            ),
+            Expanded(
+              child: ListView.separated(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                itemCount: results.length,
+                separatorBuilder: (_, _) => const Divider(height: 1),
+                itemBuilder: (context, idx) {
+                  final item = results[idx];
+                  final isSameAsDest = widget.currentDestination != null &&
+                      widget.currentDestination!.latitude == item.position.latitude &&
+                      widget.currentDestination!.longitude == item.position.longitude;
+
+                  return ListTile(
+                    enabled: !isSameAsDest,
+                    leading: Icon(item.icon, color: isSameAsDest ? colorScheme.outline : const Color(0xFF2196F3)),
+                    title: Text(
+                      item.name,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: isSameAsDest ? colorScheme.outline : null,
+                      ),
+                    ),
+                    subtitle: Text(
+                      isSameAsDest ? '${item.region} (Đang là điểm đến)' : item.region,
+                      style: TextStyle(fontSize: 11, color: isSameAsDest ? colorScheme.outline : null),
+                    ),
+                    trailing: isSameAsDest ? null : const Icon(Icons.add_circle_outline_rounded, size: 20, color: Color(0xFF2196F3)),
+                    onTap: isSameAsDest ? null : () => widget.onSelected(item),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 }
