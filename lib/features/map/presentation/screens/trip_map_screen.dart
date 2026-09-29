@@ -343,7 +343,12 @@ class _TripMapScreenState extends State<TripMapScreen> with TickerProviderStateM
             ),
             children: [
               if (widget.enableNetworkTiles)
-                TileLayer(
+                ColorFiltered(
+                  colorFilter: const ColorFilter.mode(
+                    Color(0xFF7FA2B3),
+                    BlendMode.color,
+                  ),
+                  child: TileLayer(
                   urlTemplate: _isAlternateTileLayer
                       ? 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
                       : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -351,6 +356,7 @@ class _TripMapScreenState extends State<TripMapScreen> with TickerProviderStateM
                   userAgentPackageName: 'com.travelgo.travelgo_mobile',
                   tileProvider: NetworkTileProvider(),
                 ),
+              ),
 
               // Ribbon Polyline Layer (Only in STATE B) with Route Reveal Animation
               if (hasRoute && provider.currentRoute != null)
@@ -673,12 +679,13 @@ class _TripMapScreenState extends State<TripMapScreen> with TickerProviderStateM
           height: 52,
           child: FilledButton.icon(
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF086C61),
+              backgroundColor: const Color(0xFFE8F2F6),
+              foregroundColor: const Color(0xFF086C61),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
               elevation: 4,
             ),
-            icon: const Icon(Icons.add_location_alt_outlined),
-            label: const Text('TẠO LỘ TRÌNH', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+            icon: const Icon(Icons.add_location_alt_outlined, color: Color(0xFF086C61)),
+            label: const Text('TẠO LỘ TRÌNH', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.2, color: Color(0xFF086C61))),
             onPressed: () => _openRouteBuilderSheet(context),
           ),
         ),
@@ -922,7 +929,7 @@ class _TripMapScreenState extends State<TripMapScreen> with TickerProviderStateM
           width: 44,
           height: 44,
           decoration: BoxDecoration(
-            color: isActive ? const Color(0xFF086C61) : const Color(0xFFFAFAF9).withAlpha(225),
+            color: isActive ? const Color(0xFF086C61) : const Color(0xFFE8F2F6).withAlpha(240),
             shape: BoxShape.circle,
             border: Border.all(color: const Color(0xFFE2E8F0)),
             boxShadow: const [
