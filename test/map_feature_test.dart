@@ -14,6 +14,7 @@ import 'package:travelgo_mobile/features/map/presentation/widgets/journey_carous
 import 'package:travelgo_mobile/features/map/presentation/widgets/journey_story_timeline.dart';
 import 'package:travelgo_mobile/features/map/presentation/widgets/journey_trip_card.dart';
 import 'package:travelgo_mobile/features/map/presentation/widgets/location_detail_sheet.dart';
+import 'package:travelgo_mobile/features/map/presentation/widgets/group_radar_sheet.dart';
 import 'package:travelgo_mobile/features/map/presentation/widgets/milestone_marker_widget.dart';
 import 'package:travelgo_mobile/features/map/presentation/widgets/route_builder_sheet.dart';
 import 'package:travelgo_mobile/features/map/providers/map_provider.dart';
@@ -1143,6 +1144,84 @@ void main() {
 
       expect(provider.selectedDay, 2);
     });
+
+    testWidgets('Group Location Radar: floating button opens GroupRadarSheet and toggles demo members', (tester) async {
+      final fakeRouting = FakeMapApiService();
+      final fakeLocation = FakeLocationService();
+      final provider = MapProvider(
+        apiService: fakeRouting,
+        locationService: fakeLocation,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChangeNotifierProvider<MapProvider>.value(
+            value: provider,
+            child: const TripMapScreen(enableNetworkTiles: false),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Find floating radar button
+      final radarBtn = find.byTooltip('Radar nhóm');
+      expect(radarBtn, findsOneWidget);
+
+      await tester.tap(radarBtn);
+      await tester.pumpAndSettle();
+
+      // GroupRadarSheet should be open
+      expect(find.byType(GroupRadarSheet), findsOneWidget);
+      expect(find.text('Radar Nhóm Du Lịch'), findsOneWidget);
+      expect(find.text('KẾT NỐI PHÒNG RADAR'), findsOneWidget);
+
+      // Tap demo button
+      final demoBtn = find.text('Hoặc xem thử dữ liệu mẫu (4 thành viên demo)');
+      expect(demoBtn, findsOneWidget);
+      await tester.tap(demoBtn);
+      await tester.pumpAndSettle();
+
+      // Radar should be enabled and sheet closed
+      expect(provider.isGroupRadarEnabled, isTrue);
+      expect(provider.groupMembers.length, 4);
+
+      // Map should show banner and member markers
+      expect(find.textContaining('Radar nhóm demo [4 thành viên]'), findsOneWidget);
+      expect(find.text('An Nguyễn'), findsOneWidget);
+      expect(find.text('Lan Trần'), findsOneWidget);
+    });
+
+    testWidgets('Group Location Radar: GroupRadarSheet displays members list and allows disconnecting', (tester) async {
+      final fakeRouting = FakeMapApiService();
+      final fakeLocation = FakeLocationService();
+      final provider = MapProvider(
+        apiService: fakeRouting,
+        locationService: fakeLocation,
+      );
+      provider.setGroupRadarEnabled(true);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: GroupRadarSheet(provider: provider),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('THÀNH VIÊN TRONG PHÒNG (4)'), findsOneWidget);
+      expect(find.text('An Nguyễn'), findsOneWidget);
+      expect(find.text('Lan Trần'), findsOneWidget);
+      expect(find.text('Khoa Lê'), findsOneWidget);
+      expect(find.text('Mai Phạm'), findsOneWidget);
+      expect(find.text('Rời phòng / Tắt Radar'), findsOneWidget);
+
+      await tester.tap(find.text('Rời phòng / Tắt Radar'));
+      await tester.pumpAndSettle();
+
+      expect(provider.isGroupRadarEnabled, isFalse);
+    });
   });
 }
+
 

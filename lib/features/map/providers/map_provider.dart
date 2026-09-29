@@ -85,6 +85,7 @@ class MapProvider extends ChangeNotifier {
   GroupRadarConnectionState get groupRadarConnectionState =>
       _groupRadarConnectionState;
   String? get groupRadarMessage => _groupRadarMessage;
+  String? get activeGroupId => _activeGroupId;
   bool get isDemoGroupRadar =>
       _groupMembers.isNotEmpty &&
       _groupMembers.every((member) => member.isDemo);

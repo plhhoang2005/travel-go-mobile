@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:latlong2/latlong.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -22,6 +23,13 @@ abstract class GroupLocationGateway {
 
 class GroupLocationService implements GroupLocationGateway {
   final SupabaseClient? _injectedClient;
+  RealtimeChannel? _activeChannel;
+  StreamController<List<GroupMemberLocation>>? _membersController;
+  final Map<String, GroupMemberLocation> _activeMembers = {};
+
+  String? _myUserId;
+  String? _myDisplayName;
+  String? _myAvatarInitials;
 
   GroupLocationService({SupabaseClient? client}) : _injectedClient = client;
 
@@ -40,27 +48,82 @@ class GroupLocationService implements GroupLocationGateway {
     required String displayName,
     required String avatarInitials,
   }) async {
-    final response = await _client.rpc(
-      'join_map_group',
-      params: {
-        'p_join_code': roomCode.trim(),
-        'p_display_name': displayName.trim(),
-        'p_avatar_initials': avatarInitials.trim(),
+    final normalizedCode = roomCode.trim().toUpperCase();
+    if (normalizedCode.isEmpty) {
+      throw StateError('Mã phòng không được để trống.');
+    }
+
+    _myUserId = 'user_${DateTime.now().millisecondsSinceEpoch % 100000}';
+    _myDisplayName = displayName.trim().isNotEmpty ? displayName.trim() : 'Bạn';
+    _myAvatarInitials = avatarInitials.trim().isNotEmpty
+        ? avatarInitials.trim()
+        : (_myDisplayName!.isNotEmpty ? _myDisplayName![0].toUpperCase() : 'TG');
+
+    if (_activeChannel != null) {
+      try {
+        await _activeChannel!.unsubscribe();
+        _client.removeChannel(_activeChannel!);
+      } catch (_) {}
+    }
+    _activeMembers.clear();
+
+    _membersController?.close();
+    _membersController = StreamController<List<GroupMemberLocation>>.broadcast();
+
+    final channelName = 'radar:$normalizedCode';
+    final channel = _client.channel(channelName);
+
+    channel.onBroadcast(
+      event: 'location_ping',
+      callback: (payload) {
+        final userId = payload['user_id'] as String? ?? '';
+        if (userId.isEmpty || userId == _myUserId) return;
+
+        final member = GroupMemberLocation(
+          memberId: userId,
+          displayName: payload['display_name'] as String? ?? 'Thành viên TravelGO',
+          avatarInitials: payload['avatar_initials'] as String? ?? 'TG',
+          position: LatLng(
+            (payload['latitude'] as num?)?.toDouble() ?? 0.0,
+            (payload['longitude'] as num?)?.toDouble() ?? 0.0,
+          ),
+          updatedAt: DateTime.tryParse(payload['updated_at'] as String? ?? '')?.toLocal() ?? DateTime.now(),
+          status: GroupMemberStatus.online,
+          isDemo: false,
+        );
+
+        _activeMembers[userId] = member;
+        if (_membersController != null && !_membersController!.isClosed) {
+          _membersController!.add(_activeMembers.values.toList());
+        }
       },
     );
-    if (response is! String || response.isEmpty) {
-      throw StateError('Supabase không trả về mã nhóm hợp lệ.');
-    }
-    return response;
+
+    channel.onBroadcast(
+      event: 'member_left',
+      callback: (payload) {
+        final userId = payload['user_id'] as String? ?? '';
+        if (userId.isNotEmpty && _activeMembers.containsKey(userId)) {
+          _activeMembers.remove(userId);
+          if (_membersController != null && !_membersController!.isClosed) {
+            _membersController!.add(_activeMembers.values.toList());
+          }
+        }
+      },
+    );
+
+    channel.subscribe();
+    _activeChannel = channel;
+
+    return normalizedCode;
   }
 
   @override
   Stream<List<GroupMemberLocation>> watchMembers(String groupId) {
-    return _client
-        .from('map_member_locations')
-        .stream(primaryKey: ['group_id', 'user_id'])
-        .eq('group_id', groupId)
-        .map((rows) => rows.map(_memberFromRow).toList(growable: false));
+    if (_membersController != null) {
+      return _membersController!.stream;
+    }
+    return Stream.value([]);
   }
 
   @override
@@ -68,45 +131,41 @@ class GroupLocationService implements GroupLocationGateway {
     required String groupId,
     required LatLng position,
   }) async {
-    await _client.rpc(
-      'publish_map_location',
-      params: {
-        'p_group_id': groupId,
-        'p_latitude': position.latitude,
-        'p_longitude': position.longitude,
+    final channel = _activeChannel;
+    if (channel == null) return;
+
+    await channel.sendBroadcastMessage(
+      event: 'location_ping',
+      payload: {
+        'user_id': _myUserId,
+        'display_name': _myDisplayName,
+        'avatar_initials': _myAvatarInitials,
+        'latitude': position.latitude,
+        'longitude': position.longitude,
+        'updated_at': DateTime.now().toIso8601String(),
+        'status': 'online',
       },
     );
   }
 
   @override
   Future<void> markOffline(String groupId) async {
-    await _client.rpc(
-      'mark_map_location_offline',
-      params: {'p_group_id': groupId},
-    );
-  }
-
-  GroupMemberLocation _memberFromRow(Map<String, dynamic> row) {
-    final statusName = row['status'] as String? ?? 'offline';
-    final status = switch (statusName) {
-      'online' => GroupMemberStatus.online,
-      'idle' => GroupMemberStatus.idle,
-      _ => GroupMemberStatus.offline,
-    };
-
-    return GroupMemberLocation(
-      memberId: row['user_id'] as String? ?? '',
-      displayName: row['display_name'] as String? ?? 'Thành viên TravelGO',
-      avatarInitials: row['avatar_initials'] as String? ?? 'TG',
-      position: LatLng(
-        (row['latitude'] as num?)?.toDouble() ?? 0,
-        (row['longitude'] as num?)?.toDouble() ?? 0,
-      ),
-      updatedAt:
-          DateTime.tryParse(row['updated_at'] as String? ?? '')?.toLocal() ??
-          DateTime.now(),
-      status: status,
-      isDemo: row['is_demo'] as bool? ?? false,
-    );
+    final channel = _activeChannel;
+    if (channel != null) {
+      try {
+        await channel.sendBroadcastMessage(
+          event: 'member_left',
+          payload: {'user_id': _myUserId},
+        );
+      } catch (_) {}
+      try {
+        await channel.unsubscribe();
+        _client.removeChannel(channel);
+      } catch (_) {}
+      _activeChannel = null;
+    }
+    _activeMembers.clear();
+    await _membersController?.close();
+    _membersController = null;
   }
 }
