@@ -46,3 +46,8 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Maven build artifacts
+backend/target/
+**/target/
+ke-hoach-*.html
