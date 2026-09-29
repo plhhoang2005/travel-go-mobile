@@ -188,30 +188,30 @@ class _TripMapScreenState extends State<TripMapScreen> with SingleTickerProvider
                     tileProvider: NetworkTileProvider(),
                   ),
 
-                  // 2. ANIME ADVENTURE ROUTE POLYLINE (Cel-Shaded Outline & Glow)
+                  // 2. ANIME ADVENTURE ROUTE POLYLINE (Bold Cel-Shaded Outline & Glow)
                   if (hasRoute && provider.currentRoute != null) ...[
                     PolylineLayer(
                       polylines: [
-                        // Outer Soft Glow Aura
+                        // Bolder Outer Soft Glow Aura
                         Polyline(
                           points: provider.currentRoute!.points,
-                          strokeWidth: 16.0,
-                          color: const Color(0x3B0284C7),
+                          strokeWidth: 22.0,
+                          color: const Color(0x400284C7),
                           strokeCap: StrokeCap.round,
                           strokeJoin: StrokeJoin.round,
                         ),
-                        // Crisp White Outer Outline (Anime Cel-Shaded Border)
+                        // Crisp Bolder White Outer Outline (Anime Cel-Border)
                         Polyline(
                           points: provider.currentRoute!.points,
-                          strokeWidth: 10.0,
+                          strokeWidth: 14.0,
                           color: Colors.white,
                           strokeCap: StrokeCap.round,
                           strokeJoin: StrokeJoin.round,
                         ),
-                        // Primary Vibrant Anime Blue Trail
+                        // Bolder Primary Vibrant Anime Blue Trail
                         Polyline(
                           points: provider.currentRoute!.points,
-                          strokeWidth: 6.0,
+                          strokeWidth: 9.0,
                           color: const Color(0xFF0284C7),
                           strokeCap: StrokeCap.round,
                           strokeJoin: StrokeJoin.round,
@@ -233,25 +233,25 @@ class _TripMapScreenState extends State<TripMapScreen> with SingleTickerProvider
                           markers: [
                             Marker(
                               point: pos,
-                              width: 28,
-                              height: 28,
+                              width: 32,
+                              height: 32,
                               child: Container(
                                 decoration: BoxDecoration(
                                   color: const Color(0xFF0284C7),
                                   shape: BoxShape.circle,
-                                  border: Border.all(color: Colors.white, width: 2),
+                                  border: Border.all(color: Colors.white, width: 2.5),
                                   boxShadow: const [
                                     BoxShadow(
-                                      color: Color(0x3B0284C7),
-                                      blurRadius: 6,
-                                      offset: Offset(0, 2),
+                                      color: Color(0x400284C7),
+                                      blurRadius: 8,
+                                      offset: Offset(0, 3),
                                     ),
                                   ],
                                 ),
                                 child: const Center(
                                   child: Icon(
                                     Icons.navigation_rounded,
-                                    size: 14,
+                                    size: 16,
                                     color: Colors.white,
                                   ),
                                 ),
