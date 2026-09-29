@@ -636,8 +636,8 @@ class _TripMapScreenState extends State<TripMapScreen> with SingleTickerProvider
       markers.add(
         Marker(
           point: wp.position,
-          width: 52,
-          height: 52,
+          width: 70,
+          height: 75,
           child: DiamondMilestoneMarker(
             waypoint: wp,
             sequenceNumber: i,
@@ -647,6 +647,68 @@ class _TripMapScreenState extends State<TripMapScreen> with SingleTickerProvider
         ),
       );
     }
+
+    // 4. Vibrant Anime Bus Stop & Landmark Markers
+    final busStopPosition = LatLng(
+      provider.origin.latitude + 0.003,
+      provider.origin.longitude + 0.002,
+    );
+    markers.add(
+      Marker(
+        point: busStopPosition,
+        width: 76,
+        height: 52,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFF9F1A), // Vibrant Anime Yellow Bus
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2.5),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x40FF9F1A),
+                    blurRadius: 8,
+                    offset: Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.directions_bus_filled_rounded,
+                color: Colors.white,
+                size: 16,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: const Color(0xFFFF9F1A), width: 1),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x1F000000),
+                    blurRadius: 4,
+                    offset: Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: const Text(
+                'Trạm Xe Buýt',
+                style: TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFFD97706),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
 
     return markers;
   }
