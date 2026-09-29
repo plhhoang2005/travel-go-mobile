@@ -253,6 +253,28 @@ class MapProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> refreshCurrentLocation() async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final locationResult = await _locationService.getCurrentUserLocation();
+      _origin = locationResult.position;
+      _originName = locationResult.locationName;
+      _isMockGps = locationResult.isMock;
+
+      if (_destination != null) {
+        await _fetchRoute();
+      }
+    } catch (e) {
+      _errorMessage = 'Không thể cập nhật vị trí: $e';
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> loadRoute({
     LatLng? customOrigin,
     LatLng? customDestination,
