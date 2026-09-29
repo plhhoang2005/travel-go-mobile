@@ -144,8 +144,8 @@ class _TripMapScreenState extends State<TripMapScreen> with SingleTickerProvider
     final topPadding = MediaQuery.of(context).padding.top;
 
     final tileUrls = [
-      'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
       'https://a.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',
+      'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
     ];
 
     return Scaffold(
