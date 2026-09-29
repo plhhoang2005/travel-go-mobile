@@ -26,7 +26,7 @@ class LocationService {
   Future<LocationResult> getCurrentUserLocation() async {
     try {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled()
-          .timeout(const Duration(milliseconds: 800), onTimeout: () => false);
+          .timeout(const Duration(seconds: 2), onTimeout: () => false);
       if (!serviceEnabled) {
         return const LocationResult(
           position: defaultUniversityOrigin,
@@ -36,15 +36,13 @@ class LocationService {
       }
 
       var permission = await Geolocator.checkPermission().timeout(
-        const Duration(milliseconds: 800),
+        const Duration(seconds: 2),
         onTimeout: () => LocationPermission.denied,
       );
 
       if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission().timeout(
-          const Duration(seconds: 2),
-          onTimeout: () => LocationPermission.denied,
-        );
+        // No timeout on requestPermission because it prompts the user with a UI dialog
+        permission = await Geolocator.requestPermission();
         if (permission == LocationPermission.denied) {
           return const LocationResult(
             position: defaultUniversityOrigin,
@@ -62,9 +60,9 @@ class LocationService {
         );
       }
 
-      // 1. Try to get last known position first (instant, 0ms, non-blocking)
+      // 1. Try to get last known position first
       final lastKnown = await Geolocator.getLastKnownPosition().timeout(
-        const Duration(milliseconds: 800),
+        const Duration(seconds: 1),
         onTimeout: () => null,
       );
       if (lastKnown != null) {
@@ -75,16 +73,13 @@ class LocationService {
         );
       }
 
-      // 2. Fetch current position with 2s strict timeout
+      // 2. Fetch current position with 8s generous timeout for physical devices
       final position =
           await Geolocator.getCurrentPosition(
             locationSettings: const LocationSettings(
               accuracy: LocationAccuracy.medium,
-              timeLimit: Duration(seconds: 2),
+              timeLimit: Duration(seconds: 8),
             ),
-          ).timeout(
-            const Duration(seconds: 2),
-            onTimeout: () => throw Exception('Location timeout'),
           );
 
       return LocationResult(
