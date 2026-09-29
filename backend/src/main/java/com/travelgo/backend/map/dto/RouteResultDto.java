@@ -1,5 +1,7 @@
 package com.travelgo.backend.map.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import java.util.List;
 
 public class RouteResultDto {
@@ -38,6 +40,7 @@ public class RouteResultDto {
 
         public String getProvider() { return provider; }
         public void setProvider(String provider) { this.provider = provider; }
+        @JsonProperty("isFallback")
         public boolean isFallback() { return isFallback; }
         public void setFallback(boolean fallback) { this.isFallback = fallback; }
         public boolean isCached() { return cached; }

@@ -18,7 +18,7 @@ public class MapController {
 
     @PostMapping("/routes")
     public ResponseEntity<RouteResultDto> calculateRoute(@RequestBody RouteRequestDto request) {
-        if (request == null || request.getWaypoints() == null || request.getWaypoints().size() < 2) {
+        if (!isValidRouteRequest(request)) {
             return ResponseEntity.badRequest().build();
         }
         
@@ -29,5 +29,21 @@ public class MapController {
         }
         
         return ResponseEntity.ok(result);
+    }
+
+    private boolean isValidRouteRequest(RouteRequestDto request) {
+        if (request == null || request.getWaypoints() == null || request.getWaypoints().size() < 2) {
+            return false;
+        }
+
+        return request.getWaypoints().stream().allMatch(waypoint ->
+                waypoint != null
+                        && Double.isFinite(waypoint.getLat())
+                        && Double.isFinite(waypoint.getLng())
+                        && waypoint.getLat() >= -90.0
+                        && waypoint.getLat() <= 90.0
+                        && waypoint.getLng() >= -180.0
+                        && waypoint.getLng() <= 180.0
+        );
     }
 }

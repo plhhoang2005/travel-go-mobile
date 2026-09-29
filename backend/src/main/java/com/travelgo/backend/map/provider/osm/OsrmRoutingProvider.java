@@ -6,6 +6,7 @@ import com.travelgo.backend.map.dto.RouteRequestDto;
 import com.travelgo.backend.map.dto.RouteResultDto;
 import com.travelgo.backend.map.provider.RoutingProvider;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
@@ -22,7 +23,7 @@ public class OsrmRoutingProvider implements RoutingProvider {
     @Value("${travelgo.osrm.base-url}")
     private String baseUrl;
 
-    public OsrmRoutingProvider(RestTemplate restTemplate) {
+    public OsrmRoutingProvider(@Qualifier("osrmRestTemplate") RestTemplate restTemplate) {
         this.restTemplate = restTemplate;
     }
 

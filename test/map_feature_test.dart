@@ -56,14 +56,21 @@ class FakeMapApiService extends MapApiService {
 class FakeLocationService extends LocationService {
   final StreamController<LocationResult> locationController =
       StreamController<LocationResult>.broadcast();
+  LocationResult result;
+  int callCount = 0;
 
-  @override
-  Future<LocationResult> getCurrentUserLocation() async {
-    return const LocationResult(
+  FakeLocationService({
+    this.result = const LocationResult(
       position: LocationService.defaultUniversityOrigin,
       isMock: true,
       locationName: LocationService.defaultOriginName,
-    );
+    ),
+  });
+
+  @override
+  Future<LocationResult> getCurrentUserLocation() async {
+    callCount++;
+    return result;
   }
 
   @override
@@ -272,6 +279,30 @@ void main() {
 
       await provider.init();
 
+      expect(fakeRouting.callCount, 0);
+    });
+
+    test('refreshCurrentLocation updates GPS state without requesting a route in STATE A', () async {
+      final fakeRouting = FakeMapApiService();
+      final fakeLocation = FakeLocationService();
+      final provider = MapProvider(
+        apiService: fakeRouting,
+        locationService: fakeLocation,
+      );
+      await provider.init();
+      expect(provider.isMockGps, isTrue);
+
+      fakeLocation.result = const LocationResult(
+        position: LatLng(10.7800, 106.6600),
+        isMock: false,
+        locationName: 'Vị trí GPS hiện tại của bạn',
+      );
+      await provider.refreshCurrentLocation();
+
+      expect(provider.origin, const LatLng(10.7800, 106.6600));
+      expect(provider.originName, 'Vị trí GPS hiện tại của bạn');
+      expect(provider.isMockGps, isFalse);
+      expect(fakeLocation.callCount, 2);
       expect(fakeRouting.callCount, 0);
     });
 
@@ -804,16 +835,18 @@ void main() {
       // In STATE A:
       expect(find.text('CHUYẾN ĐI CỦA MINH'), findsOneWidget);
       expect(find.text('Đà Lạt · 3 ngày 2 đêm'), findsOneWidget);
-      expect(find.text('Khám phá hành trình Đà Lạt'), findsOneWidget);
+      expect(find.text('Khám phá hành trình'), findsOneWidget);
+      expect(find.text('Vị trí mặc định'), findsOneWidget);
+      expect(find.text('Vị trí hiện tại'), findsNothing);
 
-      // Tap 'Khám phá hành trình Đà Lạt' -> triggers loadDemoRoute -> enters STATE B
-      await tester.tap(find.text('Khám phá hành trình Đà Lạt'));
+      // Tap 'Khám phá hành trình' -> triggers loadDemoRoute -> enters STATE B
+      await tester.tap(find.text('Khám phá hành trình'));
       await tester.pump();
       await tester.pump(const Duration(seconds: 1));
 
       expect(provider.hasRoute, isTrue);
       // In STATE B: Journey Preview Card disappears
-      expect(find.text('Khám phá hành trình Đà Lạt'), findsNothing);
+      expect(find.text('Khám phá hành trình'), findsNothing);
     });
 
     testWidgets('19: Tap "hoặc tự tạo lộ trình mới ↓" opens RouteBuilderSheet', (tester) async {
@@ -921,6 +954,13 @@ void main() {
     });
 
     testWidgets('N4: Bấm marker -> LocationDetailSheet mở với đúng title', (tester) async {
+      tester.view.physicalSize = const Size(1080, 1920);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
       final fakeRouting = FakeMapApiService();
       final fakeLocation = FakeLocationService();
       final provider = MapProvider(
@@ -952,6 +992,32 @@ void main() {
       expect(find.byType(LocationDetailSheet), findsOneWidget);
       final firstTitle = provider.currentDayStops.first.title;
       expect(find.text(firstTitle), findsWidgets);
+    });
+
+    testWidgets('N5: TileLayer has OSM Global urlTemplate and OSM HOT fallbackUrl configured', (tester) async {
+      final fakeRouting = FakeMapApiService();
+      final fakeLocation = FakeLocationService();
+      final provider = MapProvider(
+        apiService: fakeRouting,
+        locationService: fakeLocation,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChangeNotifierProvider<MapProvider>.value(
+            value: provider,
+            child: const TripMapScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final tileLayerFinder = find.byType(TileLayer);
+      expect(tileLayerFinder, findsOneWidget);
+      final tileLayer = tester.widget<TileLayer>(tileLayerFinder);
+      expect(tileLayer.urlTemplate, contains('tile.openstreetmap.org'));
+      expect(tileLayer.fallbackUrl, contains('tile.openstreetmap.fr/hot'));
+      expect(tileLayer.subdomains, contains('a'));
     });
   });
 

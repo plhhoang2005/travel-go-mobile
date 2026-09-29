@@ -40,6 +40,8 @@ class _TripMapScreenState extends State<TripMapScreen> {
   // View Mode: Map or Story Timeline
   JourneyViewMode _viewMode = JourneyViewMode.map;
 
+  // Tile degraded / fallback flag (Law 3: Zero Silent Fallbacks)
+  bool _isTileDegraded = false;
   @override
   void initState() {
     super.initState();
@@ -230,8 +232,17 @@ class _TripMapScreenState extends State<TripMapScreen> {
               if (widget.enableNetworkTiles)
                 TileLayer(
                   urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  fallbackUrl: 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',
+                  subdomains: const ['a', 'b', 'c'],
                   userAgentPackageName: 'com.travelgo.travelgo_mobile',
                   tileProvider: NetworkTileProvider(),
+                  errorTileCallback: (tile, error, stackTrace) {
+                    if (!_isTileDegraded && mounted) {
+                      setState(() {
+                        _isTileDegraded = true;
+                      });
+                    }
+                  },
                 ),
 
               const SimpleAttributionWidget(
@@ -342,7 +353,22 @@ class _TripMapScreenState extends State<TripMapScreen> {
               top: topPadding + 128,
               left: 16,
               right: 16,
-              child: _buildJourneyPreviewCard(context, provider),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_isTileDegraded)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: _buildNotificationBanner(
+                        icon: Icons.wifi_off_rounded,
+                        color: const Color(0xFFD97706),
+                        bgColor: const Color(0xFFFFFBEB),
+                        text: 'Bản đồ ngoại tuyến [Đang dùng tile dự phòng]',
+                      ),
+                    ),
+                  _buildJourneyPreviewCard(context, provider),
+                ],
+              ),
             ),
           ],
 
@@ -375,6 +401,16 @@ class _TripMapScreenState extends State<TripMapScreen> {
                         text: 'Dữ liệu lộ trình ngoại tuyến [OSRM Offline]',
                       ),
                     ),
+                  if (_isTileDegraded)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: _buildNotificationBanner(
+                        icon: Icons.wifi_off_rounded,
+                        color: const Color(0xFFD97706),
+                        bgColor: const Color(0xFFFFFBEB),
+                        text: 'Bản đồ ngoại tuyến [Đang dùng tile dự phòng]',
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -404,8 +440,13 @@ class _TripMapScreenState extends State<TripMapScreen> {
                 ],
                 _buildFloatingToolButton(
                   icon: Icons.my_location_rounded,
-                  tooltip: 'Vị trí của bạn',
-                  onTap: () => _mapController.move(provider.origin, 15.0),
+                  tooltip: 'Cập nhật vị trí',
+                  onTap: () async {
+                    await provider.refreshCurrentLocation();
+                    if (mounted && _isMapReady) {
+                      _mapController.move(provider.origin, 15.0);
+                    }
+                  },
                 ),
               ],
             ),
@@ -578,7 +619,7 @@ class _TripMapScreenState extends State<TripMapScreen> {
                   ),
                   icon: const Icon(Icons.explore_rounded, size: 18),
                   label: const Text(
-                    'Khám phá hành trình Đà Lạt',
+                    'Khám phá hành trình',
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                   ),
                   onPressed: () async {
@@ -644,9 +685,9 @@ class _TripMapScreenState extends State<TripMapScreen> {
                   BoxShadow(color: Color(0x1A000000), blurRadius: 4, offset: Offset(0, 1)),
                 ],
               ),
-              child: const Text(
-                'Vị trí của bạn',
-                style: TextStyle(
+              child: Text(
+                provider.isMockGps ? 'Vị trí mặc định' : 'Vị trí hiện tại',
+                style: const TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.bold,
                   color: Color(0xFF086C61),

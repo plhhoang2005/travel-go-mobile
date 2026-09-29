@@ -5,6 +5,9 @@ travelgo:
   osrm:
     base-url: "https://router.project-osrm.org"
     timeout-seconds: 3
+  supabase:
+    base-url: "https://oavbymauorhmrjcustzw.supabase.co"
+    anon-key: "sb_publishable_AjJEOG5jNVHkpdd1Tu-gmQ_jbJn93xB"
 
 spring:
   cache:
