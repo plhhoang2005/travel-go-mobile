@@ -24,6 +24,8 @@ class JourneyTripCard extends StatelessWidget {
 
     final distanceStr = route != null ? route.formattedDistance : 'Chưa tính';
     final durationStr = route != null ? route.formattedDuration : 'Chưa tính';
+    final routeSource = route == null ? 'CHƯA TÍNH' : (route.isFallback ? 'FALLBACK' : 'OSRM');
+    final sourceColor = route?.isFallback == true ? const Color(0xFFD97706) : primaryColor;
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(20),
@@ -83,26 +85,36 @@ class JourneyTripCard extends StatelessWidget {
                             ],
                           ),
                         ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${provider.originName} → $destName',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFF5E718B),
+                          ),
+                        ),
                       ],
                     ),
                   ),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: primaryColor.withAlpha(18),
+                      color: sourceColor.withAlpha(18),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.route_rounded, size: 14, color: primaryColor),
+                        Icon(Icons.route_rounded, size: 14, color: sourceColor),
                         const SizedBox(width: 4),
                         Text(
-                          'TravelGO',
+                          routeSource,
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
-                            color: primaryColor,
+                            color: sourceColor,
                           ),
                         ),
                       ],

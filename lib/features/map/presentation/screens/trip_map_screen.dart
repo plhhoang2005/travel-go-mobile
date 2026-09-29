@@ -18,6 +18,7 @@ class TripMapScreen extends StatefulWidget {
   final String? initialDestinationName;
   final List<RouteWaypoint>? initialWaypoints;
   final MapMode initialMode;
+  final bool enableNetworkTiles;
 
   const TripMapScreen({
     super.key,
@@ -25,6 +26,7 @@ class TripMapScreen extends StatefulWidget {
     this.initialDestinationName,
     this.initialWaypoints,
     this.initialMode = MapMode.routing,
+    this.enableNetworkTiles = true,
   });
 
   @override
@@ -38,12 +40,8 @@ class _TripMapScreenState extends State<TripMapScreen> {
   // View Mode: Map or Story Timeline
   JourneyViewMode _viewMode = JourneyViewMode.map;
 
-  // Layer toggle: standard OSM vs Topo/Clean
-  bool _isAlternateTileLayer = false;
-
   // Tile degraded / fallback flag (Law 3: Zero Silent Fallbacks)
   bool _isTileDegraded = false;
-
   @override
   void initState() {
     super.initState();
@@ -210,7 +208,7 @@ class _TripMapScreenState extends State<TripMapScreen> {
     return Scaffold(
       body: Stack(
         children: [
-          // 1. OpenStreetMap Canvas (tile.openstreetmap.de with TravelGO Styling)
+          // 1. OpenStreetMap Canvas with permanently visible attribution
           FlutterMap(
             mapController: _mapController,
             options: MapOptions(
@@ -231,23 +229,25 @@ class _TripMapScreenState extends State<TripMapScreen> {
               },
             ),
             children: [
-              TileLayer(
-                urlTemplate: _isAlternateTileLayer
-                    ? 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png'
-                    : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                fallbackUrl: _isAlternateTileLayer
-                    ? 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
-                    : 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',
-                subdomains: const ['a', 'b', 'c'],
-                userAgentPackageName: 'com.travelgo.travelgo_mobile',
-                tileProvider: NetworkTileProvider(),
-                errorTileCallback: (tile, error, stackTrace) {
-                  if (!_isTileDegraded && mounted) {
-                    setState(() {
-                      _isTileDegraded = true;
-                    });
-                  }
-                },
+              if (widget.enableNetworkTiles)
+                TileLayer(
+                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  fallbackUrl: 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',
+                  subdomains: const ['a', 'b', 'c'],
+                  userAgentPackageName: 'com.travelgo.travelgo_mobile',
+                  tileProvider: NetworkTileProvider(),
+                  errorTileCallback: (tile, error, stackTrace) {
+                    if (!_isTileDegraded && mounted) {
+                      setState(() {
+                        _isTileDegraded = true;
+                      });
+                    }
+                  },
+                ),
+
+              const SimpleAttributionWidget(
+                source: Text('OpenStreetMap contributors'),
+                alignment: Alignment.bottomLeft,
               ),
 
               // Ribbon Polyline Layer (Only in STATE B)
@@ -415,7 +415,7 @@ class _TripMapScreenState extends State<TripMapScreen> {
               ),
             ),
 
-          // 5. Floating Controls (Right side: Fit Camera, Zoom In, My Location, Layers)
+          // 5. Floating Controls (Right side: Fit Camera, Zoom In, My Location)
           Positioned(
             right: 14,
             top: topPadding + (hasRoute ? 240 : 190),
@@ -446,16 +446,6 @@ class _TripMapScreenState extends State<TripMapScreen> {
                     if (mounted && _isMapReady) {
                       _mapController.move(provider.origin, 15.0);
                     }
-                  },
-                ),
-                const SizedBox(height: 8),
-                _buildFloatingToolButton(
-                  icon: Icons.layers_outlined,
-                  tooltip: 'Chế độ bản đồ',
-                  onTap: () {
-                    setState(() {
-                      _isAlternateTileLayer = !_isAlternateTileLayer;
-                    });
                   },
                 ),
               ],

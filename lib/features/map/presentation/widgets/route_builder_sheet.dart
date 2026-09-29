@@ -47,6 +47,29 @@ class _RouteBuilderSheetState extends State<RouteBuilderSheet> {
     );
   }
 
+  void _showOriginPickerSheet(BuildContext parentContext, MapProvider provider) {
+    showModalBottomSheet<void>(
+      context: parentContext,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return _WaypointPickerModal(
+          title: 'Chọn Điểm Xuất Phát',
+          catalogService: _catalogService,
+          currentDestination: provider.destination,
+          onUseCurrentLocation: () {
+            provider.useCurrentLocationAsOrigin();
+            Navigator.of(ctx).pop();
+          },
+          onSelected: (Destination item) {
+            provider.setOrigin(item.position, item.name);
+            Navigator.of(ctx).pop();
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -116,7 +139,7 @@ class _RouteBuilderSheetState extends State<RouteBuilderSheet> {
                       controller: scrollController,
                       padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
                       children: [
-                        // SECTION 1: Origin (Read-only)
+                        // SECTION 1: Origin
                         _buildSectionHeader('XUẤT PHÁT', const Color(0xFF10B981), Icons.my_location),
                         const SizedBox(height: 8),
                         Container(
@@ -143,7 +166,11 @@ class _RouteBuilderSheetState extends State<RouteBuilderSheet> {
                                     ),
                                     const SizedBox(height: 2),
                                     Text(
-                                      'Vị trí GPS hiện tại · có thể chỉnh sau',
+                                      provider.isUsingCurrentLocation
+                                          ? (provider.isMockGps
+                                              ? 'Tọa độ mặc định · GPS chưa khả dụng'
+                                              : 'Vị trí GPS hiện tại')
+                                          : 'Điểm xuất phát tùy chọn',
                                       style: theme.textTheme.bodySmall?.copyWith(
                                         color: colorScheme.outline,
                                         fontSize: 11,
@@ -151,6 +178,12 @@ class _RouteBuilderSheetState extends State<RouteBuilderSheet> {
                                     ),
                                   ],
                                 ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.edit_location_alt_outlined, size: 20),
+                                color: const Color(0xFF10B981),
+                                tooltip: 'Đổi điểm xuất phát',
+                                onPressed: () => _showOriginPickerSheet(context, provider),
                               ),
                             ],
                           ),
@@ -380,7 +413,7 @@ class _RouteBuilderSheetState extends State<RouteBuilderSheet> {
                             provider.isLoading ? 'ĐANG TÍNH TOÁN...' : 'VẼ LỘ TRÌNH',
                             style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 0.5),
                           ),
-                          onPressed: (provider.destination == null || provider.isLoading)
+                          onPressed: (!provider.canBuildRoute || provider.isLoading)
                               ? null
                               : () async {
                                   await provider.buildRoute();
@@ -421,13 +454,17 @@ class _RouteBuilderSheetState extends State<RouteBuilderSheet> {
 }
 
 class _WaypointPickerModal extends StatefulWidget {
+  final String title;
   final DestinationCatalogService catalogService;
   final LatLng? currentDestination;
+  final VoidCallback? onUseCurrentLocation;
   final ValueChanged<Destination> onSelected;
 
   const _WaypointPickerModal({
+    this.title = 'Chọn Trạm Dừng Chân',
     required this.catalogService,
     required this.currentDestination,
+    this.onUseCurrentLocation,
     required this.onSelected,
   });
 
@@ -474,7 +511,7 @@ class _WaypointPickerModalState extends State<_WaypointPickerModal> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Chọn Trạm Dừng Chân',
+                  widget.title,
                   style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
                 ),
                 IconButton(
@@ -500,10 +537,24 @@ class _WaypointPickerModalState extends State<_WaypointPickerModal> {
           Expanded(
             child: ListView.separated(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              itemCount: results.length,
+              itemCount: results.length + (widget.onUseCurrentLocation == null ? 0 : 1),
               separatorBuilder: (_, _) => const Divider(height: 1),
               itemBuilder: (context, idx) {
-                final item = results[idx];
+                if (widget.onUseCurrentLocation != null && idx == 0) {
+                  return ListTile(
+                    leading: const Icon(Icons.my_location_rounded),
+                    title: const Text(
+                      'Dùng vị trí hiện tại',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    subtitle: const Text('GPS hoặc tọa độ mặc định an toàn'),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: widget.onUseCurrentLocation,
+                  );
+                }
+
+                final resultIndex = idx - (widget.onUseCurrentLocation == null ? 0 : 1);
+                final item = results[resultIndex];
                 final isSameAsDest = widget.currentDestination != null &&
                     widget.currentDestination!.latitude == item.position.latitude &&
                     widget.currentDestination!.longitude == item.position.longitude;

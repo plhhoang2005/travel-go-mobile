@@ -1,6 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import 'package:travelgo_mobile/features/map/models/map_models.dart';
@@ -15,6 +17,7 @@ import 'package:travelgo_mobile/features/map/presentation/widgets/milestone_mark
 import 'package:travelgo_mobile/features/map/presentation/widgets/route_builder_sheet.dart';
 import 'package:travelgo_mobile/features/map/providers/map_provider.dart';
 import 'package:travelgo_mobile/features/map/services/destination_catalog_service.dart';
+import 'package:travelgo_mobile/features/map/services/group_location_service.dart';
 import 'package:travelgo_mobile/features/map/services/location_service.dart';
 import 'package:travelgo_mobile/features/map/services/map_api_service.dart';
 import 'package:travelgo_mobile/features/map/services/map_preset_service.dart';
@@ -22,6 +25,8 @@ import 'package:travelgo_mobile/features/map/services/map_preset_service.dart';
 class FakeMapApiService extends MapApiService {
   bool shouldThrowBackendUnreachable = false;
   int callCount = 0;
+  LatLng? lastOrigin;
+  LatLng? lastDestination;
 
   @override
   Future<RouteData> getRoute({
@@ -30,6 +35,8 @@ class FakeMapApiService extends MapApiService {
     List<RouteWaypoint> waypoints = const [],
   }) async {
     callCount++;
+    lastOrigin = origin;
+    lastDestination = destination;
     if (shouldThrowBackendUnreachable) {
       throw RoutingException('Connection refused', backendUnreachable: true);
     }
@@ -47,6 +54,8 @@ class FakeMapApiService extends MapApiService {
 }
 
 class FakeLocationService extends LocationService {
+  final StreamController<LocationResult> locationController =
+      StreamController<LocationResult>.broadcast();
   LocationResult result;
   int callCount = 0;
 
@@ -63,10 +72,79 @@ class FakeLocationService extends LocationService {
     callCount++;
     return result;
   }
+
+  @override
+  Stream<LocationResult> watchUserLocation() => locationController.stream;
+
+  Future<void> close() => locationController.close();
+}
+
+class FakeGroupLocationService implements GroupLocationGateway {
+  final StreamController<List<GroupMemberLocation>> membersController =
+      StreamController<List<GroupMemberLocation>>.broadcast();
+  bool shouldFailJoin = false;
+  int joinCalls = 0;
+  int markOfflineCalls = 0;
+  final List<LatLng> publishedPositions = [];
+
+  @override
+  Future<String> joinGroup({
+    required String roomCode,
+    required String displayName,
+    required String avatarInitials,
+  }) async {
+    joinCalls++;
+    if (shouldFailJoin) throw StateError('network unavailable');
+    return 'group-01';
+  }
+
+  @override
+  Stream<List<GroupMemberLocation>> watchMembers(String groupId) {
+    return membersController.stream;
+  }
+
+  @override
+  Future<void> publishLocation({
+    required String groupId,
+    required LatLng position,
+  }) async {
+    publishedPositions.add(position);
+  }
+
+  @override
+  Future<void> markOffline(String groupId) async {
+    markOfflineCalls++;
+  }
+
+  Future<void> close() => membersController.close();
 }
 
 void main() {
   group('Map Models Unit Tests', () {
+    test('GroupMemberLocation copyWith preserves identity and demo disclosure', () {
+      final updatedAt = DateTime.utc(2026, 9, 27, 12);
+      final member = GroupMemberLocation(
+        memberId: 'demo-an',
+        displayName: 'An Nguyễn',
+        avatarInitials: 'AN',
+        position: const LatLng(10.7740, 106.6591),
+        updatedAt: updatedAt,
+        status: GroupMemberStatus.online,
+        isDemo: true,
+      );
+
+      final moved = member.copyWith(
+        position: const LatLng(10.7750, 106.6600),
+        status: GroupMemberStatus.idle,
+      );
+
+      expect(moved.memberId, member.memberId);
+      expect(moved.displayName, member.displayName);
+      expect(moved.position, isNot(member.position));
+      expect(moved.status, GroupMemberStatus.idle);
+      expect(moved.isDemo, isTrue);
+    });
+
     test('RouteData formats duration and distance correctly', () {
       const route1 = RouteData(
         points: [LatLng(10.7725, 106.6578), LatLng(11.9404, 108.4583)],
@@ -158,6 +236,18 @@ void main() {
       expect(demoRoute[1].type, 'stop');
       expect(demoRoute[2].type, 'stop');
     });
+
+    test('getDemoGroupMembers returns deterministic disclosed demo members', () {
+      final presetService = MapPresetService();
+      final referenceTime = DateTime.utc(2026, 9, 27, 12);
+      final members = presetService.getDemoGroupMembers(referenceTime: referenceTime);
+
+      expect(members.length, 4);
+      expect(members.map((member) => member.memberId).toSet().length, members.length);
+      expect(members.every((member) => member.isDemo), isTrue);
+      expect(members.every((member) => !member.updatedAt.isAfter(referenceTime)), isTrue);
+      expect(members.any((member) => member.status == GroupMemberStatus.offline), isTrue);
+    });
   });
 
   group('MapProvider FSM State Machine & Lazy Loading Tests', () {
@@ -214,6 +304,35 @@ void main() {
       expect(provider.isMockGps, isFalse);
       expect(fakeLocation.callCount, 2);
       expect(fakeRouting.callCount, 0);
+    });
+
+    test('group radar loads demo members lazily and selects members by id', () {
+      final fakeRouting = FakeMapApiService();
+      final fakeLocation = FakeLocationService();
+      final provider = MapProvider(
+        apiService: fakeRouting,
+        locationService: fakeLocation,
+      );
+
+      expect(provider.isGroupRadarEnabled, isFalse);
+      expect(provider.groupMembers, isEmpty);
+
+      provider.setGroupRadarEnabled(true);
+
+      expect(provider.isGroupRadarEnabled, isTrue);
+      expect(provider.groupMembers.length, 4);
+      expect(provider.isDemoGroupRadar, isTrue);
+      expect(fakeRouting.callCount, 0);
+
+      final firstMember = provider.groupMembers.first;
+      provider.selectGroupMember(firstMember.memberId);
+      expect(provider.selectedGroupMember?.memberId, firstMember.memberId);
+      expect(provider.distanceToGroupMemberMeters(firstMember), greaterThan(0));
+
+      provider.setGroupRadarEnabled(false);
+      expect(provider.isGroupRadarEnabled, isFalse);
+      expect(provider.selectedGroupMember, isNull);
+      expect(provider.groupMembers.length, 4);
     });
 
     test('4: init(targetDestination: X) enters STATE B and calls MapApiService once', () async {
@@ -274,6 +393,36 @@ void main() {
       provider.addWaypoint(wp);
       expect(provider.waypoints.length, 1);
       expect(fakeRouting.callCount, 0);
+    });
+
+    test('changing origin is lazy and buildRoute sends selected A and B to API', () async {
+      final fakeRouting = FakeMapApiService();
+      final fakeLocation = FakeLocationService();
+      final provider = MapProvider(
+        apiService: fakeRouting,
+        locationService: fakeLocation,
+      );
+      await provider.init();
+
+      const customOrigin = LatLng(10.0452, 105.7469);
+      const destination = LatLng(11.9404, 108.4583);
+      provider.setOrigin(customOrigin, 'Cần Thơ');
+      provider.setDestination(destination, 'Đà Lạt');
+
+      expect(provider.isUsingCurrentLocation, isFalse);
+      expect(fakeRouting.callCount, 0);
+
+      await provider.buildRoute();
+
+      expect(fakeRouting.callCount, 1);
+      expect(fakeRouting.lastOrigin, customOrigin);
+      expect(fakeRouting.lastDestination, destination);
+
+      provider.useCurrentLocationAsOrigin();
+      expect(provider.isUsingCurrentLocation, isTrue);
+      expect(provider.origin, LocationService.defaultUniversityOrigin);
+      expect(provider.isMockGps, isTrue);
+      expect(provider.currentRoute, isNull);
     });
 
     test('8: buildRoute() after setDestination() calls API once', () async {
@@ -362,6 +511,105 @@ void main() {
     });
   });
 
+  group('MapProvider Group Radar Realtime Tests', () {
+    test('connects, deduplicates members, publishes real GPS, and disconnects', () async {
+      final groupService = FakeGroupLocationService();
+      final locationService = FakeLocationService();
+      final provider = MapProvider(
+        groupLocationService: groupService,
+        locationService: locationService,
+      );
+
+      await provider.connectGroupRadar(
+        userId: 'user-01',
+        displayName: 'Hoàng Minh',
+        avatarInitials: 'HM',
+      );
+      expect(provider.groupRadarConnectionState, GroupRadarConnectionState.realtime);
+      expect(groupService.joinCalls, 1);
+
+      final member = GroupMemberLocation(
+        memberId: 'user-02',
+        displayName: 'Lan Trần',
+        avatarInitials: 'LT',
+        position: const LatLng(10.773, 106.658),
+        updatedAt: DateTime(2026, 9, 27),
+        status: GroupMemberStatus.online,
+        isDemo: false,
+      );
+      groupService.membersController.add([member, member]);
+      await pumpEventQueue();
+      expect(provider.groupMembers, hasLength(1));
+      expect(provider.isDemoGroupRadar, isFalse);
+
+      locationService.locationController.add(
+        const LocationResult(
+          position: LatLng(10.774, 106.659),
+          isMock: false,
+          locationName: 'GPS',
+        ),
+      );
+      await pumpEventQueue();
+      expect(groupService.publishedPositions, [const LatLng(10.774, 106.659)]);
+
+      await provider.disconnectGroupRadar();
+      expect(provider.groupRadarConnectionState, GroupRadarConnectionState.idle);
+      expect(provider.isGroupRadarEnabled, isFalse);
+      expect(groupService.markOfflineCalls, 1);
+      await locationService.close();
+      await groupService.close();
+      provider.dispose();
+    });
+
+    test('does not publish mock GPS as realtime data', () async {
+      final groupService = FakeGroupLocationService();
+      final locationService = FakeLocationService();
+      final provider = MapProvider(
+        groupLocationService: groupService,
+        locationService: locationService,
+      );
+      await provider.connectGroupRadar(
+        userId: 'user-01',
+        displayName: 'Hoàng Minh',
+        avatarInitials: 'HM',
+      );
+
+      locationService.locationController.add(
+        const LocationResult(
+          position: LocationService.defaultUniversityOrigin,
+          isMock: true,
+          locationName: LocationService.defaultOriginName,
+        ),
+      );
+      await pumpEventQueue();
+      expect(groupService.publishedPositions, isEmpty);
+      expect(provider.groupRadarMessage, contains('vị trí giả'));
+
+      await provider.disconnectGroupRadar();
+      await locationService.close();
+      await groupService.close();
+      provider.dispose();
+    });
+
+    test('Supabase failure activates explicitly disclosed demo fallback', () async {
+      final groupService = FakeGroupLocationService()..shouldFailJoin = true;
+      final provider = MapProvider(groupLocationService: groupService);
+
+      await provider.connectGroupRadar(
+        userId: 'user-01',
+        displayName: 'Hoàng Minh',
+        avatarInitials: 'HM',
+      );
+
+      expect(provider.groupRadarConnectionState, GroupRadarConnectionState.demoFallback);
+      expect(provider.groupRadarMessage, contains('dữ liệu demo'));
+      expect(provider.groupMembers, isNotEmpty);
+      expect(provider.groupMembers.every((member) => member.isDemo), isTrue);
+      await groupService.close();
+      provider.dispose();
+    });
+  });
+
   group('Journey Board UI Widget Tests', () {
     testWidgets('JourneyCarouselWidget renders cards and triggers onCardChanged', (tester) async {
       int changedIndex = -1;
@@ -445,6 +693,18 @@ void main() {
 
       final FilledButton enabledButton = tester.widget(buttonFinder);
       expect(enabledButton.onPressed, isNotNull);
+
+      await tester.tap(find.byTooltip('Đổi điểm xuất phát'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Chọn Điểm Xuất Phát'), findsOneWidget);
+      expect(find.text('Dùng vị trí hiện tại'), findsOneWidget);
+      await tester.tap(find.text('TP. Hồ Chí Minh').last);
+      await tester.pumpAndSettle();
+
+      expect(provider.originName, 'TP. Hồ Chí Minh');
+      expect(provider.isUsingCurrentLocation, isFalse);
+      expect(fakeRouting.callCount, 0);
     });
 
     testWidgets('DiamondMilestoneMarker renders sequence and responds to tap', (tester) async {
@@ -522,11 +782,31 @@ void main() {
       );
 
       expect(find.text('CHUYẾN ĐI CỦA MINH'), findsOneWidget);
+      expect(find.text('OSRM'), findsOneWidget);
+      expect(find.textContaining('→'), findsOneWidget);
       expect(find.text('NGÀY 1'), findsOneWidget);
       expect(find.text('NGÀY 2'), findsOneWidget);
 
       await tester.tap(find.text('NGÀY 2'));
       expect(provider.selectedDay, 2);
+    });
+
+    testWidgets('JourneyTripCard labels offline route as FALLBACK', (tester) async {
+      final fakeRouting = FakeMapApiService()..shouldThrowBackendUnreachable = true;
+      final provider = MapProvider(apiService: fakeRouting);
+      provider.setDestination(const LatLng(11.9404, 108.4583), 'Đà Lạt');
+      await provider.buildRoute();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: JourneyTripCard(provider: provider),
+          ),
+        ),
+      );
+
+      expect(find.text('FALLBACK'), findsOneWidget);
+      expect(find.textContaining('→'), findsOneWidget);
     });
 
     testWidgets('16-18: STATE A renders Journey Preview Card and tap explores demo route', (tester) async {
@@ -541,11 +821,16 @@ void main() {
         MaterialApp(
           home: ChangeNotifierProvider<MapProvider>.value(
             value: provider,
-            child: const TripMapScreen(),
+            child: const TripMapScreen(enableNetworkTiles: false),
           ),
         ),
       );
       await tester.pumpAndSettle();
+
+      expect(find.byType(TileLayer), findsNothing);
+      expect(find.byType(SimpleAttributionWidget), findsOneWidget);
+      expect(find.text('OpenStreetMap contributors'), findsOneWidget);
+      expect(find.byTooltip('Chế độ bản đồ'), findsNothing);
 
       // In STATE A:
       expect(find.text('CHUYẾN ĐI CỦA MINH'), findsOneWidget);
@@ -576,7 +861,7 @@ void main() {
         MaterialApp(
           home: ChangeNotifierProvider<MapProvider>.value(
             value: provider,
-            child: const TripMapScreen(),
+            child: const TripMapScreen(enableNetworkTiles: false),
           ),
         ),
       );
@@ -601,7 +886,7 @@ void main() {
         MaterialApp(
           home: ChangeNotifierProvider<MapProvider>.value(
             value: provider,
-            child: const TripMapScreen(),
+            child: const TripMapScreen(enableNetworkTiles: false),
           ),
         ),
       );
@@ -624,7 +909,7 @@ void main() {
         MaterialApp(
           home: ChangeNotifierProvider<MapProvider>.value(
             value: provider,
-            child: const TripMapScreen(),
+            child: const TripMapScreen(enableNetworkTiles: false),
           ),
         ),
       );
@@ -650,7 +935,7 @@ void main() {
         MaterialApp(
           home: ChangeNotifierProvider<MapProvider>.value(
             value: provider,
-            child: const TripMapScreen(),
+            child: const TripMapScreen(enableNetworkTiles: false),
           ),
         ),
       );
@@ -687,7 +972,7 @@ void main() {
         MaterialApp(
           home: ChangeNotifierProvider<MapProvider>.value(
             value: provider,
-            child: const TripMapScreen(),
+            child: const TripMapScreen(enableNetworkTiles: false),
           ),
         ),
       );

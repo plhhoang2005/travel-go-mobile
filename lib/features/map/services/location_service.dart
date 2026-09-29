@@ -16,7 +16,8 @@ class LocationResult {
 class LocationService {
   // Default University Origin (Cổng ĐH Bách Khoa TP.HCM - Cơ sở Lý Thường Kiệt)
   static const LatLng defaultUniversityOrigin = LatLng(10.7725, 106.6578);
-  static const String defaultOriginName = 'Cổng ĐH Bách Khoa TP.HCM (268 Lý Thường Kiệt)';
+  static const String defaultOriginName =
+      'Cổng ĐH Bách Khoa TP.HCM (268 Lý Thường Kiệt)';
 
   // Khu Đô thị ĐHQG TP.HCM (Dĩ An, Bình Dương)
   static const LatLng vnuUniversityOrigin = LatLng(10.8805, 106.8054);
@@ -24,10 +25,8 @@ class LocationService {
 
   Future<LocationResult> getCurrentUserLocation() async {
     try {
-      final serviceEnabled = await Geolocator.isLocationServiceEnabled().timeout(
-        const Duration(milliseconds: 800),
-        onTimeout: () => false,
-      );
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled()
+          .timeout(const Duration(milliseconds: 800), onTimeout: () => false);
       if (!serviceEnabled) {
         return const LocationResult(
           position: defaultUniversityOrigin,
@@ -77,15 +76,16 @@ class LocationService {
       }
 
       // 2. Fetch current position with 2s strict timeout
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.medium,
-          timeLimit: Duration(seconds: 2),
-        ),
-      ).timeout(
-        const Duration(seconds: 2),
-        onTimeout: () => throw Exception('Location timeout'),
-      );
+      final position =
+          await Geolocator.getCurrentPosition(
+            locationSettings: const LocationSettings(
+              accuracy: LocationAccuracy.medium,
+              timeLimit: Duration(seconds: 2),
+            ),
+          ).timeout(
+            const Duration(seconds: 2),
+            onTimeout: () => throw Exception('Location timeout'),
+          );
 
       return LocationResult(
         position: LatLng(position.latitude, position.longitude),
@@ -97,6 +97,26 @@ class LocationService {
         position: defaultUniversityOrigin,
         isMock: true,
         locationName: defaultOriginName,
+      );
+    }
+  }
+
+  Stream<LocationResult> watchUserLocation() async* {
+    final initial = await getCurrentUserLocation();
+    yield initial;
+    if (initial.isMock) return;
+
+    final positions = Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.medium,
+        distanceFilter: 10,
+      ),
+    );
+    await for (final position in positions) {
+      yield LocationResult(
+        position: LatLng(position.latitude, position.longitude),
+        isMock: false,
+        locationName: 'Vị trí GPS thực tế của bạn',
       );
     }
   }
