@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../models/map_models.dart';
 import '../../providers/map_provider.dart';
 
 class AiOptimizationSheet extends StatelessWidget {
@@ -18,11 +17,14 @@ class AiOptimizationSheet extends StatelessWidget {
 
     final waypoints = provider.waypoints;
     final canOptimize = waypoints.length >= 2;
+    final result = provider.getOptimizationPreview();
+    final optimizedWaypoints = result.reorderedWaypoints;
+    final hasImprovement = result.hasImprovement;
 
-    // Simulated Greedy reordering for demonstration
-    final List<RouteWaypoint> optimizedWaypoints = canOptimize
-        ? List<RouteWaypoint>.from(waypoints.reversed)
-        : List<RouteWaypoint>.from(waypoints);
+    final savedKmStr = result.distanceSavedKm >= 1.0
+        ? '${result.distanceSavedKm.toStringAsFixed(1)} km'
+        : '${(result.distanceSavedKm * 1000).round()} m';
+    final savedTimeStr = '~${result.timeSavedMinutes} phút';
 
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
@@ -74,9 +76,13 @@ class AiOptimizationSheet extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 1),
-                    const Text(
-                      'Có thể tối ưu lộ trình',
-                      style: TextStyle(
+                    Text(
+                      hasImprovement
+                          ? 'Có thể tối ưu lộ trình'
+                          : (canOptimize
+                              ? 'Lộ trình đã tối ưu'
+                              : 'Cần thêm trạm dừng'),
+                      style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
                         color: Color(0xFF102037),
@@ -94,9 +100,13 @@ class AiOptimizationSheet extends StatelessWidget {
 
           const SizedBox(height: 14),
 
-          const Text(
-            'Mô hình Greedy TSP phát hiện tuyến đường ngắn hơn nếu hoán đổi thứ tự ghé thăm giữa các trạm dừng.',
-            style: TextStyle(
+          Text(
+            !canOptimize
+                ? 'Vui lòng thêm ít nhất 2 trạm dừng để thuật toán TSP có thể tính toán lộ trình di chuyển tối ưu nhất.'
+                : (hasImprovement
+                    ? 'Mô hình Greedy TSP phát hiện tuyến đường ngắn hơn nếu hoán đổi thứ tự ghé thăm giữa các trạm dừng.'
+                    : 'Thứ tự các điểm dừng hiện tại của bạn đã là phương án tối ưu nhất về cự ly di chuyển.'),
+            style: const TextStyle(
               fontSize: 13,
               color: Color(0xFF5E718B),
               height: 1.45,
@@ -105,67 +115,68 @@ class AiOptimizationSheet extends StatelessWidget {
 
           const SizedBox(height: 14),
 
-          // Saving Card
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF1FBF7),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFCFE9DF)),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: const [
-                      Text(
-                        'Tiết kiệm 3.8 km',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF157E5B),
+          // Saving Card (only when improved)
+          if (hasImprovement) ...[
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1FBF7),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFCFE9DF)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Tiết kiệm $savedKmStr',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF157E5B),
+                          ),
                         ),
-                      ),
-                      SizedBox(height: 2),
-                      Text(
-                        'Ít đi vòng lại hơn',
-                        style: TextStyle(fontSize: 11, color: Color(0xFF5E718B)),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  width: 1,
-                  height: 32,
-                  color: const Color(0xFFCFE9DF),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: const [
-                      Text(
-                        '~12 phút',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF157E5B),
+                        const SizedBox(height: 2),
+                        const Text(
+                          'Ít đi vòng lại hơn',
+                          style: TextStyle(fontSize: 11, color: Color(0xFF5E718B)),
                         ),
-                      ),
-                      SizedBox(height: 2),
-                      Text(
-                        'Thời gian di chuyển',
-                        style: TextStyle(fontSize: 11, color: Color(0xFF5E718B)),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                  Container(
+                    width: 1,
+                    height: 32,
+                    color: const Color(0xFFCFE9DF),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          savedTimeStr,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF157E5B),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        const Text(
+                          'Thời gian di chuyển',
+                          style: TextStyle(fontSize: 11, color: Color(0xFF5E718B)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-
-          const SizedBox(height: 16),
+            const SizedBox(height: 16),
+          ],
 
           // Route Sequence Preview
           const Text(
@@ -186,56 +197,66 @@ class AiOptimizationSheet extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: const Color(0xFFE2E8F0)),
             ),
-            child: Column(
-              children: List.generate(optimizedWaypoints.length, (index) {
-                final wp = optimizedWaypoints[index];
-                final seqStr = (index + 1).toString().padLeft(2, '0');
-                final isLast = index == optimizedWaypoints.length - 1;
+            child: optimizedWaypoints.isEmpty
+                ? const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: Center(
+                      child: Text(
+                        'Chưa có trạm dừng nào',
+                        style: TextStyle(fontSize: 12, color: Color(0xFF91A0B4)),
+                      ),
+                    ),
+                  )
+                : Column(
+                    children: List.generate(optimizedWaypoints.length, (index) {
+                      final wp = optimizedWaypoints[index];
+                      final seqStr = (index + 1).toString().padLeft(2, '0');
+                      final isLast = index == optimizedWaypoints.length - 1;
 
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 22,
-                        height: 22,
-                        decoration: BoxDecoration(
-                          color: primaryColor,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Center(
-                          child: Text(
-                            seqStr,
-                            style: const TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 22,
+                              height: 22,
+                              decoration: BoxDecoration(
+                                color: primaryColor,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Center(
+                                child: Text(
+                                  seqStr,
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
                             ),
-                          ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                wp.title,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF102037),
+                                ),
+                              ),
+                            ),
+                            if (!isLast)
+                              const Icon(
+                                Icons.arrow_downward_rounded,
+                                size: 14,
+                                color: Color(0xFF91A0B4),
+                              ),
+                          ],
                         ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          wp.title,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF102037),
-                          ),
-                        ),
-                      ),
-                      if (!isLast)
-                        const Icon(
-                          Icons.arrow_downward_rounded,
-                          size: 14,
-                          color: Color(0xFF91A0B4),
-                        ),
-                    ],
+                      );
+                    }),
                   ),
-                );
-              }),
-            ),
           ),
 
           const SizedBox(height: 24),
@@ -253,30 +274,32 @@ class AiOptimizationSheet extends StatelessWidget {
                   child: const Text('Giữ hiện tại', style: TextStyle(fontWeight: FontWeight.w700)),
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: FilledButton.icon(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF20A574),
-                    minimumSize: const Size(0, 48),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              if (hasImprovement) ...[
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF20A574),
+                      minimumSize: const Size(0, 48),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                    icon: const Icon(Icons.check_rounded, size: 18),
+                    label: const Text('Chấp nhận', style: TextStyle(fontWeight: FontWeight.bold)),
+                    onPressed: () async {
+                      Navigator.of(context).pop();
+                      await provider.applyAiReorder(optimizedWaypoints);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('✓ Đã cập nhật hành trình tối ưu AI'),
+                            backgroundColor: Color(0xFF20A574),
+                          ),
+                        );
+                      }
+                    },
                   ),
-                  icon: const Icon(Icons.check_rounded, size: 18),
-                  label: const Text('Chấp nhận', style: TextStyle(fontWeight: FontWeight.bold)),
-                  onPressed: () async {
-                    Navigator.of(context).pop();
-                    await provider.applyAiReorder(optimizedWaypoints);
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('✓ Đã cập nhật hành trình tối ưu AI'),
-                          backgroundColor: Color(0xFF20A574),
-                        ),
-                      );
-                    }
-                  },
                 ),
-              ),
+              ],
             ],
           ),
         ],

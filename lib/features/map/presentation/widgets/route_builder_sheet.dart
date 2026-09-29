@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../models/map_models.dart';
 import '../../providers/map_provider.dart';
 import '../../services/destination_catalog_service.dart';
+import 'ai_optimization_sheet.dart';
 
 class RouteBuilderSheet extends StatefulWidget {
   const RouteBuilderSheet({super.key});
@@ -312,14 +313,44 @@ class _RouteBuilderSheetState extends State<RouteBuilderSheet> {
                               const Color(0xFFF59E0B),
                               Icons.alt_route_rounded,
                             ),
-                            TextButton.icon(
-                              onPressed: () => _showAddWaypointSheet(context, provider),
-                              icon: const Icon(Icons.add_circle_outline_rounded, size: 18),
-                              label: const Text('Thêm trạm'),
-                              style: TextButton.styleFrom(
-                                visualDensity: VisualDensity.compact,
-                                padding: EdgeInsets.zero,
-                              ),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (provider.waypoints.length >= 2) ...[
+                                  TextButton.icon(
+                                    onPressed: () {
+                                      showModalBottomSheet<void>(
+                                        context: context,
+                                        isScrollControlled: true,
+                                        backgroundColor: Colors.transparent,
+                                        builder: (_) => AiOptimizationSheet(provider: provider),
+                                      );
+                                    },
+                                    icon: const Icon(Icons.auto_awesome_rounded, size: 16, color: Color(0xFF20A574)),
+                                    label: const Text(
+                                      'Tối ưu AI',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFF20A574),
+                                      ),
+                                    ),
+                                    style: TextButton.styleFrom(
+                                      visualDensity: VisualDensity.compact,
+                                      padding: const EdgeInsets.only(right: 6),
+                                    ),
+                                  ),
+                                ],
+                                TextButton.icon(
+                                  onPressed: () => _showAddWaypointSheet(context, provider),
+                                  icon: const Icon(Icons.add_circle_outline_rounded, size: 18),
+                                  label: const Text('Thêm trạm'),
+                                  style: TextButton.styleFrom(
+                                    visualDensity: VisualDensity.compact,
+                                    padding: EdgeInsets.zero,
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -337,16 +368,21 @@ class _RouteBuilderSheetState extends State<RouteBuilderSheet> {
                             ),
                           )
                         else
-                          ListView.separated(
+                          ReorderableListView.builder(
                             shrinkWrap: true,
                             physics: const NeverScrollableScrollPhysics(),
+                            buildDefaultDragHandles: false,
                             itemCount: provider.waypoints.length,
-                            separatorBuilder: (_, _) => const SizedBox(height: 6),
+                            onReorderItem: (oldIndex, newIndex) {
+                              provider.reorderWaypoints(oldIndex, newIndex);
+                            },
                             itemBuilder: (context, index) {
                               final wp = provider.waypoints[index];
                               final seqStr = (index + 1).toString().padLeft(2, '0');
                               return Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                key: ValueKey(wp.id.isNotEmpty ? wp.id : 'wp_$index'),
+                                margin: const EdgeInsets.only(bottom: 6),
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                                 decoration: BoxDecoration(
                                   color: colorScheme.surfaceContainerHighest.withAlpha(60),
                                   borderRadius: BorderRadius.circular(10),
@@ -354,6 +390,17 @@ class _RouteBuilderSheetState extends State<RouteBuilderSheet> {
                                 ),
                                 child: Row(
                                   children: [
+                                    ReorderableDragStartListener(
+                                      index: index,
+                                      child: Padding(
+                                        padding: const EdgeInsets.only(right: 6),
+                                        child: Icon(
+                                          Icons.drag_indicator_rounded,
+                                          size: 20,
+                                          color: colorScheme.outline,
+                                        ),
+                                      ),
+                                    ),
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                                       decoration: BoxDecoration(
@@ -369,12 +416,54 @@ class _RouteBuilderSheetState extends State<RouteBuilderSheet> {
                                         ),
                                       ),
                                     ),
-                                    const SizedBox(width: 10),
+                                    const SizedBox(width: 8),
                                     Expanded(
                                       child: Text(
                                         wp.title,
                                         style: theme.textTheme.bodyMedium?.copyWith(
                                           fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                    PopupMenuButton<int>(
+                                      initialValue: wp.dayNumber,
+                                      tooltip: 'Chọn ngày',
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(minWidth: 100),
+                                      onSelected: (int selectedDay) {
+                                        provider.updateWaypointDay(index, selectedDay);
+                                      },
+                                      itemBuilder: (context) => [
+                                        for (int d = 1; d <= 5; d++)
+                                          PopupMenuItem<int>(
+                                            value: d,
+                                            height: 36,
+                                            child: Text('Ngày $d', style: const TextStyle(fontSize: 13)),
+                                          ),
+                                      ],
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: colorScheme.primary.withAlpha(20),
+                                          borderRadius: BorderRadius.circular(6),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              'N${wp.dayNumber}',
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w700,
+                                                color: colorScheme.primary,
+                                              ),
+                                            ),
+                                            Icon(
+                                              Icons.arrow_drop_down_rounded,
+                                              size: 16,
+                                              color: colorScheme.primary,
+                                            ),
+                                          ],
                                         ),
                                       ),
                                     ),
