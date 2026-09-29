@@ -17,9 +17,7 @@ class LocationDetailSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final primaryColor = colorScheme.primary;
+    const primaryColor = Color(0xFF0284C7); // Anime Sky Blue
 
     final seqStr = sequenceNumber == 0
         ? 'A'
@@ -32,6 +30,13 @@ class LocationDetailSheet extends StatelessWidget {
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x24000000),
+            blurRadius: 20,
+            offset: Offset(0, -6),
+          ),
+        ],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -42,18 +47,18 @@ class LocationDetailSheet extends StatelessWidget {
             width: 40,
             height: 4,
             decoration: BoxDecoration(
-              color: const Color(0xFFE2E8F0),
+              color: const Color(0xFFCBD5E1),
               borderRadius: BorderRadius.circular(2),
             ),
           ),
 
           // Location Hero Cover
           Container(
-            height: 120,
+            height: 125,
             margin: const EdgeInsets.symmetric(horizontal: 16),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(20),
-              color: primaryColor.withAlpha(20),
+              color: primaryColor.withValues(alpha: 0.12),
               image: waypoint.imageUrl != null
                   ? DecorationImage(
                       image: NetworkImage(waypoint.imageUrl!),
@@ -67,7 +72,7 @@ class LocationDetailSheet extends StatelessWidget {
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(20),
                     gradient: const LinearGradient(
-                      colors: [Color(0x99102037), Colors.transparent],
+                      colors: [Color(0xAA0F172A), Colors.transparent],
                       begin: Alignment.bottomLeft,
                       end: Alignment.topRight,
                     ),
@@ -77,17 +82,24 @@ class LocationDetailSheet extends StatelessWidget {
                   bottom: 12,
                   left: 12,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                     decoration: BoxDecoration(
                       color: primaryColor,
                       borderRadius: BorderRadius.circular(999),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x3B0284C7),
+                          blurRadius: 6,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
                     ),
                     child: Text(
                       'NGÀY $currentDay · ĐIỂM $seqStr',
                       style: const TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.5,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.6,
                         color: Colors.white,
                       ),
                     ),
@@ -98,7 +110,7 @@ class LocationDetailSheet extends StatelessWidget {
                   right: 8,
                   child: CircleAvatar(
                     radius: 16,
-                    backgroundColor: Colors.black.withAlpha(100),
+                    backgroundColor: Colors.black.withValues(alpha: 0.4),
                     child: IconButton(
                       padding: EdgeInsets.zero,
                       icon: const Icon(Icons.close_rounded, size: 18, color: Colors.white),
@@ -110,13 +122,13 @@ class LocationDetailSheet extends StatelessWidget {
             ),
           ),
 
-          // Content
+          // Content Body
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Category & Title
+                // Category & Title Row
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -127,9 +139,9 @@ class LocationDetailSheet extends StatelessWidget {
                         children: [
                           Text(
                             waypoint.category ?? (waypoint.type == 'origin' ? 'Điểm xuất phát' : 'Điểm đến'),
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
                               color: primaryColor,
                             ),
                           ),
@@ -137,9 +149,9 @@ class LocationDetailSheet extends StatelessWidget {
                           Text(
                             waypoint.title,
                             style: const TextStyle(
-                              fontSize: 16,
+                              fontSize: 17,
                               fontWeight: FontWeight.w800,
-                              color: Color(0xFF102037),
+                              color: Color(0xFF0F172A),
                             ),
                           ),
                         ],
@@ -147,7 +159,7 @@ class LocationDetailSheet extends StatelessWidget {
                     ),
                     if (waypoint.rating != null)
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
                           color: const Color(0xFFFFF7ED),
                           borderRadius: BorderRadius.circular(999),
@@ -156,13 +168,13 @@ class LocationDetailSheet extends StatelessWidget {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.star_rounded, size: 14, color: Color(0xFFF59E0B)),
+                            const Icon(Icons.star_rounded, size: 15, color: Color(0xFFF59E0B)),
                             const SizedBox(width: 3),
                             Text(
                               waypoint.rating!.toStringAsFixed(1),
                               style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w900,
                                 color: Color(0xFFB45309),
                               ),
                             ),
@@ -179,7 +191,7 @@ class LocationDetailSheet extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   decoration: const BoxDecoration(
                     border: Border.symmetric(
-                      horizontal: BorderSide(color: Color(0xFFE6EDF5)),
+                      horizontal: BorderSide(color: Color(0xFFE2E8F0)),
                     ),
                   ),
                   child: Row(
@@ -201,16 +213,16 @@ class LocationDetailSheet extends StatelessWidget {
                       _buildMetricItem(
                         icon: Icons.wb_sunny_outlined,
                         value: waypoint.openingHours ?? '07:00–17:00',
-                        label: 'đang mở cửa',
+                        label: 'mở cửa',
                         color: primaryColor,
                       ),
                     ],
                   ),
                 ),
 
-                const SizedBox(height: 20),
+                const SizedBox(height: 18),
 
-                // Sheet Actions
+                // Sheet Action Buttons
                 Row(
                   children: [
                     Expanded(
@@ -219,7 +231,10 @@ class LocationDetailSheet extends StatelessWidget {
                         style: OutlinedButton.styleFrom(
                           minimumSize: const Size(0, 48),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                          side: const BorderSide(color: Color(0xFFE2E8F0)),
+                          side: BorderSide(
+                            color: waypoint.isCompleted ? const Color(0xFF10B981) : const Color(0xFFCBD5E1),
+                            width: 1.2,
+                          ),
                         ),
                         onPressed: () {
                           provider.toggleStopCompleted(waypoint.id);
@@ -227,23 +242,28 @@ class LocationDetailSheet extends StatelessWidget {
                         },
                         child: Text(
                           waypoint.isCompleted ? 'Chưa ghé' : 'Đã ghé thăm',
-                          style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF20344F)),
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: waypoint.isCompleted ? const Color(0xFF10B981) : const Color(0xFF475569),
+                          ),
                         ),
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       flex: 2,
-                      child: FilledButton.icon(
-                        style: FilledButton.styleFrom(
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
                           backgroundColor: primaryColor,
+                          elevation: 2,
+                          shadowColor: const Color(0x400284C7),
                           minimumSize: const Size(0, 48),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                         ),
-                        icon: const Icon(Icons.auto_awesome_rounded, size: 18),
+                        icon: const Icon(Icons.auto_awesome_rounded, size: 18, color: Colors.white),
                         label: const Text(
                           'Gợi ý tối ưu AI',
-                          style: TextStyle(fontWeight: FontWeight.bold),
+                          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
                         ),
                         onPressed: () {
                           Navigator.of(context).pop();
@@ -280,17 +300,17 @@ class LocationDetailSheet extends StatelessWidget {
           Text(
             value,
             style: const TextStyle(
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: FontWeight.w800,
-              color: Color(0xFF102037),
+              color: Color(0xFF0F172A),
             ),
           ),
           const SizedBox(height: 1),
           Text(
             label,
             style: const TextStyle(
-              fontSize: 9,
-              color: Color(0xFF91A0B4),
+              fontSize: 10,
+              color: Color(0xFF64748B),
             ),
           ),
         ],
@@ -302,7 +322,7 @@ class LocationDetailSheet extends StatelessWidget {
     return Container(
       width: 1,
       height: 28,
-      color: const Color(0xFFE6EDF5),
+      color: const Color(0xFFE2E8F0),
     );
   }
 }
