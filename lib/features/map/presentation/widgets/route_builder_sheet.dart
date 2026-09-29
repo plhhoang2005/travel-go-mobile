@@ -66,12 +66,12 @@ class _RouteBuilderSheetState extends State<RouteBuilderSheet> {
               decoration: const BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(24),
-                  topRight: Radius.circular(24),
+                  topLeft: Radius.circular(28),
+                  topRight: Radius.circular(28),
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Color(0x1F000000),
+                    color: Color(0x24000000),
                     blurRadius: 20,
                     offset: Offset(0, -4),
                   ),
@@ -90,7 +90,7 @@ class _RouteBuilderSheetState extends State<RouteBuilderSheet> {
                     ),
                   ),
 
-                  // Header: Clean Neutral Style
+                  // Header: Anime Travel Itinerary Header
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                     child: Row(
@@ -101,17 +101,17 @@ class _RouteBuilderSheetState extends State<RouteBuilderSheet> {
                             Container(
                               padding: const EdgeInsets.all(7),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFF1F5F9),
+                                color: const Color(0xFFE0F2FE),
                                 borderRadius: BorderRadius.circular(9),
                               ),
-                              child: const Icon(Icons.route_rounded, color: Color(0xFF475569), size: 20),
+                              child: const Icon(Icons.explore_rounded, color: Color(0xFF0284C7), size: 20),
                             ),
                             const SizedBox(width: 10),
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 const Text(
-                                  'Route Builder',
+                                  'Lộ Trình Phiêu Lưu',
                                   style: TextStyle(
                                     fontSize: 17,
                                     fontWeight: FontWeight.bold,
@@ -119,7 +119,7 @@ class _RouteBuilderSheetState extends State<RouteBuilderSheet> {
                                   ),
                                 ),
                                 Text(
-                                  'Tạo lộ trình du lịch thông minh',
+                                  'Lập kế hoạch chuyến đi phong cách Anime',
                                   style: TextStyle(fontSize: 12, color: colorScheme.outline),
                                 ),
                               ],
@@ -134,15 +134,15 @@ class _RouteBuilderSheetState extends State<RouteBuilderSheet> {
                       ],
                     ),
                   ),
-                  const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                  const Divider(height: 1, color: Color(0xFFE0F2FE)),
 
-                  // Vertical Journey Flow (Natural Colors: Teal Start, Coral End)
+                  // Vertical Journey Flow (Anime Node Styling)
                   Expanded(
                     child: ListView(
                       controller: scrollController,
                       padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
                       children: [
-                        // NODE 1: Origin Node (Teal Circle)
+                        // NODE 1: Origin Node (Teal/Blue Circle)
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -158,9 +158,9 @@ class _RouteBuilderSheetState extends State<RouteBuilderSheet> {
                                   ),
                                 ),
                                 Container(
-                                  width: 2,
+                                  width: 2.5,
                                   height: 48,
-                                  color: const Color(0xFFCBD5E1),
+                                  color: const Color(0xFFBAE6FD),
                                 ),
                               ],
                             ),
@@ -169,9 +169,9 @@ class _RouteBuilderSheetState extends State<RouteBuilderSheet> {
                               child: Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFF8FAFC),
+                                  color: const Color(0xFFF0F9FF),
                                   borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                                  border: Border.all(color: const Color(0xFFBAE6FD)),
                                 ),
                                 child: Row(
                                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -189,7 +189,7 @@ class _RouteBuilderSheetState extends State<RouteBuilderSheet> {
                                         ),
                                         const SizedBox(height: 2),
                                         const Text(
-                                          'Vị trí xuất phát',
+                                          'Điểm xuất phát',
                                           style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
                                         ),
                                       ],
@@ -197,7 +197,7 @@ class _RouteBuilderSheetState extends State<RouteBuilderSheet> {
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                       decoration: BoxDecoration(
-                                        color: const Color(0xFFF1F5F9),
+                                        color: const Color(0xFFE0F2FE),
                                         borderRadius: BorderRadius.circular(6),
                                       ),
                                       child: const Text(
@@ -245,17 +245,17 @@ class _RouteBuilderSheetState extends State<RouteBuilderSheet> {
                                           controller: _destinationSearchController,
                                           decoration: InputDecoration(
                                             hintText: 'Chọn điểm đến...',
-                                            prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF64748B)),
+                                            prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF0284C7)),
                                             contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
                                             filled: true,
-                                            fillColor: const Color(0xFFF8FAFC),
+                                            fillColor: const Color(0xFFF0F9FF),
                                             border: OutlineInputBorder(
                                               borderRadius: BorderRadius.circular(12),
-                                              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                                              borderSide: const BorderSide(color: Color(0xFFBAE6FD)),
                                             ),
                                             enabledBorder: OutlineInputBorder(
                                               borderRadius: BorderRadius.circular(12),
-                                              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                                              borderSide: const BorderSide(color: Color(0xFFBAE6FD)),
                                             ),
                                           ),
                                           onChanged: (val) => setState(() => _destinationQuery = val),
@@ -266,7 +266,7 @@ class _RouteBuilderSheetState extends State<RouteBuilderSheet> {
                                             decoration: BoxDecoration(
                                               color: Colors.white,
                                               borderRadius: BorderRadius.circular(12),
-                                              border: Border.all(color: const Color(0xFFE2E8F0)),
+                                              border: Border.all(color: const Color(0xFFBAE6FD)),
                                             ),
                                             child: ListView.separated(
                                               shrinkWrap: true,
@@ -276,7 +276,7 @@ class _RouteBuilderSheetState extends State<RouteBuilderSheet> {
                                               itemBuilder: (context, idx) {
                                                 final dest = searchResults[idx];
                                                 return ListTile(
-                                                  leading: Icon(dest.icon, color: const Color(0xFF2196F3)),
+                                                  leading: Icon(dest.icon, color: const Color(0xFF0284C7)),
                                                   title: Text(dest.name, style: const TextStyle(fontWeight: FontWeight.bold)),
                                                   subtitle: Text(dest.region, style: const TextStyle(fontSize: 11)),
                                                   onTap: () {
@@ -355,17 +355,17 @@ class _RouteBuilderSheetState extends State<RouteBuilderSheet> {
                           padding: const EdgeInsets.only(left: 30),
                           child: OutlinedButton.icon(
                             onPressed: () => _showAddWaypointSheet(context, provider),
-                            icon: const Icon(Icons.add_rounded, size: 18, color: Color(0xFF475569)),
+                            icon: const Icon(Icons.add_rounded, size: 18, color: Color(0xFF0284C7)),
                             label: const Text(
                               '+ Thêm điểm dừng',
                               style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.bold,
-                                color: Color(0xFF475569),
+                                color: Color(0xFF0284C7),
                               ),
                             ),
                             style: OutlinedButton.styleFrom(
-                              side: const BorderSide(color: Color(0xFFCBD5E1), width: 1),
+                              side: const BorderSide(color: Color(0xFFBAE6FD), width: 1.2),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(10),
                               ),
@@ -377,7 +377,7 @@ class _RouteBuilderSheetState extends State<RouteBuilderSheet> {
                     ),
                   ),
 
-                  // Solid Blue CTA Button ('TẠO LỘ TRÌNH')
+                  // Solid Primary Anime Blue CTA Button ('TẠO LỘ TRÌNH')
                   SafeArea(
                     top: false,
                     child: Padding(
@@ -411,7 +411,7 @@ class _RouteBuilderSheetState extends State<RouteBuilderSheet> {
                             ),
                           ),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF2196F3), // Solid Blue Primary Action
+                            backgroundColor: const Color(0xFF0284C7), // Solid Anime Blue
                             elevation: 0,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
@@ -501,7 +501,7 @@ class _WaypointPickerModalState extends State<_WaypointPickerModal> {
                 controller: _searchController,
                 decoration: InputDecoration(
                   hintText: 'Tìm địa điểm, tỉnh thành...',
-                  prefixIcon: const Icon(Icons.search_rounded, size: 18, color: Color(0xFF64748B)),
+                  prefixIcon: const Icon(Icons.search_rounded, size: 18, color: Color(0xFF0284C7)),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                 ),
@@ -521,7 +521,7 @@ class _WaypointPickerModalState extends State<_WaypointPickerModal> {
 
                   return ListTile(
                     enabled: !isSameAsDest,
-                    leading: Icon(item.icon, color: isSameAsDest ? colorScheme.outline : const Color(0xFF2196F3)),
+                    leading: Icon(item.icon, color: isSameAsDest ? colorScheme.outline : const Color(0xFF0284C7)),
                     title: Text(
                       item.name,
                       style: TextStyle(
@@ -533,7 +533,7 @@ class _WaypointPickerModalState extends State<_WaypointPickerModal> {
                       isSameAsDest ? '${item.region} (Đang là điểm đến)' : item.region,
                       style: TextStyle(fontSize: 11, color: isSameAsDest ? colorScheme.outline : null),
                     ),
-                    trailing: isSameAsDest ? null : const Icon(Icons.add_circle_outline_rounded, size: 20, color: Color(0xFF2196F3)),
+                    trailing: isSameAsDest ? null : const Icon(Icons.add_circle_outline_rounded, size: 20, color: Color(0xFF0284C7)),
                     onTap: isSameAsDest ? null : () => widget.onSelected(item),
                   );
                 },
