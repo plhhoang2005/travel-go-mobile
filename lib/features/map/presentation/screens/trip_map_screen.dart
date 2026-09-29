@@ -152,13 +152,13 @@ class _TripMapScreenState extends State<TripMapScreen> with SingleTickerProvider
       backgroundColor: const Color(0xFFF0F9FF),
       body: Stack(
         children: [
-          // 1. ANIME / CARTOON MAP CANVAS (Vibrant Blue Water, Soft Anime Green & Warm Cel-Shaded Buildings)
+          // 1. ANIME / CARTOON MAP CANVAS (Cel-Shaded Land, Soft Anime Emerald Green & Vibrant Oceans)
           Positioned.fill(
             child: ColorFiltered(
               colorFilter: const ColorFilter.matrix(<double>[
-                0.95, 0.02, 0.05, 0, 5,   // R: Soft warm cel-shaded land
-                0.01, 1.05, 0.02, 0, 10,  // G: Enhance vibrant anime green parks
-                0.02, 0.04, 1.15, 0, 18,  // B: Bright clean anime blue oceans & rivers
+                0.96, 0.02, 0.04, 0, 4,   // R: Soft warm cel-shaded land
+                0.01, 1.06, 0.02, 0, 8,   // G: Enhance vibrant anime green parks
+                0.02, 0.04, 1.18, 0, 16,  // B: Bright clean anime blue oceans & rivers
                 0,    0,    0,    1, 0,
               ]),
               child: FlutterMap(
@@ -181,21 +181,29 @@ class _TripMapScreenState extends State<TripMapScreen> with SingleTickerProvider
                   },
                 ),
                 children: [
-                  // Vector Anime Tile Layer
+                  // Vector Anime Basemap Layer
                   TileLayer(
                     urlTemplate: tileUrls[_currentTileStyle],
                     userAgentPackageName: 'com.travelgo.travelgo_mobile',
                     tileProvider: NetworkTileProvider(),
                   ),
 
-                  // 2. ANIME ADVENTURE ROUTE POLYLINE (#0284C7 Primary Anime Blue)
+                  // 2. ANIME ADVENTURE ROUTE POLYLINE (Cel-Shaded Outline & Glow)
                   if (hasRoute && provider.currentRoute != null) ...[
                     PolylineLayer(
                       polylines: [
+                        // Outer Soft Glow Aura
+                        Polyline(
+                          points: provider.currentRoute!.points,
+                          strokeWidth: 16.0,
+                          color: const Color(0x3B0284C7),
+                          strokeCap: StrokeCap.round,
+                          strokeJoin: StrokeJoin.round,
+                        ),
                         // Crisp White Outer Outline (Anime Cel-Shaded Border)
                         Polyline(
                           points: provider.currentRoute!.points,
-                          strokeWidth: 11.0,
+                          strokeWidth: 10.0,
                           color: Colors.white,
                           strokeCap: StrokeCap.round,
                           strokeJoin: StrokeJoin.round,
@@ -203,7 +211,7 @@ class _TripMapScreenState extends State<TripMapScreen> with SingleTickerProvider
                         // Primary Vibrant Anime Blue Trail
                         Polyline(
                           points: provider.currentRoute!.points,
-                          strokeWidth: 6.5,
+                          strokeWidth: 6.0,
                           color: const Color(0xFF0284C7),
                           strokeCap: StrokeCap.round,
                           strokeJoin: StrokeJoin.round,
