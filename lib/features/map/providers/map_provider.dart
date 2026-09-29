@@ -353,26 +353,31 @@ class MapProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Timer? _radarPingTimer;
+
   void _publishRealtimeLocation(LocationResult result) {
     final groupId = _activeGroupId;
     if (groupId == null) return;
-    if (result.isMock) {
-      _groupRadarMessage =
-          'GPS chưa sẵn sàng; vị trí giả không được chia sẻ realtime.';
-      notifyListeners();
-      return;
+
+    _radarPingTimer?.cancel();
+    
+    void sendPing() {
+      if (_activeGroupId == null) return;
+      unawaited(
+        _groupLocationService
+            .publishLocation(groupId: groupId, position: result.position)
+            .catchError((Object error) {
+              unawaited(
+                _activateGroupRadarFallback(
+                  'Không thể gửi vị trí realtime: $error',
+                ),
+              );
+            }),
+      );
     }
-    unawaited(
-      _groupLocationService
-          .publishLocation(groupId: groupId, position: result.position)
-          .catchError((Object error) {
-            unawaited(
-              _activateGroupRadarFallback(
-                'Không thể gửi vị trí realtime: $error',
-              ),
-            );
-          }),
-    );
+    
+    sendPing();
+    _radarPingTimer = Timer.periodic(const Duration(seconds: 3), (_) => sendPing());
   }
 
   Future<void> _activateGroupRadarFallback(String message) async {
@@ -387,6 +392,8 @@ class MapProvider extends ChangeNotifier {
   }
 
   Future<void> _cancelRadarSubscriptions() async {
+    _radarPingTimer?.cancel();
+    _radarPingTimer = null;
     await _groupMembersSubscription?.cancel();
     await _locationSubscription?.cancel();
     _groupMembersSubscription = null;
@@ -396,6 +403,7 @@ class MapProvider extends ChangeNotifier {
   @override
   void dispose() {
     final groupId = _activeGroupId;
+    _radarPingTimer?.cancel();
     unawaited(_groupMembersSubscription?.cancel());
     unawaited(_locationSubscription?.cancel());
     if (groupId != null) {

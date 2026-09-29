@@ -563,7 +563,7 @@ void main() {
       provider.dispose();
     });
 
-    test('does not publish mock GPS as realtime data', () async {
+    test('publishes mock GPS as realtime data for emulator support', () async {
       final groupService = FakeGroupLocationService();
       final locationService = FakeLocationService();
       final provider = MapProvider(
@@ -584,8 +584,7 @@ void main() {
         ),
       );
       await pumpEventQueue();
-      expect(groupService.publishedPositions, isEmpty);
-      expect(provider.groupRadarMessage, contains('vị trí giả'));
+      expect(groupService.publishedPositions, [LocationService.defaultUniversityOrigin]);
 
       await provider.disconnectGroupRadar();
       await locationService.close();
