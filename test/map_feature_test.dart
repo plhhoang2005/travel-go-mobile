@@ -7,6 +7,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import 'package:travelgo_mobile/features/map/models/map_models.dart';
 import 'package:travelgo_mobile/features/map/presentation/screens/trip_map_screen.dart';
+import 'package:travelgo_mobile/features/map/presentation/widgets/ai_optimization_sheet.dart';
 import 'package:travelgo_mobile/features/map/presentation/widgets/diamond_milestone_marker.dart';
 import 'package:travelgo_mobile/features/map/presentation/widgets/floating_view_switch.dart';
 import 'package:travelgo_mobile/features/map/presentation/widgets/journey_carousel_widget.dart';
@@ -1055,5 +1056,93 @@ void main() {
       expect(fakeRouting.callCount, initialCallCount + 1);
       expect(provider.waypoints.first.id, reversedWaypoints.first.id);
     });
+
+    test('reorderWaypoints updates waypoint order correctly', () async {
+      final provider = MapProvider(apiService: FakeMapApiService());
+      await provider.loadDemoRoute();
+
+      final firstId = provider.waypoints[0].id;
+      final secondId = provider.waypoints[1].id;
+
+      await provider.reorderWaypoints(0, 1);
+      expect(provider.waypoints[0].id, secondId);
+      expect(provider.waypoints[1].id, firstId);
+    });
+
+    test('updateWaypointDay updates dayNumber for specified waypoint', () async {
+      final provider = MapProvider(apiService: FakeMapApiService());
+      await provider.loadDemoRoute();
+
+      provider.updateWaypointDay(0, 3);
+      expect(provider.waypoints.first.dayNumber, 3);
+    });
+
+    test('getOptimizationPreview returns deterministic TSP result', () async {
+      final provider = MapProvider(apiService: FakeMapApiService());
+      await provider.loadDemoRoute();
+
+      final preview = provider.getOptimizationPreview();
+      expect(preview.originalDistanceKm, greaterThan(0));
+      expect(preview.reorderedWaypoints.length, provider.waypoints.length);
+    });
+
+    testWidgets('RouteBuilderSheet renders ReorderableListView and opens AiOptimizationSheet on button tap', (tester) async {
+      tester.view.physicalSize = const Size(1080, 1920);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final provider = MapProvider(apiService: FakeMapApiService());
+      await provider.loadDemoRoute();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ChangeNotifierProvider<MapProvider>.value(
+              value: provider,
+              child: const RouteBuilderSheet(),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ReorderableListView), findsOneWidget);
+      expect(find.text('Tối ưu AI'), findsOneWidget);
+      expect(find.byIcon(Icons.drag_indicator_rounded), findsWidgets);
+
+      await tester.tap(find.text('Tối ưu AI'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AiOptimizationSheet), findsOneWidget);
+    });
+
+    testWidgets('JourneyStoryTimeline renders Day chips and allows switching day', (tester) async {
+      final provider = MapProvider(apiService: FakeMapApiService());
+      await provider.loadDemoRoute();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: JourneyStoryTimeline(
+              provider: provider,
+              onStopSelected: (_) {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Ngày 1'), findsOneWidget);
+      expect(find.text('Ngày 2'), findsOneWidget);
+
+      await tester.tap(find.text('Ngày 2'));
+      await tester.pumpAndSettle();
+
+      expect(provider.selectedDay, 2);
+    });
   });
 }
+

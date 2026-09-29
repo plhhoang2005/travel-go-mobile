@@ -91,13 +91,75 @@ class JourneyStoryTimeline extends StatelessWidget {
 
               const SizedBox(height: 12),
               const Divider(height: 1, color: Color(0xFFE6EDF5)),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
+
+              // Day Selector Bar
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: List.generate(provider.totalDays, (dayIdx) {
+                    final day = dayIdx + 1;
+                    final isSelected = currentDay == day;
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: ChoiceChip(
+                        label: Text('Ngày $day'),
+                        selected: isSelected,
+                        onSelected: (selected) {
+                          if (selected) {
+                            provider.selectDay(day);
+                          }
+                        },
+                        selectedColor: primaryColor,
+                        labelStyle: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: isSelected ? Colors.white : const Color(0xFF5E718B),
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: BorderSide(
+                            color: isSelected ? primaryColor : const Color(0xFFE6EDF5),
+                          ),
+                        ),
+                        showCheckmark: false,
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    );
+                  }),
+                ),
+              ),
+
+              const SizedBox(height: 10),
 
               // Timeline List
               Expanded(
-                child: ListView.builder(
-                  itemCount: stops.length,
-                  itemBuilder: (context, index) {
+                child: stops.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.event_note_rounded,
+                              size: 36,
+                              color: colorScheme.outlineVariant,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Chưa có trạm dừng nào trong Ngày $currentDay',
+                              style: TextStyle(
+                                color: colorScheme.outline,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
+                        itemCount: stops.length,
+                        itemBuilder: (context, index) {
                     final stop = stops[index];
                     final isLast = index == stops.length - 1;
                     final isCompleted = stop.isCompleted;
