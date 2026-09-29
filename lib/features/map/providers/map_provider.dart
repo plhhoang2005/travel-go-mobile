@@ -9,6 +9,7 @@ import '../services/group_location_service.dart';
 import '../services/location_service.dart';
 import '../services/map_api_service.dart';
 import '../services/map_preset_service.dart';
+import '../services/route_optimizer_service.dart';
 
 enum GroupRadarConnectionState { idle, connecting, realtime, demoFallback }
 
@@ -18,6 +19,7 @@ class MapProvider extends ChangeNotifier {
   final LocationService _locationService;
   final DestinationCatalogService _catalogService;
   final GroupLocationGateway _groupLocationService;
+  final RouteOptimizerService _routeOptimizerService;
 
   MapProvider({
     MapApiService? apiService,
@@ -25,11 +27,13 @@ class MapProvider extends ChangeNotifier {
     LocationService? locationService,
     DestinationCatalogService? catalogService,
     GroupLocationGateway? groupLocationService,
+    RouteOptimizerService? routeOptimizerService,
   }) : _apiService = apiService ?? MapApiService(),
        _presetService = presetService ?? MapPresetService(),
        _locationService = locationService ?? LocationService(),
        _catalogService = catalogService ?? DestinationCatalogService(),
-       _groupLocationService = groupLocationService ?? GroupLocationService();
+       _groupLocationService = groupLocationService ?? GroupLocationService(),
+       _routeOptimizerService = routeOptimizerService ?? const RouteOptimizerService();
 
   final MapMode _currentMode = MapMode.routing;
   bool _isLoading = false;
@@ -81,6 +85,7 @@ class MapProvider extends ChangeNotifier {
   GroupRadarConnectionState get groupRadarConnectionState =>
       _groupRadarConnectionState;
   String? get groupRadarMessage => _groupRadarMessage;
+  String? get activeGroupId => _activeGroupId;
   bool get isDemoGroupRadar =>
       _groupMembers.isNotEmpty &&
       _groupMembers.every((member) => member.isDemo);
@@ -137,6 +142,53 @@ class MapProvider extends ChangeNotifier {
       await _fetchRoute();
     } finally {
       _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  OptimizationResult getOptimizationPreview() {
+    return _routeOptimizerService.optimize(
+      origin: _origin,
+      destination: _destination,
+      waypoints: _waypoints,
+    );
+  }
+
+  Future<void> reorderWaypoints(
+    int oldIndex,
+    int newIndex, {
+    bool autoFetch = false,
+  }) async {
+    if (oldIndex < 0 || oldIndex >= _waypoints.length) return;
+    if (newIndex < 0) newIndex = 0;
+    if (newIndex >= _waypoints.length) newIndex = _waypoints.length - 1;
+    if (oldIndex == newIndex) return;
+
+    final items = List<RouteWaypoint>.from(_waypoints);
+    final item = items.removeAt(oldIndex);
+    items.insert(newIndex, item);
+    _waypoints = items;
+
+    if (autoFetch && canBuildRoute) {
+      _isLoading = true;
+      notifyListeners();
+      try {
+        await _fetchRoute();
+      } finally {
+        _isLoading = false;
+        notifyListeners();
+      }
+    } else {
+      _invalidateCurrentRoute();
+      notifyListeners();
+    }
+  }
+
+  void updateWaypointDay(int index, int dayNumber) {
+    if (index >= 0 && index < _waypoints.length) {
+      final items = List<RouteWaypoint>.from(_waypoints);
+      items[index] = items[index].copyWith(dayNumber: dayNumber);
+      _waypoints = items;
       notifyListeners();
     }
   }
@@ -301,26 +353,31 @@ class MapProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Timer? _radarPingTimer;
+
   void _publishRealtimeLocation(LocationResult result) {
     final groupId = _activeGroupId;
     if (groupId == null) return;
-    if (result.isMock) {
-      _groupRadarMessage =
-          'GPS chưa sẵn sàng; vị trí giả không được chia sẻ realtime.';
-      notifyListeners();
-      return;
+
+    _radarPingTimer?.cancel();
+    
+    void sendPing() {
+      if (_activeGroupId == null) return;
+      unawaited(
+        _groupLocationService
+            .publishLocation(groupId: groupId, position: result.position)
+            .catchError((Object error) {
+              unawaited(
+                _activateGroupRadarFallback(
+                  'Không thể gửi vị trí realtime: $error',
+                ),
+              );
+            }),
+      );
     }
-    unawaited(
-      _groupLocationService
-          .publishLocation(groupId: groupId, position: result.position)
-          .catchError((Object error) {
-            unawaited(
-              _activateGroupRadarFallback(
-                'Không thể gửi vị trí realtime: $error',
-              ),
-            );
-          }),
-    );
+    
+    sendPing();
+    _radarPingTimer = Timer.periodic(const Duration(seconds: 3), (_) => sendPing());
   }
 
   Future<void> _activateGroupRadarFallback(String message) async {
@@ -335,6 +392,8 @@ class MapProvider extends ChangeNotifier {
   }
 
   Future<void> _cancelRadarSubscriptions() async {
+    _radarPingTimer?.cancel();
+    _radarPingTimer = null;
     await _groupMembersSubscription?.cancel();
     await _locationSubscription?.cancel();
     _groupMembersSubscription = null;
@@ -344,6 +403,7 @@ class MapProvider extends ChangeNotifier {
   @override
   void dispose() {
     final groupId = _activeGroupId;
+    _radarPingTimer?.cancel();
     unawaited(_groupMembersSubscription?.cancel());
     unawaited(_locationSubscription?.cancel());
     if (groupId != null) {

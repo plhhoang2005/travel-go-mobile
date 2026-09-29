@@ -7,12 +7,14 @@ import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import 'package:travelgo_mobile/features/map/models/map_models.dart';
 import 'package:travelgo_mobile/features/map/presentation/screens/trip_map_screen.dart';
+import 'package:travelgo_mobile/features/map/presentation/widgets/ai_optimization_sheet.dart';
 import 'package:travelgo_mobile/features/map/presentation/widgets/diamond_milestone_marker.dart';
 import 'package:travelgo_mobile/features/map/presentation/widgets/floating_view_switch.dart';
 import 'package:travelgo_mobile/features/map/presentation/widgets/journey_carousel_widget.dart';
 import 'package:travelgo_mobile/features/map/presentation/widgets/journey_story_timeline.dart';
 import 'package:travelgo_mobile/features/map/presentation/widgets/journey_trip_card.dart';
 import 'package:travelgo_mobile/features/map/presentation/widgets/location_detail_sheet.dart';
+import 'package:travelgo_mobile/features/map/presentation/widgets/group_radar_sheet.dart';
 import 'package:travelgo_mobile/features/map/presentation/widgets/milestone_marker_widget.dart';
 import 'package:travelgo_mobile/features/map/presentation/widgets/route_builder_sheet.dart';
 import 'package:travelgo_mobile/features/map/providers/map_provider.dart';
@@ -561,7 +563,7 @@ void main() {
       provider.dispose();
     });
 
-    test('does not publish mock GPS as realtime data', () async {
+    test('publishes mock GPS as realtime data for emulator support', () async {
       final groupService = FakeGroupLocationService();
       final locationService = FakeLocationService();
       final provider = MapProvider(
@@ -582,8 +584,7 @@ void main() {
         ),
       );
       await pumpEventQueue();
-      expect(groupService.publishedPositions, isEmpty);
-      expect(provider.groupRadarMessage, contains('vị trí giả'));
+      expect(groupService.publishedPositions, [LocationService.defaultUniversityOrigin]);
 
       await provider.disconnectGroupRadar();
       await locationService.close();
@@ -1055,5 +1056,171 @@ void main() {
       expect(fakeRouting.callCount, initialCallCount + 1);
       expect(provider.waypoints.first.id, reversedWaypoints.first.id);
     });
+
+    test('reorderWaypoints updates waypoint order correctly', () async {
+      final provider = MapProvider(apiService: FakeMapApiService());
+      await provider.loadDemoRoute();
+
+      final firstId = provider.waypoints[0].id;
+      final secondId = provider.waypoints[1].id;
+
+      await provider.reorderWaypoints(0, 1);
+      expect(provider.waypoints[0].id, secondId);
+      expect(provider.waypoints[1].id, firstId);
+    });
+
+    test('updateWaypointDay updates dayNumber for specified waypoint', () async {
+      final provider = MapProvider(apiService: FakeMapApiService());
+      await provider.loadDemoRoute();
+
+      provider.updateWaypointDay(0, 3);
+      expect(provider.waypoints.first.dayNumber, 3);
+    });
+
+    test('getOptimizationPreview returns deterministic TSP result', () async {
+      final provider = MapProvider(apiService: FakeMapApiService());
+      await provider.loadDemoRoute();
+
+      final preview = provider.getOptimizationPreview();
+      expect(preview.originalDistanceKm, greaterThan(0));
+      expect(preview.reorderedWaypoints.length, provider.waypoints.length);
+    });
+
+    testWidgets('RouteBuilderSheet renders ReorderableListView and opens AiOptimizationSheet on button tap', (tester) async {
+      tester.view.physicalSize = const Size(1080, 1920);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final provider = MapProvider(apiService: FakeMapApiService());
+      await provider.loadDemoRoute();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ChangeNotifierProvider<MapProvider>.value(
+              value: provider,
+              child: const RouteBuilderSheet(),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ReorderableListView), findsOneWidget);
+      expect(find.text('Tối ưu AI'), findsOneWidget);
+      expect(find.byIcon(Icons.drag_indicator_rounded), findsWidgets);
+
+      await tester.tap(find.text('Tối ưu AI'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AiOptimizationSheet), findsOneWidget);
+    });
+
+    testWidgets('JourneyStoryTimeline renders Day chips and allows switching day', (tester) async {
+      final provider = MapProvider(apiService: FakeMapApiService());
+      await provider.loadDemoRoute();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: JourneyStoryTimeline(
+              provider: provider,
+              onStopSelected: (_) {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Ngày 1'), findsOneWidget);
+      expect(find.text('Ngày 2'), findsOneWidget);
+
+      await tester.tap(find.text('Ngày 2'));
+      await tester.pumpAndSettle();
+
+      expect(provider.selectedDay, 2);
+    });
+
+    testWidgets('Group Location Radar: floating button opens GroupRadarSheet and toggles demo members', (tester) async {
+      final fakeRouting = FakeMapApiService();
+      final fakeLocation = FakeLocationService();
+      final provider = MapProvider(
+        apiService: fakeRouting,
+        locationService: fakeLocation,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChangeNotifierProvider<MapProvider>.value(
+            value: provider,
+            child: const TripMapScreen(enableNetworkTiles: false),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Find floating radar button
+      final radarBtn = find.byTooltip('Radar nhóm');
+      expect(radarBtn, findsOneWidget);
+
+      await tester.tap(radarBtn);
+      await tester.pumpAndSettle();
+
+      // GroupRadarSheet should be open
+      expect(find.byType(GroupRadarSheet), findsOneWidget);
+      expect(find.text('Radar Nhóm Du Lịch'), findsOneWidget);
+      expect(find.text('KẾT NỐI PHÒNG RADAR'), findsOneWidget);
+
+      // Tap demo button
+      final demoBtn = find.text('Hoặc xem thử dữ liệu mẫu (4 thành viên demo)');
+      expect(demoBtn, findsOneWidget);
+      await tester.tap(demoBtn);
+      await tester.pumpAndSettle();
+
+      // Radar should be enabled and sheet closed
+      expect(provider.isGroupRadarEnabled, isTrue);
+      expect(provider.groupMembers.length, 4);
+
+      // Map should show banner and member markers
+      expect(find.textContaining('Radar nhóm demo [4 thành viên]'), findsOneWidget);
+      expect(find.text('An Nguyễn'), findsOneWidget);
+      expect(find.text('Lan Trần'), findsOneWidget);
+    });
+
+    testWidgets('Group Location Radar: GroupRadarSheet displays members list and allows disconnecting', (tester) async {
+      final fakeRouting = FakeMapApiService();
+      final fakeLocation = FakeLocationService();
+      final provider = MapProvider(
+        apiService: fakeRouting,
+        locationService: fakeLocation,
+      );
+      provider.setGroupRadarEnabled(true);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: GroupRadarSheet(provider: provider),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('THÀNH VIÊN TRONG PHÒNG (4)'), findsOneWidget);
+      expect(find.text('An Nguyễn'), findsOneWidget);
+      expect(find.text('Lan Trần'), findsOneWidget);
+      expect(find.text('Khoa Lê'), findsOneWidget);
+      expect(find.text('Mai Phạm'), findsOneWidget);
+      expect(find.text('Rời phòng / Tắt Radar'), findsOneWidget);
+
+      await tester.tap(find.text('Rời phòng / Tắt Radar'));
+      await tester.pumpAndSettle();
+
+      expect(provider.isGroupRadarEnabled, isFalse);
+    });
   });
 }
+
+

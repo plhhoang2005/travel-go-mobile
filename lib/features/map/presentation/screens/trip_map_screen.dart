@@ -7,6 +7,7 @@ import '../../models/map_models.dart';
 import '../../providers/map_provider.dart';
 import '../widgets/diamond_milestone_marker.dart';
 import '../widgets/floating_view_switch.dart';
+import '../widgets/group_radar_sheet.dart';
 import '../widgets/journey_story_timeline.dart';
 import '../widgets/journey_trip_card.dart';
 import '../widgets/location_detail_sheet.dart';
@@ -122,6 +123,15 @@ class _TripMapScreenState extends State<TripMapScreen> {
     });
   }
 
+  void _openGroupRadarSheet(BuildContext context, MapProvider provider) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => GroupRadarSheet(provider: provider),
+    );
+  }
+
   void _showMoreOptionsMenu(BuildContext context, MapProvider provider) {
     showModalBottomSheet<void>(
       context: context,
@@ -144,6 +154,46 @@ class _TripMapScreenState extends State<TripMapScreen> {
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
+            ListTile(
+              leading: Icon(
+                Icons.radar_rounded,
+                color: provider.isGroupRadarEnabled
+                    ? const Color(0xFF086C61)
+                    : const Color(0xFF64748B),
+              ),
+              title: Row(
+                children: [
+                  const Text('Radar vị trí nhóm',
+                      style: TextStyle(fontWeight: FontWeight.w600)),
+                  const SizedBox(width: 8),
+                  if (provider.isGroupRadarEnabled)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF086C61).withAlpha(20),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Text('ĐANG BẬT',
+                          style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF086C61))),
+                    ),
+                ],
+              ),
+              subtitle: Text(
+                provider.isGroupRadarEnabled
+                    ? '${provider.groupMembers.length} thành viên đang kết nối'
+                    : 'Định vị thời gian thực với bạn bè qua mã phòng',
+                style: const TextStyle(fontSize: 12),
+              ),
+              onTap: () {
+                Navigator.of(context).pop();
+                _openGroupRadarSheet(context, provider);
+              },
+            ),
+            const Divider(height: 1),
             if (provider.hasRoute) ...[
               ListTile(
                 leading: const Icon(Icons.fit_screen_rounded, color: Color(0xFF086C61)),
@@ -266,11 +316,16 @@ class _TripMapScreenState extends State<TripMapScreen> {
                   ],
                 ),
 
-              // Markers Layer: 1 marker in STATE A, Diamond Milestones in STATE B
+              // Markers Layer: 1 marker in STATE A, Diamond Milestones in STATE B, plus Group Radar Markers
               MarkerLayer(
-                markers: hasRoute
-                    ? _buildDiamondMilestoneMarkers(provider, allStops, activeIndex)
-                    : _buildLocateOnlyMarkers(provider),
+                markers: [
+                  ...(hasRoute
+                      ? _buildDiamondMilestoneMarkers(
+                          provider, allStops, activeIndex)
+                      : _buildLocateOnlyMarkers(provider)),
+                  if (provider.isGroupRadarEnabled)
+                    ..._buildGroupMemberMarkers(provider),
+                ],
               ),
             ],
           ),
@@ -366,6 +421,22 @@ class _TripMapScreenState extends State<TripMapScreen> {
                         text: 'Bản đồ ngoại tuyến [Đang dùng tile dự phòng]',
                       ),
                     ),
+                  if (provider.isGroupRadarEnabled)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: _buildNotificationBanner(
+                        icon: Icons.radar_rounded,
+                        color: provider.isDemoGroupRadar
+                            ? const Color(0xFFD97706)
+                            : const Color(0xFF059669),
+                        bgColor: provider.isDemoGroupRadar
+                            ? const Color(0xFFFFFBEB)
+                            : const Color(0xFFECFDF5),
+                        text: provider.isDemoGroupRadar
+                            ? 'Radar nhóm demo [${provider.groupMembers.length} thành viên]'
+                            : 'Radar nhóm [${provider.activeGroupId ?? "DEMO"} · ${provider.groupMembers.length} thành viên]',
+                      ),
+                    ),
                   _buildJourneyPreviewCard(context, provider),
                 ],
               ),
@@ -399,6 +470,22 @@ class _TripMapScreenState extends State<TripMapScreen> {
                         color: const Color(0xFFD97706),
                         bgColor: const Color(0xFFFFFBEB),
                         text: 'Dữ liệu lộ trình ngoại tuyến [OSRM Offline]',
+                      ),
+                    ),
+                  if (provider.isGroupRadarEnabled)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: _buildNotificationBanner(
+                        icon: Icons.radar_rounded,
+                        color: provider.isDemoGroupRadar
+                            ? const Color(0xFFD97706)
+                            : const Color(0xFF059669),
+                        bgColor: provider.isDemoGroupRadar
+                            ? const Color(0xFFFFFBEB)
+                            : const Color(0xFFECFDF5),
+                        text: provider.isDemoGroupRadar
+                            ? 'Radar nhóm demo [${provider.groupMembers.length} thành viên]'
+                            : 'Radar nhóm [${provider.activeGroupId ?? "DEMO"} · ${provider.groupMembers.length} thành viên]',
                       ),
                     ),
                   if (_isTileDegraded)
@@ -438,6 +525,15 @@ class _TripMapScreenState extends State<TripMapScreen> {
                   ),
                   const SizedBox(height: 8),
                 ],
+                _buildFloatingToolButton(
+                  icon: Icons.radar_rounded,
+                  tooltip: provider.isGroupRadarEnabled
+                      ? 'Radar nhóm (Đang bật)'
+                      : 'Radar nhóm',
+                  isActive: provider.isGroupRadarEnabled,
+                  onTap: () => _openGroupRadarSheet(context, provider),
+                ),
+                const SizedBox(height: 8),
                 _buildFloatingToolButton(
                   icon: Icons.my_location_rounded,
                   tooltip: 'Cập nhật vị trí',
@@ -747,10 +843,143 @@ class _TripMapScreenState extends State<TripMapScreen> {
     return markers;
   }
 
+  List<Marker> _buildGroupMemberMarkers(MapProvider provider) {
+    return provider.groupMembers.map((member) {
+      final isSelected =
+          provider.selectedGroupMember?.memberId == member.memberId;
+      return Marker(
+        point: member.position,
+        width: 84,
+        height: 70,
+        child: GestureDetector(
+          onTap: () {
+            provider.selectGroupMember(member.memberId);
+            final distMeters =
+                provider.distanceToGroupMemberMeters(member).round();
+            final distStr = distMeters >= 1000
+                ? '${(distMeters / 1000).toStringAsFixed(1)} km'
+                : '$distMeters m';
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 12,
+                      backgroundColor: const Color(0xFF4338CA),
+                      child: Text(
+                        member.avatarInitials,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text('${member.displayName} · Cách bạn $distStr'),
+                    ),
+                  ],
+                ),
+                behavior: SnackBarBehavior.floating,
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Stack(
+                clipBehavior: Clip.none,
+                alignment: Alignment.center,
+                children: [
+                  Container(
+                    width: isSelected ? 38 : 34,
+                    height: isSelected ? 38 : 34,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF4338CA),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color:
+                            isSelected ? const Color(0xFFF59E0B) : Colors.white,
+                        width: isSelected ? 3.0 : 2.0,
+                      ),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x33000000),
+                          blurRadius: 5,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: Text(
+                        member.avatarInitials,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        color: member.status == GroupMemberStatus.online
+                            ? const Color(0xFF10B981)
+                            : (member.status == GroupMemberStatus.idle
+                                ? const Color(0xFFF59E0B)
+                                : const Color(0xFF94A3B8)),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 1.5),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 2),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x1A000000),
+                      blurRadius: 4,
+                      offset: Offset(0, 1),
+                    ),
+                  ],
+                ),
+                child: Text(
+                  member.displayName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1E293B),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }).toList();
+  }
+
   Widget _buildFloatingToolButton({
     required IconData icon,
     required String tooltip,
     required VoidCallback onTap,
+    bool isActive = false,
   }) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(22),
@@ -760,9 +989,15 @@ class _TripMapScreenState extends State<TripMapScreen> {
           width: 44,
           height: 44,
           decoration: BoxDecoration(
-            color: const Color(0xFFFAFAF9).withAlpha(225),
+            color: isActive
+                ? const Color(0xFF086C61)
+                : const Color(0xFFFAFAF9).withAlpha(225),
             shape: BoxShape.circle,
-            border: Border.all(color: const Color(0xFFE2E8F0)),
+            border: Border.all(
+              color: isActive
+                  ? const Color(0xFF086C61)
+                  : const Color(0xFFE2E8F0),
+            ),
             boxShadow: const [
               BoxShadow(
                 color: Color(0x14000000),
@@ -772,7 +1007,11 @@ class _TripMapScreenState extends State<TripMapScreen> {
             ],
           ),
           child: IconButton(
-            icon: Icon(icon, size: 20, color: const Color(0xFF086C61)),
+            icon: Icon(
+              icon,
+              size: 20,
+              color: isActive ? Colors.white : const Color(0xFF086C61),
+            ),
             tooltip: tooltip,
             onPressed: onTap,
           ),
