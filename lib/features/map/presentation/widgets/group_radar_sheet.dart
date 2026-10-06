@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../models/map_models.dart';
@@ -19,6 +20,7 @@ class _GroupRadarSheetState extends State<GroupRadarSheet> {
   late final TextEditingController _nameController;
   late final TextEditingController _roomCodeController;
   bool _isConnecting = false;
+  bool _isDisconnecting = false;
 
   @override
   void initState() {
@@ -37,6 +39,7 @@ class _GroupRadarSheetState extends State<GroupRadarSheet> {
   }
 
   Future<void> _handleConnect() async {
+    if (_isConnecting || widget.provider.groupRadarConnectionState == GroupRadarConnectionState.connecting) return;
     final name = _nameController.text.trim().isEmpty ? 'Bạn' : _nameController.text.trim();
     final roomCode = _roomCodeController.text.trim().isEmpty
         ? 'TG-2026'
@@ -46,11 +49,11 @@ class _GroupRadarSheetState extends State<GroupRadarSheet> {
     setState(() => _isConnecting = true);
     try {
       await widget.provider.connectGroupRadar(
-        userId: 'usr_${DateTime.now().millisecondsSinceEpoch}',
+        userId: 'radar-guest',
         displayName: name,
         avatarInitials: initials,
         roomCode: roomCode,
-      );
+      ).timeout(const Duration(seconds: 6));
       if (mounted) {
         Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
@@ -59,6 +62,12 @@ class _GroupRadarSheetState extends State<GroupRadarSheet> {
             backgroundColor: const Color(0xFF10B981),
           ),
         );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Không thể kết nối phòng Radar: $error'),
+        ));
       }
     } finally {
       if (mounted) {
@@ -76,6 +85,7 @@ class _GroupRadarSheetState extends State<GroupRadarSheet> {
         final colorScheme = theme.colorScheme;
         final primaryColor = colorScheme.primary;
         final isEnabled = widget.provider.isGroupRadarEnabled;
+        final connecting = _isConnecting || widget.provider.groupRadarConnectionState == GroupRadarConnectionState.connecting;
         final isDemo = widget.provider.isDemoGroupRadar;
         final members = widget.provider.groupMembers;
 
@@ -312,13 +322,14 @@ class _GroupRadarSheetState extends State<GroupRadarSheet> {
                   side: BorderSide(color: colorScheme.error.withAlpha(120)),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),
-                icon: const Icon(Icons.power_settings_new_rounded, size: 18),
+                icon: _isDisconnecting
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.power_settings_new_rounded, size: 18),
                 label: const Text('Rời phòng / Tắt Radar', style: TextStyle(fontWeight: FontWeight.bold)),
-                onPressed: () async {
-                  await widget.provider.disconnectGroupRadar();
-                  if (context.mounted) {
-                    Navigator.of(context).pop();
-                  }
+                onPressed: _isDisconnecting ? null : () {
+                  setState(() => _isDisconnecting = true);
+                  unawaited(widget.provider.disconnectGroupRadar());
+                  Navigator.of(context).pop();
                 },
               ),
             ),
@@ -386,7 +397,7 @@ class _GroupRadarSheetState extends State<GroupRadarSheet> {
                   backgroundColor: const Color(0xFF086C61),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),
-                icon: _isConnecting
+                icon: connecting
                     ? const SizedBox(
                         width: 18,
                         height: 18,
@@ -394,17 +405,17 @@ class _GroupRadarSheetState extends State<GroupRadarSheet> {
                       )
                     : const Icon(Icons.wifi_tethering_rounded, size: 18),
                 label: Text(
-                  _isConnecting ? 'Đang kết nối...' : 'KẾT NỐI PHÒNG RADAR',
+                  connecting ? 'Đang kết nối...' : 'KẾT NỐI PHÒNG RADAR',
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
-                onPressed: _isConnecting ? null : _handleConnect,
+                onPressed: connecting ? null : _handleConnect,
               ),
             ),
             const SizedBox(height: 8),
 
             Center(
               child: TextButton(
-                onPressed: () {
+                onPressed: connecting ? null : () {
                   widget.provider.setGroupRadarEnabled(true);
                   Navigator.of(context).pop();
                 },
