@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -13,6 +14,7 @@ import '../widgets/journey_trip_card.dart';
 import '../widgets/location_detail_sheet.dart';
 import '../widgets/pulsing_ring_marker.dart';
 import '../widgets/route_builder_sheet.dart';
+import '../widgets/vietnamese_sovereignty_layer.dart';
 
 class TripMapScreen extends StatefulWidget {
   final LatLng? initialDestination;
@@ -34,7 +36,7 @@ class TripMapScreen extends StatefulWidget {
   State<TripMapScreen> createState() => _TripMapScreenState();
 }
 
-class _TripMapScreenState extends State<TripMapScreen> {
+class _TripMapScreenState extends State<TripMapScreen> with WidgetsBindingObserver {
   final MapController _mapController = MapController();
   bool _isMapReady = false;
 
@@ -46,8 +48,10 @@ class _TripMapScreenState extends State<TripMapScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       final provider = context.read<MapProvider>();
       provider
           .init(
@@ -68,7 +72,23 @@ class _TripMapScreenState extends State<TripMapScreen> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final provider = context.read<MapProvider>();
+    switch (state) {
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.paused:
+        provider.onAppPaused();
+      case AppLifecycleState.resumed:
+        provider.onAppResumed();
+      case AppLifecycleState.detached:
+        unawaited(provider.disconnectGroupRadar());
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _mapController.dispose();
     super.dispose();
   }
@@ -298,6 +318,13 @@ class _TripMapScreenState extends State<TripMapScreen> {
               const SimpleAttributionWidget(
                 source: Text('OpenStreetMap contributors'),
                 alignment: Alignment.bottomLeft,
+              ),
+
+              // Vietnamese Sovereignty Layer (Hoàng Sa, Trường Sa, Biển Đông)
+              VietnameseSovereigntyLayer(
+                onIslandTapped: (item) {
+                  _mapController.move(item.position, 8.5);
+                },
               ),
 
               // Ribbon Polyline Layer (Only in STATE B)

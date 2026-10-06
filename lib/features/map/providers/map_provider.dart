@@ -33,7 +33,8 @@ class MapProvider extends ChangeNotifier {
        _locationService = locationService ?? LocationService(),
        _catalogService = catalogService ?? DestinationCatalogService(),
        _groupLocationService = groupLocationService ?? GroupLocationService(),
-       _routeOptimizerService = routeOptimizerService ?? const RouteOptimizerService();
+       _routeOptimizerService =
+           routeOptimizerService ?? const RouteOptimizerService();
 
   final MapMode _currentMode = MapMode.routing;
   bool _isLoading = false;
@@ -63,6 +64,10 @@ class MapProvider extends ChangeNotifier {
   String? _activeGroupId;
   StreamSubscription<List<GroupMemberLocation>>? _groupMembersSubscription;
   StreamSubscription<LocationResult>? _locationSubscription;
+
+  int _radarGeneration = 0;
+  bool _appPaused = false;
+  bool _disposed = false;
 
   // Getters
   MapMode get currentMode => _currentMode;
@@ -274,68 +279,121 @@ class MapProvider extends ChangeNotifier {
     required String avatarInitials,
     String roomCode = 'TRAVELGO-DEMO',
   }) async {
-    await _cancelRadarSubscriptions();
-    _isGroupRadarEnabled = true;
+    if (_groupRadarConnectionState == GroupRadarConnectionState.connecting ||
+        _groupRadarConnectionState == GroupRadarConnectionState.realtime) {
+      return;
+    }
+    final generation = ++_radarGeneration;
+    unawaited(_cancelRadarSubscriptions());
+    _isGroupRadarEnabled = false;
     _groupMembers = [];
     _selectedGroupMember = null;
     _groupRadarConnectionState = GroupRadarConnectionState.connecting;
     _groupRadarMessage = null;
     notifyListeners();
 
-    if (userId.trim().isEmpty) {
-      await _activateGroupRadarFallback(
-        'Cần đăng nhập để chia sẻ vị trí realtime.',
-      );
-      return;
-    }
-
     try {
-      final groupId = await _groupLocationService.joinGroup(
-        roomCode: roomCode,
-        displayName: displayName,
-        avatarInitials: avatarInitials,
-      );
+      if (userId.trim().isEmpty) {
+        throw StateError('Thiếu định danh phiên Radar.');
+      }
+      final groupId = await _groupLocationService
+          .joinGroup(
+            roomCode: roomCode,
+            displayName: displayName,
+            avatarInitials: avatarInitials,
+          )
+          .timeout(const Duration(seconds: 6));
+      if (_disposed || generation != _radarGeneration) return;
       _activeGroupId = groupId;
+      _isGroupRadarEnabled = true;
       _groupMembersSubscription = _groupLocationService
           .watchMembers(groupId)
           .listen(
-            _replaceRealtimeMembers,
+            (members) {
+              if (!_disposed && generation == _radarGeneration) {
+                _replaceRealtimeMembers(members);
+              }
+            },
             onError: (Object error) {
-              unawaited(
-                _activateGroupRadarFallback('Mất kết nối Supabase: $error'),
-              );
+              if (!_disposed && generation == _radarGeneration) {
+                _failRadar(error);
+              }
             },
           );
-      _locationSubscription = _locationService.watchUserLocation().listen(
-        _publishRealtimeLocation,
-        onError: (Object error) {
-          _groupRadarMessage = 'Không thể đọc GPS realtime: $error';
-          notifyListeners();
-        },
-      );
       _groupRadarConnectionState = GroupRadarConnectionState.realtime;
+      if (!_appPaused) _startRadarLocation();
       notifyListeners();
     } catch (error) {
-      await _activateGroupRadarFallback('Không thể kết nối Supabase: $error');
+      if (!_disposed && generation == _radarGeneration) {
+        _failRadar(error, roomCode);
+      }
+      rethrow;
     }
   }
 
+  void _failRadar(Object error, [String? pendingRoom]) {
+    unawaited(disconnectGroupRadar());
+    _groupRadarMessage = 'Không thể kết nối Radar: $error';
+    notifyListeners();
+  }
+
+  void _markOfflineInBackground(String groupId) {
+    unawaited(
+      Future<void>.sync(() => _groupLocationService.markOffline(groupId))
+          .timeout(const Duration(seconds: 2))
+          .catchError((Object error) {
+            debugPrint('Radar teardown: $error');
+          }),
+    );
+  }
+
   Future<void> disconnectGroupRadar() async {
+    ++_radarGeneration;
     final groupId = _activeGroupId;
+    final wasConnecting =
+        _groupRadarConnectionState == GroupRadarConnectionState.connecting;
     _isGroupRadarEnabled = false;
+    _groupMembers = [];
     _selectedGroupMember = null;
     _groupRadarConnectionState = GroupRadarConnectionState.idle;
     _groupRadarMessage = null;
     _activeGroupId = null;
-    await _cancelRadarSubscriptions();
-    if (groupId != null) {
-      try {
-        await _groupLocationService.markOffline(groupId);
-      } catch (_) {
-        // The radar is already disabled; an offline write failure must not block the UI.
-      }
+    unawaited(_cancelRadarSubscriptions());
+    if (groupId != null || wasConnecting) {
+      _markOfflineInBackground(groupId ?? '');
     }
     notifyListeners();
+  }
+
+  void onAppPaused() {
+    _appPaused = true;
+    _radarPingTimer?.cancel();
+    _radarPingTimer = null;
+    final subscription = _locationSubscription;
+    _locationSubscription = null;
+    unawaited(subscription?.cancel());
+  }
+
+  void onAppResumed() {
+    if (!_appPaused || _disposed) return;
+    _appPaused = false;
+    if (_activeGroupId != null) _startRadarLocation();
+  }
+
+  void _startRadarLocation() {
+    final generation = _radarGeneration;
+    _locationSubscription = _locationService.watchUserLocation().listen(
+      (result) {
+        if (!_disposed && !_appPaused && generation == _radarGeneration) {
+          _publishRealtimeLocation(result);
+        }
+      },
+      onError: (Object error) {
+        if (_disposed || generation != _radarGeneration) return;
+        _groupRadarMessage = 'Không thể đọc GPS realtime: $error';
+        notifyListeners();
+      },
+    );
   }
 
   void _replaceRealtimeMembers(List<GroupMemberLocation> members) {
@@ -357,57 +415,55 @@ class MapProvider extends ChangeNotifier {
 
   void _publishRealtimeLocation(LocationResult result) {
     final groupId = _activeGroupId;
-    if (groupId == null) return;
+    if (groupId == null || _appPaused || _disposed) return;
 
     _radarPingTimer?.cancel();
-    
+
+    final generation = _radarGeneration;
     void sendPing() {
-      if (_activeGroupId == null) return;
+      if (_disposed || _appPaused || generation != _radarGeneration) return;
       unawaited(
         _groupLocationService
             .publishLocation(groupId: groupId, position: result.position)
             .catchError((Object error) {
-              unawaited(
-                _activateGroupRadarFallback(
-                  'Không thể gửi vị trí realtime: $error',
-                ),
-              );
+              if (!_disposed && generation == _radarGeneration) {
+                _failRadar(error);
+              }
             }),
       );
     }
-    
-    sendPing();
-    _radarPingTimer = Timer.periodic(const Duration(seconds: 3), (_) => sendPing());
-  }
 
-  Future<void> _activateGroupRadarFallback(String message) async {
-    await _cancelRadarSubscriptions();
-    _activeGroupId = null;
-    _isGroupRadarEnabled = true;
-    _groupMembers = _presetService.getDemoGroupMembers();
-    _selectedGroupMember = null;
-    _groupRadarConnectionState = GroupRadarConnectionState.demoFallback;
-    _groupRadarMessage = '$message Đang hiển thị dữ liệu demo.';
-    notifyListeners();
+    sendPing();
+    _radarPingTimer = Timer.periodic(
+      const Duration(seconds: 3),
+      (_) => sendPing(),
+    );
   }
 
   Future<void> _cancelRadarSubscriptions() async {
     _radarPingTimer?.cancel();
     _radarPingTimer = null;
-    await _groupMembersSubscription?.cancel();
-    await _locationSubscription?.cancel();
+    final members = _groupMembersSubscription;
+    final location = _locationSubscription;
     _groupMembersSubscription = null;
     _locationSubscription = null;
+    await Future.wait([
+      if (members != null) members.cancel(),
+      if (location != null) location.cancel(),
+    ]);
   }
 
   @override
   void dispose() {
+    _disposed = true;
+    ++_radarGeneration;
     final groupId = _activeGroupId;
     _radarPingTimer?.cancel();
     unawaited(_groupMembersSubscription?.cancel());
     unawaited(_locationSubscription?.cancel());
-    if (groupId != null) {
-      unawaited(_groupLocationService.markOffline(groupId).catchError((_) {}));
+    if (groupId != null ||
+        _groupRadarConnectionState == GroupRadarConnectionState.connecting) {
+      _markOfflineInBackground(groupId ?? '');
     }
     super.dispose();
   }
@@ -619,7 +675,7 @@ class MapProvider extends ChangeNotifier {
       if (e.backendUnreachable) {
         _currentRoute = _generateLocalOfflineLine();
         _errorMessage =
-            'Backend không kết nối - đang hiển thị đường thẳng cục bộ';
+            'Backend và OSRM không kết nối - đang hiển thị đường thẳng cục bộ';
       } else {
         _errorMessage = e.message;
         _currentRoute = null;
@@ -655,7 +711,7 @@ class MapProvider extends ChangeNotifier {
       distanceKm: totalDistKm,
       durationMinutes: durationMins,
       isFallback: true,
-      summary: 'Đường thẳng cục bộ [BE Down]',
+      summary: 'Đường thẳng cục bộ [OSRM Offline]',
       waypoints: _waypoints,
     );
   }

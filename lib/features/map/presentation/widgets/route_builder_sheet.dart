@@ -247,6 +247,21 @@ class _RouteBuilderSheetState extends State<RouteBuilderSheet> {
                                     title: Text(dest.name, style: const TextStyle(fontWeight: FontWeight.w600)),
                                     subtitle: Text(dest.region, style: TextStyle(color: colorScheme.outline, fontSize: 11)),
                                     onTap: () {
+                                      if (!dest.isRoutable) {
+                                        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            behavior: SnackBarBehavior.floating,
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                            backgroundColor: const Color(0xFF0F172A),
+                                            content: Text(
+                                              '🇻🇳 ${dest.name} là địa danh biển đảo tra cứu thông tin chủ quyền, không hỗ trợ lập lộ trình đường bộ xe ô tô.',
+                                              style: const TextStyle(color: Colors.white, fontSize: 12),
+                                            ),
+                                          ),
+                                        );
+                                        return;
+                                      }
                                       provider.setDestination(dest.position, dest.name);
                                       _destinationSearchController.clear();
                                       setState(() => _destinationQuery = '');
@@ -659,11 +674,37 @@ class _WaypointPickerModalState extends State<_WaypointPickerModal> {
                     ),
                   ),
                   subtitle: Text(
-                    isSameAsDest ? '${item.region} (Đang là điểm đến)' : item.region,
-                    style: TextStyle(fontSize: 11, color: isSameAsDest ? colorScheme.outline : null),
+                    isSameAsDest
+                        ? '${item.region} (Đang là điểm đến)'
+                        : (!item.isRoutable ? '${item.region} · Điểm tra cứu chủ quyền' : item.region),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: !item.isRoutable ? const Color(0xFFB91C1C) : (isSameAsDest ? colorScheme.outline : null),
+                    ),
                   ),
-                  trailing: isSameAsDest ? null : const Icon(Icons.add_rounded, size: 20),
-                  onTap: isSameAsDest ? null : () => widget.onSelected(item),
+                  trailing: isSameAsDest
+                      ? null
+                      : (item.isRoutable ? const Icon(Icons.add_rounded, size: 20) : const Icon(Icons.info_outline_rounded, size: 20)),
+                  onTap: isSameAsDest
+                      ? null
+                      : () {
+                          if (!item.isRoutable) {
+                            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                backgroundColor: const Color(0xFF0F172A),
+                                content: Text(
+                                  '🇻🇳 ${item.name} là địa danh biển đảo tra cứu thông tin chủ quyền, không hỗ trợ lập lộ trình đường bộ xe ô tô.',
+                                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                                ),
+                              ),
+                            );
+                            return;
+                          }
+                          widget.onSelected(item);
+                        },
                 );
               },
             ),
