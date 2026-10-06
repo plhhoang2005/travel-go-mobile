@@ -30,4 +30,3 @@ flutter run
 *Lưu ý: Khi mở app, vui lòng nhấn "Cho phép" (Allow) quyền Vị trí để trải nghiệm Bản đồ và Radar Nhóm.*
 
 ---
-*Dự án thuộc môn học Thiết kế giao diện người dùng nâng cao.*
