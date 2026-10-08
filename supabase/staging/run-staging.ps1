@@ -24,6 +24,9 @@ param(
   [string]$ExpectedSqlHash,
 
   [Parameter(Mandatory=$false)]
+  [string]$ExpectedHelperHash,
+
+  [Parameter(Mandatory=$false)]
   [switch]$Bootstrap,
 
   [Parameter(Mandatory=$false)]
@@ -101,6 +104,23 @@ if (![string]::IsNullOrWhiteSpace($ExpectedSqlHash)) {
   }
 }
 
+# 9.1 Dependency & Manifest Protection Guard
+$rawSqlContent = [System.IO.File]::ReadAllText($resolvedSqlPath, [System.Text.Encoding]::UTF8)
+$dependsOnHelper = ($rawSqlContent -match 'profile_privacy_test_helpers\.sql')
+if ($dependsOnHelper) {
+  $repoRoot = (Resolve-Path (Join-Path $scriptDir "..\..")).Path
+  $helperPath = Join-Path $repoRoot "supabase\tests\profile_privacy_test_helpers.sql"
+  if (Test-Path $helperPath) {
+    if ([string]::IsNullOrWhiteSpace($ExpectedHelperHash)) {
+      throw "DEPENDENCY INTEGRITY FAILURE: '$SqlFile' depends on 'profile_privacy_test_helpers.sql'. -ExpectedHelperHash is mandatory to verify dependency integrity before execution."
+    }
+    $computedHelperHex = Get-NormalizedSha256 -filePath $helperPath
+    if ($computedHelperHex -ne $ExpectedHelperHash.Trim().ToUpper()) {
+      throw "DEPENDENCY HASH MISMATCH: Dependency 'profile_privacy_test_helpers.sql' hash mismatch! Expected: '$ExpectedHelperHash', Actual: '$computedHelperHex'. Target rejected before connection."
+    }
+  }
+}
+
 # 10. Bootstrap vs Corrective Mode Enforcement
 if ($Bootstrap) {
   # Strict canonical path binding: Must match the runner's canonical baseline artifact exactly
@@ -147,14 +167,22 @@ if ($ExecutorMock) {
   exit 0
 }
 
-# 12. Database Execution via psql
+# 12. Database Execution via host psql
+$psqlExe = "psql"
 $psqlCmd = Get-Command psql -ErrorAction SilentlyContinue
 if (!$psqlCmd) {
-  throw "EXECUTION BLOCKER: 'psql' is not installed or not available on PATH. Direct SQL execution requires psql or authorized runner connection."
+  $hostPsql = Get-ChildItem -Path "C:\Program Files\PostgreSQL\*\bin\psql.exe" -ErrorAction SilentlyContinue | Select-Object -Last 1
+  if ($hostPsql) {
+    $psqlExe = $hostPsql.FullName
+    $psqlCmd = $true
+  }
+}
+if (!$psqlCmd) {
+  throw "EXECUTION BLOCKER: 'psql' is not installed or not available on PATH. Direct SQL execution requires psql on host machine or Supabase Dashboard SQL Editor."
 }
 
 Write-Host "Executing SQL file: $SqlFile against $ConnectionHost..." -ForegroundColor Cyan
-& psql -X -v ON_ERROR_STOP=1 -h $ConnectionHost -U postgres -d postgres -f $SqlFile
+& $psqlExe -X -v ON_ERROR_STOP=1 -h $ConnectionHost -U postgres -d postgres -f $SqlFile
 if ($LASTEXITCODE -ne 0) {
   throw "psql execution failed with exit code $LASTEXITCODE on file $SqlFile"
 }

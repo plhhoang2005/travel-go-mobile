@@ -21,6 +21,19 @@ $bBytes = [System.Text.Encoding]::UTF8.GetBytes($lfBaselineContent)
 $sha256 = [System.Security.Cryptography.SHA256]::Create()
 $VALID_BASELINE_HASH = [System.BitConverter]::ToString($sha256.ComputeHash($bBytes)).Replace('-', '').ToUpper()
 
+$TestsDir = Join-Path (Split-Path -Parent $ScriptDir) "tests"
+$MainHarnessSql = Join-Path $TestsDir "profile_privacy.sql"
+$HelperSql = Join-Path $TestsDir "profile_privacy_test_helpers.sql"
+$BundlesDir = Join-Path $ScriptDir "bundles"
+$MainBundleSql = Join-Path $BundlesDir "profile_privacy.bundle.sql"
+
+if (Test-Path $HelperSql) {
+  $helperRaw = [System.IO.File]::ReadAllText((Resolve-Path $HelperSql).Path, [System.Text.Encoding]::UTF8)
+  $lfHelper = $helperRaw.Replace("`r`n", "`n")
+  $hBytes = [System.Text.Encoding]::UTF8.GetBytes($lfHelper)
+  $VALID_HELPER_HASH = [System.BitConverter]::ToString($sha256.ComputeHash($hBytes)).Replace('-', '').ToUpper()
+}
+
 $VERIFIED_REF = "bkocylxbuyvdgxccpixx"
 $VALID_HOST = "db.bkocylxbuyvdgxccpixx.supabase.co"
 
@@ -207,6 +220,60 @@ if ($permittedSuccess -and ($global:executorCalls -eq 1)) {
 } else {
   Write-Host "[FAIL] Assert executor mock: expected success and calls=1, got success=$permittedSuccess, calls=$($global:executorCalls)" -ForegroundColor Red
   $script:testsFailed++
+}
+
+# Test 19: Reject test harness when -ExpectedHelperHash is missing
+if (Test-Path $MainHarnessSql) {
+  Assert-Throws "Reject test harness without ExpectedHelperHash" {
+    & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile $MainHarnessSql -ExpectedBaselineHash $VALID_BASELINE_HASH -DryRun
+  } "DEPENDENCY INTEGRITY FAILURE.*-ExpectedHelperHash is mandatory"
+}
+
+# Test 20: Reject test harness when -ExpectedHelperHash mismatches
+if (Test-Path $MainHarnessSql) {
+  Assert-Throws "Reject test harness with mismatched ExpectedHelperHash" {
+    & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile $MainHarnessSql -ExpectedBaselineHash $VALID_BASELINE_HASH -ExpectedHelperHash "0000000000000000000000000000000000000000000000000000000000000000" -DryRun
+  } "DEPENDENCY HASH MISMATCH"
+}
+
+# Test 21: Permit test harness in DryRun mode when -ExpectedHelperHash matches
+if (Test-Path $MainHarnessSql) {
+  Assert-Succeeds "Permit test harness when ExpectedHelperHash matches" {
+    & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile $MainHarnessSql -ExpectedBaselineHash $VALID_BASELINE_HASH -ExpectedHelperHash $VALID_HELPER_HASH -DryRun
+  }
+}
+
+# Test 22: Probe: Modifying helper file while keeping harness parameters unchanged MUST be rejected before connection/executor (calls = 0)
+if (Test-Path $MainHarnessSql) {
+  $global:executorCalls = 0
+  $helperProbeExceptionCaught = $false
+  try {
+    & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile $MainHarnessSql -ExpectedBaselineHash $VALID_BASELINE_HASH -ExpectedHelperHash "MODIFIED00000000000000000000000000000000000000000000000000000000" -ExecutorMock $countingMock
+  } catch {
+    if ($_.Exception.Message -match "DEPENDENCY HASH MISMATCH") {
+      $helperProbeExceptionCaught = $true
+    }
+  }
+
+  if ($helperProbeExceptionCaught -and ($global:executorCalls -eq 0)) {
+    Write-Host "[PASS] Probe: Modified helper rejected before executor call (calls = 0)" -ForegroundColor Green
+    $script:testsPassed++
+  } else {
+    Write-Host "[FAIL] Probe: Modified helper expected rejection and calls=0, got caught=$helperProbeExceptionCaught, calls=$($global:executorCalls)" -ForegroundColor Red
+    $script:testsFailed++
+  }
+}
+
+# Test 23: Permit pure-SQL bundle execution with ExpectedSqlHash
+if (Test-Path $MainBundleSql) {
+  $bundleRaw = [System.IO.File]::ReadAllText((Resolve-Path $MainBundleSql).Path, [System.Text.Encoding]::UTF8)
+  $lfBundle = $bundleRaw.Replace("`r`n", "`n")
+  $bundleBytes = [System.Text.Encoding]::UTF8.GetBytes($lfBundle)
+  $VALID_BUNDLE_HASH = [System.BitConverter]::ToString($sha256.ComputeHash($bundleBytes)).Replace('-', '').ToUpper()
+
+  Assert-Succeeds "Permit pure-SQL bundle in DryRun mode with verified hash" {
+    & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile $MainBundleSql -ExpectedBaselineHash $VALID_BASELINE_HASH -ExpectedSqlHash $VALID_BUNDLE_HASH -ExpectedHelperHash $VALID_HELPER_HASH -DryRun
+  }
 }
 
 # Cleanup dummy file
