@@ -2,22 +2,23 @@
 
 - **Date**: 2026-10-08
 - **Scope**: Phase 2 / Batch A / PR #15 Security Remediation
-- **Status**: Documented / Awaiting Project Reference Assignment
+- **Status**: Verified & Provisioned (0 application tables prior to bootstrap)
 
 ---
 
 ## 1. Environment Provenance & Identity
 
-| Attribute | Specification | Current Value / Status |
+| Attribute | Specification | Verified Staging Value |
 | :--- | :--- | :--- |
-| **Project Name** | `travel-go-staging` | Prepared in Supabase Dashboard |
-| **Organization Name** | `Travelgo` | Verified |
-| **Organization ID** | `npdpvvfxolkoekazloqg` | Verified (Free Plan) |
-| **Target Region** | Singapore (`ap-southeast-1`) | Selected |
+| **Project Name** | `travel-go-staging` | `travel-go-staging` |
+| **Organization Name** | `Travelgo` | `Travelgo` |
+| **Organization ID** | `npdpvvfxolkoekazloqg` | `npdpvvfxolkoekazloqg` (Free Plan) |
+| **Target Region** | Singapore | `ap-southeast-1` |
 | **Primary Project Reference** | `oavbymauorhmrjcustzw` | **STRICTLY FORBIDDEN TARGET** |
-| **Staging Project Reference** | Dedicated synthetic-only project | *Pending Owner submission in Dashboard* |
-| **Target Host** | `db.<staging-ref>.supabase.co` | *Pending Staging Project Reference* |
-| **PostgreSQL Version** | Target server reported version | *Pending execution of `SELECT version();`* |
+| **Staging Project Reference** | Dedicated synthetic-only project | **`bkocylxbuyvdgxccpixx`** |
+| **Connection Host** | Direct Supabase PostgreSQL host | **`db.bkocylxbuyvdgxccpixx.supabase.co`** |
+| **PostgreSQL Engine Version**| Target server reported version | **`PostgreSQL 17.11`** |
+| **Pre-Bootstrap Table Count** | Initial application schema state | **`0 tables`** (`profiles`, `destinations`, `trips`, `trip_activities` absent) |
 
 ---
 
@@ -30,15 +31,22 @@
    - **GitHub Connection**: OFF (No automated deployment pipeline connected)
    - **Billing Plan**: Free tier (No paid upgrades or tier changes)
 
-2. **Strict Isolation Policy**:
+2. **Strict Isolation Policy & Target Guard**:
    - **Zero Production Data**: No real customer data, production backups, or user records from `oavbymauorhmrjcustzw` may be imported or copied.
    - **Synthetic Users Only**: All fixtures in tests use generated synthetic UUIDs (`11111111-...`, `22222222-...`).
-   - **Target Guard**: `supabase/staging/run-staging.ps1` hard-blocks any connection target containing or matching the primary reference `oavbymauorhmrjcustzw`.
+   - **Pinned Target Guard**: `supabase/staging/run-staging.ps1` allows ONLY the verified staging reference `bkocylxbuyvdgxccpixx` and host `db.bkocylxbuyvdgxccpixx.supabase.co`. It strictly rejects primary `oavbymauorhmrjcustzw`, localhost, absent host, mismatched host/ref, and unverified projects.
+   - **Offline Guard Verification**: 14/14 unit tests pass in `run-staging.Tests.ps1`; 4/4 reviewer probes pass in `staging_guard_review_probes.ps1`.
    - **Credential Hygiene**: Database passwords and auth tokens are submitted and held directly by the owner through the secure Dashboard UI. No secrets are ever stored in code, chat, or git repositories.
 
 ---
 
-## 3. Next Actionable Milestone
+## 3. Operational Workflow
 
-- **Owner Action**: Enter database credential in the Supabase Dashboard form for organization `Travelgo` and click create project.
-- **Agent Action**: Once the staging reference is provided, update this document, bind the runner target guard, execute `supabase/staging/baseline.sql` and `supabase/staging/inspect.sql`, and proceed with migration and test harness execution.
+1. **Bootstrap Staging**:
+   Execute `supabase/staging/baseline.sql` via `run-staging.ps1 -Bootstrap` to reconstruct application schema.
+2. **Metadata Introspection**:
+   Execute `supabase/staging/inspect.sql` to record pre-remediation metadata.
+3. **Corrective Migration**:
+   Apply `supabase/migrations/202610080001_profile_privacy.sql` with verified `-ExpectedBaselineHash`.
+4. **Harness & Negative Controls**:
+   Execute `supabase/tests/profile_privacy.sql` and `supabase/tests/profile_privacy_negative_controls.sql`.
