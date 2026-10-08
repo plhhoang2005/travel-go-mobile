@@ -10,6 +10,25 @@
 BEGIN;
 
 -- ------------------------------------------------------------------------------
+-- PRECONDITION CHECKS (Fail-closed)
+-- ------------------------------------------------------------------------------
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'profiles') THEN
+    RAISE EXCEPTION 'Precondition failed: table public.profiles does not exist';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'trips') THEN
+    RAISE EXCEPTION 'Precondition failed: table public.trips does not exist';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'trip_activities') THEN
+    RAISE EXCEPTION 'Precondition failed: table public.trip_activities does not exist';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'destinations') THEN
+    RAISE EXCEPTION 'Precondition failed: table public.destinations does not exist';
+  END IF;
+END $$;
+
+-- ------------------------------------------------------------------------------
 -- 1. HARDEN PROFILES ROW LEVEL SECURITY (RLS)
 -- ------------------------------------------------------------------------------
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
@@ -210,5 +229,44 @@ CREATE POLICY "Users manage own trip activities"
         AND t.user_id = auth.uid()
     )
   );
+
+-- ------------------------------------------------------------------------------
+-- 6. POSTCONDITION VALIDATIONS (Fail-closed Assertions)
+-- ------------------------------------------------------------------------------
+DO $$
+DECLARE
+  v_profiles_rls boolean;
+  v_trips_rls boolean;
+  v_activities_rls boolean;
+  v_can_update_role boolean;
+  v_can_truncate_trips boolean;
+BEGIN
+  -- Verify RLS is enabled on protected tables
+  SELECT rowsecurity INTO v_profiles_rls FROM pg_tables WHERE schemaname = 'public' AND tablename = 'profiles';
+  SELECT rowsecurity INTO v_trips_rls FROM pg_tables WHERE schemaname = 'public' AND tablename = 'trips';
+  SELECT rowsecurity INTO v_activities_rls FROM pg_tables WHERE schemaname = 'public' AND tablename = 'trip_activities';
+
+  IF NOT COALESCE(v_profiles_rls, false) THEN
+    RAISE EXCEPTION 'Postcondition failed: RLS is not enabled on public.profiles';
+  END IF;
+  IF NOT COALESCE(v_trips_rls, false) THEN
+    RAISE EXCEPTION 'Postcondition failed: RLS is not enabled on public.trips';
+  END IF;
+  IF NOT COALESCE(v_activities_rls, false) THEN
+    RAISE EXCEPTION 'Postcondition failed: RLS is not enabled on public.trip_activities';
+  END IF;
+
+  -- Verify least privilege restrictions: role column update is forbidden for authenticated
+  SELECT has_column_privilege('authenticated', 'public.profiles', 'role', 'UPDATE') INTO v_can_update_role;
+  IF v_can_update_role THEN
+    RAISE EXCEPTION 'Postcondition failed: authenticated role still has UPDATE privilege on profiles.role';
+  END IF;
+
+  -- Verify mutating DDL privileges: TRUNCATE is revoked
+  SELECT has_table_privilege('authenticated', 'public.trips', 'TRUNCATE') INTO v_can_truncate_trips;
+  IF v_can_truncate_trips THEN
+    RAISE EXCEPTION 'Postcondition failed: authenticated role still has TRUNCATE privilege on public.trips';
+  END IF;
+END $$;
 
 COMMIT;

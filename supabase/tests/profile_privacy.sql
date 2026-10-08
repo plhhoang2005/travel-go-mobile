@@ -26,14 +26,35 @@ END;
 $$;
 
 -- ------------------------------------------------------------------------------
--- 1. FIXTURE SETUP (Synthetic Users A and B)
+-- 1. FIXTURE SETUP (Synthetic Users in auth.users and public.profiles)
 -- ------------------------------------------------------------------------------
 DO $$
 DECLARE
   uid_a uuid := '11111111-1111-1111-1111-111111111111';
   uid_b uuid := '22222222-2222-2222-2222-222222222222';
+  has_auth_users boolean;
 BEGIN
-  -- Insert into auth.users if available, otherwise insert into public.profiles directly in fixture setup
+  -- Check if auth.users exists in current environment
+  SELECT EXISTS (
+    SELECT 1 FROM pg_namespace n
+    JOIN pg_class c ON c.relnamespace = n.oid
+    WHERE n.nspname = 'auth' AND c.relname = 'users'
+  ) INTO has_auth_users;
+
+  IF has_auth_users THEN
+    -- Insert synthetic auth users first to avoid FK constraint violations
+    INSERT INTO auth.users (
+      id, aud, role, email, raw_user_meta_data, created_at, updated_at
+    )
+    VALUES
+      (uid_a, 'authenticated', 'authenticated', 'alice@travelgo.vn', '{"full_name": "Alice Travel"}'::jsonb, now(), now()),
+      (uid_b, 'authenticated', 'authenticated', 'bob@travelgo.vn', '{"full_name": "Bob Explorer"}'::jsonb, now(), now())
+    ON CONFLICT (id) DO UPDATE SET
+      raw_user_meta_data = EXCLUDED.raw_user_meta_data,
+      updated_at = now();
+  END IF;
+
+  -- Ensure matching profiles exist
   INSERT INTO public.profiles (id, full_name, email, phone, role)
   VALUES
     (uid_a, 'Alice Travel', 'alice@travelgo.vn', '0901111111', 'customer'),
@@ -102,57 +123,82 @@ BEGIN
 END $$;
 
 -- ------------------------------------------------------------------------------
--- 4. TEST CASE 3: Protected Column Updates Denied (role, email, id)
+-- 4. TEST CASE 3: Protected Column Updates Denied (role, email, id) + SQLSTATE 42501
 -- ------------------------------------------------------------------------------
 DO $$
 DECLARE
   uid_a uuid := '11111111-1111-1111-1111-111111111111';
   has_role_update_privilege boolean;
+  denial_caught boolean := false;
+  caught_sqlstate text := '';
 BEGIN
-  -- Verify column privilege directly
+  -- 1. Check metadata privilege dictionary
   SELECT has_column_privilege('authenticated', 'public.profiles', 'role', 'UPDATE')
   INTO has_role_update_privilege;
 
+  -- 2. Negative assertion: attempt runtime UPDATE on protected column 'role' as authenticated role
+  BEGIN
+    PERFORM set_config('role', 'authenticated', true);
+    PERFORM set_config('request.jwt.claim.sub', uid_a::text, true);
+
+    UPDATE public.profiles SET role = 'admin' WHERE id = uid_a;
+  EXCEPTION
+    WHEN insufficient_privilege THEN -- PostgreSQL SQLSTATE 42501
+      denial_caught := true;
+      caught_sqlstate := '42501';
+    WHEN OTHERS THEN
+      caught_sqlstate := SQLSTATE;
+  END;
+
   PERFORM record_test(
     'TC3_protected_column_role_update_denied',
-    (has_role_update_privilege = false),
-    format('Authenticated UPDATE privilege on profiles.role: %s (expected false)', has_role_update_privilege)
+    (has_role_update_privilege = false AND denial_caught = true),
+    format('has_column_privilege: %s, runtime denial caught: %s, SQLSTATE: %s', has_role_update_privilege, denial_caught, caught_sqlstate)
   );
 END $$;
 
 -- ------------------------------------------------------------------------------
--- 5. TEST CASE 4: Signup Role Spoofing Prevention in handle_new_user()
+-- 5. TEST CASE 4: Signup Role Spoofing Prevention via Actual Auth Trigger
 -- ------------------------------------------------------------------------------
 DO $$
 DECLARE
-  fake_new_user record;
-  assigned_role text;
   test_signup_id uuid := '33333333-3333-3333-3333-333333333333';
+  assigned_role text;
+  has_auth_users boolean;
 BEGIN
-  -- Construct mock trigger record with malicious role='admin' in metadata
-  fake_new_user := ROW(
-    test_signup_id,
-    'attacker@travelgo.vn',
-    NULL,
-    '{"full_name": "Eve Attacker", "role": "admin"}'::jsonb
-  );
+  -- Check if auth.users exists
+  SELECT EXISTS (
+    SELECT 1 FROM pg_namespace n
+    JOIN pg_class c ON c.relnamespace = n.oid
+    WHERE n.nspname = 'auth' AND c.relname = 'users'
+  ) INTO has_auth_users;
 
-  -- Execute trigger logic directly
-  INSERT INTO public.profiles (id, full_name, email, phone, role)
-  VALUES (
-    test_signup_id,
-    'Eve Attacker',
-    'attacker@travelgo.vn',
-    '',
-    'customer' -- Simulating trigger enforcement
-  );
+  IF has_auth_users THEN
+    -- Insert into auth.users with malicious userMetadata role='admin' to trigger handle_new_user()
+    INSERT INTO auth.users (
+      id, aud, role, email, raw_user_meta_data, created_at, updated_at
+    )
+    VALUES (
+      test_signup_id,
+      'authenticated',
+      'authenticated',
+      'attacker@travelgo.vn',
+      '{"full_name": "Eve Attacker", "role": "admin"}'::jsonb,
+      now(),
+      now()
+    )
+    ON CONFLICT (id) DO NOTHING;
+  ELSE
+    -- Isolated schema testing fallback: directly invoke handle_new_user with synthetic record
+    PERFORM public.handle_new_user();
+  END IF;
 
   SELECT role INTO assigned_role FROM public.profiles WHERE id = test_signup_id;
 
   PERFORM record_test(
     'TC4_signup_role_spoofing_prevented',
     (assigned_role = 'customer'),
-    format('Assigned role for attacker: %s (expected customer)', assigned_role)
+    format('Assigned role for attacker via trigger: %s (expected customer)', assigned_role)
   );
 END $$;
 
@@ -184,27 +230,37 @@ DECLARE
   uid_a uuid := '11111111-1111-1111-1111-111111111111';
   uid_b uuid := '22222222-2222-2222-2222-222222222222';
   test_trip_id uuid := '44444444-4444-4444-4444-444444444444';
+  test_act_id uuid := '55555555-5555-5555-5555-555555555555';
   b_sees_trip_a int;
   a_sees_own_trip int;
+  b_sees_act_a int;
+  a_sees_own_act int;
 BEGIN
-  -- Insert trip for User A (as postgres/service_role fixture)
+  -- Insert trip and activity for User A (as postgres/service_role fixture)
   INSERT INTO public.trips (id, user_id, title, destination_name, num_days, budget_total, ai_plan_data)
-  VALUES (test_trip_id, uid_a, 'Trip to Da Nang', 'Đà Nẵng', 3, 5000000, '{"plan": "test"}'::jsonb);
+  VALUES (test_trip_id, uid_a, 'Trip to Da Nang', 'Đà Nẵng', 3, 5000000, '{"plan": "test"}'::jsonb)
+  ON CONFLICT (id) DO NOTHING;
 
-  -- User A selects
+  INSERT INTO public.trip_activities (id, trip_id, day_number, activity_name, estimated_cost)
+  VALUES (test_act_id, test_trip_id, 1, 'Bà Nà Hills', 1000000)
+  ON CONFLICT (id) DO NOTHING;
+
+  -- User A selects trip & activity
   PERFORM set_config('role', 'authenticated', true);
   PERFORM set_config('request.jwt.claim.sub', uid_a::text, true);
   SELECT count(*) INTO a_sees_own_trip FROM public.trips WHERE id = test_trip_id;
+  SELECT count(*) INTO a_sees_own_act FROM public.trip_activities WHERE id = test_act_id;
 
-  -- User B selects
+  -- User B selects trip & activity
   PERFORM set_config('role', 'authenticated', true);
   PERFORM set_config('request.jwt.claim.sub', uid_b::text, true);
   SELECT count(*) INTO b_sees_trip_a FROM public.trips WHERE id = test_trip_id;
+  SELECT count(*) INTO b_sees_act_a FROM public.trip_activities WHERE id = test_act_id;
 
   PERFORM record_test(
     'TC6_trips_rls_isolation',
-    (a_sees_own_trip = 1 AND b_sees_trip_a = 0),
-    format('A sees own trip: %s, B sees trip A: %s', a_sees_own_trip, b_sees_trip_a)
+    (a_sees_own_trip = 1 AND b_sees_trip_a = 0 AND a_sees_own_act = 1 AND b_sees_act_a = 0),
+    format('A sees trip: %s, B sees trip: %s; A sees act: %s, B sees act: %s', a_sees_own_trip, b_sees_trip_a, a_sees_own_act, b_sees_act_a)
   );
 END $$;
 
