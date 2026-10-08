@@ -37,6 +37,7 @@ powershell -NoProfile -File supabase/staging/run-staging.ps1 `
   -ConnectionHost "db.bkocylxbuyvdgxccpixx.supabase.co" `
   -SqlFile "supabase/staging/baseline.sql" `
   -Bootstrap `
+  -ExpectedBaselineHash "<baseline-sha256>" `
   -DryRun
 ```
 
@@ -56,7 +57,8 @@ powershell -NoProfile -File supabase/staging/run-staging.ps1 `
   -ProjectRef "bkocylxbuyvdgxccpixx" `
   -ConnectionHost "db.bkocylxbuyvdgxccpixx.supabase.co" `
   -SqlFile "supabase/staging/baseline.sql" `
-  -Bootstrap
+  -Bootstrap `
+  -ExpectedBaselineHash "<baseline-sha256>"
 ```
 
 ### Corrective Migration Execution

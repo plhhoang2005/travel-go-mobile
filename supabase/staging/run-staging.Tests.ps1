@@ -91,7 +91,7 @@ Assert-Throws "Reject staging ref paired with unrelated host" {
   & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost "db.unrelated.supabase.co" -SqlFile $DummySql -DryRun
 } "TARGET MISMATCH.*does not match verified staging endpoint"
 
-# Test 6: Reject lookalike domain containing verified ref as prefix/suffix
+# Test 6: Reject lookalike domain containing verified ref
 Assert-Throws "Reject lookalike domain containing verified ref" {
   & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost "db.bkocylxbuyvdgxccpixx.supabase.co.example.invalid" -SqlFile $DummySql -DryRun
 } "TARGET MISMATCH.*does not match verified staging endpoint"
@@ -116,15 +116,36 @@ Assert-Throws "Reject missing SQL file" {
   & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile "non_existent_file.sql" -DryRun
 } "SqlFile does not exist"
 
-# Test 11: Reject bootstrap mode when file is not canonical baseline.sql
+# Test 11a: Reject bootstrap mode when file is not canonical baseline.sql
 Assert-Throws "Reject bootstrap mode on non-baseline SQL file" {
-  & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile $DummySql -Bootstrap -DryRun
+  & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile $DummySql -Bootstrap -ExpectedBaselineHash $VALID_BASELINE_HASH -DryRun
 } "BOOTSTRAP REJECTED.*strictly restricted to the canonical baseline artifact"
+
+# Test 11b: Reject bootstrap mode when file is an unrelated baseline.sql from external path
+$tempDir = Join-Path ([System.IO.Path]::GetTempPath()) ("travelgo_test_" + [System.Guid]::NewGuid().ToString("N"))
+New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
+$externalBaseline = Join-Path $tempDir "baseline.sql"
+Set-Content -Path $externalBaseline -Value "SELECT 1;"
+
+Assert-Throws "Reject bootstrap mode on unrelated external baseline.sql" {
+  & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile $externalBaseline -Bootstrap -ExpectedBaselineHash $VALID_BASELINE_HASH -DryRun
+} "BOOTSTRAP REJECTED.*strictly restricted to the canonical baseline artifact"
+Remove-Item -Path $tempDir -Recurse -Force
+
+# Test 11c: Reject bootstrap mode when -ExpectedBaselineHash is missing
+Assert-Throws "Reject bootstrap mode without ExpectedBaselineHash" {
+  & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile $BaselineSql -Bootstrap -DryRun
+} "BOOTSTRAP REJECTED.*requires reviewed -ExpectedBaselineHash"
+
+# Test 11d: Reject bootstrap mode when -ExpectedBaselineHash is mismatched
+Assert-Throws "Reject bootstrap mode with mismatched ExpectedBaselineHash" {
+  & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile $BaselineSql -Bootstrap -ExpectedBaselineHash "0000000000000000000000000000000000000000000000000000000000000000" -DryRun
+} "Bootstrap baseline hash mismatch"
 
 # Test 12: Reject bootstrap mode when file is migration file
 if (Test-Path $MigrationSql) {
   Assert-Throws "Reject bootstrap mode on migration file" {
-    & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile $MigrationSql -Bootstrap -DryRun
+    & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile $MigrationSql -Bootstrap -ExpectedBaselineHash $VALID_BASELINE_HASH -DryRun
   } "BOOTSTRAP REJECTED.*strictly restricted to the canonical baseline artifact"
 }
 
@@ -138,9 +159,9 @@ Assert-Throws "Reject corrective run with mismatched ExpectedBaselineHash" {
   & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile $DummySql -ExpectedBaselineHash "0000000000000000000000000000000000000000000000000000000000000000" -DryRun
 } "Baseline hash mismatch"
 
-# Test 15: Permit canonical baseline bootstrap in DryRun mode
+# Test 15: Permit canonical baseline bootstrap in DryRun mode with valid hash
 Assert-Succeeds "Permit canonical baseline bootstrap in DryRun mode" {
-  & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile $BaselineSql -Bootstrap -DryRun
+  & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile $BaselineSql -Bootstrap -ExpectedBaselineHash $VALID_BASELINE_HASH -DryRun
 }
 
 # Test 16: Permit valid corrective staging parameters in DryRun mode
@@ -174,7 +195,7 @@ if ($rejectedExceptionCaught -and ($global:executorCalls -eq 0)) {
 $global:executorCalls = 0
 $permittedSuccess = $false
 try {
-  & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile $BaselineSql -Bootstrap -ExecutorMock $countingMock
+  & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile $BaselineSql -Bootstrap -ExpectedBaselineHash $VALID_BASELINE_HASH -ExecutorMock $countingMock
   $permittedSuccess = $true
 } catch {
   Write-Host "Unexpected exception during permitted call: $_" -ForegroundColor Red

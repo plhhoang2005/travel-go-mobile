@@ -89,8 +89,9 @@ if ([string]::IsNullOrWhiteSpace($SqlFile) -or !(Test-Path -Path $SqlFile)) {
   throw "SqlFile does not exist: '$SqlFile'"
 }
 
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$canonicalBaselinePath = (Resolve-Path (Join-Path $scriptDir "baseline.sql")).Path
 $resolvedSqlPath = (Resolve-Path $SqlFile).Path
-$sqlFileName = Split-Path $resolvedSqlPath -Leaf
 
 # 9. Consistent Input SQL File Integrity Check (LF-normalized SHA-256)
 if (![string]::IsNullOrWhiteSpace($ExpectedSqlHash)) {
@@ -102,17 +103,19 @@ if (![string]::IsNullOrWhiteSpace($ExpectedSqlHash)) {
 
 # 10. Bootstrap vs Corrective Mode Enforcement
 if ($Bootstrap) {
-  # Bootstrap mode is strictly restricted to canonical reviewed baseline.sql
-  if ($sqlFileName -ne "baseline.sql") {
-    throw "BOOTSTRAP REJECTED: Bootstrap mode is strictly restricted to the canonical baseline artifact ('baseline.sql'). Cannot run '$sqlFileName' with -Bootstrap."
+  # Strict canonical path binding: Must match the runner's canonical baseline artifact exactly
+  if ($resolvedSqlPath -ne $canonicalBaselinePath) {
+    throw "BOOTSTRAP REJECTED: Bootstrap mode is strictly restricted to the canonical baseline artifact at '$canonicalBaselinePath'. Unrelated file '$resolvedSqlPath' (even if named baseline.sql) is strictly rejected."
   }
 
-  # Verify baseline artifact integrity if hash is provided
-  if (![string]::IsNullOrWhiteSpace($ExpectedBaselineHash)) {
-    $computedBaselineHex = Get-NormalizedSha256 -filePath $resolvedSqlPath
-    if ($computedBaselineHex -ne $ExpectedBaselineHash.Trim().ToUpper()) {
-      throw "Baseline hash mismatch in bootstrap! Expected: '$ExpectedBaselineHash', Actual: '$computedBaselineHex' on '$resolvedSqlPath'."
-    }
+  # Reviewed baseline integrity is MANDATORY in Bootstrap mode
+  if ([string]::IsNullOrWhiteSpace($ExpectedBaselineHash)) {
+    throw "BOOTSTRAP REJECTED: Bootstrap mode requires reviewed -ExpectedBaselineHash to verify canonical baseline integrity before execution."
+  }
+
+  $computedBaselineHex = Get-NormalizedSha256 -filePath $canonicalBaselinePath
+  if ($computedBaselineHex -ne $ExpectedBaselineHash.Trim().ToUpper()) {
+    throw "Bootstrap baseline hash mismatch! Expected: '$ExpectedBaselineHash', Actual: '$computedBaselineHex' on '$canonicalBaselinePath'."
   }
 } else {
   # Corrective writes, migrations, and harnesses REQUIRE reviewed -ExpectedBaselineHash
@@ -120,19 +123,13 @@ if ($Bootstrap) {
     throw "CORRECTIVE RUN REJECTED: Corrective writes and harness runs require -ExpectedBaselineHash to verify against reviewed baseline artifact."
   }
 
-  $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-  $baselineFile = Join-Path $scriptDir "baseline.sql"
-  if (!(Test-Path $baselineFile)) {
-    $baselineFile = Join-Path (Split-Path -Parent $resolvedSqlPath) "baseline.sql"
-  }
-
-  if (Test-Path $baselineFile) {
-    $computedBaselineHex = Get-NormalizedSha256 -filePath (Resolve-Path $baselineFile).Path
+  if (Test-Path $canonicalBaselinePath) {
+    $computedBaselineHex = Get-NormalizedSha256 -filePath $canonicalBaselinePath
     if ($computedBaselineHex -ne $ExpectedBaselineHash.Trim().ToUpper()) {
-      throw "Baseline hash mismatch! Expected: '$ExpectedBaselineHash', Actual: '$computedBaselineHex' on '$baselineFile'."
+      throw "Baseline hash mismatch! Expected: '$ExpectedBaselineHash', Actual: '$computedBaselineHex' on '$canonicalBaselinePath'."
     }
   } else {
-    throw "Baseline file not found at '$baselineFile' to verify -ExpectedBaselineHash."
+    throw "Baseline file not found at '$canonicalBaselinePath' to verify -ExpectedBaselineHash."
   }
 }
 
