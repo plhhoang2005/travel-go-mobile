@@ -25,8 +25,8 @@ END;
 $$;
 
 -- ------------------------------------------------------------------------------
--- Gate 1: Reusable Policy Drift Gate (matches migration postcondition logic)
--- Detects ANY unexpected permissive policy, including FOR ALL policies.
+-- Gate 1: Shared Policy Drift Gate
+-- Exactly matches the postcondition logic in migration 202610080001_profile_privacy.sql (lines 308-320)
 -- ------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION pg_temp.gate_check_profiles_policy_drift()
 RETURNS void LANGUAGE plpgsql AS $$
@@ -37,21 +37,23 @@ BEGIN
   FROM pg_policies
   WHERE schemaname = 'public'
     AND tablename = 'profiles'
-    AND NOT (
-      (policyname = 'profiles_self_select' AND permissive = 'PERMISSIVE' AND cmd = 'SELECT')
-      OR (policyname = 'profiles_self_update' AND permissive = 'PERMISSIVE' AND cmd = 'UPDATE')
+    AND (
+      cmd = 'ALL'
+      OR (cmd = 'SELECT' AND policyname <> 'Users can view own profile')
+      OR (cmd = 'UPDATE' AND policyname <> 'Users can update own profile')
+      OR (cmd IN ('INSERT', 'DELETE'))
     );
 
   IF v_unexpected > 0 THEN
-    RAISE EXCEPTION 'DRIFT_GATE_FAILURE: unexpected policy detected on public.profiles (count: %)', v_unexpected;
+    RAISE EXCEPTION 'DRIFT_GATE_FAILURE: detected % unexpected policies on public.profiles', v_unexpected;
   END IF;
 END;
 $$;
 
 -- ------------------------------------------------------------------------------
 -- NC01: Permissive ALL Policy Drift Detection & Restoration
--- Verifies that an injected permissive FOR ALL policy is caught by the real gate,
--- and that dropping the mutant restores clean validation.
+-- Verifies that an injected permissive FOR ALL policy is caught by the migration gate,
+-- and that dropping the mutant restores clean validation under the exact policy contract.
 -- ------------------------------------------------------------------------------
 DO $$
 DECLARE
@@ -59,7 +61,7 @@ DECLARE
   v_mutant_caught boolean := false;
   v_restored_clean boolean := false;
 BEGIN
-  -- 1. Verify baseline passes drift gate
+  -- 1. Verify clean migration state passes drift gate
   BEGIN
     PERFORM pg_temp.gate_check_profiles_policy_drift();
     v_initial_clean := true;
@@ -70,7 +72,7 @@ BEGIN
   -- 2. Inject mutant: Permissive FOR ALL policy on profiles
   CREATE POLICY "NC01_Mutant_Permissive_All" ON public.profiles FOR ALL USING (true);
 
-  -- 3. Execute drift gate: MUST FAIL-CLOSED
+  -- 3. Execute drift gate: MUST FAIL-CLOSED on mutant policy
   BEGIN
     PERFORM pg_temp.gate_check_profiles_policy_drift();
     v_mutant_caught := false; -- should not reach here
@@ -121,7 +123,7 @@ $$;
 -- NC02: Real Signup Role Escalation Mutant Detection & Restoration
 -- Injects a vulnerable handle_new_user trigger in the transaction, performs
 -- actual auth signup with admin role metadata, proves the assertion helper fails,
--- then restores the secure trigger and proves the assertion passes.
+-- then restores the exact reviewed secure trigger from migration and proves pass.
 -- ------------------------------------------------------------------------------
 DO $$
 DECLARE
@@ -172,7 +174,7 @@ BEGIN
   DELETE FROM public.profiles WHERE id = v_mutant_user_id;
   DELETE FROM auth.users WHERE id = v_mutant_user_id;
 
-  -- 5. Restore SECURE trigger function: forces 'customer' role unconditionally
+  -- 5. Restore EXACT reviewed secure trigger function from migration (lines 127-175)
   CREATE OR REPLACE FUNCTION public.handle_new_user()
   RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER
   SET search_path = public, pg_temp AS $tg$
