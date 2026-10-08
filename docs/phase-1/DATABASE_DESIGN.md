@@ -1,14 +1,15 @@
 # 07 — Database design và ERD specification
 
-> Phiên bản thiết kế: 1.0 • Ngày lập: 2026-10-08 • Deadline: **2026-10-28**.
+> Phiên bản thiết kế: 1.1 • Ngày lập: 2026-10-08 • Deadline: **2026-10-28**.
 > Trạng thái: **APPROVED WITH CONDITIONS — DESIGN WORK AUTHORIZED, IMPLEMENTATION NOT AUTHORIZED**.
+> Tiến độ bộ thiết kế v1.1: **DESIGN COMPLETE — FINAL OWNER REVIEW PENDING**. Các lựa chọn đã chốt theo S-DEC; chưa chuyển Phase 2/3.
 > Baseline: S-MP (Master Prompt v1.0); đặc tả chưa chứng minh tính năng đã triển khai hoặc Phase 1 đã đóng.
 
 ## Phạm vi và quyết định mô hình
 
 [CONFIRMED] PostgreSQL qua Supabase; cần ownership, referential integrity, version, expense separation và backend authorization (S-MP §8–9; BR-007/009/018/021). **Toàn bộ tên entity, field, kiểu, constraint, index và transaction dưới đây là [PROPOSED]** logical schema; không SQL, không migration, không giả định deployed schema giống thiết kế.
 
-DB-001 [PROPOSED]: Core chỉ profiles, destinations, places, trips, trip_days, itinerary_items, trip_expenses, ai_plan_requests và catalogue sample trong dữ liệu curated. Group/Community chỉ mô hình conceptual mở rộng. GuestAIRequest tạm theo quota policy server, không tạo Guest user profile giả để vượt ownership.
+DB-001 [PROPOSED]: Core chỉ profiles, destinations, places, trips, trip_days, itinerary_items, trip_expenses, ai_plan_requests và catalogue sample trong dữ liệu curated. Group/Community chỉ mô hình conceptual mở rộng. GuestAIRequest và quota ledger server theo 3/ngày DEC-003; không tạo Guest user profile giả để vượt ownership.
 
 ## Conceptual ERD [PROPOSED]
 
@@ -58,7 +59,7 @@ DB-004 [PROPOSED]: SourceDraft identity unique owner_id+source_draft_id+source_r
 | GuestAIRequest | scoped Guest subject hash, intent, quota counters/window, request key/state và proposal tạm | Server-owned ephemeral design; anonymous không đọc private trip; retention/quota OQ-005/015 |
 | WeatherSnapshot | destination coords, provider/reference, forecast/valid times, retrieved_at, units/status | Snapshot context có freshness; chưa đề xuất core weather table |
 
-DB-005 [PROPOSED]: Local migrated drafts chứa dữ liệu đã nhận bởi account cần chuyển owner scope; không để ở Guest vùng public thiết bị. Sign-out/cache deletion không cần xóa draft chưa chuyển của Guest. Giới hạn thiết bị dùng chung cần consent/policy ở OQ-015.
+DB-005 [PROPOSED]: Local migrated drafts chứa dữ liệu đã nhận bởi account cần chuyển owner scope; không để ở Guest vùng public thiết bị. [CONFIRMED DEC-010] Logout xóa account cache, không xóa remote trip và không xóa draft chưa chuyển của Guest. Giới hạn thiết bị dùng chung cần consent/policy ở OQ-015.
 
 ## Referential integrity, transaction và indexes [PROPOSED]
 
@@ -82,7 +83,7 @@ DB-006: bật grants tối thiểu và RLS trên mọi bảng expose; deny mặc
 | trips | Owner; active member nếu Group triển khai | Owner/edit membership theo operation; owner/visibility/version không để generic client tự thay |
 | days/items/expenses | Có quyền đọc trip parent | Có quyền edit trip và parent consistency; atomic remote writes qua trusted operation |
 | ai_plan_requests | Own request và còn quyền trip nếu target trip; không expose raw sensitive input | Gateway/server state machine; client không đổi state thành applied |
-| Guest AI transient | Không direct database read cho anon | Gateway scoped token/quota; chưa policy quota cuối |
+| Guest AI transient | Không direct database read cho anon | Gateway scoped token; quota 3/ngày CONFIRMED, identity/lease details OPEN |
 
 DB-007: trusted operation dùng token scope thấp nhất có thể. Nếu dùng elevated server key, phải tự kiểm tra subject + trip membership + allowed operation trước query; service role bypass RLS không thay thế authorization. Database and server negative tests là AC-034/041/046.
 
@@ -104,6 +105,39 @@ DB-007: trusted operation dùng token scope thấp nhất có thể. Nếu dùng
 [PROPOSED] AI logs tối thiểu redacted; proposal có expiry; snapshot thể hiện fetched_at; catalog provenance giữ lịch sử đủ kiểm chứng. [OPEN] OQ-015 xác định TTL cache/AI logs/proposal, account deletion và audit retention; không invent thời hạn pháp lý.
 
 [PROPOSED] Pagination catalogue/trips, indexes theo access path, limit request/output đã duyệt và lean dataset phù hợp học thuật. Nếu dữ liệu tăng, đo trước thêm full-text search/geo indexing; không dựng hạ tầng vượt MVP.
+
+## Logical schema bổ sung v1.1 [PROPOSED]
+
+DB-008: SQLite là công nghệ [CONFIRMED DEC-005]; tên bảng/fields/index/encryption/driver bên dưới còn PROPOSED.
+
+| Local entity | Identity và dữ liệu | Invariant |
+| --- | --- | --- |
+| local_drafts | draft_id PK, revision, device_guest_scope, input/day/items/expense payload, payload_digest, state, updated_at | Chỉ writable local Guest drafts chưa transferred; atomic save/recovery |
+| account_trip_snapshots | owner_id + trip_id PK, remote_version, schema_version, fetched_at, snapshot_payload | Read-only, namespace riêng; không lưu server/API secret |
+| draft_import_receipts | owner_id + draft_id + source_revision unique, request_key, payload_digest, remote_trip_id/version, acknowledged_at | Receipt chỉ sau ack; key khác payload reject; logout purge local account copies |
+| local_import_journal | draft/revision/request key, target_owner, pending/acknowledged/error, attempt state | Journal phục hồi sau restart; session subject phải khớp trước retry |
+
+DB-009: quota server là logical extension cần cho Guest MUST, không là bảng SHOULD. GuestSubject token random server-issued, lưu secret token trong secure credential storage theo proposal; không dùng SQLite plain token như authority. Server giữ hash/reference, không cần email/GPS/advertising identifier.
+
+| Server entity | Identity/data | Constraints |
+| --- | --- | --- |
+| guest_ai_daily_usage | subject_id + calendar_date PK; timezone Vietnam, limit=3, used, reserved, updated_at | used/reserved nguyên ≥0; used+reserved≤3; counters atomic, không từ client |
+| ai_usage_reservations | request_id PK, subject/day FK, payload_digest, reserved/finalized/released, accepted_at, lease/reconciliation state | Unique request; terminal mutation một lần; no provider call trước reservation |
+| ai_request_receipts | request_id PK/FK, terminal status, normalized result reference/digest, charged state, safe error, completed_at | Retry/query không charge lại; result publication/charge nhất quán |
+
+[PROPOSED] Có thể cùng physical storage với ai_plan_requests thay vì dựng ba services; bảng tách mô tả responsibility, không buộc triển khai ceremony. Guest quota records phải deny direct anon access; server thao tác dưới policy có validation. Quota và provider quota khác nhau.
+
+DB-010: giữ trip private ownership và current saved_trips compatibility. Target canonical trips/day/items/expenses là logical aggregate; không mặc định tạo schema song song rồi bỏ dữ liệu cũ. Cần map saved_trips deployed columns/JSON blobs, legacy ID/owner, current DTO, missing version/provenance. Owner field legacy nếu là user_id phải map sang canonical owner_id với RLS kiểm subject. Không chạy migration hoặc rename table trong Phase 1.
+
+DB-011: migration transaction tạo trip aggregate + import receipt unique owner/draft/revision/digest. Remote receipt phải tồn tại đủ để timeout/retry không duplicate; TTL/deletion của receipt cần duyệt OQ-015 trước cleanup. Một token dùng lại không được bind draft A sang account B giữa request.
+
+DB-012: logout xóa account snapshots/transferred local copies/import account receipt cache trong SQLite; Supabase trip/days/expenses không delete. Guest local draft chưa nhận vào account không tự đổi owner. Journal đang pending thuộc account cần purge/redact hoặc khóa không truy cập sau logout theo policy mechanics PROPOSED; server receipt vẫn cho reconnect recovery khi đúng account.
+
+DB-013: catalogue 12 destination CONFIRMED; source records cần stable tourism_destination_id (không phụ thuộc tên tỉnh sau thay đổi hành chính), curated status, license/attribution, last reviewed, place source/reference and field-level quality. 6–10 places/destination + one sample còn PROPOSED; không seed placeholder data hoặc fake verified values chỉ để đủ count.
+
+## Giới hạn retention và privacy
+
+[CONFIRMED DEC-009] Không dùng email/password/auth token/GPS chính xác mặc định làm input Gemini. [OPEN] Raw chat retention, consent record lifetime, proposal expiry, receipt retention/account deletion và encryption key management chưa chốt. Chính sách tối thiểu [PROPOSED]: chỉ durable metadata cần retry/quota, redacted logs; nếu cần raw prompts để debug thì phải approval retention/consent trước. Không công bố số ngày lưu hoặc protection-at-rest như đã triển khai.
 
 ---
 [Xem mục lục và quy ước nguồn/trạng thái](README.md).

@@ -1,7 +1,8 @@
 # 09 — Acceptance criteria
 
-> Phiên bản thiết kế: 1.0 • Ngày lập: 2026-10-08 • Deadline: **2026-10-28**.
+> Phiên bản thiết kế: 1.1 • Ngày lập: 2026-10-08 • Deadline: **2026-10-28**.
 > Trạng thái: **APPROVED WITH CONDITIONS — DESIGN WORK AUTHORIZED, IMPLEMENTATION NOT AUTHORIZED**.
+> Tiến độ bộ thiết kế v1.1: **DESIGN COMPLETE — FINAL OWNER REVIEW PENDING**. Các lựa chọn đã chốt theo S-DEC; chưa chuyển Phase 2/3.
 > Baseline: S-MP (Master Prompt v1.0); đây là kế hoạch kiểm tra/thiết kế, không phải evidence triển khai đã pass.
 
 ## Cách dùng và trạng thái kiểm thử
@@ -278,11 +279,11 @@
 
 - **Requirement liên quan:** FR-AI-007; trạng thái nguồn [CONFIRMED].
 - **Ưu tiên:** MUST.
-- **Preconditions:** Quota Q đã được duyệt OQ-005, Guest subject và gateway.
-- **Given:** Guest đạt Q hoặc request vượt policy.
+- **Preconditions:** Guest quota 3/ngày, reset 00:00 Asia/Ho_Chi_Minh theo DEC-003; gateway và Guest subject đã triển khai sau gate.
+- **Given:** Guest đã dùng 3 usable requests trong ngày hoặc đang có reservations đủ giới hạn.
 - **When:** gửi thêm request, sửa/bỏ client counter rồi retry.
 - **Then:** gateway vẫn enforce quota trước provider call.
-- **Expected result:** không hardcode Q trong Phase 1; quota message rõ, manual còn dùng.
+- **Expected result:** giới hạn 3 là CONFIRMED; quota message/reset_at rõ, manual còn dùng; lỗi không có usable result không charge.
 - **Test method:** Gateway abuse test + UI.
 - **Kết quả:** NOT RUN; case/policy chi tiết [PROPOSED], chờ môi trường và approval.
 
@@ -611,9 +612,74 @@
 - **Kết quả:** NOT RUN; case/policy chi tiết [PROPOSED], chờ môi trường và approval.
 
 
+## Acceptance bổ sung v1.1
+
+Tất cả cases vẫn **NOT RUN**. Policies CONFIRMED không làm test implementation tự PASS; details PROPOSED chỉ trở thành release expectations sau final design review.
+
+### AC-051
+
+- **Requirement liên quan:** FR-AI-007; NFR-QUO-001/002; BR-Q001–006; [CONFIRMED] policy DEC-003; [PROPOSED] concurrency mechanics.
+- **Ưu tiên:** MUST.
+- **Preconditions:** Gateway/quota ledger có thể fault-inject; server clock cố định, Guest token và request IDs.
+- **Given:** Guest còn 3 slots ngày Việt Nam.
+- **When:** gửi 4 requests đồng thời; retry cùng ID; inject provider/validator lỗi; timeout rồi query result; bắt đầu request trước midnight và hoàn tất sau midnight.
+- **Then:** không quá 3 reserved+used cùng bucket; success trừ một lượt, duplicate không trừ thêm; terminal no usable result release; request sau reset dùng ngày mới.
+- **Expected result:** UI clock không authority; request qua midnight thuộc bucket accepted day; canceled UI không auto-refund; stuck reservation reconciled theo proposal.
+- **Test method:** Quota transaction/concurrency/fault + clock boundary tests.
+- **Kết quả:** NOT RUN; implementation chưa được authorized.
+
+### AC-052
+
+- **Requirement liên quan:** FR-DIS-001–004; FR-TRP-001/002; FR-AI-002; NFR-CAT-001; [CONFIRMED] destination list DEC-004; [PROPOSED] place/sample depth.
+- **Ưu tiên:** MUST.
+- **Preconditions:** Curated catalogue/demo environment và Gemini thật đã sẵn sau approval.
+- **Given:** 12 destination trong danh sách DEC-004 published với quality/source metadata.
+- **When:** tìm/select từng destination; tạo manual/AI itinerary; thử destination thiếu thông tin.
+- **Then:** tất cả 12 dùng chung planning flow; thiếu data hiển thị warning/unknown, không giả verified.
+- **Expected result:** đối chiếu Hà Nội/Hạ Long/Sa Pa/Ninh Bình/Huế/Đà Nẵng/Hội An/Nha Trang/Đà Lạt/TP.HCM/Phú Quốc/Cần Thơ; số place/sample theo depth đã duyệt sau này.
+- **Test method:** Catalogue contract + parameterized planning integration; live smoke evidence.
+- **Kết quả:** NOT RUN; implementation chưa được authorized.
+
+### AC-053
+
+- **Requirement liên quan:** FR-ACC-006; NFR-MIG-001; BR-M001–004; [CONFIRMED] policy DEC-006; [PROPOSED] state/key details.
+- **Ưu tiên:** MUST.
+- **Preconditions:** Guest có 2 drafts, account A/B và migration backend có receipt.
+- **Given:** A login và chỉ chọn draft X, draft Y chưa chọn.
+- **When:** confirm import X; cắt response sau server commit; restart/retry; thử đổi account giữa request và sửa draft khi pending.
+- **Then:** chỉ X import một lần cho A; Y còn local; saved chỉ sau ack; account B không tiếp tục import receipt A.
+- **Expected result:** source revision snapshot cố định; transferred X thuộc account scope và không Guest-edit ngầm; pending new edits không mất; remote là bản chính.
+- **Test method:** Consent UI + idempotency/owner/restart fault integration.
+- **Kết quả:** NOT RUN; implementation chưa được authorized.
+
+### AC-054
+
+- **Requirement liên quan:** FR-AI-002/003/005; FR-SEC-002; NFR-PRI-001/002; [CONFIRMED] context boundary DEC-009; [PROPOSED] disclosure/redaction mechanics.
+- **Ưu tiên:** MUST.
+- **Preconditions:** Gateway/provider payload capture và test profile có email/token/GPS chính xác; logs redacted.
+- **Given:** trip có destination/dates/budget/count/interests/activities và coarse origin.
+- **When:** generate/chat/modify với profile đầy đủ và free-text có identifier.
+- **Then:** provider nhận context tối thiểu; không account email/password/auth token/automatic precise GPS.
+- **Expected result:** authorization token chỉ ở server auth boundary; free-text PII có xử lý/disclosure và không hứa loại sạch tuyệt đối; consent/retention còn điều kiện OPEN.
+- **Test method:** Provider-request contract/network/log review + privacy UI.
+- **Kết quả:** NOT RUN; implementation chưa được authorized.
+
+### AC-055
+
+- **Requirement liên quan:** FR-SEC-001; FR-TRP-006; NFR-OFF-002; BR-PR003; [CONFIRMED] logout purge DEC-010; [PROPOSED] cleanup-failure handling.
+- **Ưu tiên:** MUST.
+- **Preconditions:** A có SQLite snapshot/transferred local data, remote Supabase trip; Guest draft chưa chuyển.
+- **Given:** A authenticated và đã đọc trip.
+- **When:** logout, restart và login B; inject local purge error; A login lại online.
+- **Then:** normal logout xóa account cache/in-memory trip state; B không thấy A; remote trip vẫn còn và A tải lại được.
+- **Expected result:** purge error khóa namespace/cleanup retry, không báo cache sạch giả; Guest draft chưa chuyển không bị xóa ngầm.
+- **Test method:** SQLite row inspection + shared-device/logout fault E2E.
+- **Kết quả:** NOT RUN; implementation chưa được authorized.
+
+
 ## Acceptance coverage và evidence package [PROPOSED]
 
-AC-001–038 map từng FR tại [03](FUNCTIONAL_REQUIREMENTS.md); AC-039–050 bổ sung negative/security/reliability/quality. Trace BR tại [05](BUSINESS_RULES.md), UF tại [04](USER_FLOWS.md), NFR tại [08](NON_FUNCTIONAL_REQUIREMENTS.md).
+AC-001–038 map từng FR tại [03](FUNCTIONAL_REQUIREMENTS.md); AC-039–055 bổ sung negative/security/reliability/quality. Trace BR tại [05](BUSINESS_RULES.md), UF tại [04](USER_FLOWS.md), NFR tại [08](NON_FUNCTIONAL_REQUIREMENTS.md).
 
 Evidence mỗi lần chạy: case ID, build/commit, device/mạng/dataset, account role, provider/plan nếu dùng API, ngày chạy, steps thực, observed/expected, pass/fail, attachment/log redacted và defect link. Không đưa private trips/keys/password vào screenshots hoặc logs. API thật và fixture được ghi tách biệt.
 

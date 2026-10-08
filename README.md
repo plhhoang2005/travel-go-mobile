@@ -33,12 +33,16 @@ flutter run
 
 ## 📚 Tài liệu thiết kế Phase 1
 
-Bộ thiết kế theo **Master Prompt v1.0** trong file đính kèm **Pasted text.txt**, bổ sung ngày **2026-10-08**. Deadline: **2026-10-28**.
+Bộ thiết kế **v1.1**, cập nhật **2026-10-08** theo Master Prompt v1.0 trong **Pasted text.txt** và các quyết định trực tiếp của chủ dự án. Deadline: **2026-10-28**.
 
-**Trạng thái: APPROVED WITH CONDITIONS — DESIGN WORK AUTHORIZED, IMPLEMENTATION NOT AUTHORIZED.** Đây là đặc tả target design, chưa xác nhận code hiện tại đáp ứng hoặc Phase 1 đã đóng; chưa cho phép tự chuyển Phase 2/3.
+**APPROVED WITH CONDITIONS — DESIGN COMPLETE — FINAL OWNER REVIEW PENDING — IMPLEMENTATION NOT AUTHORIZED.** Bộ đặc tả đã hoàn thiện để review cuối; chưa ghi final approval cho artifact v1.1 hoặc cho phép tự chuyển Phase 2/3.
 
-→ [Mục lục 10 tài liệu, traceability và Phase 1 approval checklist](docs/phase-1/README.md).
+→ [Mục lục 10 tài liệu, decision log và approval checklist](docs/phase-1/README.md).
 
-Các yêu cầu **CONFIRMED**, thiết kế **PROPOSED**, quyết định **OPEN**, phạm vi **DEFERRED** và **ASSUMPTION** được tách rõ. Khác biệt giữa Master Prompt và code/tài liệu hiện có được ghi trong [Requirement Audit](docs/phase-1/PROJECT_OVERVIEW.md). Kết quả acceptance sản phẩm vẫn **NOT RUN**.
+**Đã chốt:** Gemini qua server; Guest 3 yêu cầu AI/ngày reset 00:00 giờ Việt Nam, lỗi không có kết quả dùng được không trừ; 12 điểm đến; giữ Provider; SQLite cho Guest draft/saved offline snapshots; draft import có xác nhận và retry no duplicate; Supabase private-trip authorization; minimal AI context và logout purge account cache.
 
-Phần hướng dẫn cài đặt ở trên được giữ nguyên từ repository trước khi bổ sung tài liệu. Thiết kế Phase 1 yêu cầu sensitive API credentials ở server; Supabase publishable/anon key dùng client phải được phân biệt với service-role/secret key và bảo vệ bằng RLS. Loại key, cấu hình và độ an toàn code hiện tại chưa được audit trong tác vụ tài liệu này.
+**Còn PROPOSED/OPEN:** model/tài khoản Gemini, SQLite driver, catalogue depth/source verification, server/schema compatibility, quota/retention/consent mechanics và submission artifacts. Xem [readiness conditions](docs/phase-1/OPEN_QUESTIONS.md). Tất cả **55 acceptance cases: NOT RUN**.
+
+Các mục CONFIRMED/PROPOSED/OPEN/DEFERRED/ASSUMPTION tách rõ và traceable; [Requirement Audit](docs/phase-1/PROJECT_OVERVIEW.md) ghi khác biệt với code hiện có. Chỉ cập nhật tài liệu, chưa thay code hoặc triển khai dịch vụ.
+
+Hướng dẫn cài đặt ở trên giữ nguyên từ repository. Thiết kế yêu cầu sensitive API credentials ở server; Supabase publishable/anon key phải phân biệt service-role/secret key và được bảo vệ bằng RLS. Key/schema/authorization/runtime hiện tại chưa được kiểm chứng an toàn trong tác vụ tài liệu.

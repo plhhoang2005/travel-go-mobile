@@ -1,23 +1,24 @@
 # Travel-Go Mobile — Phase 1 design index
 
-> Version 1.0 • Ngày lập: **2026-10-08** • Approval date baseline: **2026-10-08** • Deadline: **2026-10-28**.
+> Version **1.1** • Ngày cập nhật: **2026-10-08** • Approval date S-MP baseline: **2026-10-08** • Deadline: **2026-10-28**.
 > **APPROVED WITH CONDITIONS — DESIGN WORK AUTHORIZED, IMPLEMENTATION NOT AUTHORIZED.**
-> Công bố tài liệu không đóng Phase 1 và không cho phép tự chuyển Phase 2/3.
+> Bộ thiết kế: **DESIGN COMPLETE — FINAL OWNER REVIEW PENDING**.
+> S-DEC đã chốt các lựa chọn; final review artifact v1.1 và authorization Phase 2/3 vẫn riêng.
 
-## Mục lục: đúng 10 deliverables theo S-MP §15
+## Mục lục: 10 deliverables theo S-MP §15
 
 | Thứ tự | Tài liệu | Nội dung |
 | --- | --- | --- |
-| 01 | [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md) | Vision, stakeholder, audit/xung đột, feasibility/risk |
-| 02 | [PRD.md](PRD.md) | Scope MUST/SHOULD/DEFERRED, MVP và deadline strategy |
-| 03 | [FUNCTIONAL_REQUIREMENTS.md](FUNCTIONAL_REQUIREMENTS.md) | 38 FR có source, priority, flow/data/AC traceability |
-| 04 | [USER_FLOWS.md](USER_FLOWS.md) | 11 journeys/use cases, alternatives/errors và state |
-| 05 | [BUSINESS_RULES.md](BUSINESS_RULES.md) | BR-001–022 baseline, proposed policies, authorization matrix |
-| 06 | [ARCHITECTURE.md](ARCHITECTURE.md) | Context/components/ADR, Hybrid AI và A/B/C API Integration Matrix |
-| 07 | [DATABASE_DESIGN.md](DATABASE_DESIGN.md) | Conceptual ERD/logical schema/RLS/integrity/ownership |
-| 08 | [NON_FUNCTIONAL_REQUIREMENTS.md](NON_FUNCTIONAL_REQUIREMENTS.md) | Security/reliability/performance/usability/offline/maintainability |
-| 09 | [ACCEPTANCE_CRITERIA.md](ACCEPTANCE_CRITERIA.md) | 50 acceptance scenarios; tất cả **NOT RUN** |
-| 10 | [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md) | OQ-001–010 baseline + OQ-011–015 audit, assumptions/blockers/owners/due |
+| 01 | [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md) | Vision/stakeholder, audit conflicts, feasibility/risk, codebase observations |
+| 02 | [PRD.md](PRD.md) | Five MUST, four SHOULD, 12 destinations, depth proposal và deadline strategy |
+| 03 | [FUNCTIONAL_REQUIREMENTS.md](FUNCTIONAL_REQUIREMENTS.md) | 38 FR và nguồn, flow/data/API/acceptance traceability |
+| 04 | [USER_FLOWS.md](USER_FLOWS.md) | UF-001–011, alternative/error/state và quota sequence |
+| 05 | [BUSINESS_RULES.md](BUSINESS_RULES.md) | BR-001–022, policy details, quota/migration/privacy invariants và permission matrix |
+| 06 | [ARCHITECTURE.md](ARCHITECTURE.md) | Provider/SQLite/Supabase/Gemini, server adapter, compatibility, A/B/C API matrix và ADR |
+| 07 | [DATABASE_DESIGN.md](DATABASE_DESIGN.md) | ERD, logical schema, saved_trips mapping, SQLite/import/quota ledger và RLS |
+| 08 | [NON_FUNCTIONAL_REQUIREMENTS.md](NON_FUNCTIONAL_REQUIREMENTS.md) | Security/reliability/performance/offline/maintainability/privacy |
+| 09 | [ACCEPTANCE_CRITERIA.md](ACCEPTANCE_CRITERIA.md) | 55 acceptance cases, tất cả **NOT RUN** |
+| 10 | [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md) | OQ-001–015 cập nhật trạng thái, assumptions, RC-001–006 và gate |
 
 ## Nguồn và thứ tự ưu tiên
 
@@ -27,6 +28,32 @@
 - **EXT-01–08:** official provider documentation tham khảo 2026-10-08, links và giới hạn evidence ở [06](ARCHITECTURE.md). Chưa kiểm chứng tài khoản, khóa, plan entitlement, deployed endpoints hoặc PoC.
 
 [CONFIRMED] Khi prompt “chưa có codebase” khác repo hiện có, S-USER xác nhận dùng code hiện có; ghi CF-001–007 tại [01](PROJECT_OVERVIEW.md), không rewrite. Các thuật toán/provider/state trong repo không tự đóng các OQ của baseline mới.
+
+
+**S-REPO-2:** snapshot tiếp nối [758804c](https://github.com/plhhoang2005/travel-go-mobile/tree/758804ce9bb636e45d3c8d11dcab4b33fed4cc68), tree effa88d091b51bb790cf1fcc2be2f5a4f7a68883. Read-only inspected backend/pom.xml, MapController, MapService, TripApiService, TripsService và recursive tree. Backend chứa routing/health; client trip planning có fallback, persistence dùng saved_trips. Chưa chứng minh Gemini/engine live hoặc deployed RLS/schema. Không đọc/copy secret values.
+
+
+## Baseline bổ sung v1.1 — quyết định trực tiếp của chủ dự án
+
+Nguồn **S-DEC** là các trả lời trực tiếp trong chat tiếp nối ngày 2026-10-08, không phải suy luận từ preview. Mọi CONFIRMED dưới đây chỉ xác nhận thiết kế/phạm vi, không xác nhận sản phẩm đã chạy. S-MP v1.0 giữ nguyên làm nguồn lịch sử; S-DEC sửa các lựa chọn vốn OPEN, không sửa bản đính kèm.
+
+| ID | Trạng thái | Quyết định | Evidence trực tiếp | Traceability |
+| --- | --- | --- | --- | --- |
+| DEC-001 | [CONFIRMED] | Giảng viên yêu cầu tích hợp external API; không bắt buộc tự xây REST API | User chọn “A” cho câu hỏi tiêu chí API | OQ-001; API-B-01; ADR-P1-010 |
+| DEC-002 | [CONFIRMED] | Gemini là provider chính; model cụ thể vẫn OPEN | “Gemini đi” | OQ-002; FR-AI-001–005; ADR-P1-008 |
+| DEC-003 | [CONFIRMED] | Guest 3 yêu cầu AI/ngày; reset 00:00 Asia/Ho_Chi_Minh; generation/tư vấn/sửa tính lượt; lỗi hệ thống không có kết quả dùng được không trừ | User chọn 3/ngày rồi “ok tôi chốt” toàn bảng backend/privacy/quota | OQ-005; BR-P007; AC-023; AC-051 |
+| DEC-004 | [CONFIRMED] | 12 điểm đến: Hà Nội, Hạ Long, Sa Pa, Ninh Bình, Huế, Đà Nẵng, Hội An, Nha Trang, Đà Lạt, TP.HCM, Phú Quốc, Cần Thơ | “chốt danh sách vậy” sau bảng 12 điểm đến | OQ-006; FR-DIS-001–004; AC-052 |
+| DEC-005 | [CONFIRMED] | Giữ Provider hiện có; SQLite cho Guest drafts sửa local và saved snapshots chỉ đọc offline | “ok tôi chốt phần này”; phạm vi câu hỏi đã được ghi nhận là Provider/SQLite | OQ-007; ADR-P1-005/006; AC-005/016/045 |
+| DEC-006 | [CONFIRMED] | Sau login, user chọn draft để lưu; chỉ báo saved khi server ack; lỗi giữ draft; retry không tạo trùng; ack xong đánh dấu đã chuyển, remote trip là bản chính | “ok tiến hành” trả lời quy trình migration | OQ-009; BR-P001/004; AC-006/039/053 |
+| DEC-007 | [CONFIRMED] | Tái sử dụng code/backend phù hợp, audit trước bổ sung, không tự rewrite engine; Supabase quản lý auth/profile/private trips; server kiểm tra quyền | “ok tôi chốt” bảng backend/privacy | OQ-011; FR-SEC-001; ADR-P1-003/004 |
+| DEC-008 | [CONFIRMED] | Gemini qua server, secret không ở app; AI trả proposal, chỉ apply itinerary sau user confirmation | Cùng approval DEC-007; đồng thời giữ BR-005/022 baseline | FR-AI-004; FR-SEC-002; AC-020/035/041 |
+| DEC-009 | [CONFIRMED] | Chỉ gửi destination/dates/budget/count/interests/activities liên quan; không email/password/token; origin theo thành phố/khu vực, không mặc định gửi GPS chính xác | Cùng approval bảng backend/privacy | OQ-015; NFR-SEC-003/005; AC-047/054 |
+| DEC-010 | [CONFIRMED] | Logout xóa cache trip của account trên máy; dữ liệu Supabase còn; không làm lộ snapshot account A cho B | Cùng approval bảng backend/privacy | BR-P010; NFR-OFF-002; AC-040/045/055 |
+| DEC-011 | [CONFIRMED] | Hoàn thiện thiết kế Phase 1; không sử dụng superpowers trong tác vụ này | Yêu cầu mới nhất “ok tôi chốt (không sử dụng superpowers) hãy thiết kế để hoàn tất phase 1” | Phạm vi publication tài liệu, không cấp phép code Phase 2 |
+
+[PROPOSED] Mỗi điểm đến 6–10 địa điểm/hoạt động, 1 sample itinerary khoảng 3 ngày: tổng 72–120 places và 12 samples. Chủ dự án chỉ chốt danh sách destination; độ sâu này chưa được duyệt. Thu thập dataset thực không thuộc tác vụ tài liệu.
+
+[OPEN] Model Gemini/quota tài khoản/keys, package SQLite, hosting server và schema deployed cần validation trước implementation. Các chi tiết quota reservation, schema và contract ở dưới là thiết kế PROPOSED; không dùng approval chính sách tổng quát để gắn CONFIRMED cho mọi chi tiết chưa trình.
 
 ## Phân loại bắt buộc
 
@@ -40,36 +67,53 @@
 
 Priority MUST/SHOULD là trục khác với trạng thái. Map/Weather/Community/Group là capability SHOULD [CONFIRMED], provider/policies OPEN hoặc PROPOSED; đề nghị hoãn triển khai SHOULD là PROPOSED. Deadline 2026-10-28 là CONFIRMED, decision/sprint dates là PROPOSED. Unknown dữ liệu không bằng estimated hoặc verified.
 
-## Final design review — 10 mục
 
-1. **Executive summary:** ứng dụng Android học thuật tích hợp discovery, itinerary/manual/AI và budget; publication chỉ tài liệu.
-2. **Requirements baseline:** năm MUST, bốn SHOULD; 38 FR và 22 BR có source; giữ năm nhãn.
-3. **MVP scope:** core vertical slice 11 bước S-MP §12, Google/email/profile/chat/recommendations/modification vẫn ở baseline, không rút MUST.
-4. **Proposed architecture:** feature boundaries + Supabase, trusted AI gateway/validator và local persistence; codebase compatibility OQ-011 chưa duyệt.
-5. **Database summary:** private owner aggregate trip/day/item/expense; actual độc lập estimate; provenance/version/receipt; SHOULD model conceptual.
-6. **API strategy:** A backend, B external, C local; provider choice/quota/rubric chưa chốt; official references không thay PoC/account verification.
-7. **Main risks:** API assessment, accounts/quota, curated data, 20-day window, scope SHOULD, migration/privacy/stale updates.
-8. **Open questions:** OQ-001–015 còn OPEN, decision owners/due/blocking impact và assumptions đã ghi.
-9. **Acceptance summary:** 50 Given/When/Then, preconditions/expected/priority/method; **NOT RUN**, không claim MVP đạt.
-10. **Approval:** checklist dưới đây phân biệt “tài liệu có mặt” với “owner duyệt thiết kế” và “cho phép implementation”.
+## Executive final design review v1.1
 
-## Phase 1 approval checklist — pending owner review
+1. **Vision:** Android học thuật tích hợp discovery/manual/AI planning/budget, phục vụ người đi Việt Nam cá nhân/nhóm.
+2. **Baseline:** 38 FR/22 BR; năm MUST giữ nguyên, bốn SHOULD không vượt core; booking/notifications/saved offline editing DEFERRED.
+3. **Scope:** 12 destination CONFIRMED, 72–120 places/12 samples PROPOSED; coverage thực cần curation/evidence, không seed fake data.
+4. **Architecture:** Provider/SQLite đã chốt; Supabase Auth/profile/private data; Gemini via trusted server; Spring adapter là proposal tương thích, không dựng backend thay thế tự động.
+5. **Data:** Canonical itinerary cho manual/AI; owner/version/receipts/provenance; actual độc lập estimate; logical schema phải map saved_trips trước migration.
+6. **API:** Rubric chỉ external API đã confirmed; Gemini live là core integration. 3 Guest requests/calendar day Vietnam; application quota tách provider quota; reservation/idempotency cơ chế PROPOSED.
+7. **Privacy:** Minimal context, coarse origin, no email/password/token/default precise GPS; backend auth/RLS; logout purge local account cache, remote trip còn.
+8. **Reliability:** Explicit proposal preview/apply; stale reject; migration ack/retry no duplicates; offline local draft writable, saved snapshot read-only; manual fallback khi AI lỗi.
+9. **Remaining conditions:** Model/account readiness, SQLite driver, hosting/schema/RLS compatibility, data-depth/source/license, Guest identity/account cap, consent/retention và submission checklist; maps/weather/community/group còn OPEN nếu chọn SHOULD.
+10. **Acceptance/gate:** 55 cases NOT RUN. Bộ thiết kế v1.1 complete để owner final review; Phase 1 closure chưa ghi approval cho artifact mới; không bắt đầu Phase 2/3.
 
-- [ ] Chủ dự án review 10 docs và traceability FR→BR→UF→data/API→AC.
-- [ ] Xác nhận cách xử lý CF-001–007; nhất là engine/LLM/codebase compatibility.
-- [ ] Chốt OQ-001/010 với giảng viên và giữ rubric evidence.
-- [ ] Duyệt provider/model AI, data strategy, Guest quota, state/local persistence và migration policies (OQ-002–007/009).
-- [ ] Duyệt ADR/model/RLS/permission/quality policies và retention/privacy (OQ-011/015).
-- [ ] Duyệt mốc kế hoạch, demo dataset và minimal implementation depth; không cắt MUST ngầm.
-- [ ] Quyết định thời điểm triển khai SHOULD; PoC map trước provider approval (OQ-008/012–014).
-- [ ] Ghi người duyệt, ngày duyệt, decision evidence và thay đổi từng status có căn cứ.
-- [ ] Explicitly approve final Phase 1 design/close Phase 1.
-- [ ] Cấp authorization và review kế hoạch Phase 2 riêng; không tự chuyển Phase 2/3.
+## Phase 1 approval checklist
 
-**Yêu cầu review:** Chủ dự án vui lòng phê duyệt hoặc yêu cầu sửa bộ thiết kế và các quyết định còn mở. Đến khi có evidence explicit approval, trạng thái giữ **APPROVED WITH CONDITIONS**.
+### Các lựa chọn đã được chủ dự án xác nhận
 
-## Phạm vi kiểm tra lần xuất bản
+- [x] External API criterion — DEC-001.
+- [x] Gemini provider chính — DEC-002.
+- [x] Guest 3/ngày, reset 00:00 Vietnam, no usable system result không trừ — DEC-003.
+- [x] Danh sách 12 destination — DEC-004.
+- [x] Provider + SQLite, Guest writable và saved snapshot read-only — DEC-005.
+- [x] Migration có lựa chọn/confirmation/ack/retry no duplicate — DEC-006.
+- [x] Reuse code/backend phù hợp, Supabase và Gemini server-side/explicit apply — DEC-007/008.
+- [x] Minimal AI context/coarse origin và logout purge local account cache — DEC-009/010.
+- [x] Hoàn thiện Phase 1 design, không sử dụng superpowers trong lần cập nhật — DEC-011.
 
-Chỉ thay đổi Markdown: 10 design docs + index này + append documentation section vào README gốc. README trước đó giữ nguyên prefix; không sửa lib/, backend/, test/, platform config, dependencies, AGENTS hoặc synced sources/.
+### Review artifact v1.1 và điều kiện còn lại
 
-Kiểm tra xuất bản gồm count 10 deliverables, links/anchors, IDs và requirement/acceptance coverage; byte-preservation README prefix; Git tree đối chiếu mọi path/blob/mode ngoài allowlist. Các kiểm tra này không là flutter analyze/flutter test hoặc product/security acceptance. Runtime ứng dụng và 50 AC chưa được chạy trong tác vụ tài liệu.
+- [ ] Chủ dự án review 10 docs v1.1 và FR→BR→UF→data/API→AC consistency.
+- [ ] Duyệt các details PROPOSED: 6–10 places/sample depth, server adapter/contracts, quota reservations, logical schema/RLS và migration revisions.
+- [ ] Chấp thuận/điều chỉnh RC-001–006 với owner/due/evidence; không coi remaining OPEN là confirmed.
+- [ ] Ghi final approval artifact v1.1/ngày/evidence để đóng Phase 1; chưa có approval này tại thời điểm xuất bản.
+- [ ] Authorization Phase 2 và review implementation plan riêng; không tự chuyển pha.
+
+**Yêu cầu final review:** Chủ dự án vui lòng phê duyệt bộ thiết kế **v1.1** hoặc chỉ ra phần cần sửa. Approval bản này đóng phần review thiết kế khi điều kiện được ghi rõ, không tự cấp quyền viết code Phase 2/3.
+
+## Verification lần xuất bản v1.1
+
+Scope đúng 12 Markdown files: 10 docs + index + README root. Giữ phần hướng dẫn cài đặt gốc ở README root; chỉ cập nhật section Phase 1. Đối chiếu mọi blob/mode ngoài allowlist để bảo vệ lib/backend/test/platform/dependencies/AGENTS và tài liệu khác. Synced sources/ chỉ đọc.
+
+Kiểm count/unique IDs, cross-links/anchors, 55 cases đầy đủ fields, quota/provider/state/privacy decisions đồng nhất và trạng thái closed/open phân biệt. Verification tài liệu không là Flutter analyze/test, live provider/PoC hoặc evidence 55 acceptance đã đạt.
+
+## Lịch sử phiên bản
+
+| Version | Date | Nội dung |
+| --- | --- | --- |
+| 1.0 | 2026-10-08 | Conditional design baseline theo S-MP, 38 FR/22 BR/50 AC; commit 758804c |
+| 1.1 | 2026-10-08 | Ghi DEC-001–011; Gemini/3 Guest requests/12 destinations/Provider+SQLite/migration/privacy; bổ sung AC-051–055 và integration/readiness design; final artifact review pending |

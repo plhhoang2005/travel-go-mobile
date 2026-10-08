@@ -1,226 +1,217 @@
 # 10 — Open questions, assumptions và decision gates
 
-> Phiên bản thiết kế: 1.0 • Ngày lập: 2026-10-08 • Deadline: **2026-10-28**.
+> Phiên bản thiết kế: 1.1 • Ngày lập: 2026-10-08 • Deadline: **2026-10-28**.
 > Trạng thái: **APPROVED WITH CONDITIONS — DESIGN WORK AUTHORIZED, IMPLEMENTATION NOT AUTHORIZED**.
+> Tiến độ bộ thiết kế v1.1: **DESIGN COMPLETE — FINAL OWNER REVIEW PENDING**. Các lựa chọn đã chốt theo S-DEC; chưa chuyển Phase 2/3.
 > Baseline: S-MP (Master Prompt v1.0); đây là kế hoạch kiểm tra/thiết kế, không phải evidence triển khai đã pass.
 
-## Quyền quyết định và trạng thái
+## Quyền quyết định và cách đọc trạng thái
 
-**Mọi OQ bên dưới: [OPEN], chưa có quyết định cuối, chưa có evidence approval.** Các đề xuất giải pháp không đổi trạng thái OPEN. OQ-001–010 giữ ID từ S-MP §13; OQ-011–015 là khoảng trống bổ sung từ audit. Mốc quyết định bên dưới **[PROPOSED]**, timezone Asia/Saigon; deadline sản phẩm **2026-10-28 [CONFIRMED]**.
+S-DEC tại [index](README.md) ghi approval trực tiếp của chủ dự án ngày 2026-10-08. OQ-001–015 giữ ID lịch sử; trạng thái v1.1 đã cập nhật, không coi toàn bộ còn OPEN. Một lựa chọn CONFIRMED vẫn có validation/detail OPEN; không mở lại quyết định đã chốt chỉ vì chưa có runtime evidence.
 
-Bộ thiết kế có thể công bố với conditional status. Final architecture approval/Phase 2 implementation không được tự tiếp tục khi blocker chưa quyết định hoặc chưa có authorization riêng.
+Deadline sản phẩm **2026-10-28 [CONFIRMED]**. Mọi decision/validation due bên dưới **[PROPOSED]**. “DESIGN COMPLETE” nghĩa bộ đặc tả hoàn chỉnh để review, không nghĩa open item đã giải quyết hoặc implementation được phép.
 
 ### OQ-001
 
-- **Trạng thái:** [OPEN]. **Vấn đề:** Rubric API của giảng viên.
-- **Nguồn:** S-MP §8.3/10/13.
-- **Vì sao quan trọng / tác động:** Supabase APIs có thể chưa đáp ứng yêu cầu tự phát triển REST; chọn sai ảnh hưởng đánh giá và backend.
-- **Options:** External API; tự phát triển REST; cả hai; Supabase đủ.
-- **Khuyến nghị [PROPOSED]:** Hỏi giảng viên bằng rubric/phản hồi có lưu evidence; không giả định Supabase đủ.
-- **Decision owner [PROPOSED]:** Chủ dự án hỏi giảng viên.
-- **Decision deadline [PROPOSED]:** 2026-10-09.
-- **Blocker:** Final architecture approval và API implementation.
-- **Decision / approver / date / evidence:** Chưa có; giữ OPEN.
+- **Trạng thái:** [CONFIRMED]. **Vấn đề:** Rubric API.
+- **Nguồn:** S-MP §8.3/10/13; DEC-001.
+- **Quyết định/evidence:** Owner xác nhận loại A: external API; không bắt buộc tự phát triển REST. Evidence cho phần đã chốt: các trả lời S-DEC trong chat ngày 2026-10-08; approver: chủ dự án.
+- **Options/khuyến nghị/điểm chưa chốt:** Gemini live qua server đáp ứng loại integration đã chọn; report/artifact rubric ở OQ-010 vẫn OPEN.
+- **Impact/blocker:** Không còn blocker lựa chọn API type; credentials/live evidence là implementation readiness.
+- **Decision/validation owner [PROPOSED]:** Chủ dự án / developer.
+- **Due [PROPOSED]:** 2026-10-10.
+- **Evidence remaining:** Chưa có PoC/runtime/approval cho phần OPEN/PROPOSED; không trình bày là PASS.
 
 ### OQ-002
 
-- **Trạng thái:** [OPEN]. **Vấn đề:** Provider/model AI.
-- **Nguồn:** S-MP §5.4/13.
-- **Vì sao quan trọng / tác động:** Chi phí, quota, Vietnamese/structured output, privacy và key availability quyết định luồng MUST.
-- **Options:** Gemini candidate; provider khác qua adapter nếu duyệt.
-- **Khuyến nghị [PROPOSED]:** So tài liệu chính thức + PoC sau authorization; không chốt model từ tên ứng viên.
-- **Decision owner [PROPOSED]:** Chủ dự án / developer.
-- **Decision deadline [PROPOSED]:** 2026-10-10.
-- **Blocker:** AI implementation và final integration approval.
-- **Decision / approver / date / evidence:** Chưa có; giữ OPEN.
+- **Trạng thái:** [CONFIRMED] provider; [OPEN] model/readiness. **Vấn đề:** AI provider/model.
+- **Nguồn:** S-MP §5.4/13; DEC-002/008.
+- **Quyết định/evidence:** Gemini provider chính đã duyệt. Evidence cho phần đã chốt: các trả lời S-DEC trong chat ngày 2026-10-08; approver: chủ dự án.
+- **Options/khuyến nghị/điểm chưa chốt:** Model name/version, account eligibility/quota/keys, structured-output Vietnamese PoC chưa xác minh. Không auto chọn model mới/latest từ tên Gemini.
+- **Impact/blocker:** Chặn live AI implementation readiness; không chặn việc hoàn tất tài liệu provider design.
+- **Decision/validation owner [PROPOSED]:** Chủ dự án / developer.
+- **Due [PROPOSED]:** 2026-10-10.
+- **Evidence remaining:** Chưa có PoC/runtime/approval cho phần OPEN/PROPOSED; không trình bày là PASS.
 
 ### OQ-003
 
-- **Trạng thái:** [OPEN]. **Vấn đề:** Policy missing map/weather/opening hours.
-- **Nguồn:** S-MP §5.4/13.
-- **Vì sao quan trọng / tác động:** Ảnh hưởng tính thực tế và cách validator diễn giải unknown.
-- **Options:** Chỉ curated known; allow estimate có nguồn; giữ unknown với warnings.
-- **Khuyến nghị [PROPOSED]:** Theo BR-P003 và quality contract; known closure/error có severity; không fabricate.
-- **Decision owner [PROPOSED]:** Chủ dự án.
-- **Decision deadline [PROPOSED]:** 2026-10-10.
-- **Blocker:** Validator/detail-policy approval, không chặn soạn thiết kế.
-- **Decision / approver / date / evidence:** Chưa có; giữ OPEN.
+- **Trạng thái:** [OPEN]. **Vấn đề:** Missing external data và validator severity.
+- **Nguồn:** S-MP §5.4/13; BR-019.
+- **Quyết định/evidence:** Disclosure estimated/unknown là baseline CONFIRMED; chi tiết validator policy PROPOSED. Evidence cho phần đã chốt: các trả lời S-DEC trong chat ngày 2026-10-08; approver: chủ dự án.
+- **Options/khuyến nghị/điểm chưa chốt:** Options: warn unknown; reject known infeasible; owner exception có lý do. Đề xuất BR-P003, provenance contract, không fabricate dữ liệu.
+- **Impact/blocker:** Final review policy; implementation validation phải theo quyết định được duyệt.
+- **Decision/validation owner [PROPOSED]:** Chủ dự án.
+- **Due [PROPOSED]:** 2026-10-10.
+- **Evidence remaining:** Chưa có PoC/runtime/approval cho phần OPEN/PROPOSED; không trình bày là PASS.
 
 ### OQ-004
 
-- **Trạng thái:** [OPEN]. **Vấn đề:** Thu thập/duy trì/verify dữ liệu Việt Nam.
-- **Nguồn:** S-MP §5.2/13.
-- **Vì sao quan trọng / tác động:** Coverage, quyền sử dụng, freshness, sample quality.
-- **Options:** Curated có nguồn chính thức; external provider; hybrid.
-- **Khuyến nghị [PROPOSED]:** Hybrid curated nhỏ và external theo nhu cầu; provenance từng trường, trách nhiệm curator.
-- **Decision owner [PROPOSED]:** Chủ dự án / developer.
-- **Decision deadline [PROPOSED]:** 2026-10-10.
-- **Blocker:** Discovery data implementation và final data approval.
-- **Decision / approver / date / evidence:** Chưa có; giữ OPEN.
+- **Trạng thái:** [OPEN]. **Vấn đề:** Nguồn/quality/freshness catalogue.
+- **Nguồn:** S-MP §5.2/13; DEC-004.
+- **Quyết định/evidence:** 12 destination CONFIRMED; chưa thu thập dataset. Evidence cho phần đã chốt: các trả lời S-DEC trong chat ngày 2026-10-08; approver: chủ dự án.
+- **Options/khuyến nghị/điểm chưa chốt:** Options: curated official/operator source và external theo nhu cầu. Đề xuất source/license/attribution/timestamp/field-quality checks; 6–10 places/destination vẫn proposal.
+- **Impact/blocker:** Data curation readiness; không giả dữ liệu để báo đủ coverage.
+- **Decision/validation owner [PROPOSED]:** Developer / chủ dự án.
+- **Due [PROPOSED]:** 2026-10-10.
+- **Evidence remaining:** Chưa có PoC/runtime/approval cho phần OPEN/PROPOSED; không trình bày là PASS.
 
 ### OQ-005
 
-- **Trạng thái:** [OPEN]. **Vấn đề:** Quota Guest AI chính xác.
-- **Nguồn:** S-MP §5.1/13.
-- **Vì sao quan trọng / tác động:** Abuse/cost và trải nghiệm Guest; quota số không có trong baseline.
-- **Options:** Per-session/per-device/per-day token; auth quotas riêng; total app cap.
-- **Khuyến nghị [PROPOSED]:** Server enforcement và manual khi hết; chốt Q/window/reset/privacy, không dùng IP đơn lẻ như identity.
-- **Decision owner [PROPOSED]:** Chủ dự án.
-- **Decision deadline [PROPOSED]:** 2026-10-10.
-- **Blocker:** Guest AI implementation; không thay yêu cầu Guest AI giới hạn.
-- **Decision / approver / date / evidence:** Chưa có; giữ OPEN.
+- **Trạng thái:** [CONFIRMED] quota policy; [OPEN] enforcement details. **Vấn đề:** Guest AI quota.
+- **Nguồn:** S-MP §5.1/13; DEC-003.
+- **Quyết định/evidence:** 3 requests/day, reset 00:00 Asia/Ho_Chi_Minh; generation/tư vấn/sửa, no usable system result không trừ. Evidence cho phần đã chốt: các trả lời S-DEC trong chat ngày 2026-10-08; approver: chủ dự án.
+- **Options/khuyến nghị/điểm chưa chốt:** Đề xuất signed/random Guest subject, used+reserved≤3, durable request idempotency, accepted-day bucket; token expiry/lease/global cap/account quota chưa chốt.
+- **Impact/blocker:** Không hỏi lại 3/ngày; technical limits/anti-abuse cần validation trước live integration.
+- **Decision/validation owner [PROPOSED]:** Developer / chủ dự án.
+- **Due [PROPOSED]:** 2026-10-10.
+- **Evidence remaining:** Chưa có PoC/runtime/approval cho phần OPEN/PROPOSED; không trình bày là PASS.
 
 ### OQ-006
 
-- **Trạng thái:** [OPEN]. **Vấn đề:** Số destination/sample demo.
-- **Nguồn:** S-MP §5.2/13.
-- **Vì sao quan trọng / tác động:** Một developer cần dataset đủ kiểm chứng nhưng không quá rộng.
-- **Options:** Một luồng điểm đến có nhiều places; vài khu vực tương phản; catalogue rộng.
-- **Khuyến nghị [PROPOSED]:** Chọn số cụ thể cùng giảng viên và coverage AC; không invent quy mô confirmed.
-- **Decision owner [PROPOSED]:** Chủ dự án.
-- **Decision deadline [PROPOSED]:** 2026-10-10.
-- **Blocker:** Dataset/demo planning; không chặn logical architecture.
-- **Decision / approver / date / evidence:** Chưa có; giữ OPEN.
+- **Trạng thái:** [CONFIRMED] 12 destinations; [PROPOSED] depth. **Vấn đề:** Demo scope.
+- **Nguồn:** S-MP §5.2/13; DEC-004.
+- **Quyết định/evidence:** Hà Nội, Hạ Long, Sa Pa, Ninh Bình, Huế, Đà Nẵng, Hội An, Nha Trang, Đà Lạt, TP.HCM, Phú Quốc, Cần Thơ. Evidence cho phần đã chốt: các trả lời S-DEC trong chat ngày 2026-10-08; approver: chủ dự án.
+- **Options/khuyến nghị/điểm chưa chốt:** 6–10 places/activities mỗi destination và 1 sample ~3 ngày là PROPOSED; options giảm/tăng depth có approval, không âm thầm giảm 12 destination.
+- **Impact/blocker:** Final artifact review depth; dataset collection và live 12-destination coverage ở Phase 2.
+- **Decision/validation owner [PROPOSED]:** Chủ dự án / developer.
+- **Due [PROPOSED]:** 2026-10-10.
+- **Evidence remaining:** Chưa có PoC/runtime/approval cho phần OPEN/PROPOSED; không trình bày là PASS.
 
 ### OQ-007
 
-- **Trạng thái:** [OPEN]. **Vấn đề:** State management và local persistence.
-- **Nguồn:** S-MP §8.2/8.4/13.
-- **Vì sao quan trọng / tác động:** Framework migration và atomic restart recovery.
-- **Options:** Provider hiện có/Riverpod/BLoC; SQLite wrapper/key-value.
-- **Khuyến nghị [PROPOSED]:** Ưu tiên Provider tương thích, đánh giá SQLite cho relational/atomic store; quyết định cuối vẫn OPEN.
-- **Decision owner [PROPOSED]:** Chủ dự án / developer.
-- **Decision deadline [PROPOSED]:** 2026-10-10.
-- **Blocker:** Mobile application/state/local-store implementation.
-- **Decision / approver / date / evidence:** Chưa có; giữ OPEN.
+- **Trạng thái:** [CONFIRMED] Provider/SQLite; [OPEN] driver. **Vấn đề:** State/local storage.
+- **Nguồn:** S-MP §8.2/8.4/13; DEC-005.
+- **Quyết định/evidence:** Giữ Provider; SQLite writable Guest drafts và read-only account snapshots. Evidence cho phần đã chốt: các trả lời S-DEC trong chat ngày 2026-10-08; approver: chủ dự án.
+- **Options/khuyến nghị/điểm chưa chốt:** Package/driver compatible Android/Windows dev, transaction/recovery/schema migration và credential secure-store implementation cần validation. Không chuyển framework tự động.
+- **Impact/blocker:** Không hỏi lại framework/storage; package selection là implementation readiness.
+- **Decision/validation owner [PROPOSED]:** Developer.
+- **Due [PROPOSED]:** 2026-10-10.
+- **Evidence remaining:** Chưa có PoC/runtime/approval cho phần OPEN/PROPOSED; không trình bày là PASS.
 
 ### OQ-008
 
 - **Trạng thái:** [OPEN]. **Vấn đề:** Map provider sau PoC.
 - **Nguồn:** S-MP §6.1/13.
-- **Vì sao quan trọng / tác động:** Billing/attribution/Việt Nam routing accuracy; map không là core blocker.
-- **Options:** Google Maps/Routes; OSM-compatible tile host + routing provider.
-- **Khuyến nghị [PROPOSED]:** PoC Android/Vietnam/failure/cost restrictions sau gate; không dùng standard tiles cho offline bulk.
-- **Decision owner [PROPOSED]:** Chủ dự án / developer.
-- **Decision deadline [PROPOSED]:** 2026-10-20.
-- **Blocker:** Map SHOULD implementation và provider approval; không chặn core manual.
-- **Decision / approver / date / evidence:** Chưa có; giữ OPEN.
+- **Quyết định/evidence:** Capability SHOULD baseline giữ; dependency existing không provider approval. Evidence cho phần đã chốt: các trả lời S-DEC trong chat ngày 2026-10-08; approver: chủ dự án.
+- **Options/khuyến nghị/điểm chưa chốt:** Google Maps/Routes hoặc OSM tiles+router phù hợp; so billing/attribution/coverage/terms bằng PoC sau authorization.
+- **Impact/blocker:** Chỉ chặn Map SHOULD, không chặn core manual/AI unknown fallback.
+- **Decision/validation owner [PROPOSED]:** Chủ dự án / developer.
+- **Due [PROPOSED]:** 2026-10-20.
+- **Evidence remaining:** Chưa có PoC/runtime/approval cho phần OPEN/PROPOSED; không trình bày là PASS.
 
 ### OQ-009
 
-- **Trạng thái:** [OPEN]. **Vấn đề:** Draft migration duplicate và interrupted sync.
-- **Nguồn:** S-MP §5.1/13.
-- **Vì sao quan trọng / tác động:** Mất draft hoặc duplicate trip; privacy trên shared device.
-- **Options:** Always copy; content dedupe; identity/revision idempotency và receipt.
-- **Khuyến nghị [PROPOSED]:** BR-P001: owner+draft+revision; chọn khi revision mới update/copy, thời điểm purge và lựa chọn drafts.
-- **Decision owner [PROPOSED]:** Chủ dự án.
-- **Decision deadline [PROPOSED]:** 2026-10-10.
-- **Blocker:** Auth/import implementation và final persistence approval.
-- **Decision / approver / date / evidence:** Chưa có; giữ OPEN.
+- **Trạng thái:** [CONFIRMED] migration policy; [PROPOSED] key/state details. **Vấn đề:** Draft migration.
+- **Nguồn:** S-MP §5.1/13; DEC-006.
+- **Quyết định/evidence:** Login → chọn/confirm draft → server save → ack mới transferred; retry không duplicate; lỗi giữ draft; remote là bản chính. Evidence cho phần đã chốt: các trả lời S-DEC trong chat ngày 2026-10-08; approver: chủ dự án.
+- **Options/khuyến nghị/điểm chưa chốt:** Owner+draft+revision/digest receipt, pending journal và state chuyển namespace là PROPOSED; edits sau submit cần preview update/copy, không silently overwrite.
+- **Impact/blocker:** Final review transaction/state details; không hỏi lại quy trình đã chốt.
+- **Decision/validation owner [PROPOSED]:** Developer / chủ dự án.
+- **Due [PROPOSED]:** 2026-10-10.
+- **Evidence remaining:** Chưa có PoC/runtime/approval cho phần OPEN/PROPOSED; không trình bày là PASS.
 
 ### OQ-010
 
-- **Trạng thái:** [OPEN]. **Vấn đề:** UML/ERD/reports/demo submission rubric.
-- **Nguồn:** S-MP §13.
-- **Vì sao quan trọng / tác động:** Có thể thiếu artifact môn học nếu chỉ Markdown.
-- **Options:** Mermaid đủ; export UML/ERD; report/deck/demo theo mẫu.
-- **Khuyến nghị [PROPOSED]:** Lấy checklist chính thức của giảng viên; bộ 10 docs không tự thay rubric.
-- **Decision owner [PROPOSED]:** Chủ dự án hỏi giảng viên.
-- **Decision deadline [PROPOSED]:** 2026-10-09.
-- **Blocker:** Submission readiness; không chặn conceptual design.
-- **Decision / approver / date / evidence:** Chưa có; giữ OPEN.
+- **Trạng thái:** [OPEN]. **Vấn đề:** Submission artifacts.
+- **Nguồn:** S-MP §13; DEC-001 chỉ giải quyết API type.
+- **Quyết định/evidence:** Chưa có checklist UML/report/deck/demo chính thức. Evidence cho phần đã chốt: các trả lời S-DEC trong chat ngày 2026-10-08; approver: chủ dự án.
+- **Options/khuyến nghị/điểm chưa chốt:** Hỏi rubric artifact; Mermaid/10 docs không tự thay mọi yêu cầu nộp.
+- **Impact/blocker:** Submission readiness; không ngăn hoàn tất design docs.
+- **Decision/validation owner [PROPOSED]:** Chủ dự án hỏi giảng viên.
+- **Due [PROPOSED]:** 2026-10-09.
+- **Evidence remaining:** Chưa có PoC/runtime/approval cho phần OPEN/PROPOSED; không trình bày là PASS.
 
 ### OQ-011
 
-- **Trạng thái:** [OPEN]. **Vấn đề:** Đối chiếu codebase và vai trò backend/LLM.
-- **Nguồn:** S-USER; S-REPO; CF-001/003/004/005.
-- **Vì sao quan trọng / tác động:** Engine cũ chỉ explainer khác Hybrid AI baseline, knowledge có thể cũ.
-- **Options:** Giữ engine + external AI candidate/validator adapter; phê duyệt đổi hướng; revise baseline riêng.
-- **Khuyến nghị [PROPOSED]:** Read-only compatibility audit rồi xin quyết định; không rewrite engine/Provider/Auth từ docs.
-- **Decision owner [PROPOSED]:** Chủ dự án / developer.
-- **Decision deadline [PROPOSED]:** 2026-10-10.
-- **Blocker:** Final architecture approval và mọi implementation ảnh hưởng code hiện tại.
-- **Decision / approver / date / evidence:** Chưa có; giữ OPEN.
+- **Trạng thái:** [CONFIRMED] reuse boundary; [PROPOSED] adapter/deployment; [OPEN] runtime. **Vấn đề:** Code/backend compatibility.
+- **Nguồn:** S-REPO-2; DEC-007/008.
+- **Quyết định/evidence:** Tái sử dụng phù hợp, không tự rewrite engine; server Gemini + Supabase auth/private persistence. Evidence cho phần đã chốt: các trả lời S-DEC trong chat ngày 2026-10-08; approver: chủ dự án.
+- **Options/khuyến nghị/điểm chưa chốt:** Tree/code evidence: Spring routing, client fallback, saved_trips. Đề xuất bổ sung Spring Gemini adapter và map legacy schema; hosting HTTPS/auth/version transaction cần validation, Edge alternative cần approval.
+- **Impact/blocker:** Implementation plan/compatibility readiness; không đổi platform hoặc bỏ dữ liệu legacy từ docs.
+- **Decision/validation owner [PROPOSED]:** Developer / chủ dự án.
+- **Due [PROPOSED]:** 2026-10-10.
+- **Evidence remaining:** Chưa có PoC/runtime/approval cho phần OPEN/PROPOSED; không trình bày là PASS.
 
 ### OQ-012
 
-- **Trạng thái:** [OPEN]. **Vấn đề:** Weather provider và alert/freshness policy.
-- **Nguồn:** S-MP §6.2; §10.
-- **Vì sao quan trọng / tác động:** Real API horizon/units, stale warnings và noncommercial eligibility.
-- **Options:** Open-Meteo candidate đang có service; provider khác phù hợp.
-- **Khuyến nghị [PROPOSED]:** Kiểm docs/terms + PoC; in-app alerts, không push; missing không block core.
-- **Decision owner [PROPOSED]:** Chủ dự án / developer.
-- **Decision deadline [PROPOSED]:** 2026-10-20.
-- **Blocker:** Weather SHOULD implementation; core xử lý unknown không phụ thuộc.
-- **Decision / approver / date / evidence:** Chưa có; giữ OPEN.
+- **Trạng thái:** [OPEN]. **Vấn đề:** Weather provider.
+- **Nguồn:** S-MP §6.2/10.
+- **Quyết định/evidence:** Real API forecast/gợi ý/alerts SHOULD; missing/stale phải rõ. Evidence cho phần đã chốt: các trả lời S-DEC trong chat ngày 2026-10-08; approver: chủ dự án.
+- **Options/khuyến nghị/điểm chưa chốt:** Open-Meteo candidate đang có service hoặc provider khác qua PoC; eligibility/attribution/freshness/horizon chưa duyệt. Alerts in-app, push vẫn deferred.
+- **Impact/blocker:** Weather SHOULD only; AI xử lý unknown không phụ thuộc API này.
+- **Decision/validation owner [PROPOSED]:** Developer / chủ dự án.
+- **Due [PROPOSED]:** 2026-10-20.
+- **Evidence remaining:** Chưa có PoC/runtime/approval cho phần OPEN/PROPOSED; không trình bày là PASS.
 
 ### OQ-013
 
-- **Trạng thái:** [OPEN]. **Vấn đề:** Community moderation/ratings/ownership detail.
+- **Trạng thái:** [OPEN]. **Vấn đề:** Community policies.
 - **Nguồn:** S-MP §6.3.
-- **Vì sao quan trọng / tác động:** Role escalation, publication privacy, report process và scope chi phí.
-- **Options:** Author ownership; moderator hide/restore; rating range và uniqueness cần chọn.
-- **Khuyến nghị [PROPOSED]:** BR-P012, public opt-in; moderation không cấp private-trip quyền.
-- **Decision owner [PROPOSED]:** Chủ dự án.
-- **Decision deadline [PROPOSED]:** 2026-10-20.
-- **Blocker:** Community SHOULD implementation.
-- **Decision / approver / date / evidence:** Chưa có; giữ OPEN.
+- **Quyết định/evidence:** Community SHOULD, moderation capability confirmed. Evidence cho phần đã chốt: các trả lời S-DEC trong chat ngày 2026-10-08; approver: chủ dự án.
+- **Options/khuyến nghị/điểm chưa chốt:** Đề xuất author ownership, moderator hide/restore/audit, public opt-in; rating scale/report process/uniqueness cần duyệt.
+- **Impact/blocker:** Community SHOULD only, không tự tạo full social subsystem.
+- **Decision/validation owner [PROPOSED]:** Chủ dự án.
+- **Due [PROPOSED]:** 2026-10-20.
+- **Evidence remaining:** Chưa có PoC/runtime/approval cho phần OPEN/PROPOSED; không trình bày là PASS.
 
 ### OQ-014
 
-- **Trạng thái:** [OPEN]. **Vấn đề:** Chi tiết quyền Editor/invitation và version policy.
-- **Nguồn:** S-MP §6.4; §9.
-- **Vì sao quan trọng / tác động:** Editor budget rights/invitation expiry/removed-member behavior chưa chốt.
-- **Options:** Editor itinerary-only; itinerary+expense; invite token scoped subject với expiry.
-- **Khuyến nghị [PROPOSED]:** Duyệt ma trận BR; Owner administration bắt buộc, version atomic, không transfer owner MVP.
-- **Decision owner [PROPOSED]:** Chủ dự án.
-- **Decision deadline [PROPOSED]:** 2026-10-20.
-- **Blocker:** Group SHOULD implementation; core version approach vẫn PROPOSED.
-- **Decision / approver / date / evidence:** Chưa có; giữ OPEN.
+- **Trạng thái:** [OPEN]. **Vấn đề:** Group details.
+- **Nguồn:** S-MP §6.4/9.
+- **Quyết định/evidence:** Owner/admin, Editor limits, private/version checks baseline confirmed. Evidence cho phần đã chốt: các trả lời S-DEC trong chat ngày 2026-10-08; approver: chủ dự án.
+- **Options/khuyến nghị/điểm chưa chốt:** Đề xuất Editor itinerary+expense, scoped expiring invitation và atomic version; Editor expense rights/expiry/version merge policy cần review.
+- **Impact/blocker:** Group SHOULD only; không tự approve Editor admin quyền.
+- **Decision/validation owner [PROPOSED]:** Chủ dự án.
+- **Due [PROPOSED]:** 2026-10-20.
+- **Evidence remaining:** Chưa có PoC/runtime/approval cho phần OPEN/PROPOSED; không trình bày là PASS.
 
 ### OQ-015
 
-- **Trạng thái:** [OPEN]. **Vấn đề:** Retention/consent/cache TTL/proposal expiry/account deletion.
-- **Nguồn:** S-MP §9/11; BR-019/021.
-- **Vì sao quan trọng / tác động:** Private context gửi API, stale data, offline cache và destructive delete policies.
-- **Options:** Minimal logs; owner-protected snapshots; expiry/revalidation; purge/anonymize policy.
-- **Khuyến nghị [PROPOSED]:** Duyệt policy trước lưu sensitive telemetry/production deletion; không invent TTL hoặc legal guarantee.
-- **Decision owner [PROPOSED]:** Chủ dự án.
-- **Decision deadline [PROPOSED]:** 2026-10-10.
-- **Blocker:** Final privacy/data approval và sensitive persistence/integration implementation.
-- **Decision / approver / date / evidence:** Chưa có; giữ OPEN.
+- **Trạng thái:** [CONFIRMED] minimal-context/logout; [OPEN] retention/consent details. **Vấn đề:** Privacy/lifecycle.
+- **Nguồn:** S-MP §9/11; DEC-009/010.
+- **Quyết định/evidence:** Không email/password/token/GPS chính xác mặc định cho Gemini; coarse origin; logout purge local account cache, remote còn. Evidence cho phần đã chốt: các trả lời S-DEC trong chat ngày 2026-10-08; approver: chủ dự án.
+- **Options/khuyến nghị/điểm chưa chốt:** Consent UI/provider data terms, raw chat/log retention, proposal/receipt expiry, encryption-at-rest và account deletion chưa chốt. Đề xuất minimal metadata/no durable raw logs trước retention approval.
+- **Impact/blocker:** Final review remaining privacy details; không deploy private prompt logging/destructive cleanup trước approval.
+- **Decision/validation owner [PROPOSED]:** Chủ dự án / developer.
+- **Due [PROPOSED]:** 2026-10-10.
+- **Evidence remaining:** Chưa có PoC/runtime/approval cho phần OPEN/PROPOSED; không trình bày là PASS.
 
 
-## Assumption register
+## Assumptions và điều kiện bàn giao
 
-Mọi mục ở bảng này là **[ASSUMPTION]**, không phải yêu cầu đã duyệt. Nếu sai, cập nhật thiết kế/impact trước triển khai.
-
-| ID | Working assumption | Validation / impact | Owner và due [PROPOSED] |
+| ID | Trạng thái | Nội dung / validation | Owner/due [PROPOSED] |
 | --- | --- | --- | --- |
-| AS-001 | Có thể tái sử dụng một phần code đang có mà không rewrite | Audit OQ-011 và test compatibility; timeline có thể phải đổi | Developer; 2026-10-10 |
-| AS-002 | Demo ban đầu dùng VND và múi giờ Việt Nam | Duyệt BR-P002/008; không tự thêm multi-currency | Chủ dự án; 2026-10-10 |
-| AS-003 | Chủ dự án có thể tạo/cấu hình Auth/AI accounts sau gate | Xác minh account/Google config/quota, không lấy README làm bằng chứng live | Chủ dự án; 2026-10-10 |
-| AS-004 | Curated sample dataset có thể thu thập hợp lệ kịp hạn | OQ-004/006, kiểm source/license; thiếu data không sinh fake facts | Developer; 2026-10-10 |
-| AS-005 | Một Android demo environment có thể chốt để đo | Ghi device/network/dataset trước AC-048; target chưa benchmark | Developer; 2026-10-15 |
-| AS-006 | Người dùng cho phép gửi context tối thiểu đến provider theo consent | OQ-015/privacy policy; không gửi PII dư | Chủ dự án; 2026-10-10 |
-| AS-007 | Giờ làm/năng lực đủ cho lịch vertical-slice đề xuất | Chưa có estimate effort giờ; điều chỉnh schedule, không giảm MUST tự động | Chủ dự án; 2026-10-10 |
+| AS-001 | [ASSUMPTION] | Code hiện có tái sử dụng được một phần; policy reuse confirmed nhưng compatibility chưa runtime-tested | Developer; 2026-10-10 |
+| AS-002 | [ASSUMPTION] | Travel money VND và trip timezone Việt Nam; quota reset timezone đã confirmed riêng, không thay approval currency policy | Chủ dự án; 2026-10-10 |
+| AS-003 | [ASSUMPTION] | Có thể cấu hình Auth/Google/Gemini accounts sau authorization; chưa xác minh credentials/quota | Chủ dự án; 2026-10-10 |
+| AS-004 | [ASSUMPTION] | Thu thập đủ source hợp lệ cho 12 destination theo depth được duyệt kịp hạn | Developer; 2026-10-10 |
+| AS-005 | [ASSUMPTION] | Chốt Android demo device/network để benchmark | Developer; 2026-10-15 |
+| AS-006 | [CONFIRMED boundary; OPEN mechanics] | Minimal AI context được duyệt DEC-009; runtime user consent/provider retention không tự được duyệt | Chủ dự án; 2026-10-10 |
+| AS-007 | [ASSUMPTION] | Một developer có đủ giờ làm cho roadmap; chưa có effort estimate chứng minh | Chủ dự án; 2026-10-10 |
 
 ## Deferred register
 
-| ID | Trạng thái | Nội dung và điều kiện mở lại |
+| ID | Trạng thái | Nội dung |
 | --- | --- | --- |
-| DF-001 | [DEFERRED]; S-MP §6.5/BR-015 | Booking/reservation/payment; cần approval scope riêng |
-| DF-002 | [DEFERRED]; S-MP §6.6 | Push notifications/advanced reminders; không thêm hạ tầng sẵn |
-| DF-003 | [DEFERRED]; S-MP §8.4 | Saved itinerary offline editing và advanced sync; Guest local draft không bị hoãn |
-| DF-P001 | [PROPOSED] hoãn implementation SHOULD | Map/Weather/Community/Group nếu ảnh hưởng core; không đổi mức SHOULD baseline và không báo đã triển khai |
+| DF-001 | [DEFERRED]; S-MP §6.5/BR-015 | Booking/reservation/payment; approval scope riêng để mở lại |
+| DF-002 | [DEFERRED]; S-MP §6.6 | Push notifications/advanced reminders; không thêm infrastructure |
+| DF-003 | [DEFERRED]; S-MP §8.4 | Saved-trip offline editing và advanced sync; Guest drafts local vẫn MUST |
+| DF-P001 | [PROPOSED] hoãn SHOULD | Map/Weather/Community/Group nếu ảnh hưởng core; không đổi priority baseline |
 
-## Cách ghi quyết định và thay đổi baseline [PROPOSED]
+## Readiness conditions để review và triển khai riêng
 
-Ghi ID OQ/ADR/FR liên quan, option được chọn, người duyệt, ngày, evidence và impact trên các docs/AC. Chỉ chuyển CONFIRMED sau owner approval; nội dung thay đổi đối chiếu S-MP/S-USER. Nếu trễ mốc proposed, báo ảnh hưởng critical path và phương án, không âm thầm chọn provider hoặc giảm MUST. Không đóng Phase 1 bằng việc push commit.
+[PROPOSED] RC-001: Chọn model Gemini stable phù hợp, xác minh key/quota/structured-output/tiếng Việt sau authorized PoC; không cần chọn lại provider.
+RC-002: SQLite driver/version và secure Guest/session-token storage phù hợp existing packages; không sửa dependencies trong Phase 1.
+RC-003: Validate deployed saved_trips/schema/RLS và Spring hosting HTTPS, map adapter, transaction/version/import receipt/quota ledger.
+RC-004: Duyệt data depth, source/license và coverage catalogue 12 destination.
+RC-005: Duyệt Guest identity/lease/account quota/global cap và privacy consent/retention/cache cleanup mechanics.
+RC-006: Submission artifact checklist giảng viên còn OPEN. SHOULD provider/moderation/group decisions không chặn core nếu chưa chọn implementation.
 
-## Yêu cầu review cuối Phase 1
+## Quy trình đóng Phase 1
 
-Chủ dự án vui lòng review [mục lục và Phase 1 approval checklist](README.md), chấp thuận hoặc yêu cầu sửa các PROPOSED/ASSUMPTION, giải quyết blocker và ghi evidence. Trạng thái vẫn **APPROVED WITH CONDITIONS**, chưa final approval; authorization triển khai Phase 2/3 cần riêng.
+Bộ thiết kế v1.1 đã hoàn thiện theo DEC-001–011. Chủ dự án review artifact v1.1 và các details PROPOSED/OPEN, có thể duyệt có điều kiện với RC được ghi rõ. Chưa có final approval cho bản vừa tạo nên **APPROVED WITH CONDITIONS — DESIGN COMPLETE — FINAL OWNER REVIEW PENDING — IMPLEMENTATION NOT AUTHORIZED**.
+
+Sau final owner approval mới ghi closure evidence/ngày; việc chốt các lựa chọn trước đó không thay review artifact mới. Phase 2/3 không tự bắt đầu: cần authorization và review kế hoạch implementation tương thích repo riêng.
 
 ---
 [Xem mục lục và quy ước nguồn/trạng thái](README.md).

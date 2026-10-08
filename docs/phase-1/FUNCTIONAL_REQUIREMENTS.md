@@ -1,14 +1,15 @@
 # 03 — Yêu cầu chức năng và traceability
 
-> Phiên bản thiết kế: 1.0 • Ngày lập: 2026-10-08 • Deadline: **2026-10-28**.
+> Phiên bản thiết kế: 1.1 • Ngày lập: 2026-10-08 • Deadline: **2026-10-28**.
 > Trạng thái: **APPROVED WITH CONDITIONS — DESIGN WORK AUTHORIZED, IMPLEMENTATION NOT AUTHORIZED**.
+> Tiến độ bộ thiết kế v1.1: **DESIGN COMPLETE — FINAL OWNER REVIEW PENDING**. Các lựa chọn đã chốt theo S-DEC; chưa chuyển Phase 2/3.
 > Baseline: S-MP (Master Prompt v1.0); đây là đặc tả thiết kế, không phải bằng chứng tính năng đã triển khai hoặc Phase 1 đã được đóng.
 
 ## Quy ước requirement và nguồn
 
 Mỗi FR dưới đây có một trạng thái, mức ưu tiên riêng và nguồn cụ thể. [CONFIRMED] là nội dung S-MP đã chọn; chưa có nghĩa code hiện tại đã đáp ứng. Các chi tiết policy/contract/model đề xuất nằm ở BR-P*, ADR-P1-* và DB-*.
 
-Nguồn § là section của S-MP; BR là [05](BUSINESS_RULES.md); UF là [04](USER_FLOWS.md); data là [07](DATABASE_DESIGN.md); AC là [09](ACCEPTANCE_CRITERIA.md). S-USER chỉ xác nhận phạm vi tác vụ tài liệu.
+Nguồn § là section của S-MP; BR là [05](BUSINESS_RULES.md); UF là [04](USER_FLOWS.md); data là [07](DATABASE_DESIGN.md); AC là [09](ACCEPTANCE_CRITERIA.md). S-USER xác nhận phạm vi publication; S-DEC tại [index](README.md) xác nhận các lựa chọn v1.1.
 
 ## Danh mục và traceability
 
@@ -36,7 +37,7 @@ Nguồn § là section của S-MP; BR là [05](BUSINESS_RULES.md); UF là [04](U
 | <a id="fr-ai-004"></a>FR-AI-004 | [CONFIRMED] | MUST | AI đề xuất sửa itinerary: preview khác biệt và chỉ áp dụng sau xác nhận rõ ràng. | S-MP §5.4; BR-005 | UF-006 | ai_plan_requests; trips | [AC-020](ACCEPTANCE_CRITERIA.md#ac-020) |
 | <a id="fr-ai-005"></a>FR-AI-005 | [CONFIRMED] | MUST | Xét ngân sách, giờ mở cửa, thời gian di chuyển, vị trí, thời tiết, sở thích; phân biệt verified/estimated/unknown. | S-MP §5.4; BR-006; BR-019 | UF-003 | places; itinerary_items; ai_plan_requests | [AC-021](ACCEPTANCE_CRITERIA.md#ac-021) |
 | <a id="fr-ai-006"></a>FR-AI-006 | [CONFIRMED] | MUST | API AI lỗi vẫn có thể dùng planner thủ công. | S-MP §5.4; BR-020 | UF-003; UF-002 | LocalDraft | [AC-022](ACCEPTANCE_CRITERIA.md#ac-022) |
-| <a id="fr-ai-007"></a>FR-AI-007 | [CONFIRMED] | MUST | Guest có AI giới hạn; giá trị quota vẫn OPEN theo OQ-005. | S-MP §5.1; BR-017 | UF-003 | GuestAIRequest; ai_plan_requests | [AC-023](ACCEPTANCE_CRITERIA.md#ac-023) |
+| <a id="fr-ai-007"></a>FR-AI-007 | [CONFIRMED] | MUST | Guest được 3 yêu cầu AI/ngày, reset 00:00 giờ Việt Nam; lỗi hệ thống không trả kết quả dùng được không trừ lượt (DEC-003). | S-MP §5.1; BR-017; S-DEC DEC-003 | UF-003 | GuestAIRequest; ai_plan_requests | [AC-023](ACCEPTANCE_CRITERIA.md#ac-023) |
 | <a id="fr-bud-001"></a>FR-BUD-001 | [CONFIRMED] | MUST | Quản lý tổng ngân sách và chi phí dự kiến. | S-MP §5.5; BR-007 | UF-008 | trips; trip_expenses | [AC-024](ACCEPTANCE_CRITERIA.md#ac-024) |
 | <a id="fr-bud-002"></a>FR-BUD-002 | [CONFIRMED] | MUST | Ghi/sửa chi phí thực tế và phân loại khoản chi, tách khỏi dự kiến. | S-MP §5.5; BR-007 | UF-008 | trip_expenses | [AC-025](ACCEPTANCE_CRITERIA.md#ac-025) |
 | <a id="fr-bud-003"></a>FR-BUD-003 | [CONFIRMED] | MUST | So sánh ngân sách, số còn lại và cảnh báo vượt; không chặn tạo/sửa. | S-MP §5.5; BR-008 | UF-008 | trips; trip_expenses | [AC-026](ACCEPTANCE_CRITERIA.md#ac-026) |
@@ -59,10 +60,10 @@ Nguồn § là section của S-MP; BR là [05](BUSINESS_RULES.md); UF là [04](U
 | --- | --- | --- | --- |
 | FR-ACC-001; FR-DIS-001–004 | Catalogue được phép công bố | API-A-02; LOCAL-01 | OQ-004/006 |
 | FR-ACC-002–004/006 | Supabase Auth; profile owner | API-A-01/03/04 | OQ-009; BR-P001 |
-| FR-ACC-005 | Draft persistence và ownership thiết bị | LOCAL-02 | OQ-007/009 |
+| FR-ACC-005 | SQLite drafts và ownership thiết bị [CONFIRMED DEC-005] | LOCAL-02 | Package còn OPEN; migration DEC-006 |
 | FR-TRP-001–003 | Common itinerary model | LOCAL-01/03 | BR-P002/003 |
 | FR-TRP-004–006 | Auth + RLS + transaction snapshot | API-A-04/05; LOCAL-02 | BR-P004/005 |
-| FR-AI-001–007 | Structured data, trusted gateway, provider, quota | API-A-06; API-B-01 | OQ-002/003/005; BR-P006/007 |
+| FR-AI-001–007 | Gemini server-side và 3 Guest lượt/ngày [CONFIRMED DEC-002/003/008] | API-A-06; API-B-01 | Model/reservation detail vẫn OPEN/PROPOSED; BR-P006/007 |
 | FR-BUD-001–004 | Expense kind và itinerary identity | API-A-05; LOCAL-03 | BR-P008/009 |
 | FR-MAP-001; FR-WEA-001 | Provider + timestamp/rights | API-B-02/03/04 | OQ-008/012 |
 | FR-COM-001/002 | Auth, content ownership, moderation | API-A-08 | OQ-013 |
@@ -73,13 +74,17 @@ Nguồn § là section của S-MP; BR là [05](BUSINESS_RULES.md); UF là [04](U
 
 ## Requirement audit: khoảng trống chưa tự giải quyết
 
-[OPEN] OQ-001: “dùng API” có yêu cầu tự phát triển REST không; OQ-002: provider AI; OQ-003: missing data policy; OQ-004/006: dữ liệu demo; OQ-005: quota; OQ-007: state/local; OQ-009: migration. Chi tiết policy đã thiết kế nhưng chưa xác nhận ở [10](OPEN_QUESTIONS.md).
+[CONFIRMED] S-DEC đóng lựa chọn external API, Gemini provider, Guest 3/ngày, Provider/SQLite và quy trình migration. [OPEN] Model Gemini, package SQLite, dataset depth/source verification, quota implementation details và privacy retention vẫn cần validation/duyệt; xem [10](OPEN_QUESTIONS.md).
 
 [CONFIRMED] MUST chat, recommendation và modification không được lược khỏi baseline chỉ vì generation được demo. [CONFIRMED] Private by default và backend authorization phải có ở MVP dù collaboration hoãn. [DEFERRED] Booking/notifications không sinh API/table MVP.
 
 ## Ma trận kiểm tra liên tài liệu
 
 [PROPOSED] Khi review, đối chiếu từng dòng catalogue: nguồn phải có; BR phù hợp; UF có happy/negative path; model giữ dữ liệu; operation có failure/fallback; AC có precondition và expected result. ID tồn tại không đồng nghĩa yêu cầu đã đạt; trạng thái acceptance ban đầu là NOT RUN.
+
+## Traceability quyết định bổ sung
+
+[CONFIRMED] DEC-001 → external AI integration; DEC-002/008 → FR-AI-* và FR-SEC-002; DEC-003 → FR-AI-007; DEC-004 → FR-DIS-*; DEC-005 → FR-ACC-005/FR-TRP-006; DEC-006 → FR-ACC-006; DEC-007/009/010 → FR-SEC-001/002. Acceptance bổ sung AC-051–055 kiểm quota/date, catalogue breadth, migration consent và privacy/cache. Không thêm module MUST ngoài baseline.
 
 ---
 [Xem mục lục và quy ước nguồn/trạng thái](README.md).

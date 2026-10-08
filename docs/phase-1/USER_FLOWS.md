@@ -1,7 +1,8 @@
 # 04 — User flows và use cases
 
-> Phiên bản thiết kế: 1.0 • Ngày lập: 2026-10-08 • Deadline: **2026-10-28**.
+> Phiên bản thiết kế: 1.1 • Ngày lập: 2026-10-08 • Deadline: **2026-10-28**.
 > Trạng thái: **APPROVED WITH CONDITIONS — DESIGN WORK AUTHORIZED, IMPLEMENTATION NOT AUTHORIZED**.
+> Tiến độ bộ thiết kế v1.1: **DESIGN COMPLETE — FINAL OWNER REVIEW PENDING**. Các lựa chọn đã chốt theo S-DEC; chưa chuyển Phase 2/3.
 > Baseline: S-MP (Master Prompt v1.0); đây là đặc tả thiết kế, không phải bằng chứng tính năng đã triển khai hoặc Phase 1 đã được đóng.
 
 ## Actor và trạng thái chung
@@ -44,7 +45,7 @@
 
 [PROPOSED] Migration dùng draft ID + owner + revision, transaction idempotent. Lỗi mạng sau commit trước response: retry cùng khóa nhận cùng trip, không duplicate. Chỉ đánh dấu migrated khi đã có receipt. Giữ local draft đến khi receipt và snapshot hoàn chỉnh; thời điểm xóa theo OQ-009. Hủy/login lỗi giữ draft; Google/email trùng không tự merge tài khoản (policy Auth cần quyết định).
 
-[PROPOSED] Phiên hết hạn khi save: không nhận owner_id do client khai; giữ draft, reauthenticate rồi retry. Đăng xuất khóa/xóa cache tài khoản; đăng nhập tài khoản B không hiển thị snapshot/draft đã nhận bởi A. Không tự xóa Guest draft chưa chuyển mà người dùng chưa chọn.
+[PROPOSED] Phiên hết hạn khi save: không nhận owner_id do client khai; giữ draft, reauthenticate rồi retry. Đăng xuất xóa cache tài khoản theo DEC-010; đăng nhập tài khoản B không hiển thị snapshot/draft đã nhận bởi A. Không tự xóa Guest draft chưa chuyển mà người dùng chưa chọn.
 
 ### UF-005
 
@@ -103,6 +104,48 @@
 [CONFIRMED khi triển khai] Owner mời → người được mời chấp nhận → Editor xem/sửa itinerary → Owner quản lý/remove/delete. Hai Editor sửa cùng version thì chỉ một mutation thành công, người kia nhận conflict.
 
 [PROPOSED] Invitation là token scoped trip, có hạn dùng, không là public share link; accept kiểm tra subject và invitation state. Editor không invite/remove/delete trip hoặc đổi owner. Member bị remove bị chặn remote ngay sau revocation; cached data có giới hạn offline UF-007. Không tự merge hai itinerary mâu thuẫn.
+
+## Điều chỉnh flows theo quyết định v1.1
+
+- UF-001 [CONFIRMED DEC-004]: danh sách/filter/selection áp dụng 12 destination đã chốt; sample depth PROPOSED. AC-052 không cho chỉ hiển thị 12 tên rồi chỉ 3 nơi planning được.
+- UF-002/007 [CONFIRMED DEC-005]: Provider giữ state đang hiển thị; SQLite giữ persisted state. Khi save local thất bại, Provider state chưa lưu được giữ có nhãn, không báo đã lưu. Saved snapshot offline luôn read-only.
+- UF-003 [CONFIRMED DEC-002/003/008]: Gemini qua server, Guest quota shared cho generation/chat/recommendations/modification. Quota exhausted hiển thị reset_at giờ Việt Nam, manual vẫn hoạt động. [PROPOSED] Response trả request_id, status và quota remaining/used/reserved/server reset time; UI đọc server clock.
+- UF-004 [CONFIRMED DEC-006]: login → chọn draft → confirm cloud import → gửi revision snapshot → backend ack → đánh dấu transferred + snapshot. Không chọn draft thì không import. Auth cancel/server lỗi không mất draft.
+- UF-006 [CONFIRMED DEC-008]: generation/chat response muộn hoặc việc dùng lại quota không tự apply. Preview/apply không gọi lại Gemini và không tính thêm lượt; server check digest/version/quyền vẫn giữ.
+- UF-005/007 [CONFIRMED DEC-010]: logout purge account cache local trước khi chuyển UI sang Guest; remote trip không bị delete. [PROPOSED] Nếu purge fail thì khóa account namespace và báo lỗi, không cho tài khoản kế tiếp mở stale cache; retry cleanup trên startup.
+- UF-003 [CONFIRMED DEC-009]: input Gemini không có GPS tự động/email/auth token. [PROPOSED] Trước request đầu, giải thích context đi ra provider và cảnh báo không nhập PII vào chat; consent details chưa final ở OQ-015.
+
+### Sequence: Guest quota và Gemini [PROPOSED]
+
+```mermaid
+sequenceDiagram
+  participant U as Guest
+  participant M as Flutter/Provider
+  participant S as Trusted server
+  participant Q as Atomic quota ledger
+  participant G as Gemini
+  U->>M: Submit AI request
+  M->>S: Request ID + scoped Guest token + context
+  S->>Q: Reserve in Vietnam-day bucket
+  alt Quota exhausted
+    Q-->>S: Deny
+    S-->>M: remaining 0 + reset_at + manual option
+  else Reservation accepted
+    S->>G: Sanitized structured context
+    G-->>S: Candidate or failure
+    S->>S: Validate and normalize
+    alt Usable result
+      S->>Q: Finalize used once + store result
+      S-->>M: Proposal + warnings + quota
+      M-->>U: Preview, accept/reject
+    else No usable result
+      S->>Q: Release reservation
+      S-->>M: Error, no charged turn, manual option
+    end
+  end
+```
+
+[PROPOSED] UI timeout dùng request status lookup, không client self-refund; cleanup server reconciles requests. Thời điểm charge và terminal result phải atomic/consistent, không charge lần nữa khi đọc result.
 
 ---
 [Xem mục lục và quy ước nguồn/trạng thái](README.md).

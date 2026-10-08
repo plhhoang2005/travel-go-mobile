@@ -1,14 +1,15 @@
 # 06 — Kiến trúc hệ thống và tích hợp API
 
-> Phiên bản thiết kế: 1.0 • Ngày lập: 2026-10-08 • Deadline: **2026-10-28**.
+> Phiên bản thiết kế: 1.1 • Ngày lập: 2026-10-08 • Deadline: **2026-10-28**.
 > Trạng thái: **APPROVED WITH CONDITIONS — DESIGN WORK AUTHORIZED, IMPLEMENTATION NOT AUTHORIZED**.
+> Tiến độ bộ thiết kế v1.1: **DESIGN COMPLETE — FINAL OWNER REVIEW PENDING**. Các lựa chọn đã chốt theo S-DEC; chưa chuyển Phase 2/3.
 > Baseline: S-MP (Master Prompt v1.0); đặc tả chưa chứng minh tính năng đã triển khai hoặc Phase 1 đã đóng.
 
 ## Baseline và hiện trạng
 
 [CONFIRMED] Flutter/Dart, Android-first, Supabase, PostgreSQL, Hybrid AI, Windows, free-tier preference; offline Guest draft + read-only saved itinerary (S-MP §8.1). [PROPOSED] Thiết kế bên dưới là target logical architecture, không là migration hoặc thay thế code hiện hữu.
 
-[OPEN] S-REPO có Flutter feature folders, backend/, Provider, Dio, fl_chart, supabase_flutter, flutter_map và weather service. Chưa xác minh runtime, schema deployed, permissions, keys hoặc coverage. ADR trong .agent/knowledge.md là quyết định ngữ cảnh cũ, không tự giải quyết OQ của baseline mới. CF-003/OQ-011 cần quyết định vai trò engine/LLM trước Phase 2.
+[OPEN] S-REPO có Flutter feature folders, backend/, Provider, Dio, fl_chart, supabase_flutter, flutter_map và weather service. Chưa xác minh runtime, schema deployed, permissions, keys hoặc coverage. ADR trong .agent/knowledge.md là quyết định ngữ cảnh cũ, không tự giải quyết OQ của baseline mới. DEC-007/008 xác nhận giữ/tái sử dụng phần phù hợp và Gemini proposal server-side; code/runtime compatibility tiếp tục cần audit.
 
 ## System context [PROPOSED]
 
@@ -21,7 +22,7 @@ flowchart LR
   R --> S[Supabase Auth / CRUD có RLS]
   R --> E[Trusted server operations]
   E --> D[PostgreSQL transaction và authorization]
-  E --> AI[External AI provider - OPEN]
+  E --> AI[Gemini - provider confirmed]
   E --> X[Places / routing / weather - OPEN]
   S --> D
   E --> V[Deterministic validation]
@@ -44,7 +45,7 @@ flowchart LR
 | Local persistence | Draft restart recovery, saved immutable snapshot | Không phát triển offline conflict sync engine |
 | Extension boundary | Group/Community, Booking tương lai | Chỉ conceptual; không provision bảng/queue/service cho deferred |
 
-[PROPOSED] Client validation giúp feedback; backend validation và database constraints là authority cho remote writes. Không sao chép MCDA/Pareto/Greedy engine hiện có vào UI; server giữ vai trò quyết định nếu được xác nhận ở OQ-011. Local cost sums/timeline editing là thao tác nhẹ theo S-MP §10, không thay engine ranking.
+[PROPOSED] Client validation giúp feedback; backend validation và database constraints là authority cho remote writes. Không sao chép MCDA/Pareto/Greedy engine hiện có vào UI; server giữ deterministic validation; existing engine nếu có phải được audit và adapter, không tự viết lại theo DEC-007. Local cost sums/timeline editing là thao tác nhẹ theo S-MP §10, không thay engine ranking.
 
 ## ADR register
 
@@ -53,11 +54,11 @@ flowchart LR
 | ADR-P1-001 | [CONFIRMED]; S-MP §8.1 | Flutter/Dart, Android, Supabase/PostgreSQL | Không thay bằng backend/platform mới trong tác vụ này |
 | ADR-P1-002 | [PROPOSED]; §8.2 | Feature-based presentation/application/data, repository pattern vừa đủ | Layer-first dễ khởi đầu nhưng khó tìm feature; deep Clean Architecture tăng ceremony không cần thiết |
 | ADR-P1-003 | [PROPOSED]; §5.4; CF-003 | External model tạo candidate; structured data và deterministic server checks; engine hiện có qua adapter nếu được duyệt | LLM tự quyết toàn bộ thiếu tin cậy; chỉ LLM explainer không đủ generation/chat/modification baseline |
-| ADR-P1-004 | [PROPOSED]; §8.3 | Supabase Edge Functions làm sensitive orchestration; atomic DB operation cho version/apply/import | Backend đang có giữ lại và adapter cũng là ứng viên; không thêm deployment thứ hai trước OQ-001/011 |
-| ADR-P1-005 | [PROPOSED]; OQ-007 | Ưu tiên đánh giá Provider đang có; so sánh Riverpod/BLoC chỉ khi có lý do | Đổi framework tăng chi phí migration; hiện dùng Provider không đồng nghĩa OQ-007 đã đóng |
-| ADR-P1-006 | [PROPOSED]; OQ-007 | SQLite phù hợp dữ liệu day/items/expenses và atomic draft/snapshot; evaluate wrapper | Key-value nhẹ hơn nhưng khó transaction/relationship; chọn package cần duyệt, không cài đặt lúc này |
+| ADR-P1-004 | [PROPOSED]; §8.3 | Ưu tiên tái sử dụng Spring backend cho sensitive orchestration [PROPOSED]; nguyên tắc server-only [CONFIRMED DEC-007/008]; atomic DB operation cho version/apply/import | Edge Functions là phương án dự phòng cần duyệt nếu hosting/tích hợp Spring không phù hợp; không tự thêm deployment thứ hai |
+| ADR-P1-005 | [CONFIRMED]; DEC-005; OQ-007 | Giữ Provider hiện có | Không đổi Riverpod/BLoC trong baseline; organization use cases vẫn PROPOSED |
+| ADR-P1-006 | [CONFIRMED] SQLite DEC-005; [OPEN] package | SQLite lưu Guest drafts và saved read-only snapshots | Package/driver/schema migration strategy cần validation; không cài đặt trong Phase 1 |
 | ADR-P1-007 | [PROPOSED]; BR-005/018 | Separate immutable AI proposal, base_version, preview digest, atomic apply | In-place AI mutate có thể mất confirmed itinerary; auto-merge tăng độ phức tạp |
-| ADR-P1-008 | [OPEN]; OQ-002 | Gemini là candidate theo prompt, không phải provider cuối | So provider theo Vietnamese/structured output/privacy/cost/account availability, không chốt model ID |
+| ADR-P1-008 | [CONFIRMED] provider DEC-002; [OPEN] model | Gemini là provider chính cho generation/chat/recommendation/modification | Model/account quota/eligibility cần thử; không triển khai multi-provider MVP tự động |
 | ADR-P1-009 | [OPEN]; OQ-008/012 | Map/weather provider chờ PoC và điều kiện | Dependency hiện có chỉ là evidence; không tự gọi đó là lựa chọn được duyệt |
 
 ## Hybrid AI pipeline và state [PROPOSED]
@@ -78,19 +79,19 @@ Mỗi trường external có value nullable, unit, quality (verified/estimated/u
 
 ## A/B/C API classification và Integration Matrix
 
-Mọi operation name/API-A/B dưới đây là **[PROPOSED] specification-level contract**, chưa là deployed endpoint. LOCAL-* là local operation, không là API remote. Provider chưa chọn giữ **[OPEN]**. Không gán quota/giá cố định khi chưa đo tài khoản thật.
+Mọi operation name/API-A/B dưới đây là **[PROPOSED] specification-level contract**, chưa là deployed endpoint. LOCAL-* là local operation, không là API remote. Gemini provider đã **[CONFIRMED]**; model và maps/weather provider còn **[OPEN]**. Không gán quota/giá cố định khi chưa đo tài khoản thật.
 
 | ID / Loại / MVP | Purpose + FR | Inputs | Expected outputs | Auth / secret management | Free-tier / freshness | Failure + fallback |
 | --- | --- | --- | --- | --- | --- | --- |
-| API-A-01 / A / MUST | Auth email, Google, session; FR-ACC-002/003 | Credentials hoặc OAuth flow, refresh context | Subject, session hoặc auth error | Supabase Auth [PROPOSED]; token protected local, không log password | Xác minh cấu hình Google/email và quota tài khoản; session expiry server | Cancel/network/login error giữ draft, reauth rõ |
+| API-A-01 / A / MUST | Auth email, Google, session; FR-ACC-002/003 | Credentials hoặc OAuth flow, refresh context | Subject, session hoặc auth error | Supabase Auth [CONFIRMED DEC-007]; token protected local, không log password | Xác minh cấu hình Google/email và quota tài khoản; session expiry server | Cancel/network/login error giữ draft, reauth rõ |
 | API-A-02 / A / MUST | Catalogue search/detail/sample; FR-DIS-* | Query, interests, destination/page | Published destinations/places/sample + provenance | Public read theo grants/RLS, curated writes server/admin | Internal cached, source timestamps; quota theo Supabase plan | Cache labeled hoặc empty/error; không fake |
 | API-A-03 / A / MUST | Profile; FR-ACC-004 | Own subject + fields | Validated profile/version | JWT subject; RLS own; publishable client key khác secret | Session/current profile; plan xác minh | Keep unsaved form, retry, không đổi trip ngầm |
 | API-A-04 / A / MUST | Save/import/read trips; FR-ACC-006, FR-TRP-004/005 | Trip model, draft key/revision, expected_version | Private trip/version/receipt | JWT; RLS read; trusted atomic mutation; server secret only | Supabase plan; authoritative commit/version | Conflict/unauthorized/error; local giữ draft; retry idempotent |
 | API-A-05 / A / MUST | Expense CRUD và itinerary update; FR-BUD-* | Amount/kind/category/item link, request key/version | Ledger + totals + warnings | JWT + trip authorization; transaction; RLS nested | Timestamp/version; hạn mức chưa xác minh | Không double-charge entry; preserve actual, retry có receipt |
-| API-A-06 / A / MUST | AI request/status/apply; FR-AI-* | Intent, constraints, minimum prefs; proposal/digest/base version khi apply | Proposal/warnings/status; applied receipt sau confirm | JWT hoặc scoped Guest token [PROPOSED]; AI secret server; quota trước external call | App quota OQ-005 khác provider quota; proposal tuổi OQ-015 | Invalid/quota/429/timeout giữ current itinerary, manual |
+| API-A-06 / A / MUST | AI request/status/apply; FR-AI-* | Intent, constraints, minimum prefs; proposal/digest/base version khi apply | Proposal/warnings/status; applied receipt sau confirm | JWT hoặc scoped Guest token [PROPOSED]; AI secret server; quota trước external call | Guest 3/ngày [CONFIRMED DEC-003] khác provider quota; proposal tuổi OQ-015 | Invalid/quota/429/timeout giữ current itinerary, manual |
 | API-A-07 / A / SHOULD | Group invitation/member/edit; FR-GRP-* | Trip, invitation subject, version | Membership/invite receipt hoặc conflict | JWT; Owner cho admin; Editor limited; token scoped | Invitation expiry OQ-014; không mặc định realtime | Reject stale/expired/removed user; reload preview |
 | API-A-08 / A / SHOULD | Community publish/moderate; FR-COM-* | Content/rating/action/reason | Content state và audit metadata | Auth author/moderator backend roles; không client role claim | Content status authoritative; rate/storage quota cần kiểm chứng | Reject ownership; hidden content không public; retry form |
-| API-B-01 / B / MUST | External AI generation/chat/recommendations; FR-AI-* | Sanitized structured context + constraints | Candidate normalized, không mutation trip | Gemini candidate [OPEN], alternative cần duyệt; secret server | Pricing/model/tier/privacy qua EXT-03/04; quota thực tài khoản chưa biết | Timeout/429/model/schema error → manual và explicit retry |
+| API-B-01 / B / MUST | External AI generation/chat/recommendations; FR-AI-* | Sanitized structured context + constraints | Candidate normalized, không mutation trip | Gemini [CONFIRMED DEC-002], model OPEN; secret server | Pricing/model/tier/privacy qua EXT-03/04; quota thực tài khoản chưa biết | Timeout/429/model/schema error → manual và explicit retry |
 | API-B-02 / B / SHOULD, hỗ trợ catalogue khi cần | Places/location; FR-DIS-002, FR-MAP-001 | Destination/coordinates/provider reference | Place info/hours/coords + source/status | Google Places hoặc nguồn OSM thích hợp [OPEN]; secret gateway; public data rights | Billing/attribution/cache policy và coverage Việt Nam cần kiểm; không assume complete | Curated internal; hours/price unknown nếu không có nguồn |
 | API-B-03 / B / SHOULD | Map tiles, routing, distance/time; FR-MAP-001, FR-AI-005 | Coordinates, travel mode, departure context | Map/pins, route geometry/distance/duration + timestamp | Google Maps/Routes hoặc OSM tile host + routing service [OPEN]; restricted public map key nếu cần, sensitive routing key server | EXT-05/06; route estimates không live verified; routing không do tiles cung cấp | Itinerary list; estimate labeled hoặc unknown; không route giả |
 | API-B-04 / B / SHOULD | Weather forecast/gợi ý/cảnh báo; FR-WEA-001 | Destination coords, travel date/timezone | Forecast timestamp/horizon/units/source | Open-Meteo candidate [OPEN]; auth theo plan, secret server nếu có | EXT-07, noncommercial eligibility/attribution và forecast horizon cần kiểm | Stale/absent/outside horizon → unknown, không block planner |
@@ -102,11 +103,11 @@ Mọi operation name/API-A/B dưới đây là **[PROPOSED] specification-level 
 
 Request mutation có request_id/idempotency_key và expected_version nếu sửa aggregate. Response thành công trả identity, version, committed_at và receipt. Validation error có field/reason; unauthenticated/forbidden không tiết lộ nội dung trip; conflict trả version metadata chỉ cho người còn quyền; quota/temporarily_unavailable có hướng manual/retry; provider_error không lộ payload/secret.
 
-Dùng HTTP semantics tương ứng khi API shape được chọn ở OQ-001; không khẳng định URL nào đang chạy. CRUD profile/read catalogue/private read có thể qua Supabase client + grants/RLS. Apply AI/import/versioned multi-row writes/member admin cần trusted server/database transaction; không dùng nhiều CRUD client như một transaction giả.
+[CONFIRMED DEC-001] External API là tiêu chí giảng viên; không bắt buộc tự viết REST. Operation/HTTP contract dưới đây là target design, không khẳng định URL đang chạy. CRUD profile/read catalogue/private read có thể qua Supabase client + grants/RLS. Apply AI/import/versioned multi-row writes/member admin cần trusted server/database transaction; không dùng nhiều CRUD client như một transaction giả.
 
 ## Provider evaluation dựa trên tài liệu chính thức
 
-Ngày tham khảo: **2026-10-08**. Đây là đánh giá điều kiện, chưa duyệt provider, quota, giá hoặc provisioning.
+Ngày tham khảo: **2026-10-08**. Gemini provider và Guest app quota đã duyệt theo S-DEC; bảng vẫn là đánh giá điều kiện tài khoản/model/giá/provider khác, chưa provisioning.
 
 | Nguồn | Điều đã kiểm tra | Điều chưa kiểm chứng / quyết định |
 | --- | --- | --- |
@@ -124,6 +125,55 @@ Ngày tham khảo: **2026-10-08**. Đây là đánh giá điều kiện, chưa d
 ## Extension và giới hạn
 
 [DEFERRED] Booking qua provider adapter tương lai chỉ mô tả boundary itinerary-place reference; không tables reservation/payment, webhook, message broker. Notifications không có push token/queue hiện tại. [PROPOSED] Community/Group conceptual model giữ ngoài core deployment khi SHOULD chưa chọn. Không yêu cầu migrate hoặc sửa code nào từ tài liệu này.
+
+## ADR và thiết kế tích hợp hoàn chỉnh v1.1
+
+ADR-P1-010 [CONFIRMED DEC-001]: Dùng external Gemini API thật đáp ứng loại API chủ dự án xác nhận từ giảng viên; backend nội bộ vẫn cần vì security/quota/validation, không vì rubric ép tự xây REST. Báo cáo submission artifacts vẫn OQ-010.
+
+ADR-P1-011 [CONFIRMED DEC-007/008/009]: Supabase phụ trách Auth/profile/private persistence; sensitive AI qua server, minimal context và explicit user approval. [PROPOSED] Bổ sung Gemini adapter/orchestration vào Spring backend hiện có; Supabase Edge Functions chỉ alternative nếu deployability không phù hợp và phải duyệt riêng.
+
+ADR-P1-012 [CONFIRMED DEC-010]: SQLite account cache purge on logout; remote trip retained. [PROPOSED] Provider reset UI state, local-store transaction delete owner namespace và clear token; cleanup failure deny access/queue cleanup thay vì UI báo sạch giả.
+
+### Compatibility audit và bounded extension [PROPOSED]
+
+S-REPO-2: tree backend có routing controller/service/providers và health; chưa thấy controller planning hoặc Gemini. TripsService dùng saved_trips. TripApiService có fallback demo và debug interceptor ghi request/response body. Đây là gap thiết kế, chưa phải task sửa code và chưa audit toàn bộ runtime.
+
+| Phần hiện có | Định hướng v1.1 | Điều phải chứng minh trước thay đổi Phase 2 |
+| --- | --- | --- |
+| Provider/screens/DTO | Giữ flows hiển thị; adapter DTO → canonical itinerary khi có khác shape | Field mapping/request dates/items/quality đầy đủ, không parse mù |
+| Spring map service | Giữ routing và health behavior; module Gemini dùng adapter riêng | Hosting HTTPS/runtime/authorization; không sửa endpoint map ngoài scope |
+| Supabase saved_trips | Giữ dữ liệu cũ; target trip aggregate qua compatibility repository | Deployed schema/RLS/JSON columns thật; mapping legacy fields, version/idempotency support |
+| Client plan-trip fallback | Giữ code trong tác vụ docs; Phase 2 phân biệt sample fallback/manual với Gemini live | Fallback không được dùng như evidence AI thành công hoặc verified prices/weather |
+| Debug network logging | Trong Phase 2 cần redact/minimize payload trước dùng private context | Không email/token/private itinerary raw payload trong logs; hiện tại chưa sửa |
+| Map/weather dependencies | Không coi có package/service là provider approved | PoC và terms; không ảnh hưởng core khi unavailable |
+
+### Trusted Gemini operations [PROPOSED]
+
+Giữ IDs API-A-06/B-01. Backend operation specification gồm: request AI, query request status/result, apply approved proposal. Không chọn endpoint Gemini/model ID chưa xác minh.
+
+Request AI: request_id/idempotency key, intent generation/recommendation/chat/modification, scoped Guest token hoặc Supabase JWT, trip_id/base_version khi target trip, input constraints/context. Server xác thực và load dữ liệu có quyền, không trust client owner_id hoặc arbitrary place provenance. Guest không được lấy private trip thông qua request context.
+
+Response AI: request_id/state, normalized payload/schema_version, proposal_id/digest/base_version khi có mutation suggestion, warnings/provenance và quota metadata (limit=3 cho Guest, used, reserved, remaining, reset_at). Failure có user-safe reason và charged=false nếu terminal no usable result; processing timeout khác terminal failure.
+
+Apply: chỉ authenticated authorized actor cho remote saved trip; Guest có thể chấp nhận proposal vào local draft trước auth. Submit proposal_id + digest + expected_version + explicit action; server không nhận confirmation qua câu chữ LLM. Apply không gọi lại Gemini, không tính lượt AI mới; receipt/idempotency/version transaction giữ actual ledger.
+
+### Quota state và concurrency [PROPOSED]
+
+Server có durable ledger subject/day/request. Ngày theo server Asia/Ho_Chi_Minh; reserve nguyên tử used+reserved<3 trước provider, result valid → finalize một lượt; error → release. Persist result và charge state/receipt nhất quán để request status lookup không double-charge. Request key khác payload reject, client clock/counter không authority.
+
+Bốn requests đồng thời ở bucket trống: tối đa ba reservation; request thứ tư không gọi provider. Nếu một request thất bại, một slot trở lại. Retry cùng key nhận cùng state/result. Qua midnight, request vẫn thuộc accepted-day bucket; bucket ngày mới độc lập. Crash/lease reconcile phải kiểm persisted result/terminal status trước release. Guest token expiry/reinstall abuse/global cap còn OPEN, không coi policy này là account quota Gemini.
+
+### Local-store và migration contracts [PROPOSED]
+
+SQLite adapters: LocalDraftRepository writable Guest, AccountSnapshotRepository immutable owner-partition, ImportReceiptStore lưu kết quả migration. Provider giữ loading/unsaved/error/current selection, không là durable storage. Package cụ thể mở; không thêm dependency.
+
+Migration snapshot có source_draft_id/revision/digest và selected consent; backend identity từ JWT. Response receipt trả trip_id/version/source key/commit time. Ack → account-owned transferred record và snapshot; original Guest writable record không còn ở Guest namespace. Lỗi giữ source copy; mid-import edits tạo revision mới và đòi preview quyết định update/copy. Không cloud write nhiều rows bằng client coi như atomic.
+
+### Privacy data flow [CONFIRMED boundaries; PROPOSED mechanics]
+
+Client → server: inputs tối thiểu + auth/Guest token trong authorization context; server không đưa token vào provider prompt. Server → Gemini: destination/dates/budget/count/interests/relevant activities, origin coarse khi cần; không account identity/GPS mặc định. Không gửi full profile history. Server → database: own request metadata, normalized proposal/receipt/quota; raw prompts/log retention còn OQ-015.
+
+[PROPOSED] Curated dataset descriptions và chat là untrusted text; không cho chúng instruct backend tools/actions. Consent UI giải thích provider nhận context và provider terms, bao gồm free-tier data processing; lưu consent version nếu được duyệt. Không giữ raw AI conversation history dài hạn trước retention decision.
 
 ---
 [Xem mục lục và quy ước nguồn/trạng thái](README.md).
