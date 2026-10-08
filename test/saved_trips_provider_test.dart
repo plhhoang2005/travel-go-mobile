@@ -314,5 +314,78 @@ void main() {
       expect(provider.currentUserId, isNull);
       expect(provider.trips, isEmpty);
     });
+
+    test('account_switch_clears_loaded_A_before_B_completes (FIX-01, REV-001)', () async {
+      // Setup: User A has loaded trips
+      fakeService.fakeTrips = [
+        SavedTrip(
+          id: 'trip-a-1',
+          userId: 'user-a',
+          title: 'Private A Trip',
+          destinationName: 'Hà Nội',
+          tripPlanData: {},
+          createdAt: DateTime.now(),
+        ),
+      ];
+      await provider.loadTrips('user-a');
+      expect(provider.count, 1);
+      expect(provider.trips.first.userId, 'user-a');
+
+      // Switch to User B with pending completer, WITHOUT explicit clearLocal in test setup
+      final bCompleter = Completer<List<SavedTrip>>();
+      fakeService.fetchCompleter = bCompleter;
+
+      final loadBFuture = provider.loadTrips('user-b');
+
+      // Assert immediately before B completes: User A data MUST be gone!
+      expect(provider.currentUserId, 'user-b');
+      expect(provider.isLoading, isTrue);
+      expect(provider.trips, isEmpty);
+      expect(provider.trips.where((t) => t.userId == 'user-a'), isEmpty);
+
+      // Now complete B
+      bCompleter.complete([
+        SavedTrip(
+          id: 'trip-b-1',
+          userId: 'user-b',
+          title: 'Trip for B',
+          destinationName: 'Đà Nẵng',
+          tripPlanData: {},
+          createdAt: DateTime.now(),
+        ),
+      ]);
+      await loadBFuture;
+
+      expect(provider.isLoading, isFalse);
+      expect(provider.count, 1);
+      expect(provider.trips.first.userId, 'user-b');
+    });
+
+    test('B_fetch_error_never_restores_A (FIX-01, REV-001)', () async {
+      // Setup: User A has loaded trips
+      fakeService.fakeTrips = [
+        SavedTrip(
+          id: 'trip-a-1',
+          userId: 'user-a',
+          title: 'Private A Trip',
+          destinationName: 'Hà Nội',
+          tripPlanData: {},
+          createdAt: DateTime.now(),
+        ),
+      ];
+      await provider.loadTrips('user-a');
+      expect(provider.count, 1);
+
+      // Switch to User B where fetch fails, WITHOUT calling clearLocal in test setup
+      fakeService.shouldFailFetch = true;
+      fakeService.fetchCompleter = null;
+
+      await provider.loadTrips('user-b');
+
+      // Assert after error B: trips must remain empty, User A trips must NOT be restored!
+      expect(provider.currentUserId, 'user-b');
+      expect(provider.trips, isEmpty);
+      expect(provider.errorMessage, contains('Lỗi tải danh sách chuyến đi'));
+    });
   });
 }

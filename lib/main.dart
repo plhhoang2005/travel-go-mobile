@@ -39,12 +39,21 @@ class TravelGoApp extends StatelessWidget {
           create: (_) => SavedTripsProvider(),
           update: (_, auth, savedTrips) {
             final provider = savedTrips ?? SavedTripsProvider();
+            final user = auth.currentUser;
+            final isAuth = auth.isAuthenticated;
+            final isDemo = auth.isDemoSession;
+            final targetUserId = (isAuth && !isDemo && user != null && user.id.isNotEmpty)
+                ? user.id
+                : null;
+
+            provider.updateAuthContext(
+              isAuthenticated: isAuth,
+              isDemoSession: isDemo,
+              userId: targetUserId,
+            );
+
             WidgetsBinding.instance.addPostFrameCallback((_) {
-              provider.syncWithAuth(
-                isAuthenticated: auth.isAuthenticated,
-                isDemoSession: auth.isDemoSession,
-                userId: auth.currentUser?.id,
-              );
+              provider.fetchIfPending();
             });
             return provider;
           },

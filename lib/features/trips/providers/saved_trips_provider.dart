@@ -38,6 +38,12 @@ class SavedTripsProvider extends ChangeNotifier {
       return;
     }
 
+    final isNewUser = _currentUserId != userId;
+    if (isNewUser) {
+      _trips = [];
+      _errorMessage = null;
+    }
+
     _currentUserId = userId;
     _isLoading = true;
     _errorMessage = null;
@@ -176,6 +182,53 @@ class SavedTripsProvider extends ChangeNotifier {
     _errorMessage = null;
     _isLoading = false;
     notifyListeners();
+  }
+
+  bool _isDisposed = false;
+  String? _pendingFetchUserId;
+
+  @override
+  void dispose() {
+    _isDisposed = true;
+    super.dispose();
+  }
+
+  /// Synchronously align user context during ProxyProvider.update to avoid
+  /// cross-account cache exposure in intermediate build frames.
+  void updateAuthContext({
+    required bool isAuthenticated,
+    required bool isDemoSession,
+    required String? userId,
+  }) {
+    if (isAuthenticated && !isDemoSession && userId != null && userId.isNotEmpty) {
+      if (_currentUserId != userId) {
+        _sessionEpoch++;
+        _trips = [];
+        _currentUserId = userId;
+        _errorMessage = null;
+        _isLoading = true;
+        _pendingFetchUserId = userId;
+      }
+    } else {
+      if (_currentUserId != null || _trips.isNotEmpty) {
+        _sessionEpoch++;
+        _trips = [];
+        _currentUserId = null;
+        _errorMessage = null;
+        _isLoading = false;
+        _pendingFetchUserId = null;
+      }
+    }
+  }
+
+  /// Trigger pending fetch deferred to post-frame safely.
+  void fetchIfPending() {
+    if (_isDisposed) return;
+    final targetUserId = _pendingFetchUserId;
+    if (targetUserId != null && targetUserId.isNotEmpty) {
+      _pendingFetchUserId = null;
+      loadTrips(targetUserId);
+    }
   }
 
   /// Lifecycle synchronization hook driven by AuthProvider.

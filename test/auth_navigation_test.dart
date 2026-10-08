@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:travelgo_mobile/features/auth/models/user_model.dart';
@@ -8,9 +9,24 @@ import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:travelgo_mobile/core/constants/supabase_constants.dart';
 import 'package:travelgo_mobile/features/favorites/providers/favorites_provider.dart';
+import 'package:travelgo_mobile/features/trips/models/saved_trip_model.dart';
 import 'package:travelgo_mobile/features/trips/providers/saved_trips_provider.dart';
+import 'package:travelgo_mobile/features/trips/services/trips_service.dart';
 import 'package:travelgo_mobile/features/trip_planner/providers/trip_provider.dart';
 import 'package:travelgo_mobile/features/home/providers/home_catalog_provider.dart';
+
+class FakeTripsServiceForNav extends TripsService {
+  final Map<String, List<SavedTrip>> fakeMap = {};
+  Completer<List<SavedTrip>>? pendingCompleter;
+
+  @override
+  Future<List<SavedTrip>> fetchTrips(String userId) async {
+    if (pendingCompleter != null) {
+      return pendingCompleter!.future;
+    }
+    return fakeMap[userId] ?? [];
+  }
+}
 
 void main() {
   group('AuthProvider Unit Tests', () {
@@ -169,6 +185,141 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Tài Khoản'), findsOneWidget);
       expect(find.text('Khách Vãng Lai'), findsOneWidget);
+    });
+
+    testWidgets('Lifecycle & ProxyProvider: account transition A -> B never exposes A data to B or Guest (FIX-01, REV-001)',
+        (WidgetTester tester) async {
+      final authProvider = AuthProvider();
+      final tripProvider = TripProvider();
+      final fakeTripsService = FakeTripsServiceForNav();
+      final savedTripsProvider = SavedTripsProvider(service: fakeTripsService);
+
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider.value(value: authProvider),
+            ChangeNotifierProvider.value(value: tripProvider),
+            ChangeNotifierProvider(create: (_) => FavoritesProvider()),
+            ChangeNotifierProxyProvider<AuthProvider, SavedTripsProvider>(
+              create: (_) => savedTripsProvider,
+              update: (_, auth, savedTrips) {
+                final provider = savedTrips ?? savedTripsProvider;
+                final user = auth.currentUser;
+                final isAuth = auth.isAuthenticated;
+                final isDemo = auth.isDemoSession;
+                final targetUserId = (isAuth && !isDemo && user != null && user.id.isNotEmpty)
+                    ? user.id
+                    : null;
+
+                provider.updateAuthContext(
+                  isAuthenticated: isAuth,
+                  isDemoSession: isDemo,
+                  userId: targetUserId,
+                );
+
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  provider.fetchIfPending();
+                });
+                return provider;
+              },
+            ),
+            ChangeNotifierProvider(create: (_) => HomeCatalogProvider()),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.lightTheme,
+            home: Scaffold(
+              body: Consumer2<AuthProvider, SavedTripsProvider>(
+                builder: (context, auth, saved, _) {
+                  return Column(
+                    children: [
+                      Text('USER:${auth.currentUser?.id ?? "NONE"}'),
+                      Text('TRIPS_COUNT:${saved.count}'),
+                      Text('FIRST_OWNER:${saved.trips.isEmpty ? "NONE" : saved.trips.first.userId}'),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+      expect(find.text('USER:NONE'), findsOneWidget);
+      expect(find.text('TRIPS_COUNT:0'), findsOneWidget);
+
+      // Login as User A
+      fakeTripsService.fakeMap['user-a'] = [
+        SavedTrip(
+          id: 'trip-a',
+          userId: 'user-a',
+          title: 'Trip A',
+          destinationName: 'HN',
+          tripPlanData: {},
+          createdAt: DateTime.now(),
+        ),
+      ];
+
+      authProvider.simulateSupabaseUser(
+        User(
+          id: 'user-a',
+          appMetadata: {},
+          userMetadata: {},
+          aud: 'authenticated',
+          createdAt: '2026-01-01',
+          email: 'a@travelgo.vn',
+        ),
+      );
+
+      await tester.pumpAndSettle();
+      expect(find.text('USER:user-a'), findsOneWidget);
+      expect(find.text('TRIPS_COUNT:1'), findsOneWidget);
+      expect(find.text('FIRST_OWNER:user-a'), findsOneWidget);
+
+      // Switch to User B with pending fetch
+      final bCompleter = Completer<List<SavedTrip>>();
+      fakeTripsService.pendingCompleter = bCompleter;
+
+      authProvider.simulateSupabaseUser(
+        User(
+          id: 'user-b',
+          appMetadata: {},
+          userMetadata: {},
+          aud: 'authenticated',
+          createdAt: '2026-01-01',
+          email: 'b@travelgo.vn',
+        ),
+      );
+
+      // Pump single frame
+      await tester.pump();
+      // Critical assertion: In frame 1 of User B, User A data must NOT be rendered!
+      expect(find.text('USER:user-b'), findsOneWidget);
+      expect(find.text('TRIPS_COUNT:0'), findsOneWidget);
+      expect(find.text('FIRST_OWNER:NONE'), findsOneWidget);
+
+      // Complete User B fetch
+      bCompleter.complete([
+        SavedTrip(
+          id: 'trip-b',
+          userId: 'user-b',
+          title: 'Trip B',
+          destinationName: 'DN',
+          tripPlanData: {},
+          createdAt: DateTime.now(),
+        ),
+      ]);
+      await tester.pumpAndSettle();
+      expect(find.text('USER:user-b'), findsOneWidget);
+      expect(find.text('TRIPS_COUNT:1'), findsOneWidget);
+      expect(find.text('FIRST_OWNER:user-b'), findsOneWidget);
+
+      // Switch to Guest
+      authProvider.continueAsGuest();
+      await tester.pumpAndSettle();
+      expect(find.text('USER:NONE'), findsOneWidget);
+      expect(find.text('TRIPS_COUNT:0'), findsOneWidget);
+      expect(find.text('FIRST_OWNER:NONE'), findsOneWidget);
     });
   });
 }
