@@ -12,7 +12,7 @@ BEGIN;
 -- ------------------------------------------------------------------------------
 -- PRECONDITION CHECKS (Fail-closed Baseline & Schema Verification)
 -- ------------------------------------------------------------------------------
-DO $$
+DO $precondition$
 BEGIN
   -- Verify required tables exist
   IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'profiles') THEN
@@ -66,7 +66,7 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'trip_activities' AND column_name = 'cost') THEN
     RAISE EXCEPTION 'Precondition failed: column cost does not exist on public.trip_activities';
   END IF;
-END $$;
+END $precondition$;
 
 -- ------------------------------------------------------------------------------
 -- 1. HARDEN PROFILES ROW LEVEL SECURITY (RLS)
@@ -141,7 +141,7 @@ RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public, pg_temp
-AS $$
+AS $func$
 DECLARE
   v_full_name text;
   v_phone text;
@@ -181,14 +181,14 @@ BEGIN
 
   RETURN NEW;
 END;
-$$;
+$func$;
 
 -- Restrict function execution to administrative callers
 REVOKE EXECUTE ON FUNCTION public.handle_new_user() FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.handle_new_user() TO postgres, service_role;
 
 -- Re-bind trigger on auth.users if auth schema is accessible
-DO $$
+DO $trigger_bind$
 BEGIN
   IF EXISTS (
     SELECT 1 FROM pg_namespace n
@@ -200,7 +200,7 @@ BEGIN
       AFTER INSERT ON auth.users
       FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
   END IF;
-END $$;
+END $trigger_bind$;
 
 -- ------------------------------------------------------------------------------
 -- 5. LEAST-PRIVILEGE HARDENING FOR DESTINATIONS, TRIPS, TRIP_ACTIVITIES
@@ -272,49 +272,6 @@ CREATE POLICY "Users manage own trip activities"
   );
 
 -- ------------------------------------------------------------------------------
--- 6. POSTCONDITION VALIDATIONS (Fail-closed Assertions & Complete Drift Gates)
--- ------------------------------------------------------------------------------
-DO $$
-DECLARE
-  v_profiles_rls boolean;
-  v_trips_rls boolean;
-  v_activities_rls boolean;
-  v_can_update_role boolean;
-  v_can_truncate_trips boolean;
-  v_can_truncate_profiles boolean;
-  v_can_truncate_activities boolean;
-  v_can_truncate_destinations boolean;
-  v_anon_can_select_profiles boolean;
-  v_unexpected_policies int;
-BEGIN
-  -- Verify RLS is enabled on protected tables
-  SELECT rowsecurity INTO v_profiles_rls FROM pg_tables WHERE schemaname = 'public' AND tablename = 'profiles';
-  SELECT rowsecurity INTO v_trips_rls FROM pg_tables WHERE schemaname = 'public' AND tablename = 'trips';
-  SELECT rowsecurity INTO v_activities_rls FROM pg_tables WHERE schemaname = 'public' AND tablename = 'trip_activities';
-
-  IF NOT COALESCE(v_profiles_rls, false) THEN
-    RAISE EXCEPTION 'Postcondition failed: RLS is not enabled on public.profiles';
-  END IF;
-  IF NOT COALESCE(v_trips_rls, false) THEN
-    RAISE EXCEPTION 'Postcondition failed: RLS is not enabled on public.trips';
-  END IF;
-  IF NOT COALESCE(v_activities_rls, false) THEN
-    RAISE EXCEPTION 'Postcondition failed: RLS is not enabled on public.trip_activities';
-  END IF;
-
-  -- Verify least privilege restrictions: role column update is forbidden for authenticated
-  SELECT has_column_privilege('authenticated', 'public.profiles', 'role', 'UPDATE') INTO v_can_update_role;
-  IF v_can_update_role THEN
-    RAISE EXCEPTION 'Postcondition failed: authenticated role still has UPDATE privilege on profiles.role';
-  END IF;
-
-  -- Verify anon has NO SELECT privilege on profiles
-  SELECT has_table_privilege('anon', 'public.profiles', 'SELECT') INTO v_anon_can_select_profiles;
-  IF v_anon_can_select_profiles THEN
-    RAISE EXCEPTION 'Postcondition failed: anon role still has SELECT privilege on public.profiles';
-  END IF;
-
--- ------------------------------------------------------------------------------
 -- 6. SHARED DRIFT AUDIT FUNCTION: public.verify_profiles_policy_drift()
 -- ------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.verify_profiles_policy_drift()
@@ -322,7 +279,7 @@ RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public, pg_temp
-AS $$
+AS $audit_func$
 DECLARE
   v_unexpected_policies int;
 BEGIN
@@ -341,12 +298,12 @@ BEGIN
     RAISE EXCEPTION 'DRIFT_GATE_FAILURE: detected % unexpected policies on public.profiles', v_unexpected_policies;
   END IF;
 END;
-$$;
+$audit_func$;
 
 -- ------------------------------------------------------------------------------
--- POSTCONDITION VERIFICATION GATES (Zero Regression Security Guarantees)
+-- 7. POSTCONDITION VERIFICATION GATES (Zero Regression Security Guarantees)
 -- ------------------------------------------------------------------------------
-DO $$
+DO $postcondition$
 DECLARE
   v_profiles_rls boolean;
   v_trips_rls boolean;
@@ -409,6 +366,6 @@ BEGIN
   IF v_can_truncate_trips OR v_can_truncate_profiles OR v_can_truncate_activities OR v_can_truncate_destinations THEN
     RAISE EXCEPTION 'Postcondition failed: TRUNCATE privilege still exists on protected tables';
   END IF;
-END $$;
+END $postcondition$;
 
 COMMIT;
