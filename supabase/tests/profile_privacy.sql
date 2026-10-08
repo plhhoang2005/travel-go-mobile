@@ -81,13 +81,13 @@ BEGIN
     (uid_no_email, 'authenticated', 'authenticated', NULL, '{}'::jsonb, now(), now());
 
   -- Insert synthetic destination for catalogue tests (audited schema: id text, region check)
-  INSERT INTO public.destinations (id, name, description, region)
-  VALUES (dest_id, 'Đà Nẵng Synthetic', 'Test catalogue destination', 'Trung')
+  INSERT INTO public.destinations (id, name, description, region, is_popular)
+  VALUES (dest_id, 'Đà Nẵng Synthetic', 'Test catalogue destination', 'Trung', true)
   ON CONFLICT (id) DO NOTHING;
 
-  -- Insert synthetic service (dependency for trip_activities.service_id)
-  INSERT INTO public.services (id, destination_id, name, service_type)
-  VALUES (svc_id, dest_id, 'Bà Nà Cable Car', 'attraction')
+  -- Insert synthetic service (dependency for trip_activities.service_id, audited: title text, service_type tour)
+  INSERT INTO public.services (id, destination_id, title, service_type)
+  VALUES (svc_id, dest_id, 'Bà Nà Tour Cable Car', 'tour')
   ON CONFLICT (id) DO NOTHING;
 END $$;
 
@@ -408,12 +408,12 @@ DECLARE
   v_spoof_insert_denied boolean := false;
   v_owner_change_denied boolean := false;
 BEGIN
-  -- 1. User A inserts own trip (audited schema with destination_id text)
+  -- 1. User A inserts own trip (audited schema with destination_name text)
   PERFORM set_config('role', 'authenticated', true);
   PERFORM set_config('request.jwt.claim.sub', uid_a::text, true);
 
-  INSERT INTO public.trips (id, user_id, destination_id, title, num_days, budget_total, ai_plan_data)
-  VALUES (trip_a_id, uid_a, dest_id, 'Trip A', 3, 3000000, '{"plan": "test"}'::jsonb);
+  INSERT INTO public.trips (id, user_id, title, destination_name, num_days, budget_total, ai_plan_data)
+  VALUES (trip_a_id, uid_a, 'Trip A', 'Đà Nẵng Synthetic', 3, 3000000, '{"plan": "test"}'::jsonb);
   v_a_inserted := true;
 
   -- 2. User B tries to read, update, delete User A trip (must affect 0 rows)
@@ -430,8 +430,8 @@ BEGIN
 
   -- 3. User B tries to insert a trip with user_id = User A (spoof ownership)
   BEGIN
-    INSERT INTO public.trips (id, user_id, destination_id, title, num_days, budget_total, ai_plan_data)
-    VALUES (trip_spoof_id, uid_a, dest_id, 'Spoofed Trip', 1, 1000000, '{"plan": "test"}'::jsonb);
+    INSERT INTO public.trips (id, user_id, title, destination_name, num_days, budget_total, ai_plan_data)
+    VALUES (trip_spoof_id, uid_a, 'Spoofed Trip', 'Đà Nẵng Synthetic', 1, 1000000, '{"plan": "test"}'::jsonb);
   EXCEPTION
     WHEN insufficient_privilege THEN -- RLS WITH CHECK violation (SQLSTATE 42501)
       v_spoof_insert_denied := true;
@@ -490,10 +490,10 @@ DECLARE
   v_a_deleted_act int := -1;
 BEGIN
   -- Insert trip A2 and trip B as runner fixture
-  INSERT INTO public.trips (id, user_id, destination_id, title, num_days, budget_total, ai_plan_data)
+  INSERT INTO public.trips (id, user_id, title, destination_name, num_days, budget_total, ai_plan_data)
   VALUES
-    (trip_a2, uid_a, dest_id, 'Trip A2', 1, 1000000, '{"plan": "test"}'::jsonb),
-    (trip_b, uid_b, dest_id, 'Trip B', 1, 1000000, '{"plan": "test"}'::jsonb)
+    (trip_a2, uid_a, 'Trip A2', 'Đà Nẵng Synthetic', 1, 1000000, '{"plan": "test"}'::jsonb),
+    (trip_b, uid_b, 'Trip B', 'Đà Nẵng Synthetic', 1, 1000000, '{"plan": "test"}'::jsonb)
   ON CONFLICT (id) DO NOTHING;
 
   -- 1. User A inserts activity on own Trip A1 using audited schema:

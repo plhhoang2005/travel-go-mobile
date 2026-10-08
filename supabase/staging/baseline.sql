@@ -2,12 +2,13 @@
 -- TravelGO Staging Database Bootstrap: baseline.sql
 -- Description: Reconstructs pre-remediation application schema on isolated
 --              staging project (bkocylxbuyvdgxccpixx). Restores types, defaults,
---              nullability, check constraints, and FK dependencies from
---              audited repository SQL (supabase_enterprise_schema.sql) and
+--              nullability, check constraints, and FK dependencies faithfully from
+--              audited repository SQL (supabase_enterprise_schema.sql),
+--              client DTO contracts (saved_trip_model.dart), and
 --              metadata snapshots (SRC-DB-001/002).
 -- Target: STAGING ENVIRONMENT ONLY (travel-go-staging / bkocylxbuyvdgxccpixx)
 -- Provenance: Reconstructed staging baseline. Note: Deployed production
---             function body on oavbymauorhmrjcustzw remains UNKNOWN.
+--             function body and schema on oavbymauorhmrjcustzw remain UNKNOWN.
 -- Safety: NEVER EXECUTE IN PRODUCTION
 -- ==============================================================================
 
@@ -34,72 +35,74 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- ------------------------------------------------------------------------------
--- 2. APPLICATION TABLES (Restoring audited types, defaults, nullability & checks)
+-- 2. APPLICATION TABLES (Faithful reconstruction from audited repo and snapshots)
 -- ------------------------------------------------------------------------------
 
--- 2.1 Profiles Table (matches repo lines 15-25: full_name text not null, role check)
+-- 2.1 Profiles Table (matches enterprise schema lines 15-25: role IN customer, travel_expert, admin, partner)
 CREATE TABLE public.profiles (
   id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   full_name text NOT NULL,
   phone text,
   email text,
-  role text DEFAULT 'customer' CHECK (role IN ('customer', 'hotel_manager', 'admin')),
+  role text DEFAULT 'customer' CHECK (role IN ('customer', 'travel_expert', 'admin', 'partner')),
   avatar_url text,
   address text,
   created_at timestamptz DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at timestamptz DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 2.2 Destinations Catalogue Table (matches repo lines 122-130: id text slug, region check)
+-- 2.2 Destinations Catalogue Table (matches enterprise lines 122-130: id text slug, region check)
 CREATE TABLE public.destinations (
   id text PRIMARY KEY,
   name text NOT NULL,
   description text,
   image_url text,
   region text NOT NULL CHECK (region IN ('Bắc', 'Trung', 'Nam', 'Tây Nguyên')),
-  is_active boolean DEFAULT true,
+  weather_cached_temp numeric,
+  is_popular boolean DEFAULT false,
   created_at timestamptz DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 2.3 Services Table (Dependency for trip_activities.service_id, repo lines 132-144)
+-- 2.3 Services Table (matches enterprise lines 140-156: title text, service_type check hotel/flight/bus/tour/combo)
 CREATE TABLE public.services (
   id text PRIMARY KEY,
   destination_id text REFERENCES public.destinations(id) ON DELETE CASCADE,
-  name text NOT NULL,
-  service_type text NOT NULL,
+  title text NOT NULL,
+  service_type text NOT NULL CHECK (service_type IN ('hotel', 'flight', 'bus', 'tour', 'combo')),
   price_range text,
-  contact_info jsonb,
-  is_active boolean DEFAULT true,
+  rating numeric DEFAULT 5.0,
   created_at timestamptz DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 2.4 Trips Table (matches repo lines 391-404: destination_id text not null, num_days check)
+-- 2.4 Trips Table (matches SRC-DB-001/002, enterprise lines 391-404, & saved_trip_model.dart: destination_name text NOT NULL)
 CREATE TABLE public.trips (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  destination_id text NOT NULL REFERENCES public.destinations(id),
   title text NOT NULL,
-  num_days integer NOT NULL DEFAULT 3 CHECK (num_days BETWEEN 1 AND 30),
-  budget_total numeric NOT NULL DEFAULT 0 CHECK (budget_total >= 0),
-  actual_cost numeric DEFAULT 0,
-  status text DEFAULT 'planning' CHECK (status IN ('planning', 'active', 'completed', 'cancelled')),
+  destination_name text NOT NULL,
+  num_days integer,
+  budget_total numeric,
+  start_date date,
+  end_date date,
+  status text DEFAULT 'planning' CHECK (status IN ('planning', 'confirmed', 'completed', 'cancelled')),
   ai_plan_data jsonb DEFAULT '{}'::jsonb,
   created_at timestamptz DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 2.5 Trip Activities Table (matches repo lines 411-424 & SRC-DB-001: start_time, title, cost)
+-- 2.5 Trip Activities Table (matches SRC-DB-001 & enterprise lines 407-423: 12 audited columns)
 CREATE TABLE public.trip_activities (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   trip_id uuid NOT NULL REFERENCES public.trips(id) ON DELETE CASCADE,
   day_number integer NOT NULL DEFAULT 1,
   start_time text NOT NULL,
-  end_time text,
   title text NOT NULL,
-  description text,
-  service_id text REFERENCES public.services(id) ON DELETE SET NULL,
   cost numeric DEFAULT 0,
-  has_conflict boolean DEFAULT false,
-  conflict_reason text,
+  service_id text REFERENCES public.services(id) ON DELETE SET NULL,
+  is_completed boolean DEFAULT false,
+  note text,
+  location_name text,
+  latitude numeric,
+  longitude numeric,
   created_at timestamptz DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
