@@ -26,7 +26,7 @@ function Get-NormalizedSha256Content([string]$content) {
 }
 
 $helperPath = Join-Path $testsDir "profile_privacy_test_helpers.sql"
-$helperRaw = [System.IO.File]::ReadAllText($helperPath, [System.Text.Encoding]::UTF8).Trim()
+$helperRaw = [System.IO.File]::ReadAllText($helperPath, [System.Text.Encoding]::UTF8)
 $helperHash = Get-NormalizedSha256Content -content $helperRaw
 
 $targets = @(
@@ -55,7 +55,7 @@ foreach ($t in $targets) {
 
   $helperBlock = @"
 -- >>> START INJECTED DEPENDENCY: profile_privacy_test_helpers.sql (LF-SHA256: $helperHash) <<<
-$helperRaw
+$($helperRaw.Trim())
 -- >>> END INJECTED DEPENDENCY: profile_privacy_test_helpers.sql <<<
 "@
 

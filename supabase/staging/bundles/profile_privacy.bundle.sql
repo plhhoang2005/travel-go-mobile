@@ -32,7 +32,7 @@ $$;
 -- ------------------------------------------------------------------------------
 -- Shared Test Helpers (single authoritative source)
 -- ------------------------------------------------------------------------------
--- >>> START INJECTED DEPENDENCY: profile_privacy_test_helpers.sql (LF-SHA256: F2FC32DF66CEE51B7CAA34C06854C27D1254D39CF6826E600345108CFDD127F7) <<<
+-- >>> START INJECTED DEPENDENCY: profile_privacy_test_helpers.sql (LF-SHA256: 566A3FD93DE878523A8F3BF39A76B33B9075C382E56120C6361B3ED015BF91C3) <<<
 -- ==============================================================================
 -- Test Suite Shared Helpers: profile_privacy_test_helpers.sql
 -- Description: Authoritative single source of test assertion and classification
