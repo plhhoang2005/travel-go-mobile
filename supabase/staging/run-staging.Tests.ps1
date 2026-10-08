@@ -27,6 +27,20 @@ $HelperSql = Join-Path $TestsDir "profile_privacy_test_helpers.sql"
 $BundlesDir = Join-Path $ScriptDir "bundles"
 $MainBundleSql = Join-Path $BundlesDir "profile_privacy.bundle.sql"
 
+if (Test-Path $DummySql) {
+  $dummyRaw = [System.IO.File]::ReadAllText((Resolve-Path $DummySql).Path, [System.Text.Encoding]::UTF8)
+  $lfDummy = $dummyRaw.Replace("`r`n", "`n")
+  $dBytes = [System.Text.Encoding]::UTF8.GetBytes($lfDummy)
+  $VALID_DUMMY_HASH = [System.BitConverter]::ToString($sha256.ComputeHash($dBytes)).Replace('-', '').ToUpper()
+}
+
+if (Test-Path $MainHarnessSql) {
+  $mainRaw = [System.IO.File]::ReadAllText((Resolve-Path $MainHarnessSql).Path, [System.Text.Encoding]::UTF8)
+  $lfMain = $mainRaw.Replace("`r`n", "`n")
+  $mBytes = [System.Text.Encoding]::UTF8.GetBytes($lfMain)
+  $VALID_MAIN_HASH = [System.BitConverter]::ToString($sha256.ComputeHash($mBytes)).Replace('-', '').ToUpper()
+}
+
 if (Test-Path $HelperSql) {
   $helperRaw = [System.IO.File]::ReadAllText((Resolve-Path $HelperSql).Path, [System.Text.Encoding]::UTF8)
   $lfHelper = $helperRaw.Replace("`r`n", "`n")
@@ -164,13 +178,23 @@ if (Test-Path $MigrationSql) {
 
 # Test 13: Reject corrective run without ExpectedBaselineHash
 Assert-Throws "Reject corrective run without ExpectedBaselineHash" {
-  & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile $DummySql -DryRun
+  & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile $DummySql -ExpectedSqlHash $VALID_DUMMY_HASH -DryRun
 } "CORRECTIVE RUN REJECTED.*require -ExpectedBaselineHash"
 
 # Test 14: Reject corrective run with mismatched ExpectedBaselineHash
 Assert-Throws "Reject corrective run with mismatched ExpectedBaselineHash" {
-  & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile $DummySql -ExpectedBaselineHash "0000000000000000000000000000000000000000000000000000000000000000" -DryRun
+  & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile $DummySql -ExpectedSqlHash $VALID_DUMMY_HASH -ExpectedBaselineHash "0000000000000000000000000000000000000000000000000000000000000000" -DryRun
 } "Baseline hash mismatch"
+
+# Test 14b: Reject corrective run without ExpectedSqlHash
+Assert-Throws "Reject corrective run without ExpectedSqlHash" {
+  & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile $DummySql -ExpectedBaselineHash $VALID_BASELINE_HASH -DryRun
+} "CORRECTIVE RUN REJECTED.*require[s]? -ExpectedSqlHash"
+
+# Test 14c: Reject corrective run with mismatched ExpectedSqlHash
+Assert-Throws "Reject corrective run with mismatched ExpectedSqlHash" {
+  & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile $DummySql -ExpectedBaselineHash $VALID_BASELINE_HASH -ExpectedSqlHash "0000000000000000000000000000000000000000000000000000000000000000" -DryRun
+} "Input SQL file hash mismatch"
 
 # Test 15: Permit canonical baseline bootstrap in DryRun mode with valid hash
 Assert-Succeeds "Permit canonical baseline bootstrap in DryRun mode" {
@@ -179,7 +203,7 @@ Assert-Succeeds "Permit canonical baseline bootstrap in DryRun mode" {
 
 # Test 16: Permit valid corrective staging parameters in DryRun mode
 Assert-Succeeds "Permit valid corrective staging parameters in DryRun mode" {
-  & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile $DummySql -ExpectedBaselineHash $VALID_BASELINE_HASH -DryRun
+  & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile $DummySql -ExpectedBaselineHash $VALID_BASELINE_HASH -ExpectedSqlHash $VALID_DUMMY_HASH -DryRun
 }
 
 # Test 17: Assert executor mock is NOT called (call count = 0) when guard rejects
@@ -191,7 +215,7 @@ $countingMock = {
 
 $rejectedExceptionCaught = $false
 try {
-  & $RunnerScript -ProjectRef "oavbymauorhmrjcustzw" -ConnectionHost "db.oavbymauorhmrjcustzw.supabase.co" -SqlFile $DummySql -ExecutorMock $countingMock
+  & $RunnerScript -ProjectRef "oavbymauorhmrjcustzw" -ConnectionHost "db.oavbymauorhmrjcustzw.supabase.co" -SqlFile $DummySql -ExpectedBaselineHash $VALID_BASELINE_HASH -ExpectedSqlHash $VALID_DUMMY_HASH -ExecutorMock $countingMock
 } catch {
   $rejectedExceptionCaught = $true
 }
@@ -225,46 +249,166 @@ if ($permittedSuccess -and ($global:executorCalls -eq 1)) {
 # Test 19: Reject test harness when -ExpectedHelperHash is missing
 if (Test-Path $MainHarnessSql) {
   Assert-Throws "Reject test harness without ExpectedHelperHash" {
-    & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile $MainHarnessSql -ExpectedBaselineHash $VALID_BASELINE_HASH -DryRun
+    & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile $MainHarnessSql -ExpectedBaselineHash $VALID_BASELINE_HASH -ExpectedSqlHash $VALID_MAIN_HASH -DryRun
   } "DEPENDENCY INTEGRITY FAILURE.*-ExpectedHelperHash is mandatory"
 }
 
 # Test 20: Reject test harness when -ExpectedHelperHash mismatches
 if (Test-Path $MainHarnessSql) {
   Assert-Throws "Reject test harness with mismatched ExpectedHelperHash" {
-    & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile $MainHarnessSql -ExpectedBaselineHash $VALID_BASELINE_HASH -ExpectedHelperHash "0000000000000000000000000000000000000000000000000000000000000000" -DryRun
+    & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile $MainHarnessSql -ExpectedBaselineHash $VALID_BASELINE_HASH -ExpectedSqlHash $VALID_MAIN_HASH -ExpectedHelperHash "0000000000000000000000000000000000000000000000000000000000000000" -DryRun
   } "DEPENDENCY HASH MISMATCH"
 }
 
 # Test 21: Permit test harness in DryRun mode when -ExpectedHelperHash matches
 if (Test-Path $MainHarnessSql) {
   Assert-Succeeds "Permit test harness when ExpectedHelperHash matches" {
-    & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile $MainHarnessSql -ExpectedBaselineHash $VALID_BASELINE_HASH -ExpectedHelperHash $VALID_HELPER_HASH -DryRun
+    & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile $MainHarnessSql -ExpectedBaselineHash $VALID_BASELINE_HASH -ExpectedSqlHash $VALID_MAIN_HASH -ExpectedHelperHash $VALID_HELPER_HASH -DryRun
   }
 }
 
-# Test 22: Probe: Modifying helper file while keeping harness parameters unchanged MUST be rejected before connection/executor (calls = 0)
+# Test 22: Probe: Modular harness when helper file is MISSING in isolated fixture MUST be rejected before connection/executor (calls = 0)
 if (Test-Path $MainHarnessSql) {
-  $global:executorCalls = 0
-  $helperProbeExceptionCaught = $false
+  $tempMissingDir = Join-Path ([System.IO.Path]::GetTempPath()) ("travelgo_test_missing_helper_" + [System.Guid]::NewGuid().ToString())
   try {
-    & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile $MainHarnessSql -ExpectedBaselineHash $VALID_BASELINE_HASH -ExpectedHelperHash "MODIFIED00000000000000000000000000000000000000000000000000000000" -ExecutorMock $countingMock
+    $fStage = Join-Path $tempMissingDir "supabase\staging"
+    $fTests = Join-Path $tempMissingDir "supabase\tests"
+    New-Item -ItemType Directory -Path $fStage,$fTests -Force | Out-Null
+    Copy-Item -LiteralPath $RunnerScript -Destination (Join-Path $fStage "run-staging.ps1")
+    Copy-Item -LiteralPath $BaselineSql -Destination (Join-Path $fStage "baseline.sql")
+    Copy-Item -LiteralPath $MainHarnessSql -Destination (Join-Path $fTests "profile_privacy.sql")
+
+    $fRunner = Join-Path $fStage "run-staging.ps1"
+    $fMain = Join-Path $fTests "profile_privacy.sql"
+    $global:executorCalls = 0
+    $missingHelperCaught = $false
+
+    try {
+      & $fRunner -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile $fMain -ExpectedBaselineHash $VALID_BASELINE_HASH -ExpectedSqlHash $VALID_MAIN_HASH -ExpectedHelperHash $VALID_HELPER_HASH -ExecutorMock $countingMock
+    } catch {
+      if ($_.Exception.Message -match "DEPENDENCY INTEGRITY FAILURE.*helper file does not exist") {
+        $missingHelperCaught = $true
+      }
+    }
+
+    if ($missingHelperCaught -and ($global:executorCalls -eq 0)) {
+      Write-Host "[PASS] Probe: Modular harness with missing helper rejected before executor call (calls = 0)" -ForegroundColor Green
+      $script:testsPassed++
+    } else {
+      Write-Host "[FAIL] Probe: Modular harness with missing helper expected rejection and calls=0, got caught=$missingHelperCaught, calls=$($global:executorCalls)" -ForegroundColor Red
+      $script:testsFailed++
+    }
+  } finally {
+    if (Test-Path $tempMissingDir) { Remove-Item -Path $tempMissingDir -Recurse -Force }
+  }
+}
+
+# Test 23: Probe: Mutating helper file in isolated fixture while keeping caller parameters unchanged MUST be rejected before connection/executor (calls = 0)
+if ((Test-Path $MainHarnessSql) -and (Test-Path $HelperSql)) {
+  $tempMutantDir = Join-Path ([System.IO.Path]::GetTempPath()) ("travelgo_test_modified_helper_" + [System.Guid]::NewGuid().ToString())
+  try {
+    $fStage = Join-Path $tempMutantDir "supabase\staging"
+    $fTests = Join-Path $tempMutantDir "supabase\tests"
+    New-Item -ItemType Directory -Path $fStage,$fTests -Force | Out-Null
+    Copy-Item -LiteralPath $RunnerScript -Destination (Join-Path $fStage "run-staging.ps1")
+    Copy-Item -LiteralPath $BaselineSql -Destination (Join-Path $fStage "baseline.sql")
+    Copy-Item -LiteralPath $MainHarnessSql -Destination (Join-Path $fTests "profile_privacy.sql")
+    Copy-Item -LiteralPath $HelperSql -Destination (Join-Path $fTests "profile_privacy_test_helpers.sql")
+
+    $fRunner = Join-Path $fStage "run-staging.ps1"
+    $fMain = Join-Path $fTests "profile_privacy.sql"
+    $fHelper = Join-Path $fTests "profile_privacy_test_helpers.sql"
+
+    # Mutate real helper in isolated fixture while caller passes unchanged valid reviewed hash
+    [System.IO.File]::AppendAllText($fHelper, "`n-- TAMPERED DEPENDENCY MUTANT`n")
+
+    $global:executorCalls = 0
+    $modifiedHelperCaught = $false
+    try {
+      & $fRunner -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile $fMain -ExpectedBaselineHash $VALID_BASELINE_HASH -ExpectedSqlHash $VALID_MAIN_HASH -ExpectedHelperHash $VALID_HELPER_HASH -ExecutorMock $countingMock
+    } catch {
+      if ($_.Exception.Message -match "DEPENDENCY HASH MISMATCH") {
+        $modifiedHelperCaught = $true
+      }
+    }
+
+    if ($modifiedHelperCaught -and ($global:executorCalls -eq 0)) {
+      Write-Host "[PASS] Probe: Mutated helper in isolated fixture rejected before executor call (calls = 0)" -ForegroundColor Green
+      $script:testsPassed++
+    } else {
+      Write-Host "[FAIL] Probe: Mutated helper expected rejection and calls=0, got caught=$modifiedHelperCaught, calls=$($global:executorCalls)" -ForegroundColor Red
+      $script:testsFailed++
+    }
+  } finally {
+    if (Test-Path $tempMutantDir) { Remove-Item -Path $tempMutantDir -Recurse -Force }
+  }
+}
+
+# Test 24: Probe: Bundle with omitted ExpectedSqlHash MUST be rejected before connection/executor (calls = 0)
+if (Test-Path $MainBundleSql) {
+  $global:executorCalls = 0
+  $omittedBundleHashCaught = $false
+  try {
+    & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile $MainBundleSql -ExpectedBaselineHash $VALID_BASELINE_HASH -ExecutorMock $countingMock
   } catch {
-    if ($_.Exception.Message -match "DEPENDENCY HASH MISMATCH") {
-      $helperProbeExceptionCaught = $true
+    if ($_.Exception.Message -match "CORRECTIVE RUN REJECTED.*require[s]? -ExpectedSqlHash") {
+      $omittedBundleHashCaught = $true
     }
   }
 
-  if ($helperProbeExceptionCaught -and ($global:executorCalls -eq 0)) {
-    Write-Host "[PASS] Probe: Modified helper rejected before executor call (calls = 0)" -ForegroundColor Green
+  if ($omittedBundleHashCaught -and ($global:executorCalls -eq 0)) {
+    Write-Host "[PASS] Probe: Bundle with omitted ExpectedSqlHash rejected before executor call (calls = 0)" -ForegroundColor Green
     $script:testsPassed++
   } else {
-    Write-Host "[FAIL] Probe: Modified helper expected rejection and calls=0, got caught=$helperProbeExceptionCaught, calls=$($global:executorCalls)" -ForegroundColor Red
+    Write-Host "[FAIL] Probe: Bundle with omitted ExpectedSqlHash expected rejection and calls=0, got caught=$omittedBundleHashCaught, calls=$($global:executorCalls)" -ForegroundColor Red
     $script:testsFailed++
   }
 }
 
-# Test 23: Permit pure-SQL bundle execution with ExpectedSqlHash
+# Test 25: Probe: Altered bundle in isolated fixture with unchanged ExpectedSqlHash MUST be rejected before connection/executor (calls = 0)
+if (Test-Path $MainBundleSql) {
+  $bundleRaw = [System.IO.File]::ReadAllText((Resolve-Path $MainBundleSql).Path, [System.Text.Encoding]::UTF8)
+  $lfBundle = $bundleRaw.Replace("`r`n", "`n")
+  $bundleBytes = [System.Text.Encoding]::UTF8.GetBytes($lfBundle)
+  $VALID_BUNDLE_HASH = [System.BitConverter]::ToString($sha256.ComputeHash($bundleBytes)).Replace('-', '').ToUpper()
+
+  $tempBundleDir = Join-Path ([System.IO.Path]::GetTempPath()) ("travelgo_test_altered_bundle_" + [System.Guid]::NewGuid().ToString())
+  try {
+    $fStage = Join-Path $tempBundleDir "supabase\staging"
+    New-Item -ItemType Directory -Path $fStage -Force | Out-Null
+    Copy-Item -LiteralPath $RunnerScript -Destination (Join-Path $fStage "run-staging.ps1")
+    Copy-Item -LiteralPath $BaselineSql -Destination (Join-Path $fStage "baseline.sql")
+    Copy-Item -LiteralPath $MainBundleSql -Destination (Join-Path $fStage "profile_privacy.bundle.sql")
+
+    $fRunner = Join-Path $fStage "run-staging.ps1"
+    $fBundle = Join-Path $fStage "profile_privacy.bundle.sql"
+
+    # Mutate bundle in isolated fixture
+    [System.IO.File]::AppendAllText($fBundle, "`n-- TAMPERED BUNDLE MUTANT`n")
+
+    $global:executorCalls = 0
+    $alteredBundleCaught = $false
+    try {
+      & $fRunner -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile $fBundle -ExpectedBaselineHash $VALID_BASELINE_HASH -ExpectedSqlHash $VALID_BUNDLE_HASH -ExecutorMock $countingMock
+    } catch {
+      if ($_.Exception.Message -match "Input SQL file hash mismatch") {
+        $alteredBundleCaught = $true
+      }
+    }
+
+    if ($alteredBundleCaught -and ($global:executorCalls -eq 0)) {
+      Write-Host "[PASS] Probe: Altered bundle in isolated fixture rejected before executor call (calls = 0)" -ForegroundColor Green
+      $script:testsPassed++
+    } else {
+      Write-Host "[FAIL] Probe: Altered bundle expected rejection and calls=0, got caught=$alteredBundleCaught, calls=$($global:executorCalls)" -ForegroundColor Red
+      $script:testsFailed++
+    }
+  } finally {
+    if (Test-Path $tempBundleDir) { Remove-Item -Path $tempBundleDir -Recurse -Force }
+  }
+}
+
+# Test 26: Permit pure-SQL bundle execution with ExpectedSqlHash
 if (Test-Path $MainBundleSql) {
   $bundleRaw = [System.IO.File]::ReadAllText((Resolve-Path $MainBundleSql).Path, [System.Text.Encoding]::UTF8)
   $lfBundle = $bundleRaw.Replace("`r`n", "`n")
@@ -272,8 +416,36 @@ if (Test-Path $MainBundleSql) {
   $VALID_BUNDLE_HASH = [System.BitConverter]::ToString($sha256.ComputeHash($bundleBytes)).Replace('-', '').ToUpper()
 
   Assert-Succeeds "Permit pure-SQL bundle in DryRun mode with verified hash" {
-    & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile $MainBundleSql -ExpectedBaselineHash $VALID_BASELINE_HASH -ExpectedSqlHash $VALID_BUNDLE_HASH -ExpectedHelperHash $VALID_HELPER_HASH -DryRun
+    & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile $MainBundleSql -ExpectedBaselineHash $VALID_BASELINE_HASH -ExpectedSqlHash $VALID_BUNDLE_HASH -DryRun
   }
+}
+
+# Test 27: Probe: REV-005 contract assertions: DEFAULT 3/26 accepted, DEFAULT 30/126 rejected
+$defaultNumDaysRegex = '^3(::integer)?$'
+$defaultTempRegex = '^26(\.0)?(::numeric)?$'
+$defaultRoleRegex = "^'customer'(::text)?$"
+
+$rev005Valid = (
+  ('3' -match $defaultNumDaysRegex) -and
+  ('3::integer' -match $defaultNumDaysRegex) -and
+  ('30' -notmatch $defaultNumDaysRegex) -and
+  ('13' -notmatch $defaultNumDaysRegex) -and
+  ('26.0' -match $defaultTempRegex) -and
+  ('26' -match $defaultTempRegex) -and
+  ('26.0::numeric' -match $defaultTempRegex) -and
+  ('126' -notmatch $defaultTempRegex) -and
+  ('260' -notmatch $defaultTempRegex) -and
+  ("'customer'" -match $defaultRoleRegex) -and
+  ("'customer'::text" -match $defaultRoleRegex) -and
+  ("'not_customer'" -notmatch $defaultRoleRegex)
+)
+
+if ($rev005Valid) {
+  Write-Host "[PASS] Probe: REV-005 exact default contract: DEFAULT 3/26 accepted, DEFAULT 30/126 rejected" -ForegroundColor Green
+  $script:testsPassed++
+} else {
+  Write-Host "[FAIL] Probe: REV-005 exact default contract failed" -ForegroundColor Red
+  $script:testsFailed++
 }
 
 # Cleanup dummy file

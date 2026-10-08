@@ -28,7 +28,7 @@ BEGIN
     RAISE EXCEPTION 'Precondition failed: table public.destinations does not exist';
   END IF;
 
-  -- 2. Verify structural contracts on public.profiles (types, nullability, defaults)
+  -- 2. Verify structural contracts on public.profiles (types, nullability, exact default contract)
   IF NOT EXISTS (
     SELECT 1 FROM information_schema.columns
     WHERE table_schema = 'public' AND table_name = 'profiles'
@@ -46,12 +46,12 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM information_schema.columns
     WHERE table_schema = 'public' AND table_name = 'profiles'
-      AND column_name = 'role' AND data_type = 'text' AND column_default LIKE '%customer%'
+      AND column_name = 'role' AND data_type = 'text' AND column_default ~ '^''customer''(::text)?$'
   ) THEN
     RAISE EXCEPTION 'Precondition failed: public.profiles.role must be text DEFAULT customer';
   END IF;
 
-  -- 3. Verify structural contracts on public.trips (types, nullability, defaults)
+  -- 3. Verify structural contracts on public.trips (types, nullability, exact default contract)
   IF NOT EXISTS (
     SELECT 1 FROM information_schema.columns
     WHERE table_schema = 'public' AND table_name = 'trips'
@@ -62,7 +62,7 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM information_schema.columns
     WHERE table_schema = 'public' AND table_name = 'trips'
-      AND column_name = 'num_days' AND data_type = 'integer' AND column_default LIKE '%3%'
+      AND column_name = 'num_days' AND data_type = 'integer' AND column_default ~ '^3(::integer)?$'
   ) THEN
     RAISE EXCEPTION 'Precondition failed: public.trips.num_days must be integer DEFAULT 3';
   END IF;
@@ -74,13 +74,13 @@ BEGIN
     RAISE EXCEPTION 'Precondition failed: public.trips.ai_plan_data must be jsonb';
   END IF;
 
-  -- 4. Verify structural contracts on public.trip_activities (types, nullability)
+  -- 4. Verify structural contracts on public.trip_activities (types, nullability, exact default contract)
   IF NOT EXISTS (
     SELECT 1 FROM information_schema.columns
     WHERE table_schema = 'public' AND table_name = 'trip_activities'
-      AND column_name = 'cost' AND data_type = 'numeric'
+      AND column_name = 'cost' AND data_type = 'numeric' AND column_default ~ '^0(\.0)?(::numeric)?$'
   ) THEN
-    RAISE EXCEPTION 'Precondition failed: public.trip_activities.cost must be numeric';
+    RAISE EXCEPTION 'Precondition failed: public.trip_activities.cost must be numeric DEFAULT 0';
   END IF;
   IF NOT EXISTS (
     SELECT 1 FROM information_schema.columns
@@ -90,23 +90,47 @@ BEGIN
     RAISE EXCEPTION 'Precondition failed: public.trip_activities.trip_id must be uuid NOT NULL';
   END IF;
 
-  -- 5. Verify structural contracts on public.destinations (defaults)
+  -- 5. Verify structural contracts on public.destinations (exact default contract)
   IF NOT EXISTS (
     SELECT 1 FROM information_schema.columns
     WHERE table_schema = 'public' AND table_name = 'destinations'
-      AND column_name = 'weather_cached_temp' AND data_type = 'numeric' AND column_default LIKE '%26%'
+      AND column_name = 'weather_cached_temp' AND data_type = 'numeric' AND column_default ~ '^26(\.0)?(::numeric)?$'
   ) THEN
     RAISE EXCEPTION 'Precondition failed: public.destinations.weather_cached_temp must be numeric DEFAULT 26.0';
   END IF;
   IF NOT EXISTS (
     SELECT 1 FROM information_schema.columns
     WHERE table_schema = 'public' AND table_name = 'destinations'
-      AND column_name = 'is_popular' AND data_type = 'boolean' AND column_default LIKE '%true%'
+      AND column_name = 'is_popular' AND data_type = 'boolean' AND column_default ~ '^true(::boolean)?$'
   ) THEN
     RAISE EXCEPTION 'Precondition failed: public.destinations.is_popular must be boolean DEFAULT true';
   END IF;
 
-  -- 6. Verify baseline trigger function signature contract
+  -- 6. Verify Foreign Key relationships in scope
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint c
+    JOIN pg_class t ON c.conrelid = t.oid
+    JOIN pg_namespace n ON t.relnamespace = n.oid
+    WHERE n.nspname = 'public' AND t.relname = 'trip_activities'
+      AND c.contype = 'f'
+      AND c.confrelid = 'public.trips'::regclass
+  ) THEN
+    RAISE EXCEPTION 'Precondition failed: public.trip_activities must have foreign key to public.trips';
+  END IF;
+
+  -- 7. Verify Check constraints in scope
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint c
+    JOIN pg_class t ON c.conrelid = t.oid
+    JOIN pg_namespace n ON t.relnamespace = n.oid
+    WHERE n.nspname = 'public' AND t.relname = 'profiles'
+      AND c.contype = 'c'
+      AND pg_get_constraintdef(c.oid) ~ 'role.*customer'
+  ) THEN
+    RAISE EXCEPTION 'Precondition failed: public.profiles must have CHECK constraint on role';
+  END IF;
+
+  -- 8. Verify baseline trigger function signature contract
   IF NOT EXISTS (
     SELECT 1 FROM pg_proc p
     JOIN pg_namespace n ON p.pronamespace = n.oid
@@ -114,8 +138,9 @@ BEGIN
       AND p.proname = 'handle_new_user'
       AND p.prorettype = 'trigger'::regtype
       AND p.pronargs = 0
+      AND p.prosecdef = true
   ) THEN
-    RAISE EXCEPTION 'Precondition failed: public.handle_new_user procedure must exist and return trigger';
+    RAISE EXCEPTION 'Precondition failed: public.handle_new_user procedure must exist, be SECURITY DEFINER, and return trigger';
   END IF;
 END $precondition$;
 

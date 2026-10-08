@@ -96,32 +96,7 @@ $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $canonicalBaselinePath = (Resolve-Path (Join-Path $scriptDir "baseline.sql")).Path
 $resolvedSqlPath = (Resolve-Path $SqlFile).Path
 
-# 9. Consistent Input SQL File Integrity Check (LF-normalized SHA-256)
-if (![string]::IsNullOrWhiteSpace($ExpectedSqlHash)) {
-  $computedHex = Get-NormalizedSha256 -filePath $resolvedSqlPath
-  if ($computedHex -ne $ExpectedSqlHash.Trim().ToUpper()) {
-    throw "Input SQL file hash mismatch! Expected: '$ExpectedSqlHash', Actual: '$computedHex' on '$SqlFile'."
-  }
-}
-
-# 9.1 Dependency & Manifest Protection Guard
-$rawSqlContent = [System.IO.File]::ReadAllText($resolvedSqlPath, [System.Text.Encoding]::UTF8)
-$dependsOnHelper = ($rawSqlContent -match 'profile_privacy_test_helpers\.sql')
-if ($dependsOnHelper) {
-  $repoRoot = (Resolve-Path (Join-Path $scriptDir "..\..")).Path
-  $helperPath = Join-Path $repoRoot "supabase\tests\profile_privacy_test_helpers.sql"
-  if (Test-Path $helperPath) {
-    if ([string]::IsNullOrWhiteSpace($ExpectedHelperHash)) {
-      throw "DEPENDENCY INTEGRITY FAILURE: '$SqlFile' depends on 'profile_privacy_test_helpers.sql'. -ExpectedHelperHash is mandatory to verify dependency integrity before execution."
-    }
-    $computedHelperHex = Get-NormalizedSha256 -filePath $helperPath
-    if ($computedHelperHex -ne $ExpectedHelperHash.Trim().ToUpper()) {
-      throw "DEPENDENCY HASH MISMATCH: Dependency 'profile_privacy_test_helpers.sql' hash mismatch! Expected: '$ExpectedHelperHash', Actual: '$computedHelperHex'. Target rejected before connection."
-    }
-  }
-}
-
-# 10. Bootstrap vs Corrective Mode Enforcement
+# 9. Bootstrap vs Corrective Mode & Baseline Integrity Enforcement
 if ($Bootstrap) {
   # Strict canonical path binding: Must match the runner's canonical baseline artifact exactly
   if ($resolvedSqlPath -ne $canonicalBaselinePath) {
@@ -150,6 +125,45 @@ if ($Bootstrap) {
     }
   } else {
     throw "Baseline file not found at '$canonicalBaselinePath' to verify -ExpectedBaselineHash."
+  }
+}
+
+# 10. Consistent Input SQL File Integrity Check (LF-normalized SHA-256)
+if (!$Bootstrap) {
+  if ([string]::IsNullOrWhiteSpace($ExpectedSqlHash)) {
+    throw "CORRECTIVE RUN REJECTED: Corrective mode requires -ExpectedSqlHash to verify input artifact integrity before execution."
+  }
+}
+
+if (![string]::IsNullOrWhiteSpace($ExpectedSqlHash)) {
+  $computedHex = Get-NormalizedSha256 -filePath $resolvedSqlPath
+  if ($computedHex -ne $ExpectedSqlHash.Trim().ToUpper()) {
+    throw "Input SQL file hash mismatch! Expected: '$ExpectedSqlHash', Actual: '$computedHex' on '$SqlFile'."
+  }
+}
+
+# 11. Modular Dependency & Manifest Protection Guard
+$rawSqlContent = [System.IO.File]::ReadAllText($resolvedSqlPath, [System.Text.Encoding]::UTF8)
+$isModularHarness = ($rawSqlContent -match '(?m)^\s*\\ir\s+.*profile_privacy_test_helpers\.sql')
+if ($isModularHarness) {
+  $repoRoot = (Resolve-Path (Join-Path $scriptDir "..\..")).Path
+  $candidatePaths = @(
+    (Join-Path (Split-Path -Parent $resolvedSqlPath) "profile_privacy_test_helpers.sql"),
+    (Join-Path $repoRoot "supabase\tests\profile_privacy_test_helpers.sql")
+  )
+  $helperPath = $candidatePaths | Where-Object { Test-Path $_ } | Select-Object -First 1
+
+  if (!$helperPath -or !(Test-Path $helperPath)) {
+    throw "DEPENDENCY INTEGRITY FAILURE: Modular harness '$SqlFile' depends on 'profile_privacy_test_helpers.sql', but the helper file does not exist on disk. Target rejected before connection."
+  }
+
+  if ([string]::IsNullOrWhiteSpace($ExpectedHelperHash)) {
+    throw "DEPENDENCY INTEGRITY FAILURE: Modular harness '$SqlFile' depends on 'profile_privacy_test_helpers.sql'. -ExpectedHelperHash is mandatory to verify dependency integrity before execution."
+  }
+
+  $computedHelperHex = Get-NormalizedSha256 -filePath $helperPath
+  if ($computedHelperHex -ne $ExpectedHelperHash.Trim().ToUpper()) {
+    throw "DEPENDENCY HASH MISMATCH: Dependency 'profile_privacy_test_helpers.sql' hash mismatch! Expected: '$ExpectedHelperHash', Actual: '$computedHelperHex'. Target rejected before connection."
   }
 }
 
