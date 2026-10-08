@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../models/saved_trip_model.dart';
 
 class TripsService {
@@ -19,8 +20,14 @@ class TripsService {
   void _validateSessionOwner(String userId, SupabaseClient client) {
     final session = client.auth.currentSession;
     final currentUser = client.auth.currentUser;
-    if (session == null || currentUser == null || currentUser.id != userId || session.isExpired) {
-      throw StateError('Không có phiên làm việc Supabase hợp lệ hoặc phiên người dùng không khớp.');
+    if (session == null ||
+        currentUser == null ||
+        currentUser.id != userId ||
+        session.accessToken.trim().isEmpty ||
+        session.isExpired) {
+      throw StateError(
+        'Không có phiên làm việc Supabase hợp lệ hoặc phiên người dùng không khớp.',
+      );
     }
   }
 
@@ -67,8 +74,10 @@ class TripsService {
         .single();
 
     final saved = SavedTrip.fromJson(response);
-    if (saved.id.isEmpty) {
-      throw StateError('Máy chủ không trả về mã định danh ID hợp lệ.');
+    if (saved.id.isEmpty || saved.userId != trip.userId) {
+      throw StateError(
+        'Máy chủ không trả về mã định danh ID hoặc chủ sở hữu hợp lệ.',
+      );
     }
     return saved;
   }
@@ -82,6 +91,10 @@ class TripsService {
       throw StateError('Chưa thể kết nối tới cơ sở dữ liệu Supabase.');
     }
 
+    if (tripId.trim().isEmpty || userId.trim().isEmpty) {
+      return false;
+    }
+
     _validateSessionOwner(userId, client);
 
     final response = await client
@@ -91,11 +104,11 @@ class TripsService {
         .eq('user_id', userId)
         .select('id, user_id');
 
-    final list = response as List<dynamic>;
-    return list.isNotEmpty &&
-        list.any((item) =>
-            item is Map &&
-            item['id'] == tripId &&
-            item['user_id'] == userId);
+    if (response.length != 1) {
+      return false;
+    }
+
+    final singleRow = response.first;
+    return singleRow['id'] == tripId && singleRow['user_id'] == userId;
   }
 }

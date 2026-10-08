@@ -1,5 +1,6 @@
 // ignore_for_file: depend_on_referenced_packages
 import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -7,180 +8,85 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:travelgo_mobile/features/trips/models/saved_trip_model.dart';
 import 'package:travelgo_mobile/features/trips/services/trips_service.dart';
 
-class _FakeAuthClient extends GoTrueClient {
-  Session? _mockSession;
-
-  _FakeAuthClient({Session? initialSession}) : _mockSession = initialSession, super();
-
-  void updateMockSession(Session? session) {
-    _mockSession = session;
-  }
-
-  @override
-  Session? get currentSession => _mockSession;
-
-  @override
-  User? get currentUser => _mockSession?.user;
-}
-
-class _FakeSupabaseClient extends SupabaseClient {
-  final _FakeAuthClient mockAuthClient;
-
-  _FakeSupabaseClient({
-    required this.mockAuthClient,
-    required http.Client httpClient,
-  }) : super(
-          'https://test-project.supabase.co',
-          'anon-key-test',
-          httpClient: httpClient,
-          authOptions: const AuthClientOptions(autoRefreshToken: false),
-        );
-
-  @override
-  GoTrueClient get auth => mockAuthClient;
-}
+const String testUserId = '11111111-1111-4111-8111-111111111111';
+const String testTripId = '22222222-2222-4222-8222-222222222222';
 
 void main() {
-  group('TripsService Security & Acknowledgement (REV-003, REV-004)', () {
-    late int httpCalls;
-    late _FakeAuthClient fakeAuth;
-    late _FakeSupabaseClient client;
+  group('TripsService Real SDK Security & Exact Acknowledgement (Task 2)', () {
+    int authCalls = 0;
+    int restCalls = 0;
 
-    Session createSession({
-      required String userId,
+    String createToken({required String userId, bool expired = false}) {
+      final nowSec = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      final exp = expired ? nowSec - 3600 : nowSec + 3600;
+      final tokenPayload = base64Url
+          .encode(
+            utf8.encode(
+              jsonEncode({'sub': userId, 'exp': exp, 'role': 'authenticated'}),
+            ),
+          )
+          .replaceAll('=', '');
+      return 'eyJhbGciOiJIUzI1NiJ9.$tokenPayload.synthetic';
+    }
+
+    SupabaseClient createRealClient({
+      required Future<http.Response> Function(http.Request req) restHandler,
+      String userId = testUserId,
       bool expired = false,
     }) {
-      final nowSec = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-      final expiresAt = expired ? nowSec - 3600 : nowSec + 3600;
+      authCalls = 0;
+      restCalls = 0;
 
-      final header = base64Url
-          .encode(utf8.encode(jsonEncode({'alg': 'none', 'typ': 'JWT'})))
-          .replaceAll('=', '');
-      final payload = base64Url
-          .encode(utf8.encode(jsonEncode({
-            'sub': userId,
-            'exp': expiresAt,
-            'role': 'authenticated',
-          })))
-          .replaceAll('=', '');
-      final token = '$header.$payload.mock-signature';
+      final token = createToken(userId: userId, expired: expired);
 
-      return Session(
-        accessToken: token,
-        tokenType: 'bearer',
-        expiresIn: expired ? -3600 : 3600,
-        refreshToken: 'mock-refresh-$userId',
-        user: User(
-          id: userId,
-          appMetadata: {},
-          userMetadata: {},
-          aud: 'authenticated',
-          createdAt: '2026-01-01T00:00:00.000Z',
-        ),
+      return SupabaseClient(
+        'https://test-project.supabase.co',
+        'synthetic-anon-key',
+        authOptions: const AuthClientOptions(autoRefreshToken: false),
+        httpClient: MockClient((req) async {
+          if (req.url.path == '/auth/v1/token') {
+            authCalls++;
+            return http.Response(
+              jsonEncode({
+                'access_token': token,
+                'token_type': 'bearer',
+                'expires_in': expired ? -3600 : 3600,
+                'refresh_token': 'synthetic-refresh',
+                'user': {
+                  'id': userId,
+                  'aud': 'authenticated',
+                  'role': 'authenticated',
+                  'email': 'user@example.com',
+                  'app_metadata': {},
+                  'user_metadata': {},
+                  'created_at': '2026-10-08T00:00:00Z',
+                },
+              }),
+              200,
+              request: req,
+              headers: {'content-type': 'application/json; charset=utf-8'},
+            );
+          }
+
+          restCalls++;
+          return restHandler(req);
+        }),
       );
     }
 
-    TripsService setupService({
-      required Future<http.Response> Function(http.Request request) handler,
-      Session? initialSession,
-    }) {
-      httpCalls = 0;
-      fakeAuth = _FakeAuthClient(initialSession: initialSession);
-
-      final mockHttp = MockClient((request) async {
-        httpCalls++;
-        return handler(request);
-      });
-
-      client = _FakeSupabaseClient(
-        mockAuthClient: fakeAuth,
-        httpClient: mockHttp,
-      );
-
-      return TripsService(client: client);
-    }
-
-    test('fetchTrips fails closed synchronously when currentSession is null (no HTTP call)', () async {
-      final service = setupService(
-        handler: (req) async => http.Response('[]', 200, request: req),
-        initialSession: null,
-      );
-
-      expect(
-        () => service.fetchTrips('user-alice'),
-        throwsA(isA<StateError>()),
-      );
-      expect(httpCalls, 0, reason: 'Zero HTTP requests should be dispatched when session is null');
-    });
-
-    test('fetchTrips fails closed synchronously when currentUser.id does not match requested userId', () async {
-      final aliceSession = createSession(userId: 'user-alice');
-      final service = setupService(
-        handler: (req) async => http.Response('[]', 200, request: req),
-        initialSession: aliceSession,
-      );
-
-      expect(
-        () => service.fetchTrips('user-bob'),
-        throwsA(isA<StateError>()),
-      );
-      expect(httpCalls, 0, reason: 'Zero HTTP requests should be dispatched when userId mismatches session');
-    });
-
-    test('fetchTrips fails closed synchronously when SDK session is expired', () async {
-      final expiredSession = createSession(userId: 'user-alice', expired: true);
-      final service = setupService(
-        handler: (req) async => http.Response('[]', 200, request: req),
-        initialSession: expiredSession,
-      );
-
-      expect(
-        () => service.fetchTrips('user-alice'),
-        throwsA(isA<StateError>()),
-      );
-      expect(httpCalls, 0, reason: 'Zero HTTP requests should be dispatched when session is expired');
-    });
-
-    test('saveTrip and deleteTrip fail closed synchronously when SDK session is missing or mismatched', () async {
-      final service = setupService(
-        handler: (req) async => http.Response('[]', 200, request: req),
-        initialSession: null,
-      );
-
-      final dummyTrip = SavedTrip(
-        id: 't-1',
-        userId: 'user-alice',
-        title: 'Trip 1',
-        destinationName: 'Đà Nẵng',
-        tripPlanData: {},
-        createdAt: DateTime.now(),
-      );
-
-      expect(
-        () => service.saveTrip(dummyTrip),
-        throwsA(isA<StateError>()),
-      );
-      expect(
-        () => service.deleteTrip(tripId: 't-1', userId: 'user-alice'),
-        throwsA(isA<StateError>()),
-      );
-      expect(httpCalls, 0, reason: 'Zero REST requests when session is null');
-    });
-
-    test('deleteTrip returns true only when server acknowledges deleted row matching tripId and userId', () async {
-      final aliceSession = createSession(userId: 'user-alice');
-      final service = setupService(
-        initialSession: aliceSession,
-        handler: (req) async {
+    test('delete_rejects_multiple_ack_rows (REV-003 Red Probe)', () async {
+      final client = createRealClient(
+        restHandler: (req) async {
           expect(req.method, 'DELETE');
-          expect(req.url.path, contains('/trips'));
-          expect(req.url.queryParameters['id'], 'eq.trip-101');
-          expect(req.url.queryParameters['user_id'], 'eq.user-alice');
+          expect(req.url.path, '/rest/v1/trips');
+          expect(req.url.queryParameters['id'], 'eq.$testTripId');
+          expect(req.url.queryParameters['user_id'], 'eq.$testUserId');
           expect(req.url.queryParameters['select'], 'id,user_id');
 
           return http.Response(
             jsonEncode([
-              {'id': 'trip-101', 'user_id': 'user-alice'}
+              {'id': testTripId, 'user_id': testUserId},
+              {'id': 'unexpected-extra-row', 'user_id': testUserId},
             ]),
             200,
             request: req,
@@ -189,38 +95,38 @@ void main() {
         },
       );
 
-      final result = await service.deleteTrip(tripId: 'trip-101', userId: 'user-alice');
-      expect(result, isTrue);
-      expect(httpCalls, 1);
+      try {
+        await client.auth.signInWithPassword(
+          email: 'user@example.com',
+          password: 'secret',
+        );
+        expect(client.auth.currentSession, isNotNull);
+        expect(authCalls, 1);
+
+        final service = TripsService(client: client);
+        final result = await service.deleteTrip(
+          tripId: testTripId,
+          userId: testUserId,
+        );
+
+        expect(restCalls, 1);
+        expect(
+          result,
+          isFalse,
+          reason: 'Response containing multiple rows must NOT be acknowledged as valid single delete',
+        );
+      } finally {
+        await client.dispose();
+      }
     });
 
-    test('deleteTrip returns false when server returns empty array (zero rows affected / wrong owner / not found)', () async {
-      final aliceSession = createSession(userId: 'user-alice');
-      final service = setupService(
-        initialSession: aliceSession,
-        handler: (req) async {
-          return http.Response(
-            jsonEncode([]),
-            200,
-            request: req,
-            headers: {'content-type': 'application/json; charset=utf-8'},
-          );
-        },
-      );
-
-      final result = await service.deleteTrip(tripId: 'trip-999', userId: 'user-alice');
-      expect(result, isFalse, reason: 'Deleting nonexistent or unowned trip must return false, NOT true');
-      expect(httpCalls, 1);
-    });
-
-    test('deleteTrip returns false when server returns mismatched row data', () async {
-      final aliceSession = createSession(userId: 'user-alice');
-      final service = setupService(
-        initialSession: aliceSession,
-        handler: (req) async {
+    test('delete_acknowledges_exactly_one_matching_row', () async {
+      final client = createRealClient(
+        restHandler: (req) async {
+          expect(req.headers['authorization'], startsWith('Bearer eyJ'));
           return http.Response(
             jsonEncode([
-              {'id': 'different-trip-id', 'user_id': 'user-alice'}
+              {'id': testTripId, 'user_id': testUserId},
             ]),
             200,
             request: req,
@@ -229,49 +135,158 @@ void main() {
         },
       );
 
-      final result = await service.deleteTrip(tripId: 'trip-101', userId: 'user-alice');
-      expect(result, isFalse);
+      try {
+        await client.auth.signInWithPassword(
+          email: 'user@example.com',
+          password: 'secret',
+        );
+        final service = TripsService(client: client);
+        final result = await service.deleteTrip(
+          tripId: testTripId,
+          userId: testUserId,
+        );
+
+        expect(restCalls, 1);
+        expect(result, isTrue);
+      } finally {
+        await client.dispose();
+      }
     });
 
-    test('deleteTrip propagates PostgrestException when server returns error (e.g. 401 / 403)', () async {
-      final aliceSession = createSession(userId: 'user-alice');
-      final service = setupService(
-        initialSession: aliceSession,
-        handler: (req) async {
-          return http.Response(
-            jsonEncode({
-              'code': '42501',
-              'message': 'permission denied for table trips',
-            }),
-            403,
-            request: req,
-            headers: {'content-type': 'application/json; charset=utf-8'},
-          );
-        },
+    test('delete_rejects_zero_rows_response', () async {
+      final client = createRealClient(
+        restHandler: (req) async => http.Response(
+          '[]',
+          200,
+          request: req,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        ),
       );
 
-      expect(
-        () => service.deleteTrip(tripId: 'trip-101', userId: 'user-alice'),
-        throwsA(isA<PostgrestException>()),
-      );
+      try {
+        await client.auth.signInWithPassword(
+          email: 'user@example.com',
+          password: 'secret',
+        );
+        final service = TripsService(client: client);
+        final result = await service.deleteTrip(
+          tripId: testTripId,
+          userId: testUserId,
+        );
+
+        expect(restCalls, 1);
+        expect(result, isFalse);
+      } finally {
+        await client.dispose();
+      }
     });
 
-    test('saveTrip validates required fields and parses server response with ID', () async {
-      final aliceSession = createSession(userId: 'user-alice');
-      final service = setupService(
-        initialSession: aliceSession,
-        handler: (req) async {
+    test('delete_rejects_mismatched_id_or_owner', () async {
+      final client = createRealClient(
+        restHandler: (req) async => http.Response(
+          jsonEncode([
+            {'id': 'different-id', 'user_id': testUserId},
+          ]),
+          200,
+          request: req,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        ),
+      );
+
+      try {
+        await client.auth.signInWithPassword(
+          email: 'user@example.com',
+          password: 'secret',
+        );
+        final service = TripsService(client: client);
+        final result = await service.deleteTrip(
+          tripId: testTripId,
+          userId: testUserId,
+        );
+
+        expect(result, isFalse);
+      } finally {
+        await client.dispose();
+      }
+    });
+
+    test('fetchTrips fails closed synchronously when session is null, mismatched, or expired', () async {
+      // 1. Session null
+      final clientNoAuth = createRealClient(
+        restHandler: (req) async => http.Response('[]', 200, request: req),
+      );
+      try {
+        final service = TripsService(client: clientNoAuth);
+        expect(
+          () => service.fetchTrips(testUserId),
+          throwsA(isA<StateError>()),
+        );
+        expect(restCalls, 0);
+      } finally {
+        await clientNoAuth.dispose();
+      }
+
+      // 2. Mismatched userId
+      final clientMismatch = createRealClient(
+        restHandler: (req) async => http.Response('[]', 200, request: req),
+      );
+      try {
+        await clientMismatch.auth.signInWithPassword(
+          email: 'user@example.com',
+          password: 'secret',
+        );
+        final service = TripsService(client: clientMismatch);
+        expect(
+          () => service.fetchTrips('different-user-id'),
+          throwsA(isA<StateError>()),
+        );
+        expect(restCalls, 0);
+      } finally {
+        await clientMismatch.dispose();
+      }
+
+      // 3. Expired session
+      final clientExpired = createRealClient(
+        restHandler: (req) async => http.Response('[]', 200, request: req),
+        expired: true,
+      );
+      try {
+        await clientExpired.auth.signInWithPassword(
+          email: 'user@example.com',
+          password: 'secret',
+        );
+        expect(clientExpired.auth.currentSession?.isExpired, isTrue);
+        final service = TripsService(client: clientExpired);
+        expect(
+          () => service.fetchTrips(testUserId),
+          throwsA(isA<StateError>()),
+        );
+        expect(restCalls, 0);
+      } finally {
+        await clientExpired.dispose();
+      }
+    });
+
+    test('saveTrip validates required fields and verifies server ID & owner acknowledgement', () async {
+      final client = createRealClient(
+        restHandler: (req) async {
           expect(req.method, 'POST');
+          expect(req.url.path, '/rest/v1/trips');
+          final decodedBody = jsonDecode(req.body) as Map<String, dynamic>;
+          // Verification: ai_plan_data exists in payload, NOT legacy trip_plan_data
+          expect(decodedBody['ai_plan_data'], isNotNull);
+          expect(decodedBody['trip_plan_data'], isNull);
+
           return http.Response(
             jsonEncode({
-              'id': 'server-gen-uuid-456',
-              'user_id': 'user-alice',
-              'title': 'Chuyến đi Hà Nội',
-              'destination_name': 'Hà Nội',
-              'num_days': 2,
-              'budget_total': 3000000,
-              'trip_plan_data': {'test': true},
-              'created_at': '2026-10-08T12:00:00.000Z',
+              'id': testTripId,
+              'user_id': testUserId,
+              'title': 'Chuyến đi Phú Quốc',
+              'destination_name': 'Phú Quốc',
+              'num_days': 4,
+              'budget_total': 8000000,
+              'ai_plan_data': {'hotel': 'Resort'},
+              'created_at': '2026-10-08T00:00:00Z',
             }),
             201,
             request: req,
@@ -280,31 +295,63 @@ void main() {
         },
       );
 
-      final validTrip = SavedTrip(
-        id: '',
-        userId: 'user-alice',
-        title: 'Chuyến đi Hà Nội',
-        destinationName: 'Hà Nội',
-        numDays: 2,
-        budgetTotal: 3000000,
-        tripPlanData: {'test': true},
-        createdAt: DateTime.now(),
-      );
+      try {
+        await client.auth.signInWithPassword(
+          email: 'user@example.com',
+          password: 'secret',
+        );
+        final service = TripsService(client: client);
 
-      final saved = await service.saveTrip(validTrip);
-      expect(saved.id, 'server-gen-uuid-456');
-      expect(saved.title, 'Chuyến đi Hà Nội');
+        final validTrip = SavedTrip(
+          id: '',
+          userId: testUserId,
+          title: 'Chuyến đi Phú Quốc',
+          destinationName: 'Phú Quốc',
+          numDays: 4,
+          budgetTotal: 8000000,
+          tripPlanData: {'hotel': 'Resort'},
+          createdAt: DateTime.now(),
+        );
 
-      // Empty title should fail synchronously
-      final invalidTrip = SavedTrip(
-        id: '',
-        userId: 'user-alice',
-        title: '   ',
-        destinationName: 'Hà Nội',
-        tripPlanData: {},
-        createdAt: DateTime.now(),
-      );
-      expect(() => service.saveTrip(invalidTrip), throwsA(isA<ArgumentError>()));
+        final saved = await service.saveTrip(validTrip);
+        expect(saved.id, testTripId);
+        expect(saved.userId, testUserId);
+        expect(restCalls, 1);
+      } finally {
+        await client.dispose();
+      }
     });
+
+    test(
+      'deleteTrip propagates PostgrestException when server returns 401/403',
+      () async {
+        final client = createRealClient(
+          restHandler: (req) async => http.Response(
+            jsonEncode({
+              'code': '42501',
+              'message': 'permission denied for table trips',
+            }),
+            403,
+            request: req,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          ),
+        );
+
+        try {
+          await client.auth.signInWithPassword(
+            email: 'user@example.com',
+            password: 'secret',
+          );
+          final service = TripsService(client: client);
+
+          expect(
+            () => service.deleteTrip(tripId: testTripId, userId: testUserId),
+            throwsA(isA<PostgrestException>()),
+          );
+        } finally {
+          await client.dispose();
+        }
+      },
+    );
   });
 }
