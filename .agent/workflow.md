@@ -199,3 +199,40 @@ Trﾆｰ盻嫩 khi hoﾃn t蘯･t b蘯･t k盻ｳ task nﾃo, Agent b蘯
 - [ ] **5. Git Safety**: Ch盻・stage file liﾃｪn quan, khﾃｴng commit `build/`, `.dart_tool/`, `.gradle/`, keystore.
 - [ ] **6. Handover Report**: Xu蘯･t ﾄ黛ｺｧy ﾄ黛ｻｧ 5 m盻･c (Changed, Why, Testing, Problems, Lesson Candidate).
 
+
+<a id="owner-learning-workflow"></a>
+## 7. Giải thích sau mỗi vòng sửa và review
+
+Mục tiêu: owner hiểu hệ thống chạy thế nào, vì sao sửa và vì sao reviewer tin hoặc chưa tin kết quả. Áp dụng khi bàn giao implementation, sửa findings, review lại, hoặc báo blocked. Không cần tạo skill riêng: workflow này được route từ AGENTS.md và bắt buộc bởi rules.md.
+
+1. **Kết luận trước:** đã đạt, cần sửa thêm hoặc đang bị chặn; nêu ảnh hưởng chính bằng ngôn ngữ người dùng.
+2. **Luồng hoạt động:** thao tác người dùng → UI → lớp quản lý trạng thái → service/server/database → phản hồi → UI. Chỉ dùng các bước thực tế liên quan; phân biệt bộ nhớ app, lưu local và server khi cần.
+3. **Trước/sau và tư duy giải quyết:** chọn một lỗi đại diện; trigger nào gây lỗi, nguyên nhân và hành vi mong muốn. Nêu trách nhiệm của từng lớp, lý do chọn sửa ở đó và tradeoff có ý nghĩa. Nêu 1–2 nguyên tắc có thể áp dụng lại.
+4. **Ai đã đổi gì:** Antigravity mô tả implementation đã commit; Codex mô tả diff đã review, tests/probes mình chạy và corrections đang đề xuất. Không nói “đã sửa” khi chỉ viết plan hoặc thấy patch chưa được kiểm chứng.
+5. **Cách review:** giải thích giả định đã kiểm tra và một tình huống biên như lỗi mạng, phản hồi đến muộn, đổi tài khoản hoặc thao tác không có quyền. Kết nối test với hành vi cần chứng minh, không chỉ liệt kê số lượng test.
+6. **Evidence và giới hạn:** exact commit/PR, kết quả checks, phần NOT RUN/BLOCKED và rủi ro còn lại. Sau mỗi correction so với review trước: finding nào đã đóng bằng evidence, finding nào còn mở. Giữ owner merge/live rollout gate của task.
+
+### Cách tích hợp vào handover hiện có
+
+| Handover | Nội dung giải thích |
+| --- | --- |
+| Changed | Thành phần đã sửa, người sửa, hành vi trước/sau |
+| Why | Luồng liên quan, nguyên nhân, cách chọn giải pháp/tradeoff |
+| Testing | Cách reviewer kiểm giả định, test tình huống biên và kết quả thực |
+| Problems | Findings còn mở, việc chưa chạy/chưa deploy, ảnh hưởng |
+| Lesson Candidate | 1–2 nguyên tắc và ví dụ dùng lại trong chức năng khác |
+
+Có thể viết thành vài đoạn kết nối thay vì đủ sáu heading. Không lặp giải thích dài ở mọi commentary; cung cấp đầy đủ ở final/handover sau mỗi vòng. Với thay đổi nhỏ hoặc chỉ tài liệu, giải thích ngắn ở mức tương ứng. Không thêm tests/app edits chỉ để tạo bài giảng.
+
+### Ví dụ Travel-Go: đổi tài khoản A → B
+
+Luồng đúng: đổi tài khoản → xóa dữ liệu riêng của A trong bộ nhớ → tải trip B → hiển thị B. Nếu chỉ chặn response A đến muộn, trip A đã có vẫn còn khi B đang tải hoặc tải lỗi. Cách sửa cần cả xóa cache khi đổi chủ sở hữu và kiểm session của phản hồi.
+
+Nguyên tắc: **xóa dữ liệu cũ đang có và ngăn dữ liệu cũ quay lại là hai việc khác nhau**. Dùng lại cho giỏ hàng, tin nhắn hoặc hồ sơ. Review phải thử B đang tải/B lỗi và response A muộn; suite pass chưa đủ nếu thiếu những tình huống này. Ví dụ này không tự khẳng định lỗi của PR hiện tại đã được sửa.
+
+### Checklist trước trả kết quả
+
+- [ ] Owner nhìn được luồng và hành vi trước/sau.
+- [ ] Có lý do giải pháp, nguyên tắc dùng lại và một tình huống kiểm chứng khi phù hợp.
+- [ ] Phân biệt implementation/review/proposal và evidence/NOT RUN.
+- [ ] Findings quan trọng vẫn rõ; giải thích không thay kiểm thử hoặc quyền phê duyệt.
