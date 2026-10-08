@@ -177,4 +177,22 @@ class SavedTripsProvider extends ChangeNotifier {
     _isLoading = false;
     notifyListeners();
   }
+
+  /// Lifecycle synchronization hook driven by AuthProvider.
+  /// Ensures account isolation, demo session containment, and prevents cross-user stale cache.
+  void syncWithAuth({
+    required bool isAuthenticated,
+    required bool isDemoSession,
+    required String? userId,
+  }) {
+    if (isAuthenticated && !isDemoSession && userId != null && userId.isNotEmpty) {
+      if (_currentUserId != userId) {
+        loadTrips(userId);
+      }
+    } else {
+      if (_currentUserId != null || _trips.isNotEmpty) {
+        clearLocal();
+      }
+    }
+  }
 }

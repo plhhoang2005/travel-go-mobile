@@ -35,7 +35,20 @@ class TravelGoApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => TripProvider()),
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => FavoritesProvider()),
-        ChangeNotifierProvider(create: (_) => SavedTripsProvider()),
+        ChangeNotifierProxyProvider<AuthProvider, SavedTripsProvider>(
+          create: (_) => SavedTripsProvider(),
+          update: (_, auth, savedTrips) {
+            final provider = savedTrips ?? SavedTripsProvider();
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              provider.syncWithAuth(
+                isAuthenticated: auth.isAuthenticated,
+                isDemoSession: auth.isDemoSession,
+                userId: auth.currentUser?.id,
+              );
+            });
+            return provider;
+          },
+        ),
         ChangeNotifierProvider(create: (_) => HomeCatalogProvider()),
         ChangeNotifierProvider(create: (_) => MapProvider()),
       ],

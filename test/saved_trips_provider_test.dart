@@ -193,5 +193,126 @@ void main() {
       expect(provider.trips, isEmpty);
       expect(provider.currentUserId, isNull);
     });
+
+    test('Slow User A fetch followed by User B login ensures User B data wins (R04)', () async {
+      final userACompleter = Completer<List<SavedTrip>>();
+      fakeService.fetchCompleter = userACompleter;
+
+      // Start slow load for User A
+      provider.loadTrips('user-a');
+
+      // Switch to User B with immediate response
+      fakeService.fetchCompleter = null;
+      fakeService.fakeTrips = [
+        SavedTrip(
+          id: 'b-1',
+          userId: 'user-b',
+          title: 'Trip for B',
+          destinationName: 'Cần Thơ',
+          tripPlanData: {},
+          createdAt: DateTime.now(),
+        ),
+      ];
+      await provider.loadTrips('user-b');
+
+      expect(provider.currentUserId, 'user-b');
+      expect(provider.count, 1);
+      expect(provider.trips.first.title, 'Trip for B');
+
+      // Late response from User A arrives
+      userACompleter.complete([
+        SavedTrip(
+          id: 'a-1',
+          userId: 'user-a',
+          title: 'Trip for A',
+          destinationName: 'Hà Nội',
+          tripPlanData: {},
+          createdAt: DateTime.now(),
+        ),
+      ]);
+      await Future<void>.delayed(Duration.zero);
+
+      // User B must still win! No pollution from User A!
+      expect(provider.currentUserId, 'user-b');
+      expect(provider.count, 1);
+      expect(provider.trips.first.title, 'Trip for B');
+    });
+
+    test('In-flight save for User A is ignored if session switches to User B', () async {
+      await provider.loadTrips('user-a');
+
+      final saveCompleter = Completer<SavedTrip>();
+      fakeService.saveCompleter = saveCompleter;
+
+      // User A initiates save
+      final saveFuture = provider.saveTrip(
+        title: 'Trip by A',
+        destinationName: 'Sa Pa',
+        numDays: 3,
+        budgetTotal: 4000000,
+        tripPlanData: {},
+      );
+
+      // Account switches to User B before save returns
+      provider.clearLocal();
+      await provider.loadTrips('user-b');
+
+      // Server acknowledges User A save late
+      saveCompleter.complete(
+        SavedTrip(
+          id: 'server-id-a',
+          userId: 'user-a',
+          title: 'Trip by A',
+          destinationName: 'Sa Pa',
+          tripPlanData: {},
+          createdAt: DateTime.now(),
+        ),
+      );
+
+      final saveResult = await saveFuture;
+      expect(saveResult, isFalse);
+      expect(provider.currentUserId, 'user-b');
+      // No User A trips in User B session!
+      expect(provider.trips.any((t) => t.userId == 'user-a'), isFalse);
+    });
+
+    test('syncWithAuth purges RAM on guest or demo session and loads for real user', () {
+      fakeService.fakeTrips = [
+        SavedTrip(
+          id: 'trip-real-1',
+          userId: 'real-user-1',
+          title: 'Real Trip',
+          destinationName: 'Nha Trang',
+          tripPlanData: {},
+          createdAt: DateTime.now(),
+        ),
+      ];
+
+      // 1. Authenticated real user loads trips
+      provider.syncWithAuth(
+        isAuthenticated: true,
+        isDemoSession: false,
+        userId: 'real-user-1',
+      );
+      expect(provider.currentUserId, 'real-user-1');
+
+      // 2. Switch to guest -> RAM cleared
+      provider.syncWithAuth(
+        isAuthenticated: false,
+        isDemoSession: false,
+        userId: null,
+      );
+      expect(provider.currentUserId, isNull);
+      expect(provider.trips, isEmpty);
+
+      // 3. Demo login -> RAM cleared, no live queries
+      provider.syncWithAuth(
+        isAuthenticated: true,
+        isDemoSession: true,
+        userId: 'demo-minh',
+      );
+      expect(provider.currentUserId, isNull);
+      expect(provider.trips, isEmpty);
+    });
   });
 }
