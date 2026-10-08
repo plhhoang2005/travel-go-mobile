@@ -10,10 +10,11 @@
 BEGIN;
 
 -- ------------------------------------------------------------------------------
--- PRECONDITION CHECKS (Fail-closed)
+-- PRECONDITION CHECKS (Fail-closed Baseline & Schema Verification)
 -- ------------------------------------------------------------------------------
 DO $$
 BEGIN
+  -- Verify required tables exist
   IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'profiles') THEN
     RAISE EXCEPTION 'Precondition failed: table public.profiles does not exist';
   END IF;
@@ -25,6 +26,19 @@ BEGIN
   END IF;
   IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'destinations') THEN
     RAISE EXCEPTION 'Precondition failed: table public.destinations does not exist';
+  END IF;
+
+  -- Verify baseline columns exist on public.profiles
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'profiles' AND column_name = 'role') THEN
+    RAISE EXCEPTION 'Precondition failed: column role does not exist on public.profiles';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'profiles' AND column_name = 'full_name') THEN
+    RAISE EXCEPTION 'Precondition failed: column full_name does not exist on public.profiles';
+  END IF;
+
+  -- Verify baseline columns exist on public.trips
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'trips' AND column_name = 'ai_plan_data') THEN
+    RAISE EXCEPTION 'Precondition failed: column ai_plan_data does not exist on public.trips';
   END IF;
 END $$;
 
@@ -240,6 +254,7 @@ DECLARE
   v_activities_rls boolean;
   v_can_update_role boolean;
   v_can_truncate_trips boolean;
+  v_anon_can_select_profiles boolean;
 BEGIN
   -- Verify RLS is enabled on protected tables
   SELECT rowsecurity INTO v_profiles_rls FROM pg_tables WHERE schemaname = 'public' AND tablename = 'profiles';
@@ -260,6 +275,12 @@ BEGIN
   SELECT has_column_privilege('authenticated', 'public.profiles', 'role', 'UPDATE') INTO v_can_update_role;
   IF v_can_update_role THEN
     RAISE EXCEPTION 'Postcondition failed: authenticated role still has UPDATE privilege on profiles.role';
+  END IF;
+
+  -- Verify anon has NO SELECT privilege on profiles
+  SELECT has_table_privilege('anon', 'public.profiles', 'SELECT') INTO v_anon_can_select_profiles;
+  IF v_anon_can_select_profiles THEN
+    RAISE EXCEPTION 'Postcondition failed: anon role still has SELECT privilege on public.profiles';
   END IF;
 
   -- Verify mutating DDL privileges: TRUNCATE is revoked
