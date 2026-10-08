@@ -3,15 +3,22 @@ import '../models/saved_trip_model.dart';
 import '../services/trips_service.dart';
 
 class SavedTripsProvider extends ChangeNotifier {
-  final TripsService _service = TripsService();
+  final TripsService _service;
 
   List<SavedTrip> _trips = [];
   bool _isLoading = false;
   String? _currentUserId;
+  String? _errorMessage;
+  int _sessionEpoch = 0;
 
   List<SavedTrip> get trips => List.unmodifiable(_trips);
   bool get isLoading => _isLoading;
+  String? get errorMessage => _errorMessage;
+  String? get currentUserId => _currentUserId;
+  int get sessionEpoch => _sessionEpoch;
   int get count => _trips.length;
+
+  SavedTripsProvider({TripsService? service}) : _service = service ?? TripsService();
 
   List<SavedTrip> get upcomingTrips {
     final now = DateTime.now();
@@ -19,21 +26,42 @@ class SavedTripsProvider extends ChangeNotifier {
   }
 
   Future<void> loadTrips(String? userId) async {
+    _sessionEpoch++;
+    final targetEpoch = _sessionEpoch;
+
     if (userId == null || userId.isEmpty) {
       _trips = [];
       _currentUserId = null;
+      _errorMessage = null;
+      _isLoading = false;
       notifyListeners();
       return;
     }
 
     _currentUserId = userId;
     _isLoading = true;
+    _errorMessage = null;
     notifyListeners();
 
-    final fetched = await _service.fetchTrips(userId);
-    _trips = fetched;
-    _isLoading = false;
-    notifyListeners();
+    try {
+      final fetched = await _service.fetchTrips(userId);
+      // Drop late responses if epoch or user changed
+      if (_sessionEpoch != targetEpoch || _currentUserId != userId) {
+        return;
+      }
+      _trips = fetched;
+      _errorMessage = null;
+    } catch (e) {
+      if (_sessionEpoch != targetEpoch || _currentUserId != userId) {
+        return;
+      }
+      _errorMessage = 'Lỗi tải danh sách chuyến đi: ${e.toString()}';
+    } finally {
+      if (_sessionEpoch == targetEpoch && _currentUserId == userId) {
+        _isLoading = false;
+        notifyListeners();
+      }
+    }
   }
 
   Future<bool> saveTrip({
@@ -45,14 +73,21 @@ class SavedTripsProvider extends ChangeNotifier {
     DateTime? endDate,
     required Map<String, dynamic> tripPlanData,
   }) async {
-    if (_currentUserId == null) return false;
+    if (_currentUserId == null || _currentUserId!.isEmpty) {
+      _errorMessage = 'Vui lòng đăng nhập để lưu chuyến đi.';
+      notifyListeners();
+      return false;
+    }
 
+    final targetEpoch = _sessionEpoch;
+    final targetUserId = _currentUserId!;
     _isLoading = true;
+    _errorMessage = null;
     notifyListeners();
 
     final newTrip = SavedTrip(
       id: '',
-      userId: _currentUserId!,
+      userId: targetUserId,
       title: title,
       destinationName: destinationName,
       numDays: numDays,
@@ -63,46 +98,83 @@ class SavedTripsProvider extends ChangeNotifier {
       createdAt: DateTime.now(),
     );
 
-    final saved = await _service.saveTrip(newTrip);
-    _isLoading = false;
+    try {
+      final saved = await _service.saveTrip(newTrip);
 
-    if (saved != null) {
-      _trips.insert(0, saved);
+      // Verify epoch and session match
+      if (_sessionEpoch != targetEpoch || _currentUserId != targetUserId) {
+        return false;
+      }
+
+      // STRICT LAW: Success only after valid server ID acknowledgement
+      if (saved.id.isNotEmpty && saved.userId == targetUserId) {
+        _trips.insert(0, saved);
+        _errorMessage = null;
+        _isLoading = false;
+        notifyListeners();
+        return true;
+      } else {
+        _errorMessage = 'Máy chủ trả về phản hồi không hợp lệ.';
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+    } catch (e) {
+      if (_sessionEpoch != targetEpoch || _currentUserId != targetUserId) {
+        return false;
+      }
+      _errorMessage = 'Không thể lưu chuyến đi lên máy chủ: ${e.toString()}';
+      _isLoading = false;
       notifyListeners();
-      return true;
-    } else {
-      // Local optimistic fallback
-      _trips.insert(0, newTrip);
-      notifyListeners();
-      return true;
+      return false;
     }
   }
 
   Future<bool> deleteTrip(String tripId) async {
-    if (_currentUserId == null) return false;
+    if (_currentUserId == null || _currentUserId!.isEmpty) return false;
+
+    final targetEpoch = _sessionEpoch;
+    final targetUserId = _currentUserId!;
 
     final index = _trips.indexWhere((t) => t.id == tripId);
-    if (index >= 0) {
-      final removed = _trips.removeAt(index);
-      notifyListeners();
+    if (index < 0) return false;
 
+    final removed = _trips.removeAt(index);
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
       final success = await _service.deleteTrip(
         tripId: tripId,
-        userId: _currentUserId!,
+        userId: targetUserId,
       );
 
-      if (!success && tripId.isNotEmpty) {
-        _trips.insert(index, removed);
-        notifyListeners();
+      if (!success) {
+        // Rollback only if still in the same user session
+        if (_sessionEpoch == targetEpoch && _currentUserId == targetUserId) {
+          _trips.insert(index, removed);
+          _errorMessage = 'Không thể xóa chuyến đi khỏi máy chủ.';
+          notifyListeners();
+        }
         return false;
       }
+      return true;
+    } catch (e) {
+      if (_sessionEpoch == targetEpoch && _currentUserId == targetUserId) {
+        _trips.insert(index, removed);
+        _errorMessage = 'Lỗi khi xóa chuyến đi: ${e.toString()}';
+        notifyListeners();
+      }
+      return false;
     }
-    return true;
   }
 
   void clearLocal() {
+    _sessionEpoch++;
     _trips = [];
     _currentUserId = null;
+    _errorMessage = null;
+    _isLoading = false;
     notifyListeners();
   }
 }
