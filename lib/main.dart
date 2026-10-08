@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import 'core/constants/supabase_constants.dart';
 import 'core/theme/app_theme.dart';
 import 'features/trip_planner/providers/trip_provider.dart';
@@ -25,6 +26,29 @@ Future<void> main() async {
   runApp(const TravelGoApp());
 }
 
+SavedTripsProvider updateSavedTripsFromAuth(
+  AuthProvider auth,
+  SavedTripsProvider provider,
+) {
+  final user = auth.currentUser;
+  final isAuth = auth.isAuthenticated;
+  final isDemo = auth.isDemoSession;
+  final targetUserId = (isAuth && !isDemo && user != null && user.id.isNotEmpty)
+      ? user.id
+      : null;
+
+  provider.updateAuthContext(
+    isAuthenticated: isAuth,
+    isDemoSession: isDemo,
+    userId: targetUserId,
+  );
+
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    provider.fetchIfPending();
+  });
+  return provider;
+}
+
 class TravelGoApp extends StatelessWidget {
   const TravelGoApp({super.key});
 
@@ -37,26 +61,10 @@ class TravelGoApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => FavoritesProvider()),
         ChangeNotifierProxyProvider<AuthProvider, SavedTripsProvider>(
           create: (_) => SavedTripsProvider(),
-          update: (_, auth, savedTrips) {
-            final provider = savedTrips ?? SavedTripsProvider();
-            final user = auth.currentUser;
-            final isAuth = auth.isAuthenticated;
-            final isDemo = auth.isDemoSession;
-            final targetUserId = (isAuth && !isDemo && user != null && user.id.isNotEmpty)
-                ? user.id
-                : null;
-
-            provider.updateAuthContext(
-              isAuthenticated: isAuth,
-              isDemoSession: isDemo,
-              userId: targetUserId,
-            );
-
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              provider.fetchIfPending();
-            });
-            return provider;
-          },
+          update: (_, auth, savedTrips) => updateSavedTripsFromAuth(
+            auth,
+            savedTrips ?? SavedTripsProvider(),
+          ),
         ),
         ChangeNotifierProvider(create: (_) => HomeCatalogProvider()),
         ChangeNotifierProvider(create: (_) => MapProvider()),

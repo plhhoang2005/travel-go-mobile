@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../models/saved_trip_model.dart';
 import '../services/trips_service.dart';
 
@@ -10,6 +11,9 @@ class SavedTripsProvider extends ChangeNotifier {
   String? _currentUserId;
   String? _errorMessage;
   int _sessionEpoch = 0;
+  bool _isDisposed = false;
+  String? _pendingFetchUserId;
+  int? _pendingFetchEpoch;
 
   List<SavedTrip> get trips => List.unmodifiable(_trips);
   bool get isLoading => _isLoading;
@@ -18,14 +22,22 @@ class SavedTripsProvider extends ChangeNotifier {
   int get sessionEpoch => _sessionEpoch;
   int get count => _trips.length;
 
-  SavedTripsProvider({TripsService? service}) : _service = service ?? TripsService();
+  SavedTripsProvider({TripsService? service})
+    : _service = service ?? TripsService();
 
   List<SavedTrip> get upcomingTrips {
     final now = DateTime.now();
-    return _trips.where((t) => t.startDate == null || t.startDate!.isAfter(now.subtract(const Duration(days: 1)))).toList();
+    return _trips
+        .where(
+          (t) =>
+              t.startDate == null ||
+              t.startDate!.isAfter(now.subtract(const Duration(days: 1))),
+        )
+        .toList();
   }
 
   Future<void> loadTrips(String? userId) async {
+    if (_isDisposed) return;
     _sessionEpoch++;
     final targetEpoch = _sessionEpoch;
 
@@ -34,7 +46,9 @@ class SavedTripsProvider extends ChangeNotifier {
       _currentUserId = null;
       _errorMessage = null;
       _isLoading = false;
-      notifyListeners();
+      _pendingFetchUserId = null;
+      _pendingFetchEpoch = null;
+      if (!_isDisposed) notifyListeners();
       return;
     }
 
@@ -47,23 +61,29 @@ class SavedTripsProvider extends ChangeNotifier {
     _currentUserId = userId;
     _isLoading = true;
     _errorMessage = null;
-    notifyListeners();
+    if (!_isDisposed) notifyListeners();
 
     try {
       final fetched = await _service.fetchTrips(userId);
-      // Drop late responses if epoch or user changed
-      if (_sessionEpoch != targetEpoch || _currentUserId != userId) {
+      // Drop late responses if disposed, epoch changed, or user changed
+      if (_isDisposed ||
+          _sessionEpoch != targetEpoch ||
+          _currentUserId != userId) {
         return;
       }
       _trips = fetched;
       _errorMessage = null;
     } catch (e) {
-      if (_sessionEpoch != targetEpoch || _currentUserId != userId) {
+      if (_isDisposed ||
+          _sessionEpoch != targetEpoch ||
+          _currentUserId != userId) {
         return;
       }
       _errorMessage = 'Lỗi tải danh sách chuyến đi: ${e.toString()}';
     } finally {
-      if (_sessionEpoch == targetEpoch && _currentUserId == userId) {
+      if (!_isDisposed &&
+          _sessionEpoch == targetEpoch &&
+          _currentUserId == userId) {
         _isLoading = false;
         notifyListeners();
       }
@@ -79,9 +99,10 @@ class SavedTripsProvider extends ChangeNotifier {
     DateTime? endDate,
     required Map<String, dynamic> tripPlanData,
   }) async {
+    if (_isDisposed) return false;
     if (_currentUserId == null || _currentUserId!.isEmpty) {
       _errorMessage = 'Vui lòng đăng nhập để lưu chuyến đi.';
-      notifyListeners();
+      if (!_isDisposed) notifyListeners();
       return false;
     }
 
@@ -89,7 +110,7 @@ class SavedTripsProvider extends ChangeNotifier {
     final targetUserId = _currentUserId!;
     _isLoading = true;
     _errorMessage = null;
-    notifyListeners();
+    if (!_isDisposed) notifyListeners();
 
     final newTrip = SavedTrip(
       id: '',
@@ -107,8 +128,10 @@ class SavedTripsProvider extends ChangeNotifier {
     try {
       final saved = await _service.saveTrip(newTrip);
 
-      // Verify epoch and session match
-      if (_sessionEpoch != targetEpoch || _currentUserId != targetUserId) {
+      // Verify not disposed and epoch/session match
+      if (_isDisposed ||
+          _sessionEpoch != targetEpoch ||
+          _currentUserId != targetUserId) {
         return false;
       }
 
@@ -117,26 +140,29 @@ class SavedTripsProvider extends ChangeNotifier {
         _trips.insert(0, saved);
         _errorMessage = null;
         _isLoading = false;
-        notifyListeners();
+        if (!_isDisposed) notifyListeners();
         return true;
       } else {
         _errorMessage = 'Máy chủ trả về phản hồi không hợp lệ.';
         _isLoading = false;
-        notifyListeners();
+        if (!_isDisposed) notifyListeners();
         return false;
       }
     } catch (e) {
-      if (_sessionEpoch != targetEpoch || _currentUserId != targetUserId) {
+      if (_isDisposed ||
+          _sessionEpoch != targetEpoch ||
+          _currentUserId != targetUserId) {
         return false;
       }
       _errorMessage = 'Không thể lưu chuyến đi lên máy chủ: ${e.toString()}';
       _isLoading = false;
-      notifyListeners();
+      if (!_isDisposed) notifyListeners();
       return false;
     }
   }
 
   Future<bool> deleteTrip(String tripId) async {
+    if (_isDisposed) return false;
     if (_currentUserId == null || _currentUserId!.isEmpty) return false;
 
     final targetEpoch = _sessionEpoch;
@@ -147,7 +173,7 @@ class SavedTripsProvider extends ChangeNotifier {
 
     final removed = _trips.removeAt(index);
     _errorMessage = null;
-    notifyListeners();
+    if (!_isDisposed) notifyListeners();
 
     try {
       final success = await _service.deleteTrip(
@@ -156,8 +182,10 @@ class SavedTripsProvider extends ChangeNotifier {
       );
 
       if (!success) {
-        // Rollback only if still in the same user session
-        if (_sessionEpoch == targetEpoch && _currentUserId == targetUserId) {
+        // Rollback only if still in the same user session and not disposed
+        if (!_isDisposed &&
+            _sessionEpoch == targetEpoch &&
+            _currentUserId == targetUserId) {
           _trips.insert(index, removed);
           _errorMessage = 'Không thể xóa chuyến đi khỏi máy chủ.';
           notifyListeners();
@@ -166,7 +194,9 @@ class SavedTripsProvider extends ChangeNotifier {
       }
       return true;
     } catch (e) {
-      if (_sessionEpoch == targetEpoch && _currentUserId == targetUserId) {
+      if (!_isDisposed &&
+          _sessionEpoch == targetEpoch &&
+          _currentUserId == targetUserId) {
         _trips.insert(index, removed);
         _errorMessage = 'Lỗi khi xóa chuyến đi: ${e.toString()}';
         notifyListeners();
@@ -181,15 +211,19 @@ class SavedTripsProvider extends ChangeNotifier {
     _currentUserId = null;
     _errorMessage = null;
     _isLoading = false;
-    notifyListeners();
+    _pendingFetchUserId = null;
+    _pendingFetchEpoch = null;
+    if (!_isDisposed) {
+      notifyListeners();
+    }
   }
-
-  bool _isDisposed = false;
-  String? _pendingFetchUserId;
 
   @override
   void dispose() {
     _isDisposed = true;
+    _sessionEpoch++;
+    _pendingFetchUserId = null;
+    _pendingFetchEpoch = null;
     super.dispose();
   }
 
@@ -200,7 +234,11 @@ class SavedTripsProvider extends ChangeNotifier {
     required bool isDemoSession,
     required String? userId,
   }) {
-    if (isAuthenticated && !isDemoSession && userId != null && userId.isNotEmpty) {
+    if (_isDisposed) return;
+    if (isAuthenticated &&
+        !isDemoSession &&
+        userId != null &&
+        userId.isNotEmpty) {
       if (_currentUserId != userId) {
         _sessionEpoch++;
         _trips = [];
@@ -208,15 +246,19 @@ class SavedTripsProvider extends ChangeNotifier {
         _errorMessage = null;
         _isLoading = true;
         _pendingFetchUserId = userId;
+        _pendingFetchEpoch = _sessionEpoch;
       }
     } else {
-      if (_currentUserId != null || _trips.isNotEmpty) {
+      if (_currentUserId != null ||
+          _trips.isNotEmpty ||
+          _pendingFetchUserId != null) {
         _sessionEpoch++;
         _trips = [];
         _currentUserId = null;
         _errorMessage = null;
         _isLoading = false;
         _pendingFetchUserId = null;
+        _pendingFetchEpoch = null;
       }
     }
   }
@@ -225,8 +267,13 @@ class SavedTripsProvider extends ChangeNotifier {
   void fetchIfPending() {
     if (_isDisposed) return;
     final targetUserId = _pendingFetchUserId;
-    if (targetUserId != null && targetUserId.isNotEmpty) {
-      _pendingFetchUserId = null;
+    final targetEpoch = _pendingFetchEpoch;
+    _pendingFetchUserId = null;
+    _pendingFetchEpoch = null;
+    if (targetUserId != null &&
+        targetUserId.isNotEmpty &&
+        targetEpoch == _sessionEpoch &&
+        _currentUserId == targetUserId) {
       loadTrips(targetUserId);
     }
   }
@@ -238,7 +285,11 @@ class SavedTripsProvider extends ChangeNotifier {
     required bool isDemoSession,
     required String? userId,
   }) {
-    if (isAuthenticated && !isDemoSession && userId != null && userId.isNotEmpty) {
+    if (_isDisposed) return;
+    if (isAuthenticated &&
+        !isDemoSession &&
+        userId != null &&
+        userId.isNotEmpty) {
       if (_currentUserId != userId) {
         loadTrips(userId);
       }

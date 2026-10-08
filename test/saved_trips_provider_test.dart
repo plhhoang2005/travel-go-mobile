@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:travelgo_mobile/features/trips/models/saved_trip_model.dart';
 import 'package:travelgo_mobile/features/trips/providers/saved_trips_provider.dart';
@@ -9,11 +10,16 @@ class FakeTripsService extends TripsService {
   bool shouldFailFetch = false;
   bool shouldFailSave = false;
   bool shouldFailDelete = false;
+  int fetchCalls = 0;
+  int saveCalls = 0;
+  int deleteCalls = 0;
   Completer<List<SavedTrip>>? fetchCompleter;
   Completer<SavedTrip>? saveCompleter;
+  Completer<bool>? deleteCompleter;
 
   @override
   Future<List<SavedTrip>> fetchTrips(String userId) async {
+    fetchCalls++;
     if (fetchCompleter != null) {
       return fetchCompleter!.future;
     }
@@ -25,6 +31,7 @@ class FakeTripsService extends TripsService {
 
   @override
   Future<SavedTrip> saveTrip(SavedTrip trip) async {
+    saveCalls++;
     if (saveCompleter != null) {
       return saveCompleter!.future;
     }
@@ -49,7 +56,14 @@ class FakeTripsService extends TripsService {
   }
 
   @override
-  Future<bool> deleteTrip({required String tripId, required String userId}) async {
+  Future<bool> deleteTrip({
+    required String tripId,
+    required String userId,
+  }) async {
+    deleteCalls++;
+    if (deleteCompleter != null) {
+      return deleteCompleter!.future;
+    }
     if (shouldFailDelete) {
       throw Exception('Delete failed on server');
     }
@@ -68,24 +82,27 @@ void main() {
       provider = SavedTripsProvider(service: fakeService);
     });
 
-    test('saveTrip succeeds only after valid server ID acknowledgement', () async {
-      await provider.loadTrips('user-alice');
-      expect(provider.trips, isEmpty);
+    test(
+      'saveTrip succeeds only after valid server ID acknowledgement',
+      () async {
+        await provider.loadTrips('user-alice');
+        expect(provider.trips, isEmpty);
 
-      final success = await provider.saveTrip(
-        title: 'Hè Đà Nẵng',
-        destinationName: 'Đà Nẵng',
-        numDays: 3,
-        budgetTotal: 5000000,
-        tripPlanData: {'focus': 'Biển'},
-      );
+        final success = await provider.saveTrip(
+          title: 'Hè Đà Nẵng',
+          destinationName: 'Đà Nẵng',
+          numDays: 3,
+          budgetTotal: 5000000,
+          tripPlanData: {'focus': 'Biển'},
+        );
 
-      expect(success, isTrue);
-      expect(provider.count, 1);
-      expect(provider.trips.first.id, startsWith('server-gen-id-'));
-      expect(provider.trips.first.title, 'Hè Đà Nẵng');
-      expect(provider.errorMessage, isNull);
-    });
+        expect(success, isTrue);
+        expect(provider.count, 1);
+        expect(provider.trips.first.id, startsWith('server-gen-id-'));
+        expect(provider.trips.first.title, 'Hè Đà Nẵng');
+        expect(provider.errorMessage, isNull);
+      },
+    );
 
     test('saveTrip failure does NOT fake success or insert unconfirmed RAM dummy (Law 3)', () async {
       await provider.loadTrips('user-alice');
@@ -238,43 +255,46 @@ void main() {
       expect(provider.trips.first.title, 'Trip for B');
     });
 
-    test('In-flight save for User A is ignored if session switches to User B', () async {
-      await provider.loadTrips('user-a');
+    test(
+      'In-flight save for User A is ignored if session switches to User B',
+      () async {
+        await provider.loadTrips('user-a');
 
-      final saveCompleter = Completer<SavedTrip>();
-      fakeService.saveCompleter = saveCompleter;
+        final saveCompleter = Completer<SavedTrip>();
+        fakeService.saveCompleter = saveCompleter;
 
-      // User A initiates save
-      final saveFuture = provider.saveTrip(
-        title: 'Trip by A',
-        destinationName: 'Sa Pa',
-        numDays: 3,
-        budgetTotal: 4000000,
-        tripPlanData: {},
-      );
-
-      // Account switches to User B before save returns
-      provider.clearLocal();
-      await provider.loadTrips('user-b');
-
-      // Server acknowledges User A save late
-      saveCompleter.complete(
-        SavedTrip(
-          id: 'server-id-a',
-          userId: 'user-a',
+        // User A initiates save
+        final saveFuture = provider.saveTrip(
           title: 'Trip by A',
           destinationName: 'Sa Pa',
+          numDays: 3,
+          budgetTotal: 4000000,
           tripPlanData: {},
-          createdAt: DateTime.now(),
-        ),
-      );
+        );
 
-      final saveResult = await saveFuture;
-      expect(saveResult, isFalse);
-      expect(provider.currentUserId, 'user-b');
-      // No User A trips in User B session!
-      expect(provider.trips.any((t) => t.userId == 'user-a'), isFalse);
-    });
+        // Account switches to User B before save returns
+        provider.clearLocal();
+        await provider.loadTrips('user-b');
+
+        // Server acknowledges User A save late
+        saveCompleter.complete(
+          SavedTrip(
+            id: 'server-id-a',
+            userId: 'user-a',
+            title: 'Trip by A',
+            destinationName: 'Sa Pa',
+            tripPlanData: {},
+            createdAt: DateTime.now(),
+          ),
+        );
+
+        final saveResult = await saveFuture;
+        expect(saveResult, isFalse);
+        expect(provider.currentUserId, 'user-b');
+        // No User A trips in User B session!
+        expect(provider.trips.any((t) => t.userId == 'user-a'), isFalse);
+      },
+    );
 
     test('syncWithAuth purges RAM on guest or demo session and loads for real user', () {
       fakeService.fakeTrips = [
@@ -315,51 +335,54 @@ void main() {
       expect(provider.trips, isEmpty);
     });
 
-    test('account_switch_clears_loaded_A_before_B_completes (FIX-01, REV-001)', () async {
-      // Setup: User A has loaded trips
-      fakeService.fakeTrips = [
-        SavedTrip(
-          id: 'trip-a-1',
-          userId: 'user-a',
-          title: 'Private A Trip',
-          destinationName: 'Hà Nội',
-          tripPlanData: {},
-          createdAt: DateTime.now(),
-        ),
-      ];
-      await provider.loadTrips('user-a');
-      expect(provider.count, 1);
-      expect(provider.trips.first.userId, 'user-a');
+    test(
+      'account_switch_clears_loaded_A_before_B_completes (FIX-01, REV-001)',
+      () async {
+        // Setup: User A has loaded trips
+        fakeService.fakeTrips = [
+          SavedTrip(
+            id: 'trip-a-1',
+            userId: 'user-a',
+            title: 'Private A Trip',
+            destinationName: 'Hà Nội',
+            tripPlanData: {},
+            createdAt: DateTime.now(),
+          ),
+        ];
+        await provider.loadTrips('user-a');
+        expect(provider.count, 1);
+        expect(provider.trips.first.userId, 'user-a');
 
-      // Switch to User B with pending completer, WITHOUT explicit clearLocal in test setup
-      final bCompleter = Completer<List<SavedTrip>>();
-      fakeService.fetchCompleter = bCompleter;
+        // Switch to User B with pending completer, WITHOUT explicit clearLocal in test setup
+        final bCompleter = Completer<List<SavedTrip>>();
+        fakeService.fetchCompleter = bCompleter;
 
-      final loadBFuture = provider.loadTrips('user-b');
+        final loadBFuture = provider.loadTrips('user-b');
 
-      // Assert immediately before B completes: User A data MUST be gone!
-      expect(provider.currentUserId, 'user-b');
-      expect(provider.isLoading, isTrue);
-      expect(provider.trips, isEmpty);
-      expect(provider.trips.where((t) => t.userId == 'user-a'), isEmpty);
+        // Assert immediately before B completes: User A data MUST be gone!
+        expect(provider.currentUserId, 'user-b');
+        expect(provider.isLoading, isTrue);
+        expect(provider.trips, isEmpty);
+        expect(provider.trips.where((t) => t.userId == 'user-a'), isEmpty);
 
-      // Now complete B
-      bCompleter.complete([
-        SavedTrip(
-          id: 'trip-b-1',
-          userId: 'user-b',
-          title: 'Trip for B',
-          destinationName: 'Đà Nẵng',
-          tripPlanData: {},
-          createdAt: DateTime.now(),
-        ),
-      ]);
-      await loadBFuture;
+        // Now complete B
+        bCompleter.complete([
+          SavedTrip(
+            id: 'trip-b-1',
+            userId: 'user-b',
+            title: 'Trip for B',
+            destinationName: 'Đà Nẵng',
+            tripPlanData: {},
+            createdAt: DateTime.now(),
+          ),
+        ]);
+        await loadBFuture;
 
-      expect(provider.isLoading, isFalse);
-      expect(provider.count, 1);
-      expect(provider.trips.first.userId, 'user-b');
-    });
+        expect(provider.isLoading, isFalse);
+        expect(provider.count, 1);
+        expect(provider.trips.first.userId, 'user-b');
+      },
+    );
 
     test('B_fetch_error_never_restores_A (FIX-01, REV-001)', () async {
       // Setup: User A has loaded trips
@@ -386,6 +409,72 @@ void main() {
       expect(provider.currentUserId, 'user-b');
       expect(provider.trips, isEmpty);
       expect(provider.errorMessage, contains('Lỗi tải danh sách chuyến đi'));
+    });
+
+    test('clearLocal_cancels_pending_fetch (REV-006)', () async {
+      final fake = FakeTripsService();
+      final p = SavedTripsProvider(service: fake);
+      p.updateAuthContext(
+        isAuthenticated: true,
+        isDemoSession: false,
+        userId: 'user-a',
+      );
+      p.clearLocal();
+      p.fetchIfPending();
+
+      expect(p.currentUserId, isNull);
+      expect(fake.fetchCalls, 0);
+      expect(p.isLoading, isFalse);
+      p.dispose();
+    });
+
+    test('dispose_ignores_inflight_fetch (REV-007)', () async {
+      final completer = Completer<List<SavedTrip>>();
+      final fake = FakeTripsService()..fetchCompleter = completer;
+      final p = SavedTripsProvider(service: fake);
+      final work = p.loadTrips('user-a');
+      p.dispose();
+      completer.complete([]);
+      await expectLater(work, completes);
+    });
+
+    test('dispose_ignores_inflight_save_and_delete (REV-007)', () async {
+      final saveComp = Completer<SavedTrip>();
+      final delComp = Completer<bool>();
+      final fake = FakeTripsService()
+        ..saveCompleter = saveComp
+        ..deleteCompleter = delComp;
+      final p = SavedTripsProvider(service: fake);
+      await p.loadTrips('user-a');
+
+      final saveWork = p.saveTrip(
+        title: 'Trip',
+        destinationName: 'Da Nang',
+        numDays: 2,
+        budgetTotal: 1000,
+        tripPlanData: {},
+      );
+      final delWork = p.deleteTrip('trip-1');
+
+      p.dispose();
+
+      saveComp.complete(
+        SavedTrip(
+          id: 'id-1',
+          userId: 'user-a',
+          title: 'Trip',
+          destinationName: 'Da Nang',
+          tripPlanData: {},
+          createdAt: DateTime.now(),
+        ),
+      );
+      delComp.complete(true);
+
+      final saveResult = await saveWork;
+      final delResult = await delWork;
+
+      expect(saveResult, isFalse);
+      expect(delResult, isFalse);
     });
   });
 }
