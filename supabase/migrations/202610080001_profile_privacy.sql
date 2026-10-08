@@ -35,10 +35,24 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'profiles' AND column_name = 'full_name') THEN
     RAISE EXCEPTION 'Precondition failed: column full_name does not exist on public.profiles';
   END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'profiles' AND column_name = 'email') THEN
+    RAISE EXCEPTION 'Precondition failed: column email does not exist on public.profiles';
+  END IF;
 
   -- Verify baseline columns exist on public.trips
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'trips' AND column_name = 'ai_plan_data') THEN
     RAISE EXCEPTION 'Precondition failed: column ai_plan_data does not exist on public.trips';
+  END IF;
+
+  -- Verify baseline columns exist on public.trip_activities (matching SRC-DB-001)
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'trip_activities' AND column_name = 'start_time') THEN
+    RAISE EXCEPTION 'Precondition failed: column start_time does not exist on public.trip_activities';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'trip_activities' AND column_name = 'title') THEN
+    RAISE EXCEPTION 'Precondition failed: column title does not exist on public.trip_activities';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'trip_activities' AND column_name = 'cost') THEN
+    RAISE EXCEPTION 'Precondition failed: column cost does not exist on public.trip_activities';
   END IF;
 END $$;
 
@@ -254,7 +268,11 @@ DECLARE
   v_activities_rls boolean;
   v_can_update_role boolean;
   v_can_truncate_trips boolean;
+  v_can_truncate_profiles boolean;
+  v_can_truncate_activities boolean;
+  v_can_truncate_destinations boolean;
   v_anon_can_select_profiles boolean;
+  v_permissive_select_policies int;
 BEGIN
   -- Verify RLS is enabled on protected tables
   SELECT rowsecurity INTO v_profiles_rls FROM pg_tables WHERE schemaname = 'public' AND tablename = 'profiles';
@@ -283,10 +301,25 @@ BEGIN
     RAISE EXCEPTION 'Postcondition failed: anon role still has SELECT privilege on public.profiles';
   END IF;
 
-  -- Verify mutating DDL privileges: TRUNCATE is revoked
+  -- Verify no unexpected permissive SELECT policies exist on profiles (drift check)
+  SELECT count(*) INTO v_permissive_select_policies
+  FROM pg_policies
+  WHERE schemaname = 'public'
+    AND tablename = 'profiles'
+    AND cmd = 'SELECT'
+    AND permissive = 'PERMISSIVE';
+  IF v_permissive_select_policies <> 1 THEN
+    RAISE EXCEPTION 'Postcondition failed: expected exactly 1 permissive SELECT policy on profiles, found %', v_permissive_select_policies;
+  END IF;
+
+  -- Verify mutating DDL privileges: TRUNCATE is revoked for authenticated and anon across all 4 tables
   SELECT has_table_privilege('authenticated', 'public.trips', 'TRUNCATE') INTO v_can_truncate_trips;
-  IF v_can_truncate_trips THEN
-    RAISE EXCEPTION 'Postcondition failed: authenticated role still has TRUNCATE privilege on public.trips';
+  SELECT has_table_privilege('authenticated', 'public.profiles', 'TRUNCATE') INTO v_can_truncate_profiles;
+  SELECT has_table_privilege('authenticated', 'public.trip_activities', 'TRUNCATE') INTO v_can_truncate_activities;
+  SELECT has_table_privilege('authenticated', 'public.destinations', 'TRUNCATE') INTO v_can_truncate_destinations;
+
+  IF v_can_truncate_trips OR v_can_truncate_profiles OR v_can_truncate_activities OR v_can_truncate_destinations THEN
+    RAISE EXCEPTION 'Postcondition failed: TRUNCATE privilege still exists on protected tables';
   END IF;
 END $$;
 
