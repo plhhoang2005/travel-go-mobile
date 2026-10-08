@@ -30,3 +30,15 @@ flutter run
 *Lưu ý: Khi mở app, vui lòng nhấn "Cho phép" (Allow) quyền Vị trí để trải nghiệm Bản đồ và Radar Nhóm.*
 
 ---
+
+## 📚 Tài liệu thiết kế Phase 1
+
+Bộ thiết kế theo **Master Prompt v1.0** trong file đính kèm **Pasted text.txt**, bổ sung ngày **2026-10-08**. Deadline: **2026-10-28**.
+
+**Trạng thái: APPROVED WITH CONDITIONS — DESIGN WORK AUTHORIZED, IMPLEMENTATION NOT AUTHORIZED.** Đây là đặc tả target design, chưa xác nhận code hiện tại đáp ứng hoặc Phase 1 đã đóng; chưa cho phép tự chuyển Phase 2/3.
+
+→ [Mục lục 10 tài liệu, traceability và Phase 1 approval checklist](docs/phase-1/README.md).
+
+Các yêu cầu **CONFIRMED**, thiết kế **PROPOSED**, quyết định **OPEN**, phạm vi **DEFERRED** và **ASSUMPTION** được tách rõ. Khác biệt giữa Master Prompt và code/tài liệu hiện có được ghi trong [Requirement Audit](docs/phase-1/PROJECT_OVERVIEW.md). Kết quả acceptance sản phẩm vẫn **NOT RUN**.
+
+Phần hướng dẫn cài đặt ở trên được giữ nguyên từ repository trước khi bổ sung tài liệu. Thiết kế Phase 1 yêu cầu sensitive API credentials ở server; Supabase publishable/anon key dùng client phải được phân biệt với service-role/secret key và bảo vệ bằng RLS. Loại key, cấu hình và độ an toàn code hiện tại chưa được audit trong tác vụ tài liệu này.
