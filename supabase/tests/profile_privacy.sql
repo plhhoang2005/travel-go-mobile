@@ -29,42 +29,10 @@ BEGIN
 END;
 $$;
 
--- Shared query error classifier helper
-CREATE OR REPLACE FUNCTION pg_temp.classify_query_error(p_sql text)
-RETURNS text LANGUAGE plpgsql AS $$
-BEGIN
-  EXECUTE p_sql;
-  RETURN 'SUCCESS';
-EXCEPTION
-  WHEN insufficient_privilege THEN
-    RETURN 'DENIED_42501';
-  WHEN undefined_column THEN
-    RETURN 'UNDEFINED_COLUMN_42703';
-  WHEN OTHERS THEN
-    RETURN 'OTHER_' || SQLSTATE;
-END;
-$$;
-
--- Shared reparent assertion gate helper
-CREATE OR REPLACE FUNCTION pg_temp.gate_assert_reparent_success(p_act_id uuid, p_target_trip_id uuid)
-RETURNS void LANGUAGE plpgsql AS $$
-DECLARE
-  v_rows int;
-  v_stored_parent uuid;
-BEGIN
-  UPDATE public.trip_activities SET trip_id = p_target_trip_id WHERE id = p_act_id;
-  GET DIAGNOSTICS v_rows = ROW_COUNT;
-
-  IF v_rows <> 1 THEN
-    RAISE EXCEPTION 'REPARENT_ASSERTION_FAILURE: expected exactly 1 row updated, got %', v_rows;
-  END IF;
-
-  SELECT trip_id INTO v_stored_parent FROM public.trip_activities WHERE id = p_act_id;
-  IF v_stored_parent <> p_target_trip_id THEN
-    RAISE EXCEPTION 'REPARENT_ASSERTION_FAILURE: stored parent % does not match target %', v_stored_parent, p_target_trip_id;
-  END IF;
-END;
-$$;
+-- ------------------------------------------------------------------------------
+-- Shared Test Helpers (single authoritative source)
+-- ------------------------------------------------------------------------------
+\ir profile_privacy_test_helpers.sql
 
 -- ------------------------------------------------------------------------------
 -- 1. PREREQUISITES & FIXTURE SETUP (Fails on Collision; Audited Schema)
@@ -134,21 +102,13 @@ END $$;
 DO $$
 DECLARE
   uid_a uuid := '11111111-1111-1111-1111-111111111111';
-  v_caught_42501 boolean := false;
-  v_count int := 0;
-  v_sqlstate text := '';
+  v_res text;
 BEGIN
   -- Execute under anon role
   PERFORM set_config('role', 'anon', true);
   PERFORM set_config('request.jwt.claim.sub', '', true);
 
-  BEGIN
-    SELECT count(*) INTO v_count FROM public.profiles WHERE id = uid_a;
-  EXCEPTION
-    WHEN insufficient_privilege THEN -- SQLSTATE 42501
-      v_caught_42501 := true;
-      v_sqlstate := SQLSTATE;
-  END;
+  v_res := pg_temp.classify_query_error(format('SELECT count(*) FROM public.profiles WHERE id = %L', uid_a));
 
   -- Reset role to runner before recording
   RESET ROLE;
@@ -156,8 +116,8 @@ BEGIN
 
   PERFORM pg_temp.record_test(
     'TC01_anon_profile_select_denied_42501',
-    (v_caught_42501 = true),
-    format('Caught SQLSTATE 42501: %s, count: %s, sqlstate: %s', v_caught_42501, v_count, v_sqlstate)
+    (v_res = 'DENIED_42501'),
+    format('Classification result: %s (expected DENIED_42501)', v_res)
   );
 EXCEPTION WHEN OTHERS THEN
   RESET ROLE;
@@ -267,54 +227,29 @@ END $$;
 DO $$
 DECLARE
   uid_a uuid := '11111111-1111-1111-1111-111111111111';
-  v_role_denial boolean := false;
-  v_id_denial boolean := false;
-  v_email_denial boolean := false;
-  v_created_denial boolean := false;
-  v_updated_denial boolean := false;
+  v_role_res text;
+  v_id_res text;
+  v_email_res text;
+  v_created_res text;
+  v_updated_res text;
 BEGIN
   PERFORM set_config('role', 'authenticated', true);
   PERFORM set_config('request.jwt.claim.sub', uid_a::text, true);
 
   -- 1. Update role
-  BEGIN
-    UPDATE public.profiles SET role = 'admin' WHERE id = uid_a;
-  EXCEPTION
-    WHEN insufficient_privilege THEN -- SQLSTATE 42501
-      v_role_denial := true;
-  END;
+  v_role_res := pg_temp.classify_query_error(format('UPDATE public.profiles SET role = %L WHERE id = %L', 'admin', uid_a));
 
   -- 2. Update id
-  BEGIN
-    UPDATE public.profiles SET id = gen_random_uuid() WHERE id = uid_a;
-  EXCEPTION
-    WHEN insufficient_privilege THEN
-      v_id_denial := true;
-  END;
+  v_id_res := pg_temp.classify_query_error(format('UPDATE public.profiles SET id = %L WHERE id = %L', gen_random_uuid(), uid_a));
 
   -- 3. Update email
-  BEGIN
-    UPDATE public.profiles SET email = 'attacker@travelgo.vn' WHERE id = uid_a;
-  EXCEPTION
-    WHEN insufficient_privilege THEN
-      v_email_denial := true;
-  END;
+  v_email_res := pg_temp.classify_query_error(format('UPDATE public.profiles SET email = %L WHERE id = %L', 'attacker@travelgo.vn', uid_a));
 
   -- 4. Update created_at
-  BEGIN
-    UPDATE public.profiles SET created_at = now() - interval '1 year' WHERE id = uid_a;
-  EXCEPTION
-    WHEN insufficient_privilege THEN
-      v_created_denial := true;
-  END;
+  v_created_res := pg_temp.classify_query_error(format('UPDATE public.profiles SET created_at = %L WHERE id = %L', now() - interval '1 year', uid_a));
 
   -- 5. Update updated_at
-  BEGIN
-    UPDATE public.profiles SET updated_at = now() - interval '1 day' WHERE id = uid_a;
-  EXCEPTION
-    WHEN insufficient_privilege THEN
-      v_updated_denial := true;
-  END;
+  v_updated_res := pg_temp.classify_query_error(format('UPDATE public.profiles SET updated_at = %L WHERE id = %L', now() - interval '1 day', uid_a));
 
   -- Reset role to runner
   RESET ROLE;
@@ -322,10 +257,10 @@ BEGIN
 
   PERFORM pg_temp.record_test(
     'TC05_user_a_update_protected_columns_denied',
-    (v_role_denial = true AND v_id_denial = true AND v_email_denial = true AND
-     v_created_denial = true AND v_updated_denial = true),
-    format('Role: %s, ID: %s, Email: %s, Created: %s, Updated: %s',
-      v_role_denial, v_id_denial, v_email_denial, v_created_denial, v_updated_denial)
+    (v_role_res = 'DENIED_42501' AND v_id_res = 'DENIED_42501' AND v_email_res = 'DENIED_42501' AND
+     v_created_res = 'DENIED_42501' AND v_updated_res = 'DENIED_42501'),
+    format('Role: %s, ID: %s, Email: %s, Created: %s, Updated: %s (all must be DENIED_42501)',
+      v_role_res, v_id_res, v_email_res, v_created_res, v_updated_res)
   );
 EXCEPTION WHEN OTHERS THEN
   RESET ROLE;

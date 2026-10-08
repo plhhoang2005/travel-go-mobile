@@ -25,37 +25,57 @@ END;
 $$;
 
 -- ------------------------------------------------------------------------------
--- Gate 1: Reusable Policy Drift Gate Fallback (matches public.verify_profiles_policy_drift)
+-- Shared Test Helpers (single authoritative source)
 -- ------------------------------------------------------------------------------
-DO $$
+\ir profile_privacy_test_helpers.sql
+
+-- ------------------------------------------------------------------------------
+-- Gate 1: Fail-Closed Prerequisite Check for public.verify_profiles_policy_drift()
+-- Must exist with exact signature (void, 0 args, SECURITY DEFINER, search_path).
+-- Absolutely NO fallback creation; if migration is missing, this test MUST FAIL.
+-- ------------------------------------------------------------------------------
+DO $gate_check$
+DECLARE
+  v_gate_exists boolean := false;
+  v_sig_matches boolean := false;
 BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_proc p
-    JOIN pg_namespace n ON p.pronamespace = n.oid
-    WHERE n.nspname = 'public' AND p.proname = 'verify_profiles_policy_drift'
-  ) THEN
-    CREATE OR REPLACE FUNCTION public.verify_profiles_policy_drift()
-    RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $f$
-    DECLARE
-      v_unexpected_policies int;
-    BEGIN
-      SELECT count(*) INTO v_unexpected_policies
-      FROM pg_policies
-      WHERE schemaname = 'public'
-        AND tablename = 'profiles'
-        AND (
-          cmd = 'ALL'
-          OR (cmd = 'SELECT' AND policyname <> 'Users can view own profile')
-          OR (cmd = 'UPDATE' AND policyname <> 'Users can update own profile')
-          OR (cmd IN ('INSERT', 'DELETE'))
-        );
-      IF v_unexpected_policies > 0 THEN
-        RAISE EXCEPTION 'DRIFT_GATE_FAILURE: detected % unexpected policies on public.profiles', v_unexpected_policies;
-      END IF;
-    END;
-    $f$;
+  SELECT
+    true,
+    (
+      p.prorettype = 'void'::regtype
+      AND p.prosecdef = true
+      AND p.pronargs = 0
+      AND p.proconfig::text LIKE '%search_path=public, pg_temp%'
+    )
+  INTO v_gate_exists, v_sig_matches
+  FROM pg_proc p
+  JOIN pg_namespace n ON p.pronamespace = n.oid
+  WHERE n.nspname = 'public' AND p.proname = 'verify_profiles_policy_drift';
+
+  IF NOT COALESCE(v_gate_exists, false) THEN
+    PERFORM pg_temp.record_control(
+      'NC00_drift_gate_prerequisite',
+      false,
+      'FAIL-CLOSED: public.verify_profiles_policy_drift() does NOT exist. Migration must be applied first.'
+    );
+    RAISE EXCEPTION 'PRECONDITION_FAILED: public.verify_profiles_policy_drift() does not exist.';
   END IF;
-END $$;
+
+  IF NOT COALESCE(v_sig_matches, false) THEN
+    PERFORM pg_temp.record_control(
+      'NC00_drift_gate_prerequisite',
+      false,
+      'FAIL-CLOSED: public.verify_profiles_policy_drift() signature mismatch (requires void, 0 args, prosecdef=true, search_path=public, pg_temp).'
+    );
+    RAISE EXCEPTION 'PRECONDITION_FAILED: public.verify_profiles_policy_drift() signature mismatch.';
+  END IF;
+
+  PERFORM pg_temp.record_control(
+    'NC00_drift_gate_prerequisite',
+    true,
+    'Prerequisite passed: public.verify_profiles_policy_drift() present with exact signature from migration.'
+  );
+END $gate_check$;
 
 -- ------------------------------------------------------------------------------
 -- NC01: Permissive ALL Policy Drift Detection & Restoration
@@ -142,9 +162,15 @@ DECLARE
   v_orig_funcdef text;
   v_orig_secdef boolean;
   v_orig_config text[];
+  v_orig_owner oid;
+  v_orig_acl aclitem[];
+  v_orig_trig_oid oid;
   v_restored_funcdef text;
   v_restored_secdef boolean;
   v_restored_config text[];
+  v_restored_owner oid;
+  v_restored_acl aclitem[];
+  v_restored_trig_oid oid;
 BEGIN
   SELECT EXISTS (
     SELECT 1 FROM pg_namespace n JOIN pg_class c ON c.relnamespace = n.oid
@@ -155,15 +181,19 @@ BEGIN
     RAISE EXCEPTION 'Prerequisite failed: auth.users table missing for NC02';
   END IF;
 
-  -- 1. CAPTURE EXACT ORIGINAL FUNCTION DEFINITION & METADATA
+  -- 1. CAPTURE COMPLETE ORIGINAL FUNCTION DEFINITION, METADATA & TRIGGER BINDING
   SELECT
     pg_get_functiondef(p.oid),
     p.prosecdef,
-    p.proconfig
+    p.proconfig,
+    p.proowner,
+    p.proacl
   INTO
     v_orig_funcdef,
     v_orig_secdef,
-    v_orig_config
+    v_orig_config,
+    v_orig_owner,
+    v_orig_acl
   FROM pg_proc p
   JOIN pg_namespace n ON p.pronamespace = n.oid
   WHERE n.nspname = 'public' AND p.proname = 'handle_new_user';
@@ -171,6 +201,15 @@ BEGIN
   IF v_orig_funcdef IS NULL THEN
     RAISE EXCEPTION 'Prerequisite failed: public.handle_new_user does not exist before NC02 mutation';
   END IF;
+
+  SELECT t.oid INTO v_orig_trig_oid
+  FROM pg_trigger t
+  JOIN pg_proc p ON t.tgfoid = p.oid
+  JOIN pg_class c ON t.tgrelid = c.oid
+  JOIN pg_namespace n ON c.relnamespace = n.oid
+  WHERE n.nspname = 'auth' AND c.relname = 'users'
+    AND t.tgname = 'on_auth_user_created'
+    AND p.proname = 'handle_new_user';
 
   -- 2. INSTALL MUTANT TRIGGER FUNCTION (trusts raw_user_meta_data->>'role')
   CREATE OR REPLACE FUNCTION public.handle_new_user()
@@ -208,22 +247,38 @@ BEGIN
   -- 6. RESTORE EXACT CAPTURED ORIGINAL FUNCTION DEFINITION
   EXECUTE v_orig_funcdef;
 
-  -- 7. VERIFY EXACT RESTORATION OF METADATA AND DEFINITION
+  -- 7. VERIFY EXACT RESTORATION OF COMPLETE METADATA, DEFINITION & TRIGGER BINDING
   SELECT
     pg_get_functiondef(p.oid),
     p.prosecdef,
-    p.proconfig
+    p.proconfig,
+    p.proowner,
+    p.proacl
   INTO
     v_restored_funcdef,
     v_restored_secdef,
-    v_restored_config
+    v_restored_config,
+    v_restored_owner,
+    v_restored_acl
   FROM pg_proc p
   JOIN pg_namespace n ON p.pronamespace = n.oid
   WHERE n.nspname = 'public' AND p.proname = 'handle_new_user';
 
+  SELECT t.oid INTO v_restored_trig_oid
+  FROM pg_trigger t
+  JOIN pg_proc p ON t.tgfoid = p.oid
+  JOIN pg_class c ON t.tgrelid = c.oid
+  JOIN pg_namespace n ON c.relnamespace = n.oid
+  WHERE n.nspname = 'auth' AND c.relname = 'users'
+    AND t.tgname = 'on_auth_user_created'
+    AND p.proname = 'handle_new_user';
+
   IF v_restored_funcdef = v_orig_funcdef
      AND v_restored_secdef = v_orig_secdef
-     AND v_restored_config IS NOT DISTINCT FROM v_orig_config THEN
+     AND v_restored_config IS NOT DISTINCT FROM v_orig_config
+     AND v_restored_owner = v_orig_owner
+     AND v_restored_acl IS NOT DISTINCT FROM v_orig_acl
+     AND v_restored_trig_oid IS NOT DISTINCT FROM v_orig_trig_oid THEN
     v_definition_restored_exact := true;
   END IF;
 
@@ -252,25 +307,6 @@ BEGIN
 END $$;
 
 -- ------------------------------------------------------------------------------
--- Gate 3: Query Error Classifier Helper
--- Harness classifier must distinguish 42703 (undefined_column) from 42501 (insufficient_privilege)
--- ------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION pg_temp.classify_query_error(p_sql text)
-RETURNS text LANGUAGE plpgsql AS $$
-BEGIN
-  EXECUTE p_sql;
-  RETURN 'SUCCESS';
-EXCEPTION
-  WHEN insufficient_privilege THEN
-    RETURN 'DENIED_42501';
-  WHEN undefined_column THEN
-    RETURN 'UNDEFINED_COLUMN_42703';
-  WHEN OTHERS THEN
-    RETURN 'OTHER_' || SQLSTATE;
-END;
-$$;
-
--- ------------------------------------------------------------------------------
 -- NC03: Schema Column Mismatch Must NOT Disguise as Authorization Denial
 -- Verifies that querying a non-existent column produces UNDEFINED_COLUMN_42703
 -- and is NOT classified as an authorization denial (42501).
@@ -293,28 +329,6 @@ BEGIN
   );
 END $$;
 
--- ------------------------------------------------------------------------------
--- Gate 4: Reparent Assertion Gate Helper (matches TC09 harness check)
--- ------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION pg_temp.gate_assert_reparent_success(p_act_id uuid, p_target_trip_id uuid)
-RETURNS void LANGUAGE plpgsql AS $$
-DECLARE
-  v_rows int;
-  v_stored_parent uuid;
-BEGIN
-  UPDATE public.trip_activities SET trip_id = p_target_trip_id WHERE id = p_act_id;
-  GET DIAGNOSTICS v_rows = ROW_COUNT;
-
-  IF v_rows <> 1 THEN
-    RAISE EXCEPTION 'REPARENT_ASSERTION_FAILURE: expected exactly 1 row updated, got %', v_rows;
-  END IF;
-
-  SELECT trip_id INTO v_stored_parent FROM public.trip_activities WHERE id = p_act_id;
-  IF v_stored_parent <> p_target_trip_id THEN
-    RAISE EXCEPTION 'REPARENT_ASSERTION_FAILURE: stored parent % does not match target %', v_stored_parent, p_target_trip_id;
-  END IF;
-END;
-$$;
 
 -- ------------------------------------------------------------------------------
 -- NC04: Zero-Row Reparent UPDATE Must NOT Report Success
