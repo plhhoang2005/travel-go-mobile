@@ -97,3 +97,9 @@ M盻擁 khi hoﾃn thﾃnh m盻冲 nhi盻㍊ v盻･, Agent b蘯ｯt bu盻
 4. **Problems**: Khﾃｳ khﾄハ k盻ｹ thu蘯ｭt, r盻ｧi ro ti盻［ 蘯ｩn ho蘯ｷc n盻｣ k盻ｹ thu蘯ｭt phﾃ｡t sinh.
 5. **Lesson Candidate**: ﾄ雪ｻ・xu蘯･t bﾃi h盻皇 kinh nghi盻㍊ m盻嬖 theo c蘯･u trﾃｺc: *Problem $\rightarrow$ Root Cause $\rightarrow$ Actionable Rule*.
 
+
+## 7. Giải thích coding và review cho owner (bắt buộc)
+
+Owner muốn hiểu luồng hoạt động, cách giải quyết vấn đề và bằng chứng review; không cần học từng dòng code. Áp dụng sau mỗi lần Antigravity sửa và mỗi lần Codex review, kể cả review chưa đạt hoặc task bị chặn. Không sử dụng superpowers.
+
+Đọc và thực hiện [quy tắc giải thích](.agent/rules.md#owner-learning-rule) và [workflow giải thích](.agent/workflow.md#owner-learning-workflow). Antigravity giải thích phần mình sửa; Codex giải thích phần mình kiểm tra/tìm lỗi, phân biệt đã sửa với mới đề xuất. Đây là bổ sung cho handover hiện có, không thêm approval gate hoặc thay phạm vi triển khai.
