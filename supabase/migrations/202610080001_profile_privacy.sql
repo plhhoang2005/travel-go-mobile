@@ -61,8 +61,9 @@ END $$;
 -- ------------------------------------------------------------------------------
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
--- Remove insecure public / legacy policies
+-- Remove insecure public, ALL, or legacy policies
 DROP POLICY IF EXISTS "Profiles are viewable by everyone" ON public.profiles;
+DROP POLICY IF EXISTS "Profiles are manageable by everyone" ON public.profiles;
 DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
 DROP POLICY IF EXISTS "Users can view own profile" ON public.profiles;
 DROP POLICY IF EXISTS "Users update own profile" ON public.profiles;
@@ -259,7 +260,7 @@ CREATE POLICY "Users manage own trip activities"
   );
 
 -- ------------------------------------------------------------------------------
--- 6. POSTCONDITION VALIDATIONS (Fail-closed Assertions)
+-- 6. POSTCONDITION VALIDATIONS (Fail-closed Assertions & Complete Drift Gates)
 -- ------------------------------------------------------------------------------
 DO $$
 DECLARE
@@ -272,7 +273,7 @@ DECLARE
   v_can_truncate_activities boolean;
   v_can_truncate_destinations boolean;
   v_anon_can_select_profiles boolean;
-  v_permissive_select_policies int;
+  v_unexpected_policies int;
 BEGIN
   -- Verify RLS is enabled on protected tables
   SELECT rowsecurity INTO v_profiles_rls FROM pg_tables WHERE schemaname = 'public' AND tablename = 'profiles';
@@ -301,15 +302,30 @@ BEGIN
     RAISE EXCEPTION 'Postcondition failed: anon role still has SELECT privilege on public.profiles';
   END IF;
 
-  -- Verify no unexpected permissive SELECT policies exist on profiles (drift check)
-  SELECT count(*) INTO v_permissive_select_policies
+  -- Comprehensive Policy Drift Gate on public.profiles:
+  -- Rejects ANY unexpected policy (including cmd = 'ALL', permissive = 'PERMISSIVE',
+  -- or unreviewed SELECT/UPDATE/INSERT/DELETE policies).
+  SELECT count(*) INTO v_unexpected_policies
   FROM pg_policies
   WHERE schemaname = 'public'
     AND tablename = 'profiles'
-    AND cmd = 'SELECT'
-    AND permissive = 'PERMISSIVE';
-  IF v_permissive_select_policies <> 1 THEN
-    RAISE EXCEPTION 'Postcondition failed: expected exactly 1 permissive SELECT policy on profiles, found %', v_permissive_select_policies;
+    AND (
+      cmd = 'ALL'
+      OR (cmd = 'SELECT' AND policyname <> 'Users can view own profile')
+      OR (cmd = 'UPDATE' AND policyname <> 'Users can update own profile')
+      OR (cmd IN ('INSERT', 'DELETE'))
+    );
+  IF v_unexpected_policies > 0 THEN
+    RAISE EXCEPTION 'Postcondition failed: detected % unexpected policies on public.profiles', v_unexpected_policies;
+  END IF;
+
+  -- Verify function definitions & security settings
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_proc
+    WHERE proname = 'handle_new_user'
+      AND prosecdef = true
+  ) THEN
+    RAISE EXCEPTION 'Postcondition failed: handle_new_user procedure does not exist or is not SECURITY DEFINER';
   END IF;
 
   -- Verify mutating DDL privileges: TRUNCATE is revoked for authenticated and anon across all 4 tables

@@ -3,7 +3,7 @@
 -- Description: Verification harness for profile privacy, RLS isolation,
 --              least-privilege grants, and signup role hardening.
 -- Traceability: R01, DB-002, DB-003, DB-004, DB-006; AC-034, AC-054
--- Target: PostgreSQL 17.x / Supabase Local or Staging Environment
+-- Target: PostgreSQL 17.x / Supabase Staging Environment (bkocylxbuyvdgxccpixx)
 -- Execution: psql -X -v ON_ERROR_STOP=1 -f supabase/tests/profile_privacy.sql
 -- Safety: Wraps in transaction & rolls back all test fixtures.
 -- ==============================================================================
@@ -30,7 +30,7 @@ END;
 $$;
 
 -- ------------------------------------------------------------------------------
--- 1. PREREQUISITES & FIXTURE SETUP
+-- 1. PREREQUISITES & FIXTURE SETUP (Fails on Collision; Audited Schema)
 -- ------------------------------------------------------------------------------
 DO $$
 DECLARE
@@ -38,7 +38,9 @@ DECLARE
   uid_b uuid := '22222222-2222-2222-2222-222222222222';
   uid_spoof uuid := '33333333-3333-3333-3333-333333333333';
   uid_oauth uuid := '66666666-6666-6666-6666-666666666666';
-  dest_id uuid := '77777777-7777-7777-7777-777777777777';
+  uid_no_email uuid := '77777777-7777-7777-7777-777777777777';
+  dest_id text := 'da-nang-synthetic';
+  svc_id text := 'svc-ba-na-synthetic';
   has_auth_users boolean;
   has_trigger boolean;
 BEGIN
@@ -64,20 +66,28 @@ BEGIN
     RAISE EXCEPTION 'Prerequisite failed: trigger on_auth_user_created does not exist on auth.users';
   END IF;
 
+  -- Ensure unique test identities: fail closed on collision rather than silent upsert
+  IF EXISTS (SELECT 1 FROM auth.users WHERE id IN (uid_a, uid_b, uid_spoof, uid_oauth, uid_no_email)) THEN
+    RAISE EXCEPTION 'Fixture collision: synthetic test user IDs already exist in auth.users';
+  END IF;
+
   -- Insert synthetic auth users. The actual handle_new_user() trigger populates public.profiles!
   INSERT INTO auth.users (id, aud, role, email, raw_user_meta_data, created_at, updated_at)
   VALUES
     (uid_a, 'authenticated', 'authenticated', 'alice@travelgo.vn', '{"full_name": "Alice Travel"}'::jsonb, now(), now()),
     (uid_b, 'authenticated', 'authenticated', 'bob@travelgo.vn', '{"full_name": "Bob Explorer"}'::jsonb, now(), now()),
     (uid_spoof, 'authenticated', 'authenticated', 'attacker@travelgo.vn', '{"full_name": "Eve Attacker", "role": "admin"}'::jsonb, now(), now()),
-    (uid_oauth, 'authenticated', 'authenticated', 'oauth@travelgo.vn', '{}'::jsonb, now(), now())
-  ON CONFLICT (id) DO UPDATE SET
-    raw_user_meta_data = EXCLUDED.raw_user_meta_data,
-    updated_at = now();
+    (uid_oauth, 'authenticated', 'authenticated', 'oauth@travelgo.vn', '{}'::jsonb, now(), now()),
+    (uid_no_email, 'authenticated', 'authenticated', NULL, '{}'::jsonb, now(), now());
 
-  -- Insert synthetic destination for catalogue tests
+  -- Insert synthetic destination for catalogue tests (audited schema: id text, region check)
   INSERT INTO public.destinations (id, name, description, region)
-  VALUES (dest_id, 'Đà Nẵng Synthetic', 'Test catalogue destination', 'Central')
+  VALUES (dest_id, 'Đà Nẵng Synthetic', 'Test catalogue destination', 'Trung')
+  ON CONFLICT (id) DO NOTHING;
+
+  -- Insert synthetic service (dependency for trip_activities.service_id)
+  INSERT INTO public.services (id, destination_id, name, service_type)
+  VALUES (svc_id, dest_id, 'Bà Nà Cable Car', 'attraction')
   ON CONFLICT (id) DO NOTHING;
 END $$;
 
@@ -179,23 +189,24 @@ EXCEPTION WHEN OTHERS THEN
 END $$;
 
 -- ------------------------------------------------------------------------------
--- 5. TC04: User A Update Allowed Profile Fields (full_name, phone)
+-- 5. TC04: User A Update Allowed Profile Fields (full_name, phone, address, avatar_url)
 -- ------------------------------------------------------------------------------
 DO $$
 DECLARE
   uid_a uuid := '11111111-1111-1111-1111-111111111111';
   v_updated_name text;
   v_updated_phone text;
+  v_updated_address text;
 BEGIN
   -- Execute under authenticated User A
   PERFORM set_config('role', 'authenticated', true);
   PERFORM set_config('request.jwt.claim.sub', uid_a::text, true);
 
   UPDATE public.profiles
-  SET full_name = 'Alice Updated', phone = '0901234567'
+  SET full_name = 'Alice Updated', phone = '0901234567', address = '123 Da Nang'
   WHERE id = uid_a;
 
-  SELECT full_name, phone INTO v_updated_name, v_updated_phone
+  SELECT full_name, phone, address INTO v_updated_name, v_updated_phone, v_updated_address
   FROM public.profiles WHERE id = uid_a;
 
   -- Reset role to runner
@@ -204,8 +215,8 @@ BEGIN
 
   PERFORM pg_temp.record_test(
     'TC04_user_a_update_allowed_profile_fields',
-    (v_updated_name = 'Alice Updated' AND v_updated_phone = '0901234567'),
-    format('Updated name: %s, phone: %s', v_updated_name, v_updated_phone)
+    (v_updated_name = 'Alice Updated' AND v_updated_phone = '0901234567' AND v_updated_address = '123 Da Nang'),
+    format('Updated name: %s, phone: %s, address: %s', v_updated_name, v_updated_phone, v_updated_address)
   );
 EXCEPTION WHEN OTHERS THEN
   RESET ROLE;
@@ -223,6 +234,7 @@ DECLARE
   v_id_denial boolean := false;
   v_email_denial boolean := false;
   v_created_denial boolean := false;
+  v_updated_denial boolean := false;
 BEGIN
   PERFORM set_config('role', 'authenticated', true);
   PERFORM set_config('request.jwt.claim.sub', uid_a::text, true);
@@ -259,15 +271,24 @@ BEGIN
       v_created_denial := true;
   END;
 
+  -- 5. Update updated_at
+  BEGIN
+    UPDATE public.profiles SET updated_at = now() - interval '1 day' WHERE id = uid_a;
+  EXCEPTION
+    WHEN insufficient_privilege THEN
+      v_updated_denial := true;
+  END;
+
   -- Reset role to runner
   RESET ROLE;
   PERFORM set_config('request.jwt.claim.sub', '', true);
 
   PERFORM pg_temp.record_test(
     'TC05_user_a_update_protected_columns_denied',
-    (v_role_denial = true AND v_id_denial = true AND v_email_denial = true AND v_created_denial = true),
-    format('Role denial: %s, ID denial: %s, Email denial: %s, Created_at denial: %s',
-      v_role_denial, v_id_denial, v_email_denial, v_created_denial)
+    (v_role_denial = true AND v_id_denial = true AND v_email_denial = true AND
+     v_created_denial = true AND v_updated_denial = true),
+    format('Role: %s, ID: %s, Email: %s, Created: %s, Updated: %s',
+      v_role_denial, v_id_denial, v_email_denial, v_created_denial, v_updated_denial)
   );
 EXCEPTION WHEN OTHERS THEN
   RESET ROLE;
@@ -276,24 +297,31 @@ EXCEPTION WHEN OTHERS THEN
 END $$;
 
 -- ------------------------------------------------------------------------------
--- 7. TC06: Signup Role Spoofing Prevented via Actual Trigger
+-- 7. TC06: Signup Role Spoofing Prevented & Safe OAuth Fallbacks
 -- ------------------------------------------------------------------------------
 DO $$
 DECLARE
   uid_spoof uuid := '33333333-3333-3333-3333-333333333333';
   uid_oauth uuid := '66666666-6666-6666-6666-666666666666';
+  uid_no_email uuid := '77777777-7777-7777-7777-777777777777';
   v_spoof_role text;
   v_oauth_role text;
   v_oauth_name text;
+  v_no_email_role text;
+  v_no_email_name text;
+  v_no_email_addr text;
 BEGIN
   -- Read directly under runner
   SELECT role INTO v_spoof_role FROM public.profiles WHERE id = uid_spoof;
   SELECT role, full_name INTO v_oauth_role, v_oauth_name FROM public.profiles WHERE id = uid_oauth;
+  SELECT role, full_name, email INTO v_no_email_role, v_no_email_name, v_no_email_addr FROM public.profiles WHERE id = uid_no_email;
 
   PERFORM pg_temp.record_test(
     'TC06_signup_trigger_role_hardening',
-    (v_spoof_role = 'customer' AND v_oauth_role = 'customer' AND v_oauth_name IS NOT NULL),
-    format('Spoof assigned role: %s (expected customer), OAuth role: %s, name: %s', v_spoof_role, v_oauth_role, v_oauth_name)
+    (v_spoof_role = 'customer' AND v_oauth_role = 'customer' AND v_oauth_name IS NOT NULL AND v_oauth_name <> '' AND
+     v_no_email_role = 'customer' AND v_no_email_name = 'Thành viên TravelGO' AND v_no_email_addr IS NULL),
+    format('Spoof role: %s, OAuth role: %s (name: %s), Missing email role: %s (name: %s, email: %s)',
+      v_spoof_role, v_oauth_role, v_oauth_name, v_no_email_role, v_no_email_name, v_no_email_addr)
   );
 END $$;
 
@@ -302,7 +330,7 @@ END $$;
 -- ------------------------------------------------------------------------------
 DO $$
 DECLARE
-  dest_id uuid := '77777777-7777-7777-7777-777777777777';
+  dest_id text := 'da-nang-synthetic';
   uid_a uuid := '11111111-1111-1111-1111-111111111111';
   v_auth_can_select boolean := false;
   v_auth_insert_denied boolean := false;
@@ -319,7 +347,7 @@ BEGIN
   IF v_cnt > 0 THEN v_auth_can_select := true; END IF;
 
   BEGIN
-    INSERT INTO public.destinations (name, description, region) VALUES ('Fake', 'Fake', 'North');
+    INSERT INTO public.destinations (id, name, description, region) VALUES ('fake-id', 'Fake', 'Fake', 'Bắc');
   EXCEPTION
     WHEN insufficient_privilege THEN -- SQLSTATE 42501
       v_auth_insert_denied := true;
@@ -340,7 +368,7 @@ BEGIN
   IF v_cnt > 0 THEN v_anon_can_select := true; END IF;
 
   BEGIN
-    INSERT INTO public.destinations (name, description, region) VALUES ('Fake Anon', 'Fake', 'North');
+    INSERT INTO public.destinations (id, name, description, region) VALUES ('fake-anon', 'Fake', 'Fake', 'Bắc');
   EXCEPTION
     WHEN insufficient_privilege THEN
       v_anon_insert_denied := true;
@@ -364,12 +392,13 @@ EXCEPTION WHEN OTHERS THEN
 END $$;
 
 -- ------------------------------------------------------------------------------
--- 9. TC08: Trips Owner RLS Isolation (CRUD & Cross-User Protection)
+-- 9. TC08: Trips Owner RLS Isolation (CRUD, Cross-User & Owner-Change Protection)
 -- ------------------------------------------------------------------------------
 DO $$
 DECLARE
   uid_a uuid := '11111111-1111-1111-1111-111111111111';
   uid_b uuid := '22222222-2222-2222-2222-222222222222';
+  dest_id text := 'da-nang-synthetic';
   trip_a_id uuid := '44444444-4444-4444-4444-444444444441';
   trip_spoof_id uuid := '44444444-4444-4444-4444-444444444449';
   v_a_inserted boolean := false;
@@ -377,16 +406,17 @@ DECLARE
   v_b_updated int := -1;
   v_b_deleted int := -1;
   v_spoof_insert_denied boolean := false;
+  v_owner_change_denied boolean := false;
 BEGIN
-  -- 1. User A inserts own trip
+  -- 1. User A inserts own trip (audited schema with destination_id text)
   PERFORM set_config('role', 'authenticated', true);
   PERFORM set_config('request.jwt.claim.sub', uid_a::text, true);
 
-  INSERT INTO public.trips (id, user_id, title, destination_name, num_days, budget_total, ai_plan_data)
-  VALUES (trip_a_id, uid_a, 'Trip A', 'Hà Nội', 2, 3000000, '{"plan": "test"}'::jsonb);
+  INSERT INTO public.trips (id, user_id, destination_id, title, num_days, budget_total, ai_plan_data)
+  VALUES (trip_a_id, uid_a, dest_id, 'Trip A', 3, 3000000, '{"plan": "test"}'::jsonb);
   v_a_inserted := true;
 
-  -- 2. User B tries to read, update, delete User A trip
+  -- 2. User B tries to read, update, delete User A trip (must affect 0 rows)
   PERFORM set_config('role', 'authenticated', true);
   PERFORM set_config('request.jwt.claim.sub', uid_b::text, true);
 
@@ -400,11 +430,22 @@ BEGIN
 
   -- 3. User B tries to insert a trip with user_id = User A (spoof ownership)
   BEGIN
-    INSERT INTO public.trips (id, user_id, title, destination_name, num_days, budget_total, ai_plan_data)
-    VALUES (trip_spoof_id, uid_a, 'Spoofed Trip', 'Huế', 1, 1000000, '{"plan": "test"}'::jsonb);
+    INSERT INTO public.trips (id, user_id, destination_id, title, num_days, budget_total, ai_plan_data)
+    VALUES (trip_spoof_id, uid_a, dest_id, 'Spoofed Trip', 1, 1000000, '{"plan": "test"}'::jsonb);
   EXCEPTION
     WHEN insufficient_privilege THEN -- RLS WITH CHECK violation (SQLSTATE 42501)
       v_spoof_insert_denied := true;
+  END;
+
+  -- 4. User A tries to change owner of own trip to User B (must be rejected by WITH CHECK)
+  PERFORM set_config('role', 'authenticated', true);
+  PERFORM set_config('request.jwt.claim.sub', uid_a::text, true);
+
+  BEGIN
+    UPDATE public.trips SET user_id = uid_b WHERE id = trip_a_id;
+  EXCEPTION
+    WHEN insufficient_privilege THEN -- SQLSTATE 42501
+      v_owner_change_denied := true;
   END;
 
   -- Reset role
@@ -413,9 +454,10 @@ BEGIN
 
   PERFORM pg_temp.record_test(
     'TC08_trips_owner_rls_isolation',
-    (v_a_inserted = true AND v_b_sees_trip = 0 AND v_b_updated = 0 AND v_b_deleted = 0 AND v_spoof_insert_denied = true),
-    format('A inserted: %s, B sees: %s, B updated: %s, B deleted: %s, spoof insert denied: %s',
-      v_a_inserted, v_b_sees_trip, v_b_updated, v_b_deleted, v_spoof_insert_denied)
+    (v_a_inserted = true AND v_b_sees_trip = 0 AND v_b_updated = 0 AND v_b_deleted = 0 AND
+     v_spoof_insert_denied = true AND v_owner_change_denied = true),
+    format('A inserted: %s, B sees: %s, B updated: %s, B deleted: %s, spoof denied: %s, owner change denied: %s',
+      v_a_inserted, v_b_sees_trip, v_b_updated, v_b_deleted, v_spoof_insert_denied, v_owner_change_denied)
   );
 EXCEPTION WHEN OTHERS THEN
   RESET ROLE;
@@ -424,12 +466,14 @@ EXCEPTION WHEN OTHERS THEN
 END $$;
 
 -- ------------------------------------------------------------------------------
--- 10. TC09: Trip Activities Ownership, Reparenting & Row Count Assertions
+-- 10. TC09: Trip Activities Ownership, Full CRUD & Reparenting
 -- ------------------------------------------------------------------------------
 DO $$
 DECLARE
   uid_a uuid := '11111111-1111-1111-1111-111111111111';
   uid_b uuid := '22222222-2222-2222-2222-222222222222';
+  dest_id text := 'da-nang-synthetic';
+  svc_id text := 'svc-ba-na-synthetic';
   trip_a1 uuid := '44444444-4444-4444-4444-444444444441';
   trip_a2 uuid := '44444444-4444-4444-4444-444444444442';
   trip_b uuid := '44444444-4444-4444-4444-444444444443';
@@ -442,24 +486,36 @@ DECLARE
   v_b_sees_act int := -1;
   v_b_updated_act int := -1;
   v_b_deleted_act int := -1;
+  v_a_updated_act int := -1;
+  v_a_deleted_act int := -1;
 BEGIN
   -- Insert trip A2 and trip B as runner fixture
-  INSERT INTO public.trips (id, user_id, title, destination_name, num_days, budget_total, ai_plan_data)
+  INSERT INTO public.trips (id, user_id, destination_id, title, num_days, budget_total, ai_plan_data)
   VALUES
-    (trip_a2, uid_a, 'Trip A2', 'Hải Phòng', 1, 1000000, '{"plan": "test"}'::jsonb),
-    (trip_b, uid_b, 'Trip B', 'Cần Thơ', 1, 1000000, '{"plan": "test"}'::jsonb)
+    (trip_a2, uid_a, dest_id, 'Trip A2', 1, 1000000, '{"plan": "test"}'::jsonb),
+    (trip_b, uid_b, dest_id, 'Trip B', 1, 1000000, '{"plan": "test"}'::jsonb)
   ON CONFLICT (id) DO NOTHING;
 
   -- 1. User A inserts activity on own Trip A1 using audited schema:
-  -- (id, trip_id, day_number, start_time, title, cost)
+  -- (id, trip_id, day_number, start_time, title, cost, service_id)
   PERFORM set_config('role', 'authenticated', true);
   PERFORM set_config('request.jwt.claim.sub', uid_a::text, true);
 
-  INSERT INTO public.trip_activities (id, trip_id, day_number, start_time, title, cost)
-  VALUES (act_id, trip_a1, 1, '08:00', 'Hồ Gươm Walking', 50000);
+  INSERT INTO public.trip_activities (id, trip_id, day_number, start_time, title, cost, service_id)
+  VALUES (act_id, trip_a1, 1, '08:00', 'Hồ Gươm Walking', 50000, svc_id);
   v_act_inserted := true;
 
-  -- 2. User B tries to read, update, delete User A's activity (must affect 0 rows)
+  -- 2. User A updates own activity title (verifying own activity update works)
+  UPDATE public.trip_activities SET title = 'Hồ Gươm Morning Walk' WHERE id = act_id;
+  GET DIAGNOSTICS v_a_updated_act = ROW_COUNT;
+
+  -- 2b. Full CRUD verification: User A inserts and deletes a temporary activity on own trip
+  INSERT INTO public.trip_activities (id, trip_id, day_number, start_time, title, cost, service_id)
+  VALUES ('55555555-5555-5555-5555-555555555559'::uuid, trip_a1, 1, '10:00', 'Temp Coffee', 30000, svc_id);
+  DELETE FROM public.trip_activities WHERE id = '55555555-5555-5555-5555-555555555559'::uuid;
+  GET DIAGNOSTICS v_a_deleted_act = ROW_COUNT;
+
+  -- 3. User B tries to read, update, delete User A's activity (must affect 0 rows)
   PERFORM set_config('role', 'authenticated', true);
   PERFORM set_config('request.jwt.claim.sub', uid_b::text, true);
 
@@ -469,7 +525,7 @@ BEGIN
   DELETE FROM public.trip_activities WHERE id = act_id;
   GET DIAGNOSTICS v_b_deleted_act = ROW_COUNT;
 
-  -- 3. User A reparents activity to own Trip A2 (assert ROW_COUNT = 1 and stored parent = trip_a2)
+  -- 4. User A reparents activity to own Trip A2 (assert ROW_COUNT = 1 and stored parent = trip_a2)
   PERFORM set_config('role', 'authenticated', true);
   PERFORM set_config('request.jwt.claim.sub', uid_a::text, true);
 
@@ -482,7 +538,7 @@ BEGIN
     v_reparent_own_ok := true;
   END IF;
 
-  -- 4. User A attempts to reparent activity to Trip B (must be denied by RLS WITH CHECK with 42501)
+  -- 5. User A attempts to reparent activity to Trip B (must be denied by RLS WITH CHECK with exact 42501)
   BEGIN
     UPDATE public.trip_activities SET trip_id = trip_b WHERE id = act_id;
   EXCEPTION
@@ -496,10 +552,10 @@ BEGIN
 
   PERFORM pg_temp.record_test(
     'TC09_trip_activities_ownership_and_reparenting',
-    (v_act_inserted = true AND v_reparent_own_ok = true AND v_reparent_other_denied = true AND
-     v_b_sees_act = 0 AND v_b_updated_act = 0 AND v_b_deleted_act = 0),
-    format('Act inserted: %s, reparent own ok: %s (rows: %s, stored: %s), reparent to B denied: %s, B sees: %s',
-      v_act_inserted, v_reparent_own_ok, v_rows_affected, v_stored_parent, v_reparent_other_denied, v_b_sees_act)
+    (v_act_inserted = true AND v_a_updated_act = 1 AND v_a_deleted_act = 1 AND v_reparent_own_ok = true AND
+     v_reparent_other_denied = true AND v_b_sees_act = 0 AND v_b_updated_act = 0 AND v_b_deleted_act = 0),
+    format('Act inserted: %s, own update: %s, own delete: %s, reparent own ok: %s (rows: %s, stored: %s), reparent to B denied: %s, B sees: %s',
+      v_act_inserted, v_a_updated_act, v_a_deleted_act, v_reparent_own_ok, v_rows_affected, v_stored_parent, v_reparent_other_denied, v_b_sees_act)
   );
 EXCEPTION WHEN OTHERS THEN
   RESET ROLE;
@@ -586,31 +642,38 @@ BEGIN
 END $$;
 
 -- ------------------------------------------------------------------------------
--- 13. TC12: Foreign Key Cascade Deletion Integrity
+-- 13. TC12: Foreign Key Cascade Deletion Integrity (Row Count & Existence Verified)
 -- ------------------------------------------------------------------------------
 DO $$
 DECLARE
   trip_a2 uuid := '44444444-4444-4444-4444-444444444442';
   act_id uuid := '55555555-5555-5555-5555-555555555551';
   uid_a uuid := '11111111-1111-1111-1111-111111111111';
-  v_act_remaining int := -1;
+  v_act_before int := -1;
+  v_trip_deleted int := -1;
+  v_act_after int := -1;
 BEGIN
-  -- User A deletes Trip A2 (which currently holds act_id)
+  -- 1. Assert child activity exists before parent trip deletion
+  SELECT count(*) INTO v_act_before FROM public.trip_activities WHERE id = act_id AND trip_id = trip_a2;
+
+  -- 2. User A deletes parent trip A2
   PERFORM set_config('role', 'authenticated', true);
   PERFORM set_config('request.jwt.claim.sub', uid_a::text, true);
 
   DELETE FROM public.trips WHERE id = trip_a2;
+  GET DIAGNOSTICS v_trip_deleted = ROW_COUNT;
 
   -- Reset role to check under runner
   RESET ROLE;
   PERFORM set_config('request.jwt.claim.sub', '', true);
 
-  SELECT count(*) INTO v_act_remaining FROM public.trip_activities WHERE id = act_id;
+  -- 3. Assert child activity was cascaded (count is now 0)
+  SELECT count(*) INTO v_act_after FROM public.trip_activities WHERE id = act_id;
 
   PERFORM pg_temp.record_test(
     'TC12_fk_cascade_deletion_integrity',
-    (v_act_remaining = 0),
-    format('Remaining child activities after parent trip deletion: %s (expected 0)', v_act_remaining)
+    (v_act_before = 1 AND v_trip_deleted = 1 AND v_act_after = 0),
+    format('Child before: %s, Parent deleted: %s, Child after: %s', v_act_before, v_trip_deleted, v_act_after)
   );
 EXCEPTION WHEN OTHERS THEN
   RESET ROLE;
