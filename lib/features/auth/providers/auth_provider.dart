@@ -24,9 +24,8 @@ class AuthProvider extends ChangeNotifier {
 
   AuthProvider({
     SupabaseClient? client,
-    Future<String?> Function(String userId)? trustedRoleFetcher,
-  })  : _injectedClient = client,
-        _trustedRoleFetcher = trustedRoleFetcher {
+    this._trustedRoleFetcher,
+  }) : _injectedClient = client {
     _initSession();
   }
 
@@ -102,8 +101,9 @@ class AuthProvider extends ChangeNotifier {
   Future<void> _fetchTrustedRole(String userId, int epoch) async {
     try {
       String? roleStr;
-      if (_trustedRoleFetcher != null) {
-        roleStr = await _trustedRoleFetcher!(userId);
+      final fetcher = _trustedRoleFetcher;
+      if (fetcher != null) {
+        roleStr = await fetcher(userId);
       } else {
         final client = _supabaseClient;
         if (client != null) {
