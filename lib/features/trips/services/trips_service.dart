@@ -17,9 +17,10 @@ class TripsService {
   }
 
   void _validateSessionOwner(String userId, SupabaseClient client) {
-    final currentSessionUser = client.auth.currentUser;
-    if (currentSessionUser != null && currentSessionUser.id != userId) {
-      throw ArgumentError('Caller-owner mismatch: Phiên đăng nhập không khớp với người dùng.');
+    final session = client.auth.currentSession;
+    final currentUser = client.auth.currentUser;
+    if (session == null || currentUser == null || currentUser.id != userId || session.isExpired) {
+      throw StateError('Không có phiên làm việc Supabase hợp lệ hoặc phiên người dùng không khớp.');
     }
   }
 
@@ -83,11 +84,18 @@ class TripsService {
 
     _validateSessionOwner(userId, client);
 
-    await client
+    final response = await client
         .from(tableName)
         .delete()
         .eq('id', tripId)
-        .eq('user_id', userId);
-    return true;
+        .eq('user_id', userId)
+        .select('id, user_id');
+
+    final list = response as List<dynamic>;
+    return list.isNotEmpty &&
+        list.any((item) =>
+            item is Map &&
+            item['id'] == tripId &&
+            item['user_id'] == userId);
   }
 }
