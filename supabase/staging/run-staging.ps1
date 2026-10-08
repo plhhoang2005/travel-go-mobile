@@ -37,7 +37,16 @@ $ErrorActionPreference = 'Stop'
 
 # Verified Staging Project and Forbidden Primary References
 $VERIFIED_STAGING_REF = "bkocylxbuyvdgxccpixx"
+$VERIFIED_DIRECT_ENDPOINT = "db.bkocylxbuyvdgxccpixx.supabase.co"
 $FORBIDDEN_PRIMARY_REF = "oavbymauorhmrjcustzw"
+
+function Get-NormalizedSha256([string]$filePath) {
+  $rawContent = [System.IO.File]::ReadAllText((Resolve-Path $filePath).Path, [System.Text.Encoding]::UTF8)
+  $lfContent = $rawContent.Replace("`r`n", "`n").Replace("`r", "`n")
+  $bytes = [System.Text.Encoding]::UTF8.GetBytes($lfContent)
+  $sha256 = [System.Security.Cryptography.SHA256]::Create()
+  return [System.BitConverter]::ToString($sha256.ComputeHash($bytes)).Replace('-', '').ToUpper()
+}
 
 # 1. Validate ProjectRef presence
 if ([string]::IsNullOrWhiteSpace($ProjectRef)) {
@@ -69,11 +78,10 @@ if ($ConnectionHost.Trim().ToLower() -match '^(localhost|127\.0\.0\.1|0\.0\.0\.0
   throw "SECURITY VIOLATION: Localhost is not the verified cloud staging host! Target rejected."
 }
 
-# 7. Strict Target Guard: Host must match the verified staging project ref
+# 7. Strict Target Guard: Exact match on verified staging endpoint (No substring matching)
 $normalizedHost = $ConnectionHost.Trim().ToLower()
-$hostHasRef = $normalizedHost -match [regex]::Escape($VERIFIED_STAGING_REF.ToLower())
-if (!$hostHasRef) {
-  throw "TARGET MISMATCH: Connection host '$ConnectionHost' does not match verified staging project ref '$VERIFIED_STAGING_REF'."
+if ($normalizedHost -ne $VERIFIED_DIRECT_ENDPOINT.ToLower()) {
+  throw "TARGET MISMATCH: Connection host '$ConnectionHost' does not match verified staging endpoint '$VERIFIED_DIRECT_ENDPOINT'. Arbitrary, prefixed, or lookalike hosts are strictly rejected."
 }
 
 # 8. Validate SQL File exists
@@ -81,19 +89,33 @@ if ([string]::IsNullOrWhiteSpace($SqlFile) -or !(Test-Path -Path $SqlFile)) {
   throw "SqlFile does not exist: '$SqlFile'"
 }
 
-# 9. Optional Input SQL File Integrity Check
-if (![string]::IsNullOrWhiteSpace($ExpectedSqlHash)) {
-  $fileBytes = [System.IO.File]::ReadAllBytes((Resolve-Path $SqlFile).Path)
-  $sha256 = [System.Security.Cryptography.SHA256]::Create()
-  $computedHex = [System.BitConverter]::ToString($sha256.ComputeHash($fileBytes)).Replace('-', '').ToUpper()
+$resolvedSqlPath = (Resolve-Path $SqlFile).Path
+$sqlFileName = Split-Path $resolvedSqlPath -Leaf
 
+# 9. Consistent Input SQL File Integrity Check (LF-normalized SHA-256)
+if (![string]::IsNullOrWhiteSpace($ExpectedSqlHash)) {
+  $computedHex = Get-NormalizedSha256 -filePath $resolvedSqlPath
   if ($computedHex -ne $ExpectedSqlHash.Trim().ToUpper()) {
     throw "Input SQL file hash mismatch! Expected: '$ExpectedSqlHash', Actual: '$computedHex' on '$SqlFile'."
   }
 }
 
-# 10. Baseline Hash Validation: Corrective writes require audited baseline hash
-if (!$Bootstrap) {
+# 10. Bootstrap vs Corrective Mode Enforcement
+if ($Bootstrap) {
+  # Bootstrap mode is strictly restricted to canonical reviewed baseline.sql
+  if ($sqlFileName -ne "baseline.sql") {
+    throw "BOOTSTRAP REJECTED: Bootstrap mode is strictly restricted to the canonical baseline artifact ('baseline.sql'). Cannot run '$sqlFileName' with -Bootstrap."
+  }
+
+  # Verify baseline artifact integrity if hash is provided
+  if (![string]::IsNullOrWhiteSpace($ExpectedBaselineHash)) {
+    $computedBaselineHex = Get-NormalizedSha256 -filePath $resolvedSqlPath
+    if ($computedBaselineHex -ne $ExpectedBaselineHash.Trim().ToUpper()) {
+      throw "Baseline hash mismatch in bootstrap! Expected: '$ExpectedBaselineHash', Actual: '$computedBaselineHex' on '$resolvedSqlPath'."
+    }
+  }
+} else {
+  # Corrective writes, migrations, and harnesses REQUIRE reviewed -ExpectedBaselineHash
   if ([string]::IsNullOrWhiteSpace($ExpectedBaselineHash)) {
     throw "CORRECTIVE RUN REJECTED: Corrective writes and harness runs require -ExpectedBaselineHash to verify against reviewed baseline artifact."
   }
@@ -101,16 +123,11 @@ if (!$Bootstrap) {
   $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
   $baselineFile = Join-Path $scriptDir "baseline.sql"
   if (!(Test-Path $baselineFile)) {
-    $baselineFile = Join-Path (Split-Path -Parent (Resolve-Path $SqlFile).Path) "baseline.sql"
+    $baselineFile = Join-Path (Split-Path -Parent $resolvedSqlPath) "baseline.sql"
   }
 
   if (Test-Path $baselineFile) {
-    $rawContent = [System.IO.File]::ReadAllText((Resolve-Path $baselineFile).Path, [System.Text.Encoding]::UTF8)
-    $lfContent = $rawContent.Replace("`r`n", "`n")
-    $bBytes = [System.Text.Encoding]::UTF8.GetBytes($lfContent)
-    $sha256 = [System.Security.Cryptography.SHA256]::Create()
-    $computedBaselineHex = [System.BitConverter]::ToString($sha256.ComputeHash($bBytes)).Replace('-', '').ToUpper()
-
+    $computedBaselineHex = Get-NormalizedSha256 -filePath (Resolve-Path $baselineFile).Path
     if ($computedBaselineHex -ne $ExpectedBaselineHash.Trim().ToUpper()) {
       throw "Baseline hash mismatch! Expected: '$ExpectedBaselineHash', Actual: '$computedBaselineHex' on '$baselineFile'."
     }
@@ -129,7 +146,7 @@ if ($DryRun) {
 # 11. Mock Executor Support (for Unit Testing)
 if ($ExecutorMock) {
   Write-Host "Invoking ExecutorMock..." -ForegroundColor Cyan
-  & $ExecutorMock -Host $ConnectionHost -File $SqlFile
+  & $ExecutorMock -TargetHost $ConnectionHost -TargetFile $SqlFile
   exit 0
 }
 

@@ -10,7 +10,7 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RunnerScript = Join-Path $ScriptDir "run-staging.ps1"
 $DummySql = Join-Path $ScriptDir "test-dummy.sql"
 $BaselineSql = Join-Path $ScriptDir "baseline.sql"
-$MarkerFile = Join-Path $ScriptDir "mock-marker.tmp"
+$MigrationSql = Join-Path (Join-Path (Split-Path -Parent $ScriptDir) "migrations") "202610080001_profile_privacy.sql"
 
 Set-Content -Path $DummySql -Value "SELECT 1;"
 
@@ -89,70 +89,102 @@ Assert-Throws "Reject unverified arbitrary project reference" {
 # Test 5: Reject staging ref paired with unrelated host
 Assert-Throws "Reject staging ref paired with unrelated host" {
   & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost "db.unrelated.supabase.co" -SqlFile $DummySql -DryRun
-} "TARGET MISMATCH.*does not match verified staging project ref"
+} "TARGET MISMATCH.*does not match verified staging endpoint"
 
-# Test 6: Reject absent connection host
+# Test 6: Reject lookalike domain containing verified ref as prefix/suffix
+Assert-Throws "Reject lookalike domain containing verified ref" {
+  & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost "db.bkocylxbuyvdgxccpixx.supabase.co.example.invalid" -SqlFile $DummySql -DryRun
+} "TARGET MISMATCH.*does not match verified staging endpoint"
+
+# Test 7: Reject prefixed host containing verified ref
+Assert-Throws "Reject prefixed host containing verified ref" {
+  & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost "unverified-bkocylxbuyvdgxccpixx.example.invalid" -SqlFile $DummySql -DryRun
+} "TARGET MISMATCH.*does not match verified staging endpoint"
+
+# Test 8: Reject absent connection host
 Assert-Throws "Reject absent connection host" {
   & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost "" -SqlFile $DummySql -DryRun
 } "ConnectionHost cannot be empty"
 
-# Test 7: Reject localhost connection host
+# Test 9: Reject localhost connection host
 Assert-Throws "Reject localhost connection host" {
   & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost "localhost" -SqlFile $DummySql -DryRun
 } "SECURITY VIOLATION: Localhost is not the verified cloud staging host"
 
-# Test 8: Reject missing SQL file
+# Test 10: Reject missing SQL file
 Assert-Throws "Reject missing SQL file" {
   & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile "non_existent_file.sql" -DryRun
 } "SqlFile does not exist"
 
-# Test 9: Reject corrective run without ExpectedBaselineHash
+# Test 11: Reject bootstrap mode when file is not canonical baseline.sql
+Assert-Throws "Reject bootstrap mode on non-baseline SQL file" {
+  & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile $DummySql -Bootstrap -DryRun
+} "BOOTSTRAP REJECTED.*strictly restricted to the canonical baseline artifact"
+
+# Test 12: Reject bootstrap mode when file is migration file
+if (Test-Path $MigrationSql) {
+  Assert-Throws "Reject bootstrap mode on migration file" {
+    & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile $MigrationSql -Bootstrap -DryRun
+  } "BOOTSTRAP REJECTED.*strictly restricted to the canonical baseline artifact"
+}
+
+# Test 13: Reject corrective run without ExpectedBaselineHash
 Assert-Throws "Reject corrective run without ExpectedBaselineHash" {
   & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile $DummySql -DryRun
 } "CORRECTIVE RUN REJECTED.*require -ExpectedBaselineHash"
 
-# Test 10: Reject corrective run with mismatched ExpectedBaselineHash
+# Test 14: Reject corrective run with mismatched ExpectedBaselineHash
 Assert-Throws "Reject corrective run with mismatched ExpectedBaselineHash" {
   & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile $DummySql -ExpectedBaselineHash "0000000000000000000000000000000000000000000000000000000000000000" -DryRun
 } "Baseline hash mismatch"
 
-# Test 11: Permit bootstrap mode with -Bootstrap in DryRun mode
-Assert-Succeeds "Permit bootstrap mode with -Bootstrap in DryRun mode" {
-  & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile $DummySql -Bootstrap -DryRun
+# Test 15: Permit canonical baseline bootstrap in DryRun mode
+Assert-Succeeds "Permit canonical baseline bootstrap in DryRun mode" {
+  & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile $BaselineSql -Bootstrap -DryRun
 }
 
-# Test 12: Permit valid corrective staging parameters in DryRun mode
+# Test 16: Permit valid corrective staging parameters in DryRun mode
 Assert-Succeeds "Permit valid corrective staging parameters in DryRun mode" {
   & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile $DummySql -ExpectedBaselineHash $VALID_BASELINE_HASH -DryRun
 }
 
-# Test 13: Assert executor mock is NOT called when guard rejects
-if (Test-Path $MarkerFile) { Remove-Item $MarkerFile -Force }
-$rejectedMock = [scriptblock]::Create("Set-Content -Path '$MarkerFile' -Value 'CALLED'")
-try {
-  & $RunnerScript -ProjectRef "oavbymauorhmrjcustzw" -ConnectionHost "db.oavbymauorhmrjcustzw.supabase.co" -SqlFile $DummySql -ExecutorMock $rejectedMock
-} catch {}
-if (!(Test-Path $MarkerFile)) {
-  Write-Host "[PASS] Assert executor mock is NOT called on rejected target" -ForegroundColor Green
-  $script:testsPassed++
-} else {
-  Write-Host "[FAIL] Assert executor mock was unexpectedly called on rejected target" -ForegroundColor Red
-  $script:testsFailed++
-  Remove-Item $MarkerFile -Force
+# Test 17: Assert executor mock is NOT called (call count = 0) when guard rejects
+$global:executorCalls = 0
+$countingMock = {
+  param($TargetHost, $TargetFile)
+  $global:executorCalls++
 }
 
-# Test 14: Assert executor mock IS called exactly ONCE when guard permits
-if (Test-Path $MarkerFile) { Remove-Item $MarkerFile -Force }
-$permittedMock = [scriptblock]::Create("Set-Content -Path '$MarkerFile' -Value 'CALLED'")
+$rejectedExceptionCaught = $false
 try {
-  & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile $DummySql -Bootstrap -ExecutorMock $permittedMock
-} catch {}
-if (Test-Path $MarkerFile) {
-  Write-Host "[PASS] Assert executor mock is called on permitted target" -ForegroundColor Green
+  & $RunnerScript -ProjectRef "oavbymauorhmrjcustzw" -ConnectionHost "db.oavbymauorhmrjcustzw.supabase.co" -SqlFile $DummySql -ExecutorMock $countingMock
+} catch {
+  $rejectedExceptionCaught = $true
+}
+
+if ($rejectedExceptionCaught -and ($global:executorCalls -eq 0)) {
+  Write-Host "[PASS] Assert executor mock is NOT called on rejected target (calls = 0)" -ForegroundColor Green
   $script:testsPassed++
-  Remove-Item $MarkerFile -Force
 } else {
-  Write-Host "[FAIL] Assert executor mock was NOT called on permitted target" -ForegroundColor Red
+  Write-Host "[FAIL] Assert executor mock: expected exception and calls=0, got exception=$rejectedExceptionCaught, calls=$($global:executorCalls)" -ForegroundColor Red
+  $script:testsFailed++
+}
+
+# Test 18: Assert executor mock IS called exactly ONCE (call count = 1) when guard permits
+$global:executorCalls = 0
+$permittedSuccess = $false
+try {
+  & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile $BaselineSql -Bootstrap -ExecutorMock $countingMock
+  $permittedSuccess = $true
+} catch {
+  Write-Host "Unexpected exception during permitted call: $_" -ForegroundColor Red
+}
+
+if ($permittedSuccess -and ($global:executorCalls -eq 1)) {
+  Write-Host "[PASS] Assert executor mock is called exactly once on permitted target (calls = 1)" -ForegroundColor Green
+  $script:testsPassed++
+} else {
+  Write-Host "[FAIL] Assert executor mock: expected success and calls=1, got success=$permittedSuccess, calls=$($global:executorCalls)" -ForegroundColor Red
   $script:testsFailed++
 }
 
