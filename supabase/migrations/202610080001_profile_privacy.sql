@@ -40,8 +40,20 @@ BEGIN
   END IF;
 
   -- Verify baseline columns exist on public.trips
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'trips' AND column_name = 'destination_name') THEN
+    RAISE EXCEPTION 'Precondition failed: column destination_name does not exist on public.trips';
+  END IF;
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'trips' AND column_name = 'ai_plan_data') THEN
     RAISE EXCEPTION 'Precondition failed: column ai_plan_data does not exist on public.trips';
+  END IF;
+
+  -- Verify baseline procedure exists
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_proc p
+    JOIN pg_namespace n ON p.pronamespace = n.oid
+    WHERE n.nspname = 'public' AND p.proname = 'handle_new_user'
+  ) THEN
+    RAISE EXCEPTION 'Precondition failed: procedure public.handle_new_user does not exist';
   END IF;
 
   -- Verify baseline columns exist on public.trip_activities (matching SRC-DB-001)
@@ -302,9 +314,18 @@ BEGIN
     RAISE EXCEPTION 'Postcondition failed: anon role still has SELECT privilege on public.profiles';
   END IF;
 
-  -- Comprehensive Policy Drift Gate on public.profiles:
-  -- Rejects ANY unexpected policy (including cmd = 'ALL', permissive = 'PERMISSIVE',
-  -- or unreviewed SELECT/UPDATE/INSERT/DELETE policies).
+-- ------------------------------------------------------------------------------
+-- 6. SHARED DRIFT AUDIT FUNCTION: public.verify_profiles_policy_drift()
+-- ------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.verify_profiles_policy_drift()
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_unexpected_policies int;
+BEGIN
   SELECT count(*) INTO v_unexpected_policies
   FROM pg_policies
   WHERE schemaname = 'public'
@@ -315,17 +336,68 @@ BEGIN
       OR (cmd = 'UPDATE' AND policyname <> 'Users can update own profile')
       OR (cmd IN ('INSERT', 'DELETE'))
     );
+
   IF v_unexpected_policies > 0 THEN
-    RAISE EXCEPTION 'Postcondition failed: detected % unexpected policies on public.profiles', v_unexpected_policies;
+    RAISE EXCEPTION 'DRIFT_GATE_FAILURE: detected % unexpected policies on public.profiles', v_unexpected_policies;
+  END IF;
+END;
+$$;
+
+-- ------------------------------------------------------------------------------
+-- POSTCONDITION VERIFICATION GATES (Zero Regression Security Guarantees)
+-- ------------------------------------------------------------------------------
+DO $$
+DECLARE
+  v_profiles_rls boolean;
+  v_trips_rls boolean;
+  v_activities_rls boolean;
+  v_can_update_role boolean;
+  v_anon_can_select_profiles boolean;
+  v_can_truncate_trips boolean;
+  v_can_truncate_profiles boolean;
+  v_can_truncate_activities boolean;
+  v_can_truncate_destinations boolean;
+BEGIN
+  -- Verify RLS is enabled on protected tables
+  SELECT relrowsecurity INTO v_profiles_rls FROM pg_class WHERE oid = 'public.profiles'::regclass;
+  SELECT relrowsecurity INTO v_trips_rls FROM pg_class WHERE oid = 'public.trips'::regclass;
+  SELECT relrowsecurity INTO v_activities_rls FROM pg_class WHERE oid = 'public.trip_activities'::regclass;
+
+  IF NOT COALESCE(v_profiles_rls, false) THEN
+    RAISE EXCEPTION 'Postcondition failed: RLS is not enabled on public.profiles';
+  END IF;
+  IF NOT COALESCE(v_trips_rls, false) THEN
+    RAISE EXCEPTION 'Postcondition failed: RLS is not enabled on public.trips';
+  END IF;
+  IF NOT COALESCE(v_activities_rls, false) THEN
+    RAISE EXCEPTION 'Postcondition failed: RLS is not enabled on public.trip_activities';
   END IF;
 
-  -- Verify function definitions & security settings
+  -- Verify least privilege restrictions: role column update is forbidden for authenticated
+  SELECT has_column_privilege('authenticated', 'public.profiles', 'role', 'UPDATE') INTO v_can_update_role;
+  IF v_can_update_role THEN
+    RAISE EXCEPTION 'Postcondition failed: authenticated role still has UPDATE privilege on profiles.role';
+  END IF;
+
+  -- Verify anon has NO SELECT privilege on profiles
+  SELECT has_table_privilege('anon', 'public.profiles', 'SELECT') INTO v_anon_can_select_profiles;
+  IF v_anon_can_select_profiles THEN
+    RAISE EXCEPTION 'Postcondition failed: anon role still has SELECT privilege on public.profiles';
+  END IF;
+
+  -- Execute Shared Comprehensive Policy Drift Gate on public.profiles
+  PERFORM public.verify_profiles_policy_drift();
+
+  -- Verify procedure definitions, schema qualification, security definer, and search_path config
   IF NOT EXISTS (
-    SELECT 1 FROM pg_proc
-    WHERE proname = 'handle_new_user'
-      AND prosecdef = true
+    SELECT 1 FROM pg_proc p
+    JOIN pg_namespace n ON p.pronamespace = n.oid
+    WHERE n.nspname = 'public'
+      AND p.proname = 'handle_new_user'
+      AND p.prosecdef = true
+      AND p.proconfig::text LIKE '%search_path=public, pg_temp%'
   ) THEN
-    RAISE EXCEPTION 'Postcondition failed: handle_new_user procedure does not exist or is not SECURITY DEFINER';
+    RAISE EXCEPTION 'Postcondition failed: public.handle_new_user procedure does not exist, is not SECURITY DEFINER, or search_path is not public, pg_temp';
   END IF;
 
   -- Verify mutating DDL privileges: TRUNCATE is revoked for authenticated and anon across all 4 tables

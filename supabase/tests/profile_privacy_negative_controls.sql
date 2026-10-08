@@ -25,30 +25,37 @@ END;
 $$;
 
 -- ------------------------------------------------------------------------------
--- Gate 1: Shared Policy Drift Gate
--- Exactly matches the postcondition logic in migration 202610080001_profile_privacy.sql (lines 308-320)
+-- Gate 1: Reusable Policy Drift Gate Fallback (matches public.verify_profiles_policy_drift)
 -- ------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION pg_temp.gate_check_profiles_policy_drift()
-RETURNS void LANGUAGE plpgsql AS $$
-DECLARE
-  v_unexpected int;
+DO $$
 BEGIN
-  SELECT count(*) INTO v_unexpected
-  FROM pg_policies
-  WHERE schemaname = 'public'
-    AND tablename = 'profiles'
-    AND (
-      cmd = 'ALL'
-      OR (cmd = 'SELECT' AND policyname <> 'Users can view own profile')
-      OR (cmd = 'UPDATE' AND policyname <> 'Users can update own profile')
-      OR (cmd IN ('INSERT', 'DELETE'))
-    );
-
-  IF v_unexpected > 0 THEN
-    RAISE EXCEPTION 'DRIFT_GATE_FAILURE: detected % unexpected policies on public.profiles', v_unexpected;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_proc p
+    JOIN pg_namespace n ON p.pronamespace = n.oid
+    WHERE n.nspname = 'public' AND p.proname = 'verify_profiles_policy_drift'
+  ) THEN
+    CREATE OR REPLACE FUNCTION public.verify_profiles_policy_drift()
+    RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $f$
+    DECLARE
+      v_unexpected_policies int;
+    BEGIN
+      SELECT count(*) INTO v_unexpected_policies
+      FROM pg_policies
+      WHERE schemaname = 'public'
+        AND tablename = 'profiles'
+        AND (
+          cmd = 'ALL'
+          OR (cmd = 'SELECT' AND policyname <> 'Users can view own profile')
+          OR (cmd = 'UPDATE' AND policyname <> 'Users can update own profile')
+          OR (cmd IN ('INSERT', 'DELETE'))
+        );
+      IF v_unexpected_policies > 0 THEN
+        RAISE EXCEPTION 'DRIFT_GATE_FAILURE: detected % unexpected policies on public.profiles', v_unexpected_policies;
+      END IF;
+    END;
+    $f$;
   END IF;
-END;
-$$;
+END $$;
 
 -- ------------------------------------------------------------------------------
 -- NC01: Permissive ALL Policy Drift Detection & Restoration
@@ -63,7 +70,7 @@ DECLARE
 BEGIN
   -- 1. Verify clean migration state passes drift gate
   BEGIN
-    PERFORM pg_temp.gate_check_profiles_policy_drift();
+    PERFORM public.verify_profiles_policy_drift();
     v_initial_clean := true;
   EXCEPTION WHEN OTHERS THEN
     v_initial_clean := false;
@@ -72,9 +79,9 @@ BEGIN
   -- 2. Inject mutant: Permissive FOR ALL policy on profiles
   CREATE POLICY "NC01_Mutant_Permissive_All" ON public.profiles FOR ALL USING (true);
 
-  -- 3. Execute drift gate: MUST FAIL-CLOSED on mutant policy
+  -- 3. Execute shared drift gate: MUST FAIL-CLOSED on mutant policy
   BEGIN
-    PERFORM pg_temp.gate_check_profiles_policy_drift();
+    PERFORM public.verify_profiles_policy_drift();
     v_mutant_caught := false; -- should not reach here
   EXCEPTION WHEN OTHERS THEN
     IF SQLERRM LIKE '%DRIFT_GATE_FAILURE%' THEN
@@ -87,7 +94,7 @@ BEGIN
 
   -- 5. Verify gate passes again after restoration
   BEGIN
-    PERFORM pg_temp.gate_check_profiles_policy_drift();
+    PERFORM public.verify_profiles_policy_drift();
     v_restored_clean := true;
   EXCEPTION WHEN OTHERS THEN
     v_restored_clean := false;
@@ -120,17 +127,24 @@ END;
 $$;
 
 -- ------------------------------------------------------------------------------
--- NC02: Real Signup Role Escalation Mutant Detection & Restoration
--- Injects a vulnerable handle_new_user trigger in the transaction, performs
--- actual auth signup with admin role metadata, proves the assertion helper fails,
--- then restores the exact reviewed secure trigger from migration and proves pass.
+-- NC02: Real Signup Role Escalation Mutant Detection & EXACT METADATA RESTORATION
+-- Captures exact pg_get_functiondef and configuration before mutation, proves
+-- mutant is caught, restores via captured definition, asserts metadata equality,
+-- and proves restored safe signup.
 -- ------------------------------------------------------------------------------
 DO $$
 DECLARE
   v_mutant_user_id uuid := '88888888-8888-8888-8888-888888888882';
   v_mutant_caught boolean := false;
-  v_restored_clean boolean := false;
+  v_definition_restored_exact boolean := false;
+  v_restored_safe_signup boolean := false;
   v_has_auth boolean;
+  v_orig_funcdef text;
+  v_orig_secdef boolean;
+  v_orig_config text[];
+  v_restored_funcdef text;
+  v_restored_secdef boolean;
+  v_restored_config text[];
 BEGIN
   SELECT EXISTS (
     SELECT 1 FROM pg_namespace n JOIN pg_class c ON c.relnamespace = n.oid
@@ -141,7 +155,24 @@ BEGIN
     RAISE EXCEPTION 'Prerequisite failed: auth.users table missing for NC02';
   END IF;
 
-  -- 1. Install MUTANT trigger function: trusts user_metadata->>'role'
+  -- 1. CAPTURE EXACT ORIGINAL FUNCTION DEFINITION & METADATA
+  SELECT
+    pg_get_functiondef(p.oid),
+    p.prosecdef,
+    p.proconfig
+  INTO
+    v_orig_funcdef,
+    v_orig_secdef,
+    v_orig_config
+  FROM pg_proc p
+  JOIN pg_namespace n ON p.pronamespace = n.oid
+  WHERE n.nspname = 'public' AND p.proname = 'handle_new_user';
+
+  IF v_orig_funcdef IS NULL THEN
+    RAISE EXCEPTION 'Prerequisite failed: public.handle_new_user does not exist before NC02 mutation';
+  END IF;
+
+  -- 2. INSTALL MUTANT TRIGGER FUNCTION (trusts raw_user_meta_data->>'role')
   CREATE OR REPLACE FUNCTION public.handle_new_user()
   RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER AS $tg$
   BEGIN
@@ -156,11 +187,11 @@ BEGIN
   END;
   $tg$;
 
-  -- 2. Trigger real signup under mutant
+  -- 3. TRIGGER REAL SIGNUP UNDER MUTANT
   INSERT INTO auth.users (id, aud, role, email, raw_user_meta_data, created_at, updated_at)
   VALUES (v_mutant_user_id, 'authenticated', 'authenticated', 'mutant@travelgo.vn', '{"role": "admin"}'::jsonb, now(), now());
 
-  -- 3. Run security assertion gate: MUST FAIL-CLOSED because role is 'admin'
+  -- 4. RUN SECURITY ASSERTION GATE: MUST FAIL-CLOSED ON ROLE ESCALATION
   BEGIN
     PERFORM pg_temp.gate_assert_signup_role(v_mutant_user_id);
     v_mutant_caught := false; -- should not reach here
@@ -170,69 +201,58 @@ BEGIN
     END IF;
   END;
 
-  -- 4. Clean up test row
+  -- 5. CLEAN UP TEST ROW
   DELETE FROM public.profiles WHERE id = v_mutant_user_id;
   DELETE FROM auth.users WHERE id = v_mutant_user_id;
 
-  -- 5. Restore EXACT reviewed secure trigger function from migration (lines 127-175)
-  CREATE OR REPLACE FUNCTION public.handle_new_user()
-  RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER
-  SET search_path = public, pg_temp AS $tg$
-  DECLARE
-    v_full_name text;
-    v_phone text;
-  BEGIN
-    v_full_name := COALESCE(
-      NULLIF(TRIM(NEW.raw_user_meta_data->>'full_name'), ''),
-      NULLIF(TRIM(NEW.raw_user_meta_data->>'name'), ''),
-      CASE
-        WHEN NEW.email IS NOT NULL AND position('@' IN NEW.email) > 1
-          THEN split_part(NEW.email, '@', 1)
-        ELSE 'Thành viên TravelGO'
-      END
-    );
-    v_phone := COALESCE(
-      NULLIF(TRIM(NEW.raw_user_meta_data->>'phone'), ''),
-      NULLIF(TRIM(NEW.phone), ''),
-      ''
-    );
-    INSERT INTO public.profiles (id, full_name, email, phone, role)
-    VALUES (NEW.id, v_full_name, NEW.email, v_phone, 'customer')
-    ON CONFLICT (id) DO UPDATE SET
-      full_name = EXCLUDED.full_name,
-      email = EXCLUDED.email,
-      phone = EXCLUDED.phone,
-      updated_at = now();
-    RETURN NEW;
-  END;
-  $tg$;
+  -- 6. RESTORE EXACT CAPTURED ORIGINAL FUNCTION DEFINITION
+  EXECUTE v_orig_funcdef;
 
-  -- 6. Trigger real signup under restored secure trigger with same spoofed metadata
+  -- 7. VERIFY EXACT RESTORATION OF METADATA AND DEFINITION
+  SELECT
+    pg_get_functiondef(p.oid),
+    p.prosecdef,
+    p.proconfig
+  INTO
+    v_restored_funcdef,
+    v_restored_secdef,
+    v_restored_config
+  FROM pg_proc p
+  JOIN pg_namespace n ON p.pronamespace = n.oid
+  WHERE n.nspname = 'public' AND p.proname = 'handle_new_user';
+
+  IF v_restored_funcdef = v_orig_funcdef
+     AND v_restored_secdef = v_orig_secdef
+     AND v_restored_config IS NOT DISTINCT FROM v_orig_config THEN
+    v_definition_restored_exact := true;
+  END IF;
+
+  -- 8. TRIGGER REAL SIGNUP UNDER RESTORED SECURE TRIGGER WITH ADMIN METADATA
   INSERT INTO auth.users (id, aud, role, email, raw_user_meta_data, created_at, updated_at)
   VALUES (v_mutant_user_id, 'authenticated', 'authenticated', 'mutant@travelgo.vn', '{"role": "admin"}'::jsonb, now(), now());
 
-  -- 7. Run security assertion gate: MUST SUCCEED because role is forced to 'customer'
+  -- 9. RUN SECURITY ASSERTION GATE: MUST SUCCEED (ROLE FORCED TO 'customer')
   BEGIN
     PERFORM pg_temp.gate_assert_signup_role(v_mutant_user_id);
-    v_restored_clean := true;
+    v_restored_safe_signup := true;
   EXCEPTION WHEN OTHERS THEN
-    v_restored_clean := false;
+    v_restored_safe_signup := false;
   END;
 
-  -- Clean up test row
+  -- CLEAN UP TEST ROW
   DELETE FROM public.profiles WHERE id = v_mutant_user_id;
   DELETE FROM auth.users WHERE id = v_mutant_user_id;
 
   PERFORM pg_temp.record_control(
     'NC02_role_escalation_detection',
-    (v_mutant_caught = true AND v_restored_clean = true),
-    format('Mutant escalation caught: %s, restored secure signup passed: %s',
-      v_mutant_caught, v_restored_clean)
+    (v_mutant_caught = true AND v_definition_restored_exact = true AND v_restored_safe_signup = true),
+    format('Mutant caught: %s, exact definition restored: %s, restored safe signup: %s',
+      v_mutant_caught, v_definition_restored_exact, v_restored_safe_signup)
   );
 END $$;
 
 -- ------------------------------------------------------------------------------
--- Gate 3: Query Error Classifier
+-- Gate 3: Query Error Classifier Helper
 -- Harness classifier must distinguish 42703 (undefined_column) from 42501 (insufficient_privilege)
 -- ------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION pg_temp.classify_query_error(p_sql text)

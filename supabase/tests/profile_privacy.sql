@@ -29,6 +29,43 @@ BEGIN
 END;
 $$;
 
+-- Shared query error classifier helper
+CREATE OR REPLACE FUNCTION pg_temp.classify_query_error(p_sql text)
+RETURNS text LANGUAGE plpgsql AS $$
+BEGIN
+  EXECUTE p_sql;
+  RETURN 'SUCCESS';
+EXCEPTION
+  WHEN insufficient_privilege THEN
+    RETURN 'DENIED_42501';
+  WHEN undefined_column THEN
+    RETURN 'UNDEFINED_COLUMN_42703';
+  WHEN OTHERS THEN
+    RETURN 'OTHER_' || SQLSTATE;
+END;
+$$;
+
+-- Shared reparent assertion gate helper
+CREATE OR REPLACE FUNCTION pg_temp.gate_assert_reparent_success(p_act_id uuid, p_target_trip_id uuid)
+RETURNS void LANGUAGE plpgsql AS $$
+DECLARE
+  v_rows int;
+  v_stored_parent uuid;
+BEGIN
+  UPDATE public.trip_activities SET trip_id = p_target_trip_id WHERE id = p_act_id;
+  GET DIAGNOSTICS v_rows = ROW_COUNT;
+
+  IF v_rows <> 1 THEN
+    RAISE EXCEPTION 'REPARENT_ASSERTION_FAILURE: expected exactly 1 row updated, got %', v_rows;
+  END IF;
+
+  SELECT trip_id INTO v_stored_parent FROM public.trip_activities WHERE id = p_act_id;
+  IF v_stored_parent <> p_target_trip_id THEN
+    RAISE EXCEPTION 'REPARENT_ASSERTION_FAILURE: stored parent % does not match target %', v_stored_parent, p_target_trip_id;
+  END IF;
+END;
+$$;
+
 -- ------------------------------------------------------------------------------
 -- 1. PREREQUISITES & FIXTURE SETUP (Fails on Collision; Audited Schema)
 -- ------------------------------------------------------------------------------
@@ -525,18 +562,16 @@ BEGIN
   DELETE FROM public.trip_activities WHERE id = act_id;
   GET DIAGNOSTICS v_b_deleted_act = ROW_COUNT;
 
-  -- 4. User A reparents activity to own Trip A2 (assert ROW_COUNT = 1 and stored parent = trip_a2)
+  -- 4. User A reparents activity to own Trip A2 via shared gate helper
   PERFORM set_config('role', 'authenticated', true);
   PERFORM set_config('request.jwt.claim.sub', uid_a::text, true);
 
-  UPDATE public.trip_activities SET trip_id = trip_a2 WHERE id = act_id;
-  GET DIAGNOSTICS v_rows_affected = ROW_COUNT;
-
-  SELECT trip_id INTO v_stored_parent FROM public.trip_activities WHERE id = act_id;
-
-  IF v_rows_affected = 1 AND v_stored_parent = trip_a2 THEN
+  BEGIN
+    PERFORM pg_temp.gate_assert_reparent_success(act_id, trip_a2);
     v_reparent_own_ok := true;
-  END IF;
+  EXCEPTION WHEN OTHERS THEN
+    v_reparent_own_ok := false;
+  END;
 
   -- 5. User A attempts to reparent activity to Trip B (must be denied by RLS WITH CHECK with exact 42501)
   BEGIN
