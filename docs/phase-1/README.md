@@ -1,9 +1,9 @@
 # Travel-Go Mobile — Phase 1 design index
 
 > Version **1.1** • Ngày cập nhật: **2026-10-08** • Approval date S-MP baseline: **2026-10-08** • Deadline: **2026-10-28**.
-> **APPROVED WITH CONDITIONS — DESIGN WORK AUTHORIZED, IMPLEMENTATION NOT AUTHORIZED.**
-> Bộ thiết kế: **DESIGN COMPLETE — FINAL OWNER REVIEW PENDING**.
-> S-DEC đã chốt các lựa chọn; final review artifact v1.1 và authorization Phase 2/3 vẫn riêng.
+> **APPROVED WITH CONDITIONS — PHASE 1 CLOSED — IMPLEMENTATION NOT AUTHORIZED.**
+> Bộ thiết kế v1.1: **APPROVED WITH CONDITIONS — PHASE 1 CLOSED** ngày **2026-10-08**.
+> Approval của chủ dự án được ghi tại [APPROVAL.md](APPROVAL.md); điều kiện còn mở bàn giao tại [HANDOFF.md](HANDOFF.md). Phase 2/3 chưa được cấp phép triển khai.
 
 ## Mục lục: 10 deliverables theo S-MP §15
 
@@ -32,6 +32,12 @@
 
 **S-REPO-2:** snapshot tiếp nối [758804c](https://github.com/plhhoang2005/travel-go-mobile/tree/758804ce9bb636e45d3c8d11dcab4b33fed4cc68), tree effa88d091b51bb790cf1fcc2be2f5a4f7a68883. Read-only inspected backend/pom.xml, MapController, MapService, TripApiService, TripsService và recursive tree. Backend chứa routing/health; client trip planning có fallback, persistence dùng saved_trips. Chưa chứng minh Gemini/engine live hoặc deployed RLS/schema. Không đọc/copy secret values.
 
+
+## Hồ sơ đóng Phase 1
+
+- [APPROVAL.md](APPROVAL.md): approval evidence, baseline được duyệt, phạm vi đóng và các điều kiện không được tự coi là đã giải quyết.
+- [HANDOFF.md](HANDOFF.md): quyết định, commit, hiện trạng, RC owners/deadlines và thứ tự công việc tiếp theo.
+- Đây là hai hồ sơ bổ trợ, không thay danh sách 10 design deliverables.
 
 ## Baseline bổ sung v1.1 — quyết định trực tiếp của chủ dự án
 
@@ -79,7 +85,7 @@ Priority MUST/SHOULD là trục khác với trạng thái. Map/Weather/Community
 7. **Privacy:** Minimal context, coarse origin, no email/password/token/default precise GPS; backend auth/RLS; logout purge local account cache, remote trip còn.
 8. **Reliability:** Explicit proposal preview/apply; stale reject; migration ack/retry no duplicates; offline local draft writable, saved snapshot read-only; manual fallback khi AI lỗi.
 9. **Remaining conditions:** Model/account readiness, SQLite driver, hosting/schema/RLS compatibility, data-depth/source/license, Guest identity/account cap, consent/retention và submission checklist; maps/weather/community/group còn OPEN nếu chọn SHOULD.
-10. **Acceptance/gate:** 55 cases NOT RUN. Bộ thiết kế v1.1 complete để owner final review; Phase 1 closure chưa ghi approval cho artifact mới; không bắt đầu Phase 2/3.
+10. **Acceptance/gate:** 55 cases NOT RUN. Chủ dự án đã phê duyệt có điều kiện baseline v1.1 và yêu cầu ghi approval/đóng hồ sơ; Phase 1 đóng. RC còn mở và authorization Phase 2/3 vẫn riêng.
 
 ## Phase 1 approval checklist
 
@@ -95,15 +101,16 @@ Priority MUST/SHOULD là trục khác với trạng thái. Map/Weather/Community
 - [x] Minimal AI context/coarse origin và logout purge local account cache — DEC-009/010.
 - [x] Hoàn thiện Phase 1 design, không sử dụng superpowers trong lần cập nhật — DEC-011.
 
-### Review artifact v1.1 và điều kiện còn lại
+### Approval cuối và đóng hồ sơ
 
-- [ ] Chủ dự án review 10 docs v1.1 và FR→BR→UF→data/API→AC consistency.
-- [ ] Duyệt các details PROPOSED: 6–10 places/sample depth, server adapter/contracts, quota reservations, logical schema/RLS và migration revisions.
-- [ ] Chấp thuận/điều chỉnh RC-001–006 với owner/due/evidence; không coi remaining OPEN là confirmed.
-- [ ] Ghi final approval artifact v1.1/ngày/evidence để đóng Phase 1; chưa có approval này tại thời điểm xuất bản.
-- [ ] Authorization Phase 2 và review implementation plan riêng; không tự chuyển pha.
+- [x] Chủ dự án phê duyệt bộ thiết kế v1.1 tại commit 2f330e9; evidence S-APP-001 trong APPROVAL.md.
+- [x] Ghi approval có điều kiện ngày 2026-10-08; Phase 1 CLOSED, không còn chờ approval artifact v1.1.
+- [x] Giữ nguyên các quyết định CONFIRMED DEC-001–011 và 10 design deliverables.
+- [x] Bàn giao details PROPOSED/OPEN và RC-001–006, không đánh dấu đã hoàn thành validation.
+- [ ] Chốt data depth, driver/model/hosting và policies chi tiết còn mở trước operation implementation tương ứng.
+- [ ] Cấp authorization Phase 2 và duyệt implementation plan riêng; chưa có tại thời điểm đóng hồ sơ.
 
-**Yêu cầu final review:** Chủ dự án vui lòng phê duyệt bộ thiết kế **v1.1** hoặc chỉ ra phần cần sửa. Approval bản này đóng phần review thiết kế khi điều kiện được ghi rõ, không tự cấp quyền viết code Phase 2/3.
+**Closure record:** [APPROVAL.md](APPROVAL.md) là nguồn approval; [HANDOFF.md](HANDOFF.md) là điểm bắt đầu cho session tiếp theo. Phê duyệt thiết kế có điều kiện không là nghiệm thu ứng dụng hoặc cấp quyền tự triển khai.
 
 ## Verification lần xuất bản v1.1
 
@@ -111,9 +118,14 @@ Scope đúng 12 Markdown files: 10 docs + index + README root. Giữ phần hư�
 
 Kiểm count/unique IDs, cross-links/anchors, 55 cases đầy đủ fields, quota/provider/state/privacy decisions đồng nhất và trạng thái closed/open phân biệt. Verification tài liệu không là Flutter analyze/test, live provider/PoC hoặc evidence 55 acceptance đã đạt.
 
+## Verification lần đóng hồ sơ
+
+Scope lần closure: 14 Markdown files — 10 tài liệu thiết kế, index Phase 1, README root và hai hồ sơ APPROVAL/HANDOFF. So sánh với commit v1.1; mọi file ngoài phạm vi này phải giữ nguyên nội dung và mode. Không chạy hoặc tuyên bố nghiệm thu ứng dụng; 55 acceptance cases vẫn NOT RUN.
+
 ## Lịch sử phiên bản
 
 | Version | Date | Nội dung |
 | --- | --- | --- |
 | 1.0 | 2026-10-08 | Conditional design baseline theo S-MP, 38 FR/22 BR/50 AC; commit 758804c |
-| 1.1 | 2026-10-08 | Ghi DEC-001–011; Gemini/3 Guest requests/12 destinations/Provider+SQLite/migration/privacy; bổ sung AC-051–055 và integration/readiness design; final artifact review pending |
+| 1.1 | 2026-10-08 | Ghi DEC-001–011; Gemini/3 Guest requests/12 destinations/Provider+SQLite/migration/privacy; bổ sung AC-051–055 và integration/readiness design; tại thời điểm xuất bản v1.1 còn chờ final artifact review; đã được duyệt ở closure record bên dưới |
+| Closure record | 2026-10-08 | S-APP-001 ghi approval baseline v1.1, đóng Phase 1 có điều kiện; chuyển remaining readiness items sang HANDOFF.md, không thay scope hoặc triển khai |

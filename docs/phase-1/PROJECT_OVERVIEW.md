@@ -1,8 +1,8 @@
 # 01 — Tổng quan dự án
 
 > Phiên bản thiết kế: 1.1 • Ngày lập: 2026-10-08 • Deadline: **2026-10-28**.
-> Trạng thái: **APPROVED WITH CONDITIONS — DESIGN WORK AUTHORIZED, IMPLEMENTATION NOT AUTHORIZED**.
-> Tiến độ bộ thiết kế v1.1: **DESIGN COMPLETE — FINAL OWNER REVIEW PENDING**. Các lựa chọn đã chốt theo S-DEC; chưa chuyển Phase 2/3.
+> Trạng thái: **APPROVED WITH CONDITIONS — PHASE 1 CLOSED — IMPLEMENTATION NOT AUTHORIZED**.
+> Bộ thiết kế v1.1 đã được chủ dự án phê duyệt có điều kiện ngày **2026-10-08**; hồ sơ Phase 1 đóng. Xem [approval](APPROVAL.md) và [bàn giao](HANDOFF.md); Phase 2/3 chưa được phép triển khai.
 > Baseline: S-MP (Master Prompt v1.0); đây là đặc tả thiết kế, không phải bằng chứng tính năng đã triển khai hoặc Phase 1 đã được đóng.
 
 ## Tóm tắt điều hành
@@ -65,7 +65,7 @@
 
 [CONFIRMED] Tính năng chỉ đạt khi có bằng chứng cho acceptance ở [09](ACCEPTANCE_CRITERIA.md), không dựa trên mock screenshot. [PROPOSED] Mọi AC MUST phải đạt; SHOULD đánh dấu không áp dụng nếu module chưa được phê duyệt triển khai; DEFERRED kiểm tra không phát sinh triển khai ngoài scope.
 
-[OPEN] Chủ dự án cần duyệt kiến trúc, logical schema, nguồn dữ liệu, các OQ blocking và scope triển khai. Phase 1 chưa đóng; xem checklist ở [mục lục](README.md).
+[CONFIRMED S-APP-001] Chủ dự án đã phê duyệt baseline v1.1 và đóng Phase 1 có điều kiện. Logical schema/policy details chưa chốt và runtime validation tiếp tục được bàn giao, không được đổi OPEN thành CONFIRMED tự động; xem [approval](APPROVAL.md) và [handoff](HANDOFF.md).
 
 ## Kết quả Requirement Audit v1.1
 
@@ -79,7 +79,9 @@
 
 ## Trạng thái bàn giao
 
-Bộ 10 design docs v1.1 đã hoàn thiện để review cuối. **APPROVED WITH CONDITIONS; DESIGN COMPLETE — FINAL OWNER REVIEW PENDING; IMPLEMENTATION NOT AUTHORIZED**. Chủ dự án đã duyệt các lựa chọn DEC, chưa duyệt bản tài liệu v1.1 vừa được tạo. Final review không cần hỏi lại các lựa chọn đã chốt; chỉ duyệt artifact và các proposed details/remaining conditions.
+**APPROVED WITH CONDITIONS — PHASE 1 CLOSED — IMPLEMENTATION NOT AUTHORIZED.** Chủ dự án đã phê duyệt bộ thiết kế v1.1 và yêu cầu ghi approval/đóng hồ sơ ngày 2026-10-08. [APPROVAL.md](APPROVAL.md) giữ evidence; [HANDOFF.md](HANDOFF.md) giữ quyết định, commit, hiện trạng và điều kiện mở.
+
+Scope/capabilities/proposed policies giữ classification hiện tại. Việc đóng Phase 1 chỉ đóng review thiết kế; không chứng minh runtime/AC đã đạt hoặc quyền provisioning/Phase 2. Metadata closure không sửa nguồn Master Prompt lịch sử.
 
 ---
 [Xem mục lục và quy ước nguồn/trạng thái](README.md).

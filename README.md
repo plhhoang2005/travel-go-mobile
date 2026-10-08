@@ -35,9 +35,9 @@ flutter run
 
 Bộ thiết kế **v1.1**, cập nhật **2026-10-08** theo Master Prompt v1.0 trong **Pasted text.txt** và các quyết định trực tiếp của chủ dự án. Deadline: **2026-10-28**.
 
-**APPROVED WITH CONDITIONS — DESIGN COMPLETE — FINAL OWNER REVIEW PENDING — IMPLEMENTATION NOT AUTHORIZED.** Bộ đặc tả đã hoàn thiện để review cuối; chưa ghi final approval cho artifact v1.1 hoặc cho phép tự chuyển Phase 2/3.
+**APPROVED WITH CONDITIONS — PHASE 1 CLOSED — IMPLEMENTATION NOT AUTHORIZED.** Chủ dự án đã phê duyệt baseline v1.1 có điều kiện và đóng Phase 1 ngày **2026-10-08**. Chưa cấp quyền tự chuyển Phase 2/3.
 
-→ [Mục lục 10 tài liệu, decision log và approval checklist](docs/phase-1/README.md).
+→ [Mục lục 10 tài liệu và decision log](docs/phase-1/README.md) · [Approval](docs/phase-1/APPROVAL.md) · [Bàn giao Phase 1](docs/phase-1/HANDOFF.md).
 
 **Đã chốt:** Gemini qua server; Guest 3 yêu cầu AI/ngày reset 00:00 giờ Việt Nam, lỗi không có kết quả dùng được không trừ; 12 điểm đến; giữ Provider; SQLite cho Guest draft/saved offline snapshots; draft import có xác nhận và retry no duplicate; Supabase private-trip authorization; minimal AI context và logout purge account cache.
 
