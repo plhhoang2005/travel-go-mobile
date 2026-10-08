@@ -209,3 +209,14 @@ Trﾆｰ盻嫩 khi xu蘯･t bﾃ｡o cﾃ｡o ho蘯ｷc t蘯｡o commit, Agent 
    - **C蘯､M** dﾃｹng vﾄハ phong qu蘯｣ng cﾃ｡o AI sﾃ｡o r盻溶g (*"Khﾃｴng ch盻・lﾃ m盻冲 chuy蘯ｿn ﾄ訴, mﾃ lﾃ...", "Khai phﾃ｡ s盻ｩc m蘯｡nh du l盻議h"*).
    - **B蘯ｮT BU盻呂**: Dﾃｹng t盻ｫ ng盻ｯ s蘯｣n ph蘯ｩm th盻ｱc t蘯ｿ, con s盻・c盻･ th盻・(VND, s盻・km, gi盻・bay), gi蘯｣i thﾃｭch ng蘯ｯn g盻肱, trung tﾃｭnh, h盻ｯu ﾃｭch cho ngﾆｰ盻拱 dﾃｹng.
 
+
+<a id="owner-learning-rule"></a>
+## 7. Giải thích để owner hiểu cách hệ thống hoạt động
+
+**Owner preference — CONFIRMED 2026-10-08.** Sau mỗi lượt implementation/fix và code review, chủ động giải thích bằng tiếng Việt: luồng hoạt động, lỗi và ảnh hưởng, lý do chọn cách giải quyết, thay đổi trước/sau, cách kiểm chứng, kết quả cùng giới hạn. Dùng một tình huống thật của Travel-Go và rút ra 1–2 nguyên tắc có thể dùng ở chức năng khác.
+
+Không cần giảng từng dòng code hoặc thuật ngữ cú pháp. Nếu dùng thuật ngữ như Provider, RLS hoặc acknowledgement, giải thích ngắn bằng vai trò của nó. Nêu file/layer khi giúp định vị trách nhiệm; dùng sơ đồ mũi tên đơn giản khi hữu ích. Giữ phần giải thích vừa đủ theo độ phức tạp, không bắt owner làm bài tập hoặc trả lời câu hỏi để tiếp tục việc đã được authorize.
+
+Lead với kết luận review và lỗi cần xử lý; phần giải thích không che findings/bằng chứng. Phân biệt người sửa, người review, đề xuất chưa thực hiện, tests đã chạy và kiểm tra chưa chạy. Tests pass không tự đồng nghĩa feature đúng, code đã deploy hoặc database đã apply. Đối chiếu exact commit và evidence; không nhận lời bàn giao làm PASS.
+
+Dùng [workflow giải thích](workflow.md#owner-learning-workflow). Tích hợp vào Changed/Why/Testing/Problems/Lesson Candidate hiện có để tránh hai báo cáo lặp lại. Không sử dụng superpowers; quy tắc này không cấp quyền sửa code/database/merge ngoài task.
