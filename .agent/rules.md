@@ -219,4 +219,14 @@ Không cần giảng từng dòng code hoặc thuật ngữ cú pháp. Nếu dù
 
 Lead với kết luận review và lỗi cần xử lý; phần giải thích không che findings/bằng chứng. Phân biệt người sửa, người review, đề xuất chưa thực hiện, tests đã chạy và kiểm tra chưa chạy. Tests pass không tự đồng nghĩa feature đúng, code đã deploy hoặc database đã apply. Đối chiếu exact commit và evidence; không nhận lời bàn giao làm PASS.
 
-Dùng [workflow giải thích](workflow.md#owner-learning-workflow). Tích hợp vào Changed/Why/Testing/Problems/Lesson Candidate hiện có để tránh hai báo cáo lặp lại. Không sử dụng superpowers; quy tắc này không cấp quyền sửa code/database/merge ngoài task.
+Dùng [workflow giải thích](workflow.md#owner-learning-workflow). Tích hợp vào Changed/Why/Testing/Problems/Lesson Candidate hiện có để tránh hai báo cáo lặp lại. Mặc định không sử dụng superpowers; chỉ dùng khi owner yêu cầu rõ ràng cho task hiện tại; quy tắc này không cấp quyền sửa code/database/merge ngoài task.
+
+<a id="explicit-superpowers-rule"></a>
+## 8. Superpowers: explicit owner request only
+
+- Mặc định không đọc hoặc invoke skill thuộc superpowers, không tự kích hoạt theo mô tả skill như "MUST use before debugging/planning/review" hoặc "start conversation".
+- Chỉ dùng khi owner yêu cầu rõ ràng trong task hiện tại, ví dụ "sử dụng superpowers để tìm nguyên nhân". Nêu skill được dùng và mục đích.
+- Yêu cầu dùng ở task trước, prompt cũ hay transcript tham chiếu không tự cấp quyền cho task/session mới. "Không sử dụng superpowers" hiện tại ghi đè lời cho phép trước. Chỉ nhắc tên hoặc trao đổi về superpowers không phải yêu cầu invoke.
+- Không gọi superpowers gián tiếp qua subagent, workflow hoặc prompt thực thi khi owner chưa yêu cầu. Không cài/gỡ/sửa các skill đã cài để thực thi preference này.
+- Các skill khác không thuộc superpowers vẫn dùng theo nhu cầu task. Không bỏ phân tích nguyên nhân, kiểm thử hoặc evidence chỉ vì không dùng superpowers; không hỏi permission lặp lại để làm công việc đã được authorize.
+- Ghi preference này vào bàn giao khi đổi session. Nếu hướng dẫn skill mâu thuẫn, ưu tiên yêu cầu owner.

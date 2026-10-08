@@ -1,5 +1,13 @@
 ﻿# AGENTS.md 窶・TravelGO Mobile Autonomous Agent Constitution & Guidelines
 
+<a id="explicit-superpowers-policy"></a>
+## Quy tắc owner: superpowers chỉ khi được yêu cầu
+
+Mặc định không sử dụng superpowers. Chỉ đọc/invoke các skill thuộc superpowers khi owner yêu cầu rõ ràng cho task hiện tại. Không tự kích hoạt vì task là debugging, planning, review, coding hoặc bắt đầu session; lời gọi trước đây không tự cấp quyền cho task/session tiếp theo. Không dùng superpowers gián tiếp qua agent hay workflow. Thực hiện công việc bình thường bằng code, tài liệu và tools phù hợp khi không được yêu cầu dùng superpowers.
+
+Đọc [rules](.agent/rules.md#explicit-superpowers-rule) và [workflow](.agent/workflow.md#session-context-workflow) để xử lý yêu cầu skill và bàn giao session. Quy tắc này áp dụng cho Codex và Antigravity, không tắt các skill khác cần thiết và không thêm approval gate cho công việc đã được giao.
+
+
 ## 1. Project Context & Vision
 - **Project Name**: TravelGO Mobile (Smart Travel & Mobility Decision Intelligence System for Android/iOS)
 - **Tech Stack**: Flutter 3.x, Dart 3.x, Provider, Dio, fl_chart, flutter_animate, flutter_lints.
@@ -100,6 +108,6 @@ M盻擁 khi hoﾃn thﾃnh m盻冲 nhi盻㍊ v盻･, Agent b蘯ｯt bu盻
 
 ## 7. Giải thích coding và review cho owner (bắt buộc)
 
-Owner muốn hiểu luồng hoạt động, cách giải quyết vấn đề và bằng chứng review; không cần học từng dòng code. Áp dụng sau mỗi lần Antigravity sửa và mỗi lần Codex review, kể cả review chưa đạt hoặc task bị chặn. Không sử dụng superpowers.
+Owner muốn hiểu luồng hoạt động, cách giải quyết vấn đề và bằng chứng review; không cần học từng dòng code. Áp dụng sau mỗi lần Antigravity sửa và mỗi lần Codex review, kể cả review chưa đạt hoặc task bị chặn. Mặc định không sử dụng superpowers; chỉ sử dụng khi owner yêu cầu rõ ràng cho task hiện tại.
 
 Đọc và thực hiện [quy tắc giải thích](.agent/rules.md#owner-learning-rule) và [workflow giải thích](.agent/workflow.md#owner-learning-workflow). Antigravity giải thích phần mình sửa; Codex giải thích phần mình kiểm tra/tìm lỗi, phân biệt đã sửa với mới đề xuất. Đây là bổ sung cho handover hiện có, không thêm approval gate hoặc thay phạm vi triển khai.

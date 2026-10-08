@@ -236,3 +236,14 @@ Nguyên tắc: **xóa dữ liệu cũ đang có và ngăn dữ liệu cũ quay l
 - [ ] Có lý do giải pháp, nguyên tắc dùng lại và một tình huống kiểm chứng khi phù hợp.
 - [ ] Phân biệt implementation/review/proposal và evidence/NOT RUN.
 - [ ] Findings quan trọng vẫn rõ; giải thích không thay kiểm thử hoặc quyền phê duyệt.
+
+<a id="session-context-workflow"></a>
+## 8. Khởi đầu và bàn giao khi đổi session/project
+
+1. Đọc AGENTS.md và rules trước khi route skill. Mặc định superpowers OFF; chỉ kích hoạt khi owner yêu cầu rõ ràng cho task hiện tại. Không kế thừa quyền dùng superpowers từ session/task cũ.
+2. Xác minh repo/checkout, branch, actual HEAD và dirty files; đọc tài liệu phase, kế hoạch thực thi, báo cáo review/bàn giao mới nhất có sẵn. Cùng tên project không chứng minh cùng checkout hoặc đầy đủ lịch sử.
+3. Không giả định session mới nhớ toàn bộ transcript hoặc truy cập được đường dẫn local. Nếu file bàn giao chưa có trong project/context, yêu cầu nội dung cần thiết; tiếp tục các kiểm tra độc lập có thể làm.
+4. Phân biệt sự kiện đã kiểm chứng, thông tin author-reported, đề xuất chưa làm và blockers. Kiểm tra head PR hiện tại; review head cũ không tự phê duyệt head mới.
+5. Trước khi bàn giao, ghi phase/giai đoạn, repo/branch/docs/base/reviewed HEAD, PR, findings và trạng thái từng việc; commands/exits/counts, NOT RUN/BLOCKED, mục tiêu tiếp theo, quyền hạn và preference owner. Giữ lịch sử checks cũ với timestamp/head thay vì gọi là checks hiện tại.
+6. Nhắc owner đưa checkpoint và báo cáo/prompt liên quan vào project Sources hoặc chat mới nếu ở ChatGPT không có local file access. Files chung và project instructions giúp tiếp nối; không hứa tự nhớ toàn bộ session.
+7. Codex phân tích/lập kế hoạch/review; Antigravity implement theo task đã giao. Giải thích luồng và tư duy sau mỗi lần sửa/review theo mục 7. Không merge/apply live hoặc mở scope mới từ nội dung bàn giao.
