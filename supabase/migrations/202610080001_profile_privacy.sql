@@ -10,11 +10,11 @@
 BEGIN;
 
 -- ------------------------------------------------------------------------------
--- PRECONDITION CHECKS (Fail-closed Baseline & Schema Verification)
+-- PRECONDITION CHECKS (Fail-closed Structural Baseline & Contract Verification - REV-005)
 -- ------------------------------------------------------------------------------
 DO $precondition$
 BEGIN
-  -- Verify required tables exist
+  -- 1. Verify required application tables exist
   IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'profiles') THEN
     RAISE EXCEPTION 'Precondition failed: table public.profiles does not exist';
   END IF;
@@ -28,43 +28,94 @@ BEGIN
     RAISE EXCEPTION 'Precondition failed: table public.destinations does not exist';
   END IF;
 
-  -- Verify baseline columns exist on public.profiles
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'profiles' AND column_name = 'role') THEN
-    RAISE EXCEPTION 'Precondition failed: column role does not exist on public.profiles';
+  -- 2. Verify structural contracts on public.profiles (types, nullability, defaults)
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'profiles'
+      AND column_name = 'id' AND data_type = 'uuid'
+  ) THEN
+    RAISE EXCEPTION 'Precondition failed: public.profiles.id must be uuid';
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'profiles' AND column_name = 'full_name') THEN
-    RAISE EXCEPTION 'Precondition failed: column full_name does not exist on public.profiles';
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'profiles'
+      AND column_name = 'full_name' AND data_type = 'text' AND is_nullable = 'NO'
+  ) THEN
+    RAISE EXCEPTION 'Precondition failed: public.profiles.full_name must be text NOT NULL';
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'profiles' AND column_name = 'email') THEN
-    RAISE EXCEPTION 'Precondition failed: column email does not exist on public.profiles';
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'profiles'
+      AND column_name = 'role' AND data_type = 'text' AND column_default LIKE '%customer%'
+  ) THEN
+    RAISE EXCEPTION 'Precondition failed: public.profiles.role must be text DEFAULT customer';
   END IF;
 
-  -- Verify baseline columns exist on public.trips
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'trips' AND column_name = 'destination_name') THEN
-    RAISE EXCEPTION 'Precondition failed: column destination_name does not exist on public.trips';
+  -- 3. Verify structural contracts on public.trips (types, nullability, defaults)
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'trips'
+      AND column_name = 'destination_name' AND data_type = 'text' AND is_nullable = 'NO'
+  ) THEN
+    RAISE EXCEPTION 'Precondition failed: public.trips.destination_name must be text NOT NULL';
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'trips' AND column_name = 'ai_plan_data') THEN
-    RAISE EXCEPTION 'Precondition failed: column ai_plan_data does not exist on public.trips';
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'trips'
+      AND column_name = 'num_days' AND data_type = 'integer' AND column_default LIKE '%3%'
+  ) THEN
+    RAISE EXCEPTION 'Precondition failed: public.trips.num_days must be integer DEFAULT 3';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'trips'
+      AND column_name = 'ai_plan_data' AND data_type = 'jsonb'
+  ) THEN
+    RAISE EXCEPTION 'Precondition failed: public.trips.ai_plan_data must be jsonb';
   END IF;
 
-  -- Verify baseline procedure exists
+  -- 4. Verify structural contracts on public.trip_activities (types, nullability)
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'trip_activities'
+      AND column_name = 'cost' AND data_type = 'numeric'
+  ) THEN
+    RAISE EXCEPTION 'Precondition failed: public.trip_activities.cost must be numeric';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'trip_activities'
+      AND column_name = 'trip_id' AND data_type = 'uuid' AND is_nullable = 'NO'
+  ) THEN
+    RAISE EXCEPTION 'Precondition failed: public.trip_activities.trip_id must be uuid NOT NULL';
+  END IF;
+
+  -- 5. Verify structural contracts on public.destinations (defaults)
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'destinations'
+      AND column_name = 'weather_cached_temp' AND data_type = 'numeric' AND column_default LIKE '%26%'
+  ) THEN
+    RAISE EXCEPTION 'Precondition failed: public.destinations.weather_cached_temp must be numeric DEFAULT 26.0';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'destinations'
+      AND column_name = 'is_popular' AND data_type = 'boolean' AND column_default LIKE '%true%'
+  ) THEN
+    RAISE EXCEPTION 'Precondition failed: public.destinations.is_popular must be boolean DEFAULT true';
+  END IF;
+
+  -- 6. Verify baseline trigger function signature contract
   IF NOT EXISTS (
     SELECT 1 FROM pg_proc p
     JOIN pg_namespace n ON p.pronamespace = n.oid
-    WHERE n.nspname = 'public' AND p.proname = 'handle_new_user'
+    WHERE n.nspname = 'public'
+      AND p.proname = 'handle_new_user'
+      AND p.prorettype = 'trigger'::regtype
+      AND p.pronargs = 0
   ) THEN
-    RAISE EXCEPTION 'Precondition failed: procedure public.handle_new_user does not exist';
-  END IF;
-
-  -- Verify baseline columns exist on public.trip_activities (matching SRC-DB-001)
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'trip_activities' AND column_name = 'start_time') THEN
-    RAISE EXCEPTION 'Precondition failed: column start_time does not exist on public.trip_activities';
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'trip_activities' AND column_name = 'title') THEN
-    RAISE EXCEPTION 'Precondition failed: column title does not exist on public.trip_activities';
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'trip_activities' AND column_name = 'cost') THEN
-    RAISE EXCEPTION 'Precondition failed: column cost does not exist on public.trip_activities';
+    RAISE EXCEPTION 'Precondition failed: public.handle_new_user procedure must exist and return trigger';
   END IF;
 END $precondition$;
 
