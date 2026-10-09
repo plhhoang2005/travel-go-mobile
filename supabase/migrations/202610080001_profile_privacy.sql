@@ -106,28 +106,37 @@ BEGIN
     RAISE EXCEPTION 'Precondition failed: public.destinations.is_popular must be boolean DEFAULT true';
   END IF;
 
-  -- 6. Verify Foreign Key relationships in scope
+  -- 6. Verify Foreign Key relationships in scope (source column, target column, cascade on delete)
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint c
     JOIN pg_class t ON c.conrelid = t.oid
     JOIN pg_namespace n ON t.relnamespace = n.oid
+    JOIN pg_class ft ON c.confrelid = ft.oid
+    JOIN pg_namespace fn ON ft.relnamespace = fn.oid
+    JOIN pg_attribute src_col ON src_col.attrelid = t.oid AND src_col.attnum = c.conkey[1]
+    JOIN pg_attribute ref_col ON ref_col.attrelid = ft.oid AND ref_col.attnum = c.confkey[1]
     WHERE n.nspname = 'public' AND t.relname = 'trip_activities'
+      AND fn.nspname = 'public' AND ft.relname = 'trips'
       AND c.contype = 'f'
-      AND c.confrelid = 'public.trips'::regclass
+      AND cardinality(c.conkey) = 1
+      AND cardinality(c.confkey) = 1
+      AND src_col.attname = 'trip_id'
+      AND ref_col.attname = 'id'
+      AND c.confdeltype = 'c'
   ) THEN
-    RAISE EXCEPTION 'Precondition failed: public.trip_activities must have foreign key to public.trips';
+    RAISE EXCEPTION 'Precondition failed: public.trip_activities must have FK (trip_id) -> public.trips(id) ON DELETE CASCADE';
   END IF;
 
-  -- 7. Verify Check constraints in scope
+  -- 7. Verify Check constraints in scope (exact role enum set: customer, partner, admin)
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint c
     JOIN pg_class t ON c.conrelid = t.oid
     JOIN pg_namespace n ON t.relnamespace = n.oid
     WHERE n.nspname = 'public' AND t.relname = 'profiles'
       AND c.contype = 'c'
-      AND pg_get_constraintdef(c.oid) ~ 'role.*customer'
+      AND pg_get_constraintdef(c.oid) ~ '^CHECK \(\(role = ANY \(ARRAY\[''customer''::text, ''partner''::text, ''admin''::text\]\)\)\)$'
   ) THEN
-    RAISE EXCEPTION 'Precondition failed: public.profiles must have CHECK constraint on role';
+    RAISE EXCEPTION 'Precondition failed: public.profiles must have CHECK constraint on role matching exact set (''customer'', ''partner'', ''admin'')';
   END IF;
 
   -- 8. Verify baseline trigger function signature contract
@@ -141,6 +150,72 @@ BEGIN
       AND p.prosecdef = true
   ) THEN
     RAISE EXCEPTION 'Precondition failed: public.handle_new_user procedure must exist, be SECURITY DEFINER, and return trigger';
+  END IF;
+
+  -- 9. Verify trigger binding on auth.users when auth schema exists
+  IF EXISTS (
+    SELECT 1 FROM pg_namespace n
+    JOIN pg_class c ON c.relnamespace = n.oid
+    WHERE n.nspname = 'auth' AND c.relname = 'users'
+  ) THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_trigger tr
+      JOIN pg_class c ON tr.tgrelid = c.oid
+      JOIN pg_namespace n ON c.relnamespace = n.oid
+      JOIN pg_proc p ON tr.tgfoid = p.oid
+      JOIN pg_namespace pn ON p.pronamespace = pn.oid
+      WHERE n.nspname = 'auth' AND c.relname = 'users'
+        AND tr.tgname = 'on_auth_user_created'
+        AND pn.nspname = 'public' AND p.proname = 'handle_new_user'
+        AND (tr.tgtype & 1) = 1  -- FOR EACH ROW
+        AND (tr.tgtype & 2) = 0  -- AFTER
+        AND (tr.tgtype & 4) = 4  -- INSERT
+        AND tr.tgenabled = 'O'   -- Enabled
+    ) THEN
+      RAISE EXCEPTION 'Precondition failed: trigger on_auth_user_created on auth.users must exist, be enabled, and bind to public.handle_new_user() AFTER INSERT FOR EACH ROW';
+    END IF;
+  END IF;
+
+  -- 10. Verify legacy policy expressions on public.profiles before hardening
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policy pol
+    JOIN pg_class c ON pol.polrelid = c.oid
+    JOIN pg_namespace n ON c.relnamespace = n.oid
+    WHERE n.nspname = 'public' AND c.relname = 'profiles'
+      AND pol.polname = 'Profiles are viewable by everyone'
+      AND pol.polcmd = 'r'
+      AND pg_get_expr(pol.polqual, pol.polrelid) = 'true'
+  ) THEN
+    RAISE EXCEPTION 'Precondition failed: legacy policy "Profiles are viewable by everyone" FOR SELECT USING (true) must exist on public.profiles';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policy pol
+    JOIN pg_class c ON pol.polrelid = c.oid
+    JOIN pg_namespace n ON c.relnamespace = n.oid
+    WHERE n.nspname = 'public' AND c.relname = 'profiles'
+      AND pol.polname = 'Users can update own profile'
+      AND pol.polcmd = 'w'
+      AND pg_get_expr(pol.polqual, pol.polrelid) ~ 'auth\.uid\(\)\s*=\s*id'
+  ) THEN
+    RAISE EXCEPTION 'Precondition failed: legacy policy "Users can update own profile" FOR UPDATE USING (auth.uid() = id) must exist on public.profiles';
+  END IF;
+
+  -- 11. Verify pre-remediation permissive table-level grants on public.profiles
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.role_table_grants
+    WHERE table_schema = 'public' AND table_name = 'profiles'
+      AND grantee = 'authenticated' AND privilege_type = 'UPDATE'
+  ) THEN
+    RAISE EXCEPTION 'Precondition failed: pre-remediation authenticated role must have table-level UPDATE grant on public.profiles';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.role_table_grants
+    WHERE table_schema = 'public' AND table_name = 'profiles'
+      AND grantee = 'anon' AND privilege_type = 'SELECT'
+  ) THEN
+    RAISE EXCEPTION 'Precondition failed: pre-remediation anon role must have SELECT grant on public.profiles';
   END IF;
 END $precondition$;
 
