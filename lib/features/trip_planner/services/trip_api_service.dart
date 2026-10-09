@@ -33,6 +33,8 @@ class TripApiService {
   }
 
   Future<PlanTripResponse> planTrip(PlanTripRequest request) async {
+    // Ensure Dio uses the latest runtime baseUrl (supporting runtime override / reset)
+    _dio.options.baseUrl = ApiConstants.baseUrl;
     try {
       final response = await _dio.post(
         ApiConstants.planTrip,
@@ -47,19 +49,42 @@ class TripApiService {
     } on DioException catch (e) {
       debugPrint('[TripApiService] DioException: ${e.message}');
       // Fallback demo data with explicit FALLBACK marker (Law 3: Zero Silent Fallbacks)
-      return _generateOfflineFallbackResponse(request, e.message ?? 'Connection error');
+      return _generateOfflineFallbackResponse(request, _formatDioErrorMessage(e));
     } catch (e) {
       debugPrint('[TripApiService] Exception: $e');
-      return _generateOfflineFallbackResponse(request, e.toString());
+      return _generateOfflineFallbackResponse(request, 'Lỗi kết nối máy chủ không xác định: $e');
     }
   }
 
   Future<bool> checkHealth() async {
+    _dio.options.baseUrl = ApiConstants.baseUrl;
     try {
       final response = await _dio.get(ApiConstants.health);
       return response.statusCode == 200;
     } catch (_) {
       return false;
+    }
+  }
+
+  String _formatDioErrorMessage(DioException e) {
+    switch (e.type) {
+      case DioExceptionType.connectionTimeout:
+      case DioExceptionType.sendTimeout:
+      case DioExceptionType.receiveTimeout:
+        return 'Kết nối đến máy chủ quá thời gian chờ (Timeout). Vui lòng thử lại sau.';
+      case DioExceptionType.connectionError:
+        return 'Không thể kết nối đến máy chủ Backend (${ApiConstants.baseUrl}). Vui lòng kiểm tra dịch vụ máy chủ.';
+      case DioExceptionType.badResponse:
+        final code = e.response?.statusCode;
+        return 'Máy chủ phản hồi mã lỗi HTTP $code.';
+      case DioExceptionType.cancel:
+        return 'Yêu cầu kết nối đã bị hủy.';
+      default:
+        final msg = e.message ?? '';
+        if (msg.contains('Connection refused')) {
+          return 'Không thể kết nối đến máy chủ (${ApiConstants.baseUrl}): Kết nối bị từ chối.';
+        }
+        return 'Lỗi kết nối máy chủ: ${msg.isNotEmpty ? msg : "Không xác định"}.';
     }
   }
 

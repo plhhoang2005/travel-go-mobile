@@ -324,120 +324,24 @@ class _DashboardResultScreenState extends State<DashboardResultScreen> with Sing
     final defaultTitle = res.topDestinations.isNotEmpty
         ? 'Chuyến đi ${res.topDestinations.first.name}'
         : 'Kế hoạch du lịch';
-    final titleController = TextEditingController(text: defaultTitle);
-    bool isSaving = false;
 
-    try {
-      await showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (dialogCtx) => StatefulBuilder(
-          builder: (dialogCtx, setState) {
-            return PopScope(
-              canPop: !isSaving,
-              child: AlertDialog(
-                title: const Text('Lưu Chuyến Đi Lên Cloud', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                content: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Đặt tên cho chuyến đi để dễ dàng theo dõi:',
-                      style: TextStyle(fontSize: 13, color: AppTheme.slate600),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: titleController,
-                      enabled: !isSaving,
-                      decoration: InputDecoration(
-                        labelText: 'Tên chuyến đi',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      ),
-                      style: const TextStyle(fontSize: 14),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Điểm đến: ${res.topDestinations.isNotEmpty ? res.topDestinations.first.name : "Điểm đến"} · ${res.itineraryDays.isNotEmpty ? res.itineraryDays.length : 3} ngày',
-                      style: const TextStyle(fontSize: 12, color: AppTheme.slate500),
-                    ),
-                  ],
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: isSaving ? null : () => Navigator.pop(dialogCtx),
-                    child: const Text('Hủy'),
-                  ),
-                  FilledButton(
-                    onPressed: isSaving
-                        ? null
-                        : () async {
-                            final title = titleController.text.trim().isNotEmpty
-                                ? titleController.text.trim()
-                                : defaultTitle;
-
-                            if (dialogCtx.mounted) {
-                              setState(() {
-                                isSaving = true;
-                              });
-                            }
-
-                            final tripsProvider = context.read<SavedTripsProvider>();
-                            final success = await tripsProvider.saveTrip(
-                              title: title,
-                              destinationName: res.topDestinations.isNotEmpty
-                                  ? res.topDestinations.first.name
-                                  : 'Điểm đến',
-                              numDays: res.itineraryDays.isNotEmpty ? res.itineraryDays.length : 3,
-                              budgetTotal: (res.budgetBreakdown?.totalAllocated ?? 4000000).toDouble(),
-                              tripPlanData: _serializeTripResponse(res),
-                            );
-
-                            if (dialogCtx.mounted) {
-                              if (success) {
-                                Navigator.pop(dialogCtx);
-                              } else {
-                                setState(() {
-                                  isSaving = false;
-                                });
-                              }
-                            }
-
-                            if (context.mounted) {
-                              if (success) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Đã lưu chuyến đi thành công vào tài khoản!')),
-                                );
-                              } else {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(tripsProvider.errorMessage ?? 'Không thể lưu chuyến đi lên máy chủ'),
-                                  ),
-                                );
-                              }
-                            }
-                          },
-                    style: FilledButton.styleFrom(backgroundColor: const Color(0xFF086C61)),
-                    child: isSaving
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                          )
-                        : const Text('Lưu'),
-                  ),
-                ],
-              ),
-            );
-          },
-        ),
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogCtx) => _SaveTripDialog(
+        res: res,
+        defaultTitle: defaultTitle,
+      ),
+    );
+    if (!context.mounted) return;
+    if (result == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Đã lưu chuyến đi thành công vào tài khoản!')),
       );
-    } finally {
-      titleController.dispose();
     }
   }
 
-  Map<String, dynamic> _serializeTripResponse(dynamic res) {
+  static Map<String, dynamic> _serializeTripResponse(dynamic res) {
     if (res is! PlanTripResponse) return {};
     return {
       'winnerId': res.winnerId,
@@ -488,5 +392,124 @@ class _DashboardResultScreenState extends State<DashboardResultScreen> with Sing
         'recommendationReason': t.recommendationReason,
       }).toList(),
     };
+  }
+}
+
+class _SaveTripDialog extends StatefulWidget {
+  final PlanTripResponse res;
+  final String defaultTitle;
+
+  const _SaveTripDialog({
+    required this.res,
+    required this.defaultTitle,
+  });
+
+  @override
+  State<_SaveTripDialog> createState() => _SaveTripDialogState();
+}
+
+class _SaveTripDialogState extends State<_SaveTripDialog> {
+  late final TextEditingController _titleController;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController = TextEditingController(text: widget.defaultTitle);
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: !_isSaving,
+      child: AlertDialog(
+        title: const Text('Lưu Chuyến Đi Lên Cloud', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Đặt tên cho chuyến đi để dễ dàng theo dõi:',
+              style: TextStyle(fontSize: 13, color: AppTheme.slate600),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _titleController,
+              enabled: !_isSaving,
+              decoration: InputDecoration(
+                labelText: 'Tên chuyến đi',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              ),
+              style: const TextStyle(fontSize: 14),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Điểm đến: ${widget.res.topDestinations.isNotEmpty ? widget.res.topDestinations.first.name : "Điểm đến"} · ${widget.res.itineraryDays.isNotEmpty ? widget.res.itineraryDays.length : 3} ngày',
+              style: const TextStyle(fontSize: 12, color: AppTheme.slate500),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: _isSaving ? null : () => Navigator.pop(context),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            onPressed: _isSaving
+                ? null
+                : () async {
+                    final title = _titleController.text.trim().isNotEmpty
+                        ? _titleController.text.trim()
+                        : widget.defaultTitle;
+
+                    setState(() {
+                      _isSaving = true;
+                    });
+
+                    final tripsProvider = context.read<SavedTripsProvider>();
+                    final success = await tripsProvider.saveTrip(
+                      title: title,
+                      destinationName: widget.res.topDestinations.isNotEmpty
+                          ? widget.res.topDestinations.first.name
+                          : 'Điểm đến',
+                      numDays: widget.res.itineraryDays.isNotEmpty ? widget.res.itineraryDays.length : 3,
+                      budgetTotal: (widget.res.budgetBreakdown?.totalAllocated ?? 4000000).toDouble(),
+                      tripPlanData: _DashboardResultScreenState._serializeTripResponse(widget.res),
+                    );
+
+                    if (!context.mounted) return;
+
+                    if (success) {
+                      Navigator.pop(context, true);
+                    } else {
+                      setState(() {
+                        _isSaving = false;
+                      });
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(tripsProvider.errorMessage ?? 'Không thể lưu chuyến đi lên máy chủ'),
+                        ),
+                      );
+                    }
+                  },
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF086C61)),
+            child: _isSaving
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  )
+                : const Text('Lưu'),
+          ),
+        ],
+      ),
+    );
   }
 }

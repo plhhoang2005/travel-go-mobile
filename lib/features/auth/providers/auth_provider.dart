@@ -514,16 +514,13 @@ class AuthProvider extends ChangeNotifier {
         return true;
       }
 
-      await client
-          .from('profiles')
-          .update(payload)
-          .eq('id', user.id);
-
-      // Verify and sync by reloading profile from server
+      // UI-01: Acknowledge mutation directly on the update statement itself.
+      // Do NOT execute an independent GET / select to infer update success.
       final res = await client
           .from('profiles')
-          .select('id, full_name, phone, avatar_url, address, role')
+          .update(payload)
           .eq('id', user.id)
+          .select('id, full_name, phone, avatar_url, address, role')
           .maybeSingle();
 
       if (!isCurrentSession()) {
@@ -531,7 +528,7 @@ class AuthProvider extends ChangeNotifier {
         return false;
       }
 
-      // UI-01: Must have a valid returned row with matching user ID
+      // UI-01: Must have a valid returned row with matching user ID from the mutation itself
       if (res == null || res['id'] != user.id) {
         _isLoading = false;
         _errorMessage = 'Không thể xác thực bản ghi hồ sơ đã cập nhật từ máy chủ';
