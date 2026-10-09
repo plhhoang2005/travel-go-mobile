@@ -3,13 +3,16 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../providers/trip_provider.dart';
+import '../../models/trip_response.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../widgets/pareto_chart_widget.dart';
 import '../widgets/budget_donut_chart.dart';
 import '../widgets/itinerary_timeline_widget.dart';
 import '../widgets/trip_comparison_matrix_widget.dart';
 import 'package:latlong2/latlong.dart';
+import '../../../auth/providers/auth_provider.dart';
 import '../../../map/presentation/screens/trip_map_screen.dart';
+import '../../../trips/providers/saved_trips_provider.dart';
 
 class DashboardResultScreen extends StatefulWidget {
   const DashboardResultScreen({super.key});
@@ -53,6 +56,11 @@ class _DashboardResultScreenState extends State<DashboardResultScreen> with Sing
       appBar: AppBar(
         title: const Text('Báo Cáo Tối Ưu Hóa'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.bookmark_add_outlined),
+            tooltip: 'Lưu Chuyến Đi',
+            onPressed: () => _showSaveTripDialog(context, res),
+          ),
           IconButton(
             icon: const Icon(Icons.map_outlined),
             tooltip: 'Xem Bản Đồ & Radar Nhóm',
@@ -257,6 +265,23 @@ class _DashboardResultScreenState extends State<DashboardResultScreen> with Sing
                 ),
               ).animate().fadeIn(delay: 200.ms),
 
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8.0),
+              child: SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () => _showSaveTripDialog(context, res),
+                  icon: const Icon(Icons.bookmark_add_outlined, size: 20),
+                  label: const Text('Lưu Chuyến Đi Này Lên Cloud', style: TextStyle(fontWeight: FontWeight.bold)),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF086C61),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+            ),
+
             const SizedBox(height: 16),
 
             // Tab View Body
@@ -283,6 +308,207 @@ class _DashboardResultScreenState extends State<DashboardResultScreen> with Sing
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Future<void> _showSaveTripDialog(BuildContext context, dynamic res) async {
+    final auth = context.read<AuthProvider>();
+    if (auth.isGuest || auth.currentUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vui lòng đăng nhập tài khoản để lưu chuyến đi lên cloud')),
+      );
+      return;
+    }
+
+    final defaultTitle = res.topDestinations.isNotEmpty
+        ? 'Chuyến đi ${res.topDestinations.first.name}'
+        : 'Kế hoạch du lịch';
+
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogCtx) => _SaveTripDialog(
+        res: res,
+        defaultTitle: defaultTitle,
+      ),
+    );
+    if (!context.mounted) return;
+    if (result == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Đã lưu chuyến đi thành công vào tài khoản!')),
+      );
+    }
+  }
+
+  static Map<String, dynamic> _serializeTripResponse(dynamic res) {
+    if (res is! PlanTripResponse) return {};
+    return {
+      'winnerId': res.winnerId,
+      'isFallback': res.isFallback,
+      'aiExplanation': res.aiExplanation,
+      'dataSources': res.dataSources,
+      'assumptions': res.assumptions,
+      'topDestinations': res.topDestinations.map((d) => {
+        'id': d.id,
+        'name': d.name,
+        'totalScore': d.totalScore,
+        'normalizedScores': d.normalizedScores,
+        'scoreContributions': d.scoreContributions,
+        'estimatedCostVnd': d.estimatedCostVnd,
+        'weatherSource': d.weatherSource,
+        'avgTempMax': d.avgTempMax,
+        'avgPrecipitation': d.avgPrecipitation,
+        'latitude': d.latitude,
+        'longitude': d.longitude,
+        'region': d.region,
+      }).toList(),
+      'budgetBreakdown': res.budgetBreakdown != null ? {
+        'totalAllocated': res.budgetBreakdown!.totalAllocated,
+        'transport': res.budgetBreakdown!.transport,
+        'accommodation': res.budgetBreakdown!.accommodation,
+        'food': res.budgetBreakdown!.food,
+        'attractions': res.budgetBreakdown!.attractions,
+        'remainingSafetyMargin': res.budgetBreakdown!.remainingSafetyMargin,
+      } : null,
+      'itineraryDays': res.itineraryDays.map((day) => {
+        'day': day.day,
+        'title': day.title,
+        'activities': day.activities.map((a) => {
+          'time': a.time,
+          'title': a.title,
+          'costVnd': a.costVnd,
+          'durationHours': a.durationHours,
+        }).toList(),
+      }).toList(),
+      'transportOptions': res.transportOptions.map((t) => {
+        'mode': t.mode,
+        'displayName': t.displayName,
+        'priceTotalVnd': t.priceTotalVnd,
+        'durationHours': t.durationHours,
+        'comfortScore': t.comfortScore,
+        'isParetoOptimal': t.isParetoOptimal,
+        'tradeoffType': t.tradeoffType,
+        'recommendationReason': t.recommendationReason,
+      }).toList(),
+    };
+  }
+}
+
+class _SaveTripDialog extends StatefulWidget {
+  final PlanTripResponse res;
+  final String defaultTitle;
+
+  const _SaveTripDialog({
+    required this.res,
+    required this.defaultTitle,
+  });
+
+  @override
+  State<_SaveTripDialog> createState() => _SaveTripDialogState();
+}
+
+class _SaveTripDialogState extends State<_SaveTripDialog> {
+  late final TextEditingController _titleController;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController = TextEditingController(text: widget.defaultTitle);
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: !_isSaving,
+      child: AlertDialog(
+        title: const Text('Lưu Chuyến Đi Lên Cloud', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Đặt tên cho chuyến đi để dễ dàng theo dõi:',
+              style: TextStyle(fontSize: 13, color: AppTheme.slate600),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _titleController,
+              enabled: !_isSaving,
+              decoration: InputDecoration(
+                labelText: 'Tên chuyến đi',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              ),
+              style: const TextStyle(fontSize: 14),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Điểm đến: ${widget.res.topDestinations.isNotEmpty ? widget.res.topDestinations.first.name : "Điểm đến"} · ${widget.res.itineraryDays.isNotEmpty ? widget.res.itineraryDays.length : 3} ngày',
+              style: const TextStyle(fontSize: 12, color: AppTheme.slate500),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: _isSaving ? null : () => Navigator.pop(context),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            onPressed: _isSaving
+                ? null
+                : () async {
+                    final title = _titleController.text.trim().isNotEmpty
+                        ? _titleController.text.trim()
+                        : widget.defaultTitle;
+
+                    setState(() {
+                      _isSaving = true;
+                    });
+
+                    final tripsProvider = context.read<SavedTripsProvider>();
+                    final success = await tripsProvider.saveTrip(
+                      title: title,
+                      destinationName: widget.res.topDestinations.isNotEmpty
+                          ? widget.res.topDestinations.first.name
+                          : 'Điểm đến',
+                      numDays: widget.res.itineraryDays.isNotEmpty ? widget.res.itineraryDays.length : 3,
+                      budgetTotal: (widget.res.budgetBreakdown?.totalAllocated ?? 4000000).toDouble(),
+                      tripPlanData: _DashboardResultScreenState._serializeTripResponse(widget.res),
+                    );
+
+                    if (!context.mounted) return;
+
+                    if (success) {
+                      Navigator.pop(context, true);
+                    } else {
+                      setState(() {
+                        _isSaving = false;
+                      });
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(tripsProvider.errorMessage ?? 'Không thể lưu chuyến đi lên máy chủ'),
+                        ),
+                      );
+                    }
+                  },
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF086C61)),
+            child: _isSaving
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  )
+                : const Text('Lưu'),
+          ),
+        ],
       ),
     );
   }

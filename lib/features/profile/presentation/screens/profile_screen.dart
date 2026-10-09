@@ -153,7 +153,19 @@ class CustomerProfileScreen extends StatelessWidget {
                 clipBehavior: Clip.antiAlias,
                 child: Column(
                   children: [
-                    _buildMenuItem(Icons.person_outline, 'Thông tin cá nhân', () {}),
+                    _buildMenuItem(
+                      Icons.person_outline,
+                      'Thông tin cá nhân',
+                      () {
+                        if (isGuest) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Vui lòng đăng nhập để cập nhật thông tin cá nhân')),
+                          );
+                        } else {
+                          _showEditProfileDialog(context, auth, user);
+                        }
+                      },
+                    ),
                     _buildDivider(),
                     _buildMenuItem(Icons.people_outline, 'Danh bạ người đi cùng (Travelers)', () {}),
                     _buildDivider(),
@@ -287,6 +299,175 @@ class CustomerProfileScreen extends StatelessWidget {
             },
             style: FilledButton.styleFrom(backgroundColor: const Color(0xFF086C61)),
             child: const Text('Lưu'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showEditProfileDialog(BuildContext context, AuthProvider auth, UserEntity user) async {
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogCtx) => _EditProfileDialog(
+        auth: auth,
+        user: user,
+      ),
+    );
+    if (!context.mounted) return;
+    if (result == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cập nhật thông tin thành công')),
+      );
+    }
+  }
+}
+
+class _EditProfileDialog extends StatefulWidget {
+  final AuthProvider auth;
+  final UserEntity user;
+
+  const _EditProfileDialog({
+    required this.auth,
+    required this.user,
+  });
+
+  @override
+  State<_EditProfileDialog> createState() => _EditProfileDialogState();
+}
+
+class _EditProfileDialogState extends State<_EditProfileDialog> {
+  late final TextEditingController _nameController;
+  late final TextEditingController _phoneController;
+  late final TextEditingController _addressController;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.user.fullName);
+    _phoneController = TextEditingController(text: widget.user.phone);
+    _addressController = TextEditingController(text: widget.user.address ?? '');
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _phoneController.dispose();
+    _addressController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: !_isSaving,
+      child: AlertDialog(
+        title: const Text('Thông Tin Cá Nhân', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Chỉnh sửa thông tin hồ sơ của bạn:',
+                style: TextStyle(fontSize: 13, color: AppTheme.slate600),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _nameController,
+                enabled: !_isSaving,
+                decoration: InputDecoration(
+                  labelText: 'Họ và tên',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                ),
+                style: const TextStyle(fontSize: 14),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _phoneController,
+                enabled: !_isSaving,
+                keyboardType: TextInputType.phone,
+                decoration: InputDecoration(
+                  labelText: 'Số điện thoại',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                ),
+                style: const TextStyle(fontSize: 14),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _addressController,
+                enabled: !_isSaving,
+                decoration: InputDecoration(
+                  labelText: 'Địa chỉ',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                ),
+                style: const TextStyle(fontSize: 14),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Email: ${widget.user.email} (Không thể thay đổi)',
+                style: const TextStyle(fontSize: 12, color: AppTheme.slate500, fontStyle: FontStyle.italic),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: _isSaving ? null : () => Navigator.pop(context),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            onPressed: _isSaving
+                ? null
+                : () async {
+                    final newName = _nameController.text.trim();
+                    final newPhone = _phoneController.text.trim();
+                    final newAddress = _addressController.text.trim();
+
+                    if (newName.isEmpty) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Họ và tên không được để trống')),
+                        );
+                      }
+                      return;
+                    }
+
+                    setState(() {
+                      _isSaving = true;
+                    });
+
+                    final success = await widget.auth.updateProfile(
+                      fullName: newName,
+                      phone: newPhone,
+                      address: newAddress,
+                    );
+
+                    if (!context.mounted) return;
+
+                    if (success) {
+                      Navigator.pop(context, true);
+                    } else {
+                      setState(() {
+                        _isSaving = false;
+                      });
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(widget.auth.errorMessage ?? 'Cập nhật thất bại')),
+                      );
+                    }
+                  },
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF086C61)),
+            child: _isSaving
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  )
+                : const Text('Lưu'),
           ),
         ],
       ),

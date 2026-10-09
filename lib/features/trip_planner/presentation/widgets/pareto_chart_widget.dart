@@ -43,9 +43,11 @@ class ParetoChartWidget extends StatelessWidget {
               children: const [
                 Icon(Icons.auto_graph, color: Color(0xFF0284C7), size: 20),
                 SizedBox(width: 8),
-                Text(
-                  'Đánh Đổi Pareto (Thời Gian vs Chi Phí)',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                Expanded(
+                  child: Text(
+                    'Đánh Đổi Pareto (Thời Gian vs Chi Phí)',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
                 ),
               ],
             ),
@@ -92,30 +94,35 @@ class ParetoChartWidget extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             // Legend
-            Wrap(
-              spacing: 12,
-              runSpacing: 8,
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: transportOptions.map((opt) {
-                return Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 10,
-                      height: 10,
-                      decoration: BoxDecoration(
-                        color: opt.isParetoOptimal ? const Color(0xFF10B981) : Colors.grey,
-                        shape: BoxShape.circle,
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4.0),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        margin: const EdgeInsets.only(top: 4.0),
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: opt.isParetoOptimal ? const Color(0xFF10B981) : Colors.grey,
+                          shape: BoxShape.circle,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      '${opt.displayName} (${opt.durationHours}h - ${NumberFormat.currency(locale: 'vi', symbol: 'đ', decimalDigits: 0).format(opt.priceTotalVnd)})',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: opt.isParetoOptimal ? FontWeight.bold : FontWeight.normal,
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '${opt.displayName} (${opt.durationHours}h - ${NumberFormat.currency(locale: 'vi', symbol: 'đ', decimalDigits: 0).format(opt.priceTotalVnd)})',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: opt.isParetoOptimal ? FontWeight.bold : FontWeight.normal,
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 );
               }).toList(),
             ),
