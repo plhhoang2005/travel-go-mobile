@@ -134,7 +134,9 @@ class TransportOption {
       priceTotalVnd: (json['priceTotalVnd'] as num?)?.toInt() ?? 0,
       durationHours: (json['durationHours'] as num?)?.toDouble() ?? 0.0,
       comfortScore: (json['comfortScore'] as num?)?.toInt() ?? 0,
-      isParetoOptimal: json['isParetoOptimal'] as bool? ?? false,
+      isParetoOptimal: (json['paretoOptimal'] as bool?) ??
+          (json['isParetoOptimal'] as bool?) ??
+          false,
       tradeoffType: json['tradeoffType'] as String? ?? '',
       recommendationReason: json['recommendationReason'] as String? ?? '',
     );
