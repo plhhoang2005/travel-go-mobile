@@ -1,9 +1,15 @@
-import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../models/saved_trip_model.dart';
 
 class TripsService {
+  static const String tableName = 'trips';
+  final SupabaseClient? _injectedClient;
+
+  TripsService({SupabaseClient? client}) : _injectedClient = client;
+
   SupabaseClient? get _client {
+    if (_injectedClient != null) return _injectedClient;
     try {
       return Supabase.instance.client;
     } catch (_) {
@@ -11,43 +17,69 @@ class TripsService {
     }
   }
 
-  Future<List<SavedTrip>> fetchTrips(String userId) async {
-    final client = _client;
-    if (client == null) return [];
-
-    try {
-      final response = await client
-          .from('saved_trips')
-          .select()
-          .eq('user_id', userId)
-          .order('created_at', ascending: false);
-
-      final list = (response as List<dynamic>)
-          .map((item) => SavedTrip.fromJson(item as Map<String, dynamic>))
-          .toList();
-      return list;
-    } catch (e) {
-      debugPrint('Error fetching trips from Supabase: $e');
-      return [];
+  void _validateSessionOwner(String userId, SupabaseClient client) {
+    final session = client.auth.currentSession;
+    final currentUser = client.auth.currentUser;
+    if (session == null ||
+        currentUser == null ||
+        currentUser.id != userId ||
+        session.accessToken.trim().isEmpty ||
+        session.isExpired) {
+      throw StateError(
+        'Không có phiên làm việc Supabase hợp lệ hoặc phiên người dùng không khớp.',
+      );
     }
   }
 
-  Future<SavedTrip?> saveTrip(SavedTrip trip) async {
+  Future<List<SavedTrip>> fetchTrips(String userId) async {
     final client = _client;
-    if (client == null) return null;
-
-    try {
-      final response = await client
-          .from('saved_trips')
-          .insert(trip.toJson())
-          .select()
-          .single();
-
-      return SavedTrip.fromJson(response);
-    } catch (e) {
-      debugPrint('Error saving trip to Supabase: $e');
-      return null;
+    if (client == null) {
+      throw StateError('Chưa thể kết nối tới cơ sở dữ liệu Supabase.');
     }
+
+    _validateSessionOwner(userId, client);
+
+    final response = await client
+        .from(tableName)
+        .select()
+        .eq('user_id', userId)
+        .order('created_at', ascending: false);
+
+    final list = (response as List<dynamic>)
+        .map((item) => SavedTrip.fromJson(item as Map<String, dynamic>))
+        .toList();
+    return list;
+  }
+
+  Future<SavedTrip> saveTrip(SavedTrip trip) async {
+    final client = _client;
+    if (client == null) {
+      throw StateError('Chưa thể kết nối tới cơ sở dữ liệu Supabase.');
+    }
+
+    _validateSessionOwner(trip.userId, client);
+
+    if (trip.title.trim().isEmpty) {
+      throw ArgumentError('Tiêu đề chuyến đi không được để trống.');
+    }
+    if (trip.destinationName.trim().isEmpty) {
+      throw ArgumentError('Điểm đến không được để trống.');
+    }
+
+    final payload = trip.toJson(includeId: trip.id.isNotEmpty);
+    final response = await client
+        .from(tableName)
+        .insert(payload)
+        .select()
+        .single();
+
+    final saved = SavedTrip.fromJson(response);
+    if (saved.id.isEmpty || saved.userId != trip.userId) {
+      throw StateError(
+        'Máy chủ không trả về mã định danh ID hoặc chủ sở hữu hợp lệ.',
+      );
+    }
+    return saved;
   }
 
   Future<bool> deleteTrip({
@@ -55,18 +87,28 @@ class TripsService {
     required String userId,
   }) async {
     final client = _client;
-    if (client == null) return false;
+    if (client == null) {
+      throw StateError('Chưa thể kết nối tới cơ sở dữ liệu Supabase.');
+    }
 
-    try {
-      await client
-          .from('saved_trips')
-          .delete()
-          .eq('id', tripId)
-          .eq('user_id', userId);
-      return true;
-    } catch (e) {
-      debugPrint('Error deleting trip from Supabase: $e');
+    if (tripId.trim().isEmpty || userId.trim().isEmpty) {
       return false;
     }
+
+    _validateSessionOwner(userId, client);
+
+    final response = await client
+        .from(tableName)
+        .delete()
+        .eq('id', tripId)
+        .eq('user_id', userId)
+        .select('id, user_id');
+
+    if (response.length != 1) {
+      return false;
+    }
+
+    final singleRow = response.first;
+    return singleRow['id'] == tripId && singleRow['user_id'] == userId;
   }
 }

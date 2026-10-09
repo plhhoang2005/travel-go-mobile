@@ -7,6 +7,7 @@ class SavedTrip {
   final double budgetTotal;
   final DateTime? startDate;
   final DateTime? endDate;
+  final String status;
   final Map<String, dynamic> tripPlanData;
   final DateTime createdAt;
 
@@ -19,11 +20,17 @@ class SavedTrip {
     this.budgetTotal = 0,
     this.startDate,
     this.endDate,
+    this.status = 'planning',
     required this.tripPlanData,
     required this.createdAt,
   });
 
   factory SavedTrip.fromJson(Map<String, dynamic> json) {
+    final rawPlan = json['ai_plan_data'] ?? json['trip_plan_data'];
+    final planMap = rawPlan is Map<String, dynamic>
+        ? rawPlan
+        : (rawPlan is Map ? Map<String, dynamic>.from(rawPlan) : <String, dynamic>{});
+
     return SavedTrip(
       id: json['id'] as String? ?? '',
       userId: json['user_id'] as String? ?? '',
@@ -37,15 +44,16 @@ class SavedTrip {
       endDate: json['end_date'] != null
           ? DateTime.tryParse(json['end_date'] as String)
           : null,
-      tripPlanData: (json['trip_plan_data'] as Map<String, dynamic>?) ?? {},
+      status: json['status'] as String? ?? 'planning',
+      tripPlanData: planMap,
       createdAt: json['created_at'] != null
           ? DateTime.tryParse(json['created_at'] as String) ?? DateTime.now()
           : DateTime.now(),
     );
   }
 
-  Map<String, dynamic> toJson() {
-    return {
+  Map<String, dynamic> toJson({bool includeId = false}) {
+    final map = <String, dynamic>{
       'user_id': userId,
       'title': title,
       'destination_name': destinationName,
@@ -53,7 +61,18 @@ class SavedTrip {
       'budget_total': budgetTotal,
       'start_date': startDate?.toIso8601String(),
       'end_date': endDate?.toIso8601String(),
-      'trip_plan_data': tripPlanData,
+      'status': status,
+      'ai_plan_data': tripPlanData,
     };
+    if (includeId && id.isNotEmpty) {
+      map['id'] = id;
+    }
+    return map;
+  }
+
+  Map<String, dynamic> toLegacyJson() {
+    final map = toJson(includeId: id.isNotEmpty);
+    map['trip_plan_data'] = tripPlanData;
+    return map;
   }
 }
