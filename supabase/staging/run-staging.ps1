@@ -144,26 +144,39 @@ if (![string]::IsNullOrWhiteSpace($ExpectedSqlHash)) {
 
 # 11. Modular Dependency & Manifest Protection Guard
 $rawSqlContent = [System.IO.File]::ReadAllText($resolvedSqlPath, [System.Text.Encoding]::UTF8)
-$isModularHarness = ($rawSqlContent -match '(?m)^\s*\\ir\s+.*profile_privacy_test_helpers\.sql')
-if ($isModularHarness) {
-  $repoRoot = (Resolve-Path (Join-Path $scriptDir "..\..")).Path
-  $candidatePaths = @(
-    (Join-Path (Split-Path -Parent $resolvedSqlPath) "profile_privacy_test_helpers.sql"),
-    (Join-Path $repoRoot "supabase\tests\profile_privacy_test_helpers.sql")
-  )
-  $helperPath = $candidatePaths | Where-Object { Test-Path $_ } | Select-Object -First 1
 
-  if (!$helperPath -or !(Test-Path $helperPath)) {
-    throw "DEPENDENCY INTEGRITY FAILURE: Modular harness '$SqlFile' depends on 'profile_privacy_test_helpers.sql', but the helper file does not exist on disk. Target rejected before connection."
-  }
+# Check for unsupported \i (absolute or search-path) directive
+$unsupportedInclude = [regex]::Match($rawSqlContent, '(?m)^\s*\\i\s+([^\r\n]+)')
+if ($unsupportedInclude.Success) {
+  $badTarget = $unsupportedInclude.Groups[1].Value.Trim()
+  throw "UNSUPPORTED DIRECTIVE: Directive '\i $badTarget' is not supported by runner. Use relative '\ir' or a self-contained pure-SQL bundle."
+}
 
-  if ([string]::IsNullOrWhiteSpace($ExpectedHelperHash)) {
-    throw "DEPENDENCY INTEGRITY FAILURE: Modular harness '$SqlFile' depends on 'profile_privacy_test_helpers.sql'. -ExpectedHelperHash is mandatory to verify dependency integrity before execution."
-  }
+# Process relative \ir directives
+$irMatches = [regex]::Matches($rawSqlContent, '(?m)^\s*\\ir\s+([^\r\n]+)')
+if ($irMatches.Count -gt 0) {
+  foreach ($match in $irMatches) {
+    $includeTarget = $match.Groups[1].Value.Trim()
+    if ($includeTarget -ne 'profile_privacy_test_helpers.sql') {
+      throw "UNSUPPORTED DIRECTIVE: Directive '\ir $includeTarget' is not supported by runner. Target rejected before connection."
+    }
 
-  $computedHelperHex = Get-NormalizedSha256 -filePath $helperPath
-  if ($computedHelperHex -ne $ExpectedHelperHash.Trim().ToUpper()) {
-    throw "DEPENDENCY HASH MISMATCH: Dependency 'profile_privacy_test_helpers.sql' hash mismatch! Expected: '$ExpectedHelperHash', Actual: '$computedHelperHex'. Target rejected before connection."
+    # Resolve strictly relative to the harness file being executed - NEVER fall back to repo root
+    $sqlDir = Split-Path -Parent $resolvedSqlPath
+    $resolvedHelperPath = Join-Path $sqlDir $includeTarget
+
+    if (!(Test-Path -LiteralPath $resolvedHelperPath)) {
+      throw "DEPENDENCY INTEGRITY FAILURE: Modular harness '$SqlFile' depends on '$includeTarget' via relative \ir, but helper file does not exist at '$resolvedHelperPath'. Target rejected before connection."
+    }
+
+    if ([string]::IsNullOrWhiteSpace($ExpectedHelperHash)) {
+      throw "DEPENDENCY INTEGRITY FAILURE: Modular harness '$SqlFile' depends on '$includeTarget'. -ExpectedHelperHash is mandatory to verify dependency integrity before execution."
+    }
+
+    $computedHelperHex = Get-NormalizedSha256 -filePath $resolvedHelperPath
+    if ($computedHelperHex -ne $ExpectedHelperHash.Trim().ToUpper()) {
+      throw "DEPENDENCY HASH MISMATCH: Dependency '$includeTarget' hash mismatch! Expected: '$ExpectedHelperHash', Actual: '$computedHelperHex'. Target rejected before connection."
+    }
   }
 }
 

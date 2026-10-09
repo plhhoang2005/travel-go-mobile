@@ -303,6 +303,81 @@ if (Test-Path $MainHarnessSql) {
   }
 }
 
+# Test 22b: Probe: Relocated harness outside repo lacking neighbor helper MUST be rejected even when repo helper exists (calls = 0)
+if ((Test-Path $MainHarnessSql) -and (Test-Path $HelperSql)) {
+  $tempRelocatedDir = Join-Path ([System.IO.Path]::GetTempPath()) ("travelgo_test_relocated_" + [System.Guid]::NewGuid().ToString("N"))
+  try {
+    New-Item -ItemType Directory -Path $tempRelocatedDir -Force | Out-Null
+    $relocatedHarness = Join-Path $tempRelocatedDir "profile_privacy.sql"
+    Copy-Item -LiteralPath $MainHarnessSql -Destination $relocatedHarness
+
+    $global:executorCalls = 0
+    $relocatedCaught = $false
+    try {
+      # Invoke repository runner directly, passing valid hash of repo helper
+      & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile $relocatedHarness -ExpectedBaselineHash $VALID_BASELINE_HASH -ExpectedSqlHash $VALID_MAIN_HASH -ExpectedHelperHash $VALID_HELPER_HASH -ExecutorMock $countingMock
+    } catch {
+      if ($_.Exception.Message -match "DEPENDENCY INTEGRITY FAILURE.*helper file does not exist") {
+        $relocatedCaught = $true
+      }
+    }
+
+    if ($relocatedCaught -and ($global:executorCalls -eq 0)) {
+      Write-Host "[PASS] Probe: Relocated harness lacking neighbor helper rejected by repo runner before executor call (calls = 0)" -ForegroundColor Green
+      $script:testsPassed++
+    } else {
+      Write-Host "[FAIL] Probe: Relocated harness expected rejection and calls=0, got caught=$relocatedCaught, calls=$($global:executorCalls)" -ForegroundColor Red
+      $script:testsFailed++
+    }
+  } finally {
+    if (Test-Path $tempRelocatedDir) { Remove-Item -Path $tempRelocatedDir -Recurse -Force }
+  }
+}
+
+# Test 22c: Probe: Harness with unsupported \ir or \i directive MUST be rejected before connection/executor (calls = 0)
+$tempDirectiveDir = Join-Path ([System.IO.Path]::GetTempPath()) ("travelgo_test_directive_" + [System.Guid]::NewGuid().ToString("N"))
+try {
+  New-Item -ItemType Directory -Path $tempDirectiveDir -Force | Out-Null
+  $badIrSql = Join-Path $tempDirectiveDir "bad_ir.sql"
+  Set-Content -Path $badIrSql -Value "\ir unsupported_helper.sql`nSELECT 1;"
+  $rawIr = [System.IO.File]::ReadAllText($badIrSql, [System.Text.Encoding]::UTF8).Replace("`r`n", "`n")
+  $badIrHash = [System.BitConverter]::ToString($sha256.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($rawIr))).Replace('-', '').ToUpper()
+
+  $global:executorCalls = 0
+  $badIrCaught = $false
+  try {
+    & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile $badIrSql -ExpectedBaselineHash $VALID_BASELINE_HASH -ExpectedSqlHash $badIrHash -ExecutorMock $countingMock
+  } catch {
+    if ($_.Exception.Message -match "UNSUPPORTED DIRECTIVE") {
+      $badIrCaught = $true
+    }
+  }
+
+  $badISql = Join-Path $tempDirectiveDir "bad_i.sql"
+  Set-Content -Path $badISql -Value "\i some_file.sql`nSELECT 1;"
+  $rawI = [System.IO.File]::ReadAllText($badISql, [System.Text.Encoding]::UTF8).Replace("`r`n", "`n")
+  $badIHash = [System.BitConverter]::ToString($sha256.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($rawI))).Replace('-', '').ToUpper()
+
+  $badICaught = $false
+  try {
+    & $RunnerScript -ProjectRef $VERIFIED_REF -ConnectionHost $VALID_HOST -SqlFile $badISql -ExpectedBaselineHash $VALID_BASELINE_HASH -ExpectedSqlHash $badIHash -ExecutorMock $countingMock
+  } catch {
+    if ($_.Exception.Message -match "UNSUPPORTED DIRECTIVE") {
+      $badICaught = $true
+    }
+  }
+
+  if ($badIrCaught -and $badICaught -and ($global:executorCalls -eq 0)) {
+    Write-Host "[PASS] Probe: Unsupported \ir and \i directives rejected before executor call (calls = 0)" -ForegroundColor Green
+    $script:testsPassed++
+  } else {
+    Write-Host "[FAIL] Probe: Unsupported directives expected rejection and calls=0, got badIr=$badIrCaught, badI=$badICaught, calls=$($global:executorCalls)" -ForegroundColor Red
+    $script:testsFailed++
+  }
+} finally {
+  if (Test-Path $tempDirectiveDir) { Remove-Item -Path $tempDirectiveDir -Recurse -Force }
+}
+
 # Test 23: Probe: Mutating helper file in isolated fixture while keeping caller parameters unchanged MUST be rejected before connection/executor (calls = 0)
 if ((Test-Path $MainHarnessSql) -and (Test-Path $HelperSql)) {
   $tempMutantDir = Join-Path ([System.IO.Path]::GetTempPath()) ("travelgo_test_modified_helper_" + [System.Guid]::NewGuid().ToString())
