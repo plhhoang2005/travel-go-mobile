@@ -6,10 +6,10 @@
 -- Target: STAGING ENVIRONMENT (bkocylxbuyvdgxccpixx)
 -- ==============================================================================
 
-\echo '=== 1. POSTGRESQL ENGINE VERSION ==='
+-- === 1. POSTGRESQL ENGINE VERSION ===
 SELECT version();
 
-\echo '=== 2. APPLICATION TABLES & COLUMNS IN PUBLIC SCHEMA ==='
+-- === 2. APPLICATION TABLES & COLUMNS IN PUBLIC SCHEMA ===
 SELECT
   table_schema,
   table_name,
@@ -21,7 +21,7 @@ FROM information_schema.columns
 WHERE table_schema = 'public'
 ORDER BY table_name, ordinal_position;
 
-\echo '=== 3. CONSTRAINTS & DEFINITIONS ==='
+-- === 3. CONSTRAINTS & DEFINITIONS ===
 SELECT
   conname AS constraint_name,
   conrelid::regclass AS table_name,
@@ -31,7 +31,7 @@ FROM pg_constraint
 WHERE connamespace = 'public'::regnamespace
 ORDER BY table_name, constraint_name;
 
-\echo '=== 4. TRIGGER BINDINGS & DEFINITIONS (SCHEMA-QUALIFIED) ==='
+-- === 4. TRIGGER BINDINGS & DEFINITIONS (SCHEMA-QUALIFIED) ===
 SELECT
   n.nspname AS schema_name,
   t.tgname AS trigger_name,
@@ -46,7 +46,7 @@ JOIN pg_proc p ON t.tgfoid = p.oid
 WHERE t.tgname IN ('on_auth_user_created', 'tr_profiles_updated_at')
 ORDER BY schema_name, table_name, trigger_name;
 
-\echo '=== 5. FUNCTIONS DEFINITIONS, SIGNATURE, OWNER, ACL & SEARCH_PATH (FULL IDENTITY) ==='
+-- === 5. FUNCTIONS DEFINITIONS, SIGNATURE, OWNER, ACL & SEARCH_PATH (FULL IDENTITY) ===
 SELECT
   n.nspname AS schema_name,
   p.proname AS function_name,
@@ -62,7 +62,7 @@ JOIN pg_namespace n ON p.pronamespace = n.oid
 WHERE p.proname IN ('handle_new_user', 'set_profile_updated_at')
 ORDER BY schema_name, function_name;
 
-\echo '=== 6. ACTIVE ROW LEVEL SECURITY POLICIES ==='
+-- === 6. ACTIVE ROW LEVEL SECURITY POLICIES ===
 SELECT
   schemaname,
   tablename,
@@ -76,7 +76,7 @@ FROM pg_policies
 WHERE schemaname = 'public'
 ORDER BY tablename, policyname;
 
-\echo '=== 7. INFORMATION_SCHEMA TABLE PRIVILEGES ==='
+-- === 7. INFORMATION_SCHEMA TABLE PRIVILEGES ===
 SELECT
   grantee,
   table_name,
@@ -86,7 +86,7 @@ WHERE table_schema = 'public'
   AND grantee IN ('anon', 'authenticated', 'public')
 ORDER BY table_name, grantee, privilege_type;
 
-\echo '=== 8. INFORMATION_SCHEMA COLUMN PRIVILEGES ==='
+-- === 8. INFORMATION_SCHEMA COLUMN PRIVILEGES ===
 SELECT
   grantee,
   table_name,
@@ -97,7 +97,7 @@ WHERE table_schema = 'public'
   AND grantee IN ('anon', 'authenticated', 'public')
 ORDER BY table_name, column_name, grantee;
 
-\echo '=== 9. ACTUAL EFFECTIVE INHERITED PRIVILEGES (HAS_TABLE_PRIVILEGE) ==='
+-- === 9. ACTUAL EFFECTIVE INHERITED PRIVILEGES (HAS_TABLE_PRIVILEGE) ===
 SELECT
   r.rolname,
   t.relname AS table_name,
