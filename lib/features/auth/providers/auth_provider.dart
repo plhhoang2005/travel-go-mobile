@@ -58,11 +58,15 @@ class AuthProvider extends ChangeNotifier {
         _currentUser = _mapSupabaseUser(session.user);
         _isGuest = false;
         _isDemoSession = false;
+        _isLoading = false;
+        _errorMessage = null;
         _fetchTrustedRole(session.user.id, _authEpoch);
       } else {
         _currentUser = null;
         _isGuest = true;
         _isDemoSession = false;
+        _isLoading = false;
+        _errorMessage = null;
       }
       notifyListeners();
     });
@@ -104,43 +108,63 @@ class AuthProvider extends ChangeNotifier {
       final fetcher = _trustedRoleFetcher;
       if (fetcher != null) {
         roleStr = await fetcher(userId);
+        if (_authEpoch != epoch || _currentUser?.id != userId) {
+          return;
+        }
+        if (roleStr != null) {
+          final newRole = roleStr == 'admin'
+              ? UserRole.admin
+              : roleStr == 'partner'
+                  ? UserRole.partner
+                  : UserRole.customer;
+
+          if (_currentUser != null && _currentUser!.role != newRole) {
+            _currentUser = _currentUser!.copyWith(role: newRole);
+            notifyListeners();
+          }
+        }
       } else {
         final client = _supabaseClient;
         if (client != null) {
           final res = await client
               .from('profiles')
-              .select('role')
+              .select('role, full_name, phone, avatar_url, address')
               .eq('id', userId)
               .maybeSingle();
-          if (res != null && res['role'] != null) {
-            roleStr = res['role'] as String?;
+
+          if (_authEpoch != epoch || _currentUser?.id != userId) {
+            return; // Stale response ignored
           }
-        }
-      }
 
-      // Check if session or epoch changed while waiting
-      if (_authEpoch != epoch || _currentUser?.id != userId) {
-        return; // Stale response ignored
-      }
+          if (res != null) {
+            if (res['role'] != null) {
+              roleStr = res['role'] as String?;
+            }
+            final serverName = (res['full_name'] as String?)?.trim();
+            final serverPhone = (res['phone'] as String?)?.trim();
+            final serverAvatar = res['avatar_url'] as String?;
+            final serverAddress = (res['address'] as String?)?.trim();
 
-      if (roleStr != null) {
-        final newRole = roleStr == 'admin'
-            ? UserRole.admin
-            : roleStr == 'partner'
-                ? UserRole.partner
-                : UserRole.customer;
+            final current = _currentUser;
+            if (current != null) {
+              final newRole = roleStr != null
+                  ? (roleStr == 'admin'
+                      ? UserRole.admin
+                      : roleStr == 'partner'
+                          ? UserRole.partner
+                          : UserRole.customer)
+                  : current.role;
 
-        if (_currentUser != null && _currentUser!.role != newRole) {
-          _currentUser = UserEntity(
-            id: _currentUser!.id,
-            fullName: _currentUser!.fullName,
-            email: _currentUser!.email,
-            phone: _currentUser!.phone,
-            role: newRole,
-            avatarUrl: _currentUser!.avatarUrl,
-            address: _currentUser!.address,
-          );
-          notifyListeners();
+              _currentUser = current.copyWith(
+                fullName: (serverName != null && serverName.isNotEmpty) ? serverName : current.fullName,
+                phone: (serverPhone != null && serverPhone.isNotEmpty) ? serverPhone : current.phone,
+                avatarUrl: serverAvatar ?? current.avatarUrl,
+                address: (serverAddress != null && serverAddress.isNotEmpty) ? serverAddress : current.address,
+                role: newRole,
+              );
+              notifyListeners();
+            }
+          }
         }
       }
     } catch (e) {
@@ -294,6 +318,8 @@ class AuthProvider extends ChangeNotifier {
     );
     _isGuest = false;
     _isDemoSession = false;
+    _isLoading = false;
+    _errorMessage = null;
     notifyListeners();
     _fetchTrustedRole(user.id, _authEpoch);
   }
@@ -427,12 +453,128 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  /// Update user profile in Supabase public.profiles table.
+  /// Strict least-privilege: payload ONLY contains allowed columns (full_name, phone, avatar_url, address).
+  /// Never sends id, email, role in the update payload.
+  Future<bool> updateProfile({
+    String? fullName,
+    String? phone,
+    String? avatarUrl,
+    String? address,
+  }) async {
+    final user = _currentUser;
+    if (user == null) {
+      _errorMessage = 'Bạn chưa đăng nhập.';
+      notifyListeners();
+      return false;
+    }
+
+    if (_isDemoSession) {
+      // Demo session local update
+      _currentUser = user.copyWith(
+        fullName: fullName != null && fullName.trim().isNotEmpty ? fullName.trim() : user.fullName,
+        phone: phone != null && phone.trim().isNotEmpty ? phone.trim() : user.phone,
+        avatarUrl: avatarUrl ?? user.avatarUrl,
+        address: address != null && address.trim().isNotEmpty ? address.trim() : user.address,
+      );
+      notifyListeners();
+      return true;
+    }
+
+    final client = _supabaseClient;
+    if (client == null) {
+      _errorMessage = 'Chưa thể kết nối tới cơ sở dữ liệu Supabase.';
+      notifyListeners();
+      return false;
+    }
+
+    final requestEpoch = _authEpoch;
+    final requestUserId = user.id;
+
+    bool isCurrentSession() =>
+        _authEpoch == requestEpoch && _currentUser?.id == requestUserId;
+
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      // Build safe payload strictly restricted to permitted column grants
+      final Map<String, dynamic> payload = {};
+      if (fullName != null) payload['full_name'] = fullName.trim();
+      if (phone != null) payload['phone'] = phone.trim();
+      if (avatarUrl != null) payload['avatar_url'] = avatarUrl.trim();
+      if (address != null) payload['address'] = address.trim();
+
+      if (payload.isEmpty) {
+        if (isCurrentSession()) {
+          _isLoading = false;
+          notifyListeners();
+        }
+        return true;
+      }
+
+      await client
+          .from('profiles')
+          .update(payload)
+          .eq('id', user.id);
+
+      // Verify and sync by reloading profile from server
+      final res = await client
+          .from('profiles')
+          .select('id, full_name, phone, avatar_url, address, role')
+          .eq('id', user.id)
+          .maybeSingle();
+
+      if (!isCurrentSession()) {
+        // Session changed during update - do not modify new session state
+        return false;
+      }
+
+      // UI-01: Must have a valid returned row with matching user ID
+      if (res == null || res['id'] != user.id) {
+        _isLoading = false;
+        _errorMessage = 'Không thể xác thực bản ghi hồ sơ đã cập nhật từ máy chủ';
+        notifyListeners();
+        return false;
+      }
+
+      _currentUser = _currentUser?.copyWith(
+        fullName: res['full_name'] as String? ?? _currentUser?.fullName,
+        phone: res['phone'] as String? ?? _currentUser?.phone,
+        avatarUrl: res['avatar_url'] as String? ?? _currentUser?.avatarUrl,
+        address: res['address'] as String? ?? _currentUser?.address,
+      );
+
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } on PostgrestException catch (e) {
+      if (!isCurrentSession()) {
+        return false;
+      }
+      _isLoading = false;
+      _errorMessage = 'Lỗi cập nhật hồ sơ: ${e.message}';
+      notifyListeners();
+      return false;
+    } catch (e) {
+      if (!isCurrentSession()) {
+        return false;
+      }
+      _isLoading = false;
+      _errorMessage = 'Lỗi không xác định khi cập nhật hồ sơ: $e';
+      notifyListeners();
+      return false;
+    }
+  }
+
   void logout() {
     _authEpoch++;
     _currentUser = null;
     _isGuest = true;
     _isDemoSession = false;
     _errorMessage = null;
+    _isLoading = false;
     notifyListeners();
 
     final client = _supabaseClient;

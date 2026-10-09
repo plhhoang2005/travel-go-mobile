@@ -153,7 +153,19 @@ class CustomerProfileScreen extends StatelessWidget {
                 clipBehavior: Clip.antiAlias,
                 child: Column(
                   children: [
-                    _buildMenuItem(Icons.person_outline, 'Thông tin cá nhân', () {}),
+                    _buildMenuItem(
+                      Icons.person_outline,
+                      'Thông tin cá nhân',
+                      () {
+                        if (isGuest) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Vui lòng đăng nhập để cập nhật thông tin cá nhân')),
+                          );
+                        } else {
+                          _showEditProfileDialog(context, auth, user);
+                        }
+                      },
+                    ),
                     _buildDivider(),
                     _buildMenuItem(Icons.people_outline, 'Danh bạ người đi cùng (Travelers)', () {}),
                     _buildDivider(),
@@ -291,5 +303,150 @@ class CustomerProfileScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _showEditProfileDialog(BuildContext context, AuthProvider auth, UserEntity user) async {
+    final nameController = TextEditingController(text: user.fullName);
+    final phoneController = TextEditingController(text: user.phone);
+    final addressController = TextEditingController(text: user.address ?? '');
+    bool isSaving = false;
+
+    try {
+      await showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogCtx) => StatefulBuilder(
+          builder: (dialogCtx, setState) {
+            return PopScope(
+              canPop: !isSaving,
+              child: AlertDialog(
+                title: const Text('Thông Tin Cá Nhân', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                content: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Chỉnh sửa thông tin hồ sơ của bạn:',
+                        style: TextStyle(fontSize: 13, color: AppTheme.slate600),
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: nameController,
+                        enabled: !isSaving,
+                        decoration: InputDecoration(
+                          labelText: 'Họ và tên',
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        ),
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: phoneController,
+                        enabled: !isSaving,
+                        keyboardType: TextInputType.phone,
+                        decoration: InputDecoration(
+                          labelText: 'Số điện thoại',
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        ),
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: addressController,
+                        enabled: !isSaving,
+                        decoration: InputDecoration(
+                          labelText: 'Địa chỉ',
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        ),
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Email: ${user.email} (Không thể thay đổi)',
+                        style: const TextStyle(fontSize: 12, color: AppTheme.slate500, fontStyle: FontStyle.italic),
+                      ),
+                    ],
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: isSaving ? null : () => Navigator.pop(dialogCtx),
+                    child: const Text('Hủy'),
+                  ),
+                  FilledButton(
+                    onPressed: isSaving
+                        ? null
+                        : () async {
+                            final newName = nameController.text.trim();
+                            final newPhone = phoneController.text.trim();
+                            final newAddress = addressController.text.trim();
+
+                            if (newName.isEmpty) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Họ và tên không được để trống')),
+                                );
+                              }
+                              return;
+                            }
+
+                            if (dialogCtx.mounted) {
+                              setState(() {
+                                isSaving = true;
+                              });
+                            }
+
+                            final success = await auth.updateProfile(
+                              fullName: newName,
+                              phone: newPhone,
+                              address: newAddress,
+                            );
+
+                            if (dialogCtx.mounted) {
+                              if (success) {
+                                Navigator.pop(dialogCtx);
+                              } else {
+                                setState(() {
+                                  isSaving = false;
+                                });
+                              }
+                            }
+
+                            if (context.mounted) {
+                              if (success) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Cập nhật thông tin thành công')),
+                                );
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text(auth.errorMessage ?? 'Cập nhật thất bại')),
+                                );
+                              }
+                            }
+                          },
+                    style: FilledButton.styleFrom(backgroundColor: const Color(0xFF086C61)),
+                    child: isSaving
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Text('Lưu'),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      );
+    } finally {
+      nameController.dispose();
+      phoneController.dispose();
+      addressController.dispose();
+    }
   }
 }

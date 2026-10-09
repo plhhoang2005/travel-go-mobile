@@ -110,9 +110,21 @@ class _MyTripsScreenState extends State<MyTripsScreen> with SingleTickerProvider
                         ),
                       ),
                     ),
-                    Text(
-                      '${trip.numDays} Ngày',
-                      style: const TextStyle(fontSize: 12, color: AppTheme.slate500, fontWeight: FontWeight.bold),
+                    Row(
+                      children: [
+                        Text(
+                          '${trip.numDays} Ngày',
+                          style: const TextStyle(fontSize: 12, color: AppTheme.slate500, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          icon: const Icon(Icons.delete_outline, size: 20, color: Color(0xFFEF4444)),
+                          tooltip: 'Xóa chuyến đi',
+                          onPressed: () => _confirmDeleteTrip(context, trip),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -288,6 +300,52 @@ class _MyTripsScreenState extends State<MyTripsScreen> with SingleTickerProvider
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _confirmDeleteTrip(BuildContext context, SavedTrip trip) {
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('Xóa Chuyến Đi', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        content: Text(
+          'Bạn có chắc chắn muốn xóa chuyến đi "${trip.title}" không? Thao tác này sẽ xóa dữ liệu trên máy chủ.',
+          style: const TextStyle(fontSize: 13, color: AppTheme.slate700, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFEF4444)),
+            onPressed: () async {
+              Navigator.pop(dialogCtx);
+              final tripsProvider = context.read<SavedTripsProvider>();
+              final auth = context.read<AuthProvider>();
+              final success = await tripsProvider.deleteTrip(trip.id);
+              if (context.mounted) {
+                if (success) {
+                  // Reload to verify server state
+                  await tripsProvider.loadTrips(auth.currentUser?.id);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Đã xóa chuyến đi thành công')),
+                    );
+                  }
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(tripsProvider.errorMessage ?? 'Xóa chuyến đi thất bại'),
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text('Xóa'),
+          ),
+        ],
       ),
     );
   }
