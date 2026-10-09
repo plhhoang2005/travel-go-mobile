@@ -443,9 +443,20 @@ void main() {
       final delComp = Completer<bool>();
       final fake = FakeTripsService()
         ..saveCompleter = saveComp
-        ..deleteCompleter = delComp;
+        ..deleteCompleter = delComp
+        ..fakeTrips = [
+          SavedTrip(
+            id: 'trip-1',
+            userId: 'user-a',
+            title: 'Seeded Trip',
+            destinationName: 'Da Nang',
+            tripPlanData: {},
+            createdAt: DateTime.now(),
+          ),
+        ];
       final p = SavedTripsProvider(service: fake);
       await p.loadTrips('user-a');
+      expect(p.trips.single.id, 'trip-1');
 
       final saveWork = p.saveTrip(
         title: 'Trip',
@@ -455,6 +466,7 @@ void main() {
         tripPlanData: {},
       );
       final delWork = p.deleteTrip('trip-1');
+      expect(fake.deleteCalls, 1, reason: 'Must enter the real asynchronous DELETE path');
 
       p.dispose();
 
@@ -475,6 +487,43 @@ void main() {
 
       expect(saveResult, isFalse);
       expect(delResult, isFalse);
+    });
+
+    test('late successful DELETE after account switch returns false and preserves new session', () async {
+      final delComp = Completer<bool>();
+      final fake = FakeTripsService()
+        ..deleteCompleter = delComp
+        ..fakeTrips = [
+          SavedTrip(
+            id: 'trip-a-1',
+            userId: 'user-a',
+            title: 'Trip A',
+            destinationName: 'Hà Nội',
+            tripPlanData: {},
+            createdAt: DateTime.now(),
+          ),
+        ];
+      final p = SavedTripsProvider(service: fake);
+      await p.loadTrips('user-a');
+      expect(p.trips.single.id, 'trip-a-1');
+
+      final deleteFuture = p.deleteTrip('trip-a-1');
+      expect(fake.deleteCalls, 1, reason: 'Must enter the real asynchronous DELETE path');
+
+      // User switches to User B while delete is in-flight
+      fake.fakeTrips = [];
+      await p.loadTrips('user-b');
+      expect(p.currentUserId, 'user-b');
+      expect(p.trips, isEmpty);
+
+      // Server acknowledges User A delete with success
+      delComp.complete(true);
+      final result = await deleteFuture;
+
+      expect(result, isFalse, reason: 'Acknowledgement belongs to an invalidated session');
+      expect(p.currentUserId, 'user-b');
+      expect(p.trips, isEmpty);
+      p.dispose();
     });
   });
 }

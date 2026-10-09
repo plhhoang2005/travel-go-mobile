@@ -181,15 +181,17 @@ class SavedTripsProvider extends ChangeNotifier {
         userId: targetUserId,
       );
 
+      // Drop late acknowledgements if disposed, epoch changed, or user changed
+      if (_isDisposed ||
+          _sessionEpoch != targetEpoch ||
+          _currentUserId != targetUserId) {
+        return false;
+      }
+
       if (!success) {
-        // Rollback only if still in the same user session and not disposed
-        if (!_isDisposed &&
-            _sessionEpoch == targetEpoch &&
-            _currentUserId == targetUserId) {
-          _trips.insert(index, removed);
-          _errorMessage = 'Không thể xóa chuyến đi khỏi máy chủ.';
-          notifyListeners();
-        }
+        _trips.insert(index, removed);
+        _errorMessage = 'Không thể xóa chuyến đi khỏi máy chủ.';
+        notifyListeners();
         return false;
       }
       return true;
