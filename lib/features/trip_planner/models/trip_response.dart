@@ -41,8 +41,8 @@ class PlanTripResponse {
           ? BudgetBreakdown.fromJson(json['budgetBreakdown'] as Map<String, dynamic>)
           : null,
       aiExplanation: json['aiExplanation'] as String? ?? '',
-      dataSources: (json['dataSources'] as Map<String, dynamic>?)?.map(
-            (k, v) => MapEntry(k, v.toString()),
+      dataSources: (json['dataSources'] as Map?)?.map(
+            (k, v) => MapEntry(k.toString(), v.toString()),
           ) ??
           {},
       assumptions: (json['assumptions'] as List<dynamic>?)
@@ -50,6 +50,19 @@ class PlanTripResponse {
               .toList() ??
           [],
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'winnerId': winnerId,
+      'topDestinations': topDestinations.map((e) => e.toJson()).toList(),
+      'transportOptions': transportOptions.map((e) => e.toJson()).toList(),
+      'itineraryDays': itineraryDays.map((e) => e.toJson()).toList(),
+      'budgetBreakdown': budgetBreakdown?.toJson(),
+      'aiExplanation': aiExplanation,
+      'dataSources': dataSources,
+      'assumptions': assumptions,
+    };
   }
 }
 
@@ -87,12 +100,12 @@ class DestinationCard {
       id: json['id'] as String? ?? '',
       name: json['name'] as String? ?? '',
       totalScore: (json['totalScore'] as num?)?.toDouble() ?? 0.0,
-      normalizedScores: (json['normalizedScores'] as Map<String, dynamic>?)?.map(
-            (k, v) => MapEntry(k, (v as num).toDouble()),
+      normalizedScores: (json['normalizedScores'] as Map?)?.map(
+            (k, v) => MapEntry(k.toString(), (v as num).toDouble()),
           ) ??
           {},
-      scoreContributions: (json['scoreContributions'] as Map<String, dynamic>?)?.map(
-            (k, v) => MapEntry(k, (v as num).toDouble()),
+      scoreContributions: (json['scoreContributions'] as Map?)?.map(
+            (k, v) => MapEntry(k.toString(), (v as num).toDouble()),
           ) ??
           {},
       estimatedCostVnd: (json['estimatedCostVnd'] as num?)?.toInt() ?? 0,
@@ -103,6 +116,23 @@ class DestinationCard {
       longitude: (json['longitude'] as num?)?.toDouble(),
       region: json['region'] as String? ?? '',
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'totalScore': totalScore,
+      'normalizedScores': normalizedScores,
+      'scoreContributions': scoreContributions,
+      'estimatedCostVnd': estimatedCostVnd,
+      'weatherSource': weatherSource,
+      'avgTempMax': avgTempMax,
+      'avgPrecipitation': avgPrecipitation,
+      'latitude': latitude,
+      'longitude': longitude,
+      'region': region,
+    };
   }
 }
 
@@ -141,6 +171,19 @@ class TransportOption {
       recommendationReason: json['recommendationReason'] as String? ?? '',
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'mode': mode,
+      'displayName': displayName,
+      'priceTotalVnd': priceTotalVnd,
+      'durationHours': durationHours,
+      'comfortScore': comfortScore,
+      'paretoOptimal': isParetoOptimal,
+      'tradeoffType': tradeoffType,
+      'recommendationReason': recommendationReason,
+    };
+  }
 }
 
 class ItineraryDay {
@@ -164,6 +207,14 @@ class ItineraryDay {
           [],
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'day': day,
+      'title': title,
+      'activities': activities.map((e) => e.toJson()).toList(),
+    };
+  }
 }
 
 class Activity {
@@ -186,6 +237,15 @@ class Activity {
       costVnd: (json['costVnd'] as num?)?.toInt() ?? 0,
       durationHours: (json['durationHours'] as num?)?.toDouble() ?? 0.0,
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'time': time,
+      'title': title,
+      'costVnd': costVnd,
+      'durationHours': durationHours,
+    };
   }
 }
 
@@ -214,5 +274,15 @@ class BudgetBreakdown {
       attractions: (json['attractions'] as num?)?.toInt() ?? 0,
       remainingSafetyMargin: (json['remainingSafetyMargin'] as num?)?.toInt() ?? 0,
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'transport': transport,
+      'accommodation': accommodation,
+      'food': food,
+      'attractions': attractions,
+      'remainingSafetyMargin': remainingSafetyMargin,
+    };
   }
 }
