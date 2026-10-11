@@ -581,12 +581,6 @@ class LocalTripStore {
     final storedDigest = row['digest'] as String? ?? '';
     final payload = _validateAndDecodePayload(payloadJson, storedDigest);
 
-    if (payload.plan == null) {
-      throw const CorruptDatabaseException(
-        'Account snapshot must contain complete usable plan.',
-      );
-    }
-
     // Shared projection policy check against explicit payload metadata (F2 / C05 / C07)
     final expectedTitle = computeProjectedTitle(payload);
     final expectedDestination = computeProjectedDestination(
@@ -1301,10 +1295,6 @@ class LocalTripStore {
       final state = journal['state'] as String;
 
       // 2. Common validation BEFORE both branches (C06)
-      if (payload.plan == null) {
-        throw ArgumentError('Import requires complete usable plan.');
-      }
-
       final computedDigest = TripPayloadCodec.computeDigest(payload);
       if (computedDigest != journal['content_digest'] ||
           computedDigest != receipt.contentDigest) {
@@ -1653,10 +1643,6 @@ class LocalTripStore {
     required DateTime fetchedAt,
     required DateTime updatedAt,
   }) async {
-    if (payload.plan == null) {
-      throw ArgumentError('Account snapshot requires complete usable plan.');
-    }
-
     final newDigest = TripPayloadCodec.computeDigest(payload);
     final canonicalJson = TripPayloadCodec.encode(payload);
 

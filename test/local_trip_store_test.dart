@@ -2718,7 +2718,7 @@ void main() {
       },
     );
 
-    test('corrupt_or_partial_payload_preserves_good_snapshot', () async {
+    test('conflicting_input_only_payload_preserves_good_snapshot', () async {
       await runWithStore((ctx) async {
         final handle = await ctx.store.activateSession(
           ownerId: 'owner-partial',
@@ -2734,17 +2734,17 @@ void main() {
           fetchedAt: DateTime.utc(2026, 10, 11, 10, 0, 0),
         );
 
-        // Attempting to replace with request-only payload (plan == null) is rejected
+        // Valid request-only content cannot replace different bytes at the same version.
         final partialPayload = createValidPayload(includePlan: false);
         await expectLater(
           ctx.store.replaceSnapshot(
             handle: handle,
             tripId: 'trip-part',
             payload: partialPayload,
-            remoteVersion: 2,
+            remoteVersion: 1,
             fetchedAt: DateTime.utc(2026, 10, 11, 11, 0, 0),
           ),
-          throwsA(isA<ArgumentError>()),
+          throwsA(isA<SnapshotConflictException>()),
         );
 
         final preserved = await ctx.store.getSnapshot(
@@ -2753,6 +2753,499 @@ void main() {
         );
         expect(preserved!.title, equals('Good Snapshot'));
         expect(preserved.remoteVersion, equals(1));
+      });
+    });
+  });
+
+  group('Input-only B3 compatibility', () {
+    test(
+      'plan-only snapshots still reopen without synthesizing a request',
+      () async {
+        await runWithStore((ctx) async {
+          final full = createValidPayload();
+          final payload = CanonicalTripPayloadV1(
+            metadata: full.metadata,
+            plan: full.plan,
+          );
+          final handle = await ctx.store.activateSession(
+            ownerId: 'input-owner',
+            coordinatorEpoch: 1,
+          );
+          await ctx.store.replaceSnapshot(
+            handle: handle,
+            tripId: 'plan-only',
+            payload: payload,
+            remoteVersion: 1,
+            fetchedAt: DateTime.utc(2026, 10, 11),
+          );
+          await ctx.store.close();
+          await ctx.store.open();
+          final restored = await ctx.store.activateSession(
+            ownerId: 'input-owner',
+            coordinatorEpoch: 2,
+          );
+          final snapshot = await ctx.store.getSnapshot(
+            handle: restored,
+            tripId: 'plan-only',
+          );
+          expect(snapshot!.payloadJson, TripPayloadCodec.encode(payload));
+          expect(snapshot.cachedPayload.request, isNull);
+          expect(snapshot.cachedPayload.plan!.winnerId, full.plan!.winnerId);
+        });
+      },
+    );
+
+    test(
+      'unversioned input-only updates preserve fetchedAt ordering',
+      () async {
+        await runWithStore((ctx) async {
+          final handle = await ctx.store.activateSession(
+            ownerId: 'input-owner',
+            coordinatorEpoch: 1,
+          );
+          final payload = createValidPayload(includePlan: false);
+          final time = DateTime.utc(2026, 10, 11);
+          await ctx.store.replaceSnapshot(
+            handle: handle,
+            tripId: 'legacy-input',
+            payload: payload,
+            remoteVersion: null,
+            fetchedAt: time,
+          );
+          final changed = createValidPayload(
+            includePlan: false,
+            title: 'New input',
+          );
+          await expectLater(
+            ctx.store.replaceSnapshot(
+              handle: handle,
+              tripId: 'legacy-input',
+              payload: changed,
+              remoteVersion: null,
+              fetchedAt: time,
+            ),
+            throwsA(isA<SnapshotStaleVersionException>()),
+          );
+          final newer = time.add(const Duration(hours: 1));
+          await ctx.store.replaceSnapshot(
+            handle: handle,
+            tripId: 'legacy-input',
+            payload: changed,
+            remoteVersion: null,
+            fetchedAt: newer,
+          );
+          final touched = await ctx.store.replaceSnapshot(
+            handle: handle,
+            tripId: 'legacy-input',
+            payload: changed,
+            remoteVersion: null,
+            fetchedAt: time,
+          );
+          expect(touched.fetchedAt, newer);
+          expect(touched.title, 'New input');
+          expect(touched.cachedPayload.plan, isNull);
+        });
+      },
+    );
+
+    Future<
+      ({
+        SessionHandle handle,
+        GuestDraftRevisionRecord revision,
+        LocalImportReceipt receipt,
+        CanonicalTripPayloadV1 payload,
+      })
+    >
+    prepare(TestStoreContext ctx) async {
+      final payload = createValidPayload(includePlan: false);
+      final revision = await ctx.store.saveDraftRevision(
+        draftId: 'input',
+        payload: payload,
+      );
+      final handle = await ctx.store.activateSession(
+        ownerId: 'input-owner',
+        coordinatorEpoch: 1,
+      );
+      await ctx.store.prepareImportJournal(
+        handle: handle,
+        draftId: 'input',
+        sourceRevision: revision.revision,
+        requestKey: 'input-key',
+      );
+      final receipt = createValidReceipt(
+        targetOwner: 'input-owner',
+        draftId: 'input',
+        sourceRevision: revision.revision,
+        requestKey: 'input-key',
+        contentDigest: revision.digest,
+        tripId: 'input-trip',
+      );
+      return (
+        handle: handle,
+        revision: revision,
+        receipt: receipt,
+        payload: payload,
+      );
+    }
+
+    Future<SessionHandle> reopen(TestStoreContext ctx) async {
+      await ctx.store.close();
+      ctx.store = LocalTripStore(
+        databaseFactory: databaseFactoryFfi,
+        databasePath: ctx.dbPath,
+      );
+      await ctx.store.open();
+      return ctx.store.activateSession(
+        ownerId: 'input-owner',
+        coordinatorEpoch: 2,
+      );
+    }
+
+    test(
+      'persists exact bytes through list, reopen and CAS without a plan',
+      () async {
+        await runWithStore((ctx) async {
+          final payload = createValidPayload(includePlan: false);
+          var handle = await ctx.store.activateSession(
+            ownerId: 'input-owner',
+            coordinatorEpoch: 1,
+          );
+          final time = DateTime.utc(2026, 10, 11);
+          await ctx.store.replaceSnapshot(
+            handle: handle,
+            tripId: 'input-trip',
+            payload: payload,
+            remoteVersion: 2,
+            fetchedAt: time,
+          );
+          handle = await reopen(ctx);
+          final snapshot = (await ctx.store.listSnapshots(handle: handle))
+              .single;
+          expect(snapshot.payloadJson, TripPayloadCodec.encode(payload));
+          expect(snapshot.digest, TripPayloadCodec.computeDigest(payload));
+          expect(snapshot.cachedPayload.plan, isNull);
+          expect(
+            snapshot.cachedPayload.request!.budgetVnd,
+            payload.request!.budgetVnd,
+          );
+          expect(snapshot.startDate, payload.metadata.startDate);
+          expect(snapshot.endDate, payload.metadata.endDate);
+          final touched = await ctx.store.replaceSnapshot(
+            handle: handle,
+            tripId: 'input-trip',
+            payload: payload,
+            remoteVersion: 2,
+            fetchedAt: time.subtract(const Duration(days: 1)),
+          );
+          expect(touched.fetchedAt, time);
+          await expectLater(
+            ctx.store.replaceSnapshot(
+              handle: handle,
+              tripId: 'input-trip',
+              payload: payload,
+              remoteVersion: 1,
+              fetchedAt: time,
+            ),
+            throwsA(isA<SnapshotStaleVersionException>()),
+          );
+          await expectLater(
+            ctx.store.replaceSnapshot(
+              handle: handle,
+              tripId: 'input-trip',
+              payload: createValidPayload(includePlan: false, title: 'Changed'),
+              remoteVersion: 2,
+              fetchedAt: time,
+            ),
+            throwsA(isA<SnapshotConflictException>()),
+          );
+          expect(
+            (await ctx.store.getSnapshot(
+              handle: handle,
+              tripId: 'input-trip',
+            ))!.digest,
+            snapshot.digest,
+          );
+        });
+      },
+    );
+
+    test('pending source survives missing/bad ack; valid ack is durable and idempotent', () async {
+      await runWithStore((ctx) async {
+        final item = await prepare(ctx);
+        var handle = await reopen(ctx);
+        expect(
+          await ctx.store.getDraftRevision(
+            draftId: 'input',
+            revision: item.revision.revision,
+          ),
+          isNotNull,
+        );
+        expect(
+          (await ctx.store.getJournalEntry(
+            handle: handle,
+            draftId: 'input',
+            sourceRevision: item.revision.revision,
+          ))!.cachedReceipt,
+          isNull,
+        );
+        await expectLater(
+          ctx.store.commitImportAck(
+            handle: handle,
+            receipt: item.receipt,
+            payload: createValidPayload(
+              includePlan: false,
+              title: 'Wrong bytes',
+            ),
+          ),
+          throwsA(isA<ReceiptBindingMismatchException>()),
+        );
+        final wrong = createValidReceipt(
+          targetOwner: 'input-owner',
+          draftId: 'input',
+          sourceRevision: item.revision.revision,
+          requestKey: 'wrong-key',
+          contentDigest: item.revision.digest,
+          tripId: 'input-trip',
+        );
+        await expectLater(
+          ctx.store.commitImportAck(
+            handle: handle,
+            receipt: wrong,
+            payload: item.payload,
+          ),
+          throwsA(isA<ReceiptBindingMismatchException>()),
+        );
+        expect(
+          await ctx.store.getSnapshot(handle: handle, tripId: 'input-trip'),
+          isNull,
+        );
+        expect(await ctx.store.getLatestDraft(draftId: 'input'), isNotNull);
+        final first = await ctx.store.commitImportAck(
+          handle: handle,
+          receipt: item.receipt,
+          payload: item.payload,
+        );
+        expect(first.snapshot.cachedPayload.plan, isNull);
+        handle = await reopen(ctx);
+        final retry = await ctx.store.commitImportAck(
+          handle: handle,
+          receipt: item.receipt,
+          payload: item.payload,
+        );
+        expect(
+          LocalImportReceipt.areReceiptsEqual(first.receipt, retry.receipt),
+          isTrue,
+        );
+        expect(
+          retry.snapshot.payloadJson,
+          TripPayloadCodec.encode(item.payload),
+        );
+        expect(await ctx.store.getLatestDraft(draftId: 'input'), isNull);
+        expect(
+          await ctx.store.getDraftRevision(
+            draftId: 'input',
+            revision: item.revision.revision,
+          ),
+          isNull,
+        );
+        expect(await ctx.store.listSnapshots(handle: handle), hasLength(1));
+        await ctx.store.rawDb.update('account_trip_snapshots', {
+          'digest': '0' * 64,
+        });
+        await expectLater(
+          ctx.store.commitImportAck(
+            handle: handle,
+            receipt: item.receipt,
+            payload: item.payload,
+          ),
+          throwsA(isA<CorruptDatabaseException>()),
+        );
+      });
+    });
+
+    for (final step in [
+      'after_journal_update',
+      'after_snapshot_upsert',
+      'after_pointer_null',
+      'after_source_delete',
+    ]) {
+      test('rollback $step preserves input-only source after reopen', () async {
+        await runWithStore((ctx) async {
+          final item = await prepare(ctx);
+          ctx.store.onAckStepForTesting = (current) async {
+            if (current == step) {
+              throw StateError('Owned input-only rollback probe');
+            }
+          };
+          await expectLater(
+            ctx.store.commitImportAck(
+              handle: item.handle,
+              receipt: item.receipt,
+              payload: item.payload,
+            ),
+            throwsA(isA<StateError>()),
+          );
+          final handle = await reopen(ctx);
+          expect(
+            await ctx.store.getSnapshot(handle: handle, tripId: 'input-trip'),
+            isNull,
+          );
+          final journal = await ctx.store.getJournalEntry(
+            handle: handle,
+            draftId: 'input',
+            sourceRevision: item.revision.revision,
+          );
+          expect(journal!.state, isNot('committed'));
+          expect(journal.cachedReceipt, isNull);
+          expect(
+            (await ctx.store.getLatestDraft(draftId: 'input'))!.digest,
+            item.revision.digest,
+          );
+          final source = await ctx.store.getDraftRevision(
+            draftId: 'input',
+            revision: item.revision.revision,
+          );
+          expect(source!.payloadJson, TripPayloadCodec.encode(item.payload));
+        });
+      });
+    }
+
+    for (final corruption in ['digest', 'payload_json', 'title']) {
+      test(
+        'checked reads and CAS reject input-only $corruption corruption',
+        () async {
+          await runWithStore((ctx) async {
+            final payload = createValidPayload(includePlan: false);
+            final handle = await ctx.store.activateSession(
+              ownerId: 'input-owner',
+              coordinatorEpoch: 1,
+            );
+            final time = DateTime.utc(2026, 10, 11);
+            await ctx.store.replaceSnapshot(
+              handle: handle,
+              tripId: 'input-trip',
+              payload: payload,
+              remoteVersion: 1,
+              fetchedAt: time,
+            );
+            await ctx.store.rawDb.update('account_trip_snapshots', {
+              corruption: corruption == 'digest' ? '0' * 64 : 'broken',
+            });
+            await expectLater(
+              ctx.store.getSnapshot(handle: handle, tripId: 'input-trip'),
+              throwsA(isA<CorruptDatabaseException>()),
+            );
+            await expectLater(
+              ctx.store.listSnapshots(handle: handle),
+              throwsA(isA<CorruptDatabaseException>()),
+            );
+            await expectLater(
+              ctx.store.replaceSnapshot(
+                handle: handle,
+                tripId: 'input-trip',
+                payload: payload,
+                remoteVersion: 1,
+                fetchedAt: time,
+              ),
+              throwsA(isA<CorruptDatabaseException>()),
+            );
+          });
+        },
+      );
+    }
+
+    test(
+      'owner switch fences input-only reads and purge keeps Guest source',
+      () async {
+        await runWithStore((ctx) async {
+          final item = await prepare(ctx);
+          await ctx.store.replaceSnapshot(
+            handle: item.handle,
+            tripId: 'input-trip',
+            payload: item.payload,
+            remoteVersion: 1,
+            fetchedAt: DateTime.utc(2026, 10, 11),
+          );
+          final other = await ctx.store.activateSession(
+            ownerId: 'other-owner',
+            coordinatorEpoch: 1,
+          );
+          expect(
+            await ctx.store.getSnapshot(handle: other, tripId: 'input-trip'),
+            isNull,
+          );
+          await expectLater(
+            ctx.store.getSnapshot(handle: item.handle, tripId: 'input-trip'),
+            throwsA(isA<StaleSessionEpochException>()),
+          );
+          await ctx.store.purgeAccountData(
+            targetOwnerId: 'input-owner',
+            reason: 'Owned logout probe',
+          );
+          expect(
+            await ctx.store.rawDb.query('account_trip_snapshots'),
+            isEmpty,
+          );
+          expect(
+            (await ctx.store.getLatestDraft(draftId: 'input'))!.digest,
+            item.revision.digest,
+          );
+        });
+      },
+    );
+
+    test('input-only projections preserve explicit, preference and empty placeholders', () async {
+      await runWithStore((ctx) async {
+        final handle = await ctx.store.activateSession(
+          ownerId: 'input-owner',
+          coordinatorEpoch: 1,
+        );
+        final explicit = createValidPayload(includePlan: false);
+        final request = explicit.request!;
+        final emptyRequest = PlanTripRequest(
+          origin: request.origin,
+          numDays: request.numDays,
+          numPeople: request.numPeople,
+          budgetVnd: request.budgetVnd,
+          preferences: [],
+          priority: request.priority,
+        );
+        final cases = [
+          (
+            explicit,
+            explicit.metadata.title!,
+            explicit.metadata.destinationName!,
+          ),
+          (
+            CanonicalTripPayloadV1(
+              metadata: TripMetadataV1(),
+              request: request,
+            ),
+            'Chuyến đi biển',
+            'Điểm đến',
+          ),
+          (
+            CanonicalTripPayloadV1(
+              metadata: TripMetadataV1(),
+              request: emptyRequest,
+            ),
+            'Chuyến đi',
+            'Điểm đến',
+          ),
+        ];
+        for (var i = 0; i < cases.length; i++) {
+          final value = cases[i];
+          final row = await ctx.store.replaceSnapshot(
+            handle: handle,
+            tripId: 'projection-$i',
+            payload: value.$1,
+            remoteVersion: 1,
+            fetchedAt: DateTime.utc(2026, 10, 11),
+          );
+          expect(row.title, value.$2);
+          expect(row.destinationName, value.$3);
+          expect(row.cachedPayload.plan, isNull);
+        }
       });
     });
   });
