@@ -14,11 +14,9 @@ GitHub review metadata identifies the eventual commit/PR. No merge, B4 UI or bac
 The earlier R2 planning files retain their historical draft status; this record
 captures the later Owner approval without editing outside the five-file packet.
 
-Current follow-up: extended SQL positive/negative suites PASS on staging;
-B3-E1/B3-E2 closed below. Fault-cleanup controls written and syntax checked,
-native execution of those new controls pending Owner-local credential entry.
-Fresh Flutter analyze/test PASS. A review draft may be prepared with that limit;
-this is not a merge-ready approval or authorization to deploy primary.
+Current follow-up: B3-E1/B3-E2 have Codex-observed staging SQL PASS;
+B3-E3 has Owner-reported native extended-control PASS, as recorded below.
+Flutter analyze/test PASS. Owner retains merge and primary rollout decisions.
 
 ## Changed / Why
 
@@ -458,3 +456,35 @@ Problem: success cleanup alone did not prove handling of failed native sessions.
 Root cause: lifecycle error paths were inspected but never deliberately triggered.
 Actionable rule: isolate owned fault processes and fixtures, check typed cancellation,
 and require independent cleanup proof before printing extended acceptance PASS.
+
+## Owner native result received — 2026-10-11
+
+Owner supplied the six runner summary lines after following the local secure-helper
+instructions. The final three fault modes and extended acceptance message all
+report PASS. This closes B3-E3 on Owner-executed evidence for the reviewed runner;
+Codex did not independently rerun native connections, collect a full transcript,
+or capture source hashes from execution time. Historical pending statements above
+describe the earlier draft and are superseded by this entry.
+
+Reported results:
+
+```text
+B3 staging suites/races PASS; cleanup must still complete.
+B3 staging execution and owned-fixture cleanup PASS.
+B3 sql-error and independent owned-fixture cleanup PASS.
+B3 timeout and independent owned-fixture cleanup PASS.
+B3 cooperative-cancel and independent owned-fixture cleanup PASS.
+B3 extended acceptance and fault-cleanup controls PASS.
+```
+
+Codex verified PR #21 is OPEN and draft, exact source HEAD
+38857dee19389b19c31bafdd54dd057565c61a15, and its changed-path set is exactly the
+five allowlisted files. GitHub Flutter CI SUCCESS on that HEAD:
+https://github.com/plhhoang2005/travel-go-mobile/actions/runs/38120838097/job/114415052152.
+This evidence update changes documentation only; SQL and runner stay identical
+to that source HEAD. Any resulting documentation commit needs its own CI check.
+
+All three identified acceptance findings are closed with the provenance above.
+Forced termination/power loss, HTTP/SDK E2E and corrected full migration first-apply
+from a fresh baseline remain NOT RUN, as already disclosed; B2 input-only snapshot
+compatibility remains a separate packet. No primary apply or merge occurred.
