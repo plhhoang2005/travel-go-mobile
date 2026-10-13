@@ -70,6 +70,77 @@ Phase 2 is **source-prepared in the listed areas; not fully closed/deployed**.
 Continue live verification after the required Owner actions. Prefer resuming
 from these exact PR heads instead of redoing earlier approvals or implementations.
 
+## Staging execution checklist ready for Owner authorization
+
+Target is **travel-go-staging / bkocylxbuyvdgxccpixx**, never inferred from the
+currently selected dashboard tab. Confirm the project ref/connection host before
+any statement. The browser automation tool in this session failed to initialize
+(`failed to write kernel assets`, path not found), so the following live preflight
+is **NOT RUN**, rather than an inferred schema state.
+
+Read-only SQL, no application rows or function secret literals exported:
+
+```sql
+SELECT current_database(), current_user, version();
+SELECT rolname, rolbypassrls FROM pg_roles
+WHERE rolname IN ('anon','authenticated','service_role');
+SELECT nspname, nspacl FROM pg_namespace WHERE nspname IN ('private','private_ai');
+SELECT n.nspname, c.relname, c.relrowsecurity, c.relacl
+FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = 'private_ai' AND c.relkind = 'r';
+SELECT n.nspname, p.proname, p.prosecdef, p.proconfig, p.proacl,
+       md5(pg_get_functiondef(p.oid)) AS body_hash
+FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+WHERE (n.nspname = 'private_ai') OR
+      (n.nspname = 'public' AND p.proname IN
+        ('reserve_ai_request_v1','finalize_ai_request_v1',
+         'import_guest_draft_v1','get_import_trip_snapshot_v1'));
+```
+
+If private_ai already exists, inspect and compare it to reviewed C1 source;
+do not reapply blindly or drop it. After explicit staging approval, apply only
+`supabase/migrations/202610130001_ai_quota.sql` from reviewed #35, transactionally.
+The migration refuses an existing private_ai schema. Capture postconditions:
+private schema/tables/helpers denied to anon/authenticated/service_role directly,
+only the two public quota RPCs executable by service_role, no grants to clients,
+definer search_path empty, settings Guest/account=3 and global attempts=20.
+Do not run local fixtures that create database roles against Supabase.
+
+Gateway source is #36; after source review/merge, deployment uses an available
+Supabase CLI authenticated privately by Owner:
+
+```text
+supabase functions deploy ai-request --project-ref bkocylxbuyvdgxccpixx
+```
+
+CLI/runtime installation and real Edge execution are not claimed from Node tests.
+Review `supabase/config.toml`: platform JWT decoding is disabled only for this
+function; every enabled request is checked against the trusted project Auth /user
+endpoint. Keep gateway disabled until this exact target/handler is verified.
+Standard project environment supplies SUPABASE_URL/ANON_KEY/SERVICE_ROLE_KEY.
+Owner enters GEMINI_API_KEY in server Secrets privately. Additional safe readiness
+settings are TRAVELGO_AI_ENABLED=true, TRAVELGO_AI_SYNTHETIC_ONLY=true and
+TRAVELGO_AI_ALLOWED_SUBJECTS=<verified staging test UUID>. Do not place secrets
+in Flutter, PR bodies, command history or chat. Confirm the API project has no
+paid billing enabled and `gemini-3.5-flash-lite` is available on that actual key.
+
+Synthetic live acceptance must observe all of:
+
+- Missing/rejected bearer denied before provider; non-allowlisted verified subject
+  denied; private/unknown fields rejected; server subject/classification used.
+- A safe minimal synthetic context returns Vietnamese structured output with
+  AI/unverified/model labels. No trip row changes or Decision Engine recompute.
+- Same request UUID/context replays the same stored result without another charge.
+  Guest fourth logical request is denied by the database; a forced unusable model
+  result refunds user reservation while the global attempt budget remains bounded.
+- Interrupted response is recovered by the same identity; do not manually reset
+  quotas as part of retry. Complete tests under owned synthetic subject IDs and
+  remove only those test subjects/results after inspecting ownership.
+
+On deployment failure or uncertainty, set TRAVELGO_AI_ENABLED=false. Preserve
+quota data for review; prefer a scoped forward fix rather than destructive drop.
+No synthetic PoC permits real-user/private-context enablement or primary rollout.
+
 Lesson Candidate: source, local tests, CI, native primitive tests and live user
 acceptance are distinct evidence levels. Keep each level's identity/target and
 limitations explicit when deciding whether a phase can close.
