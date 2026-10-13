@@ -289,6 +289,87 @@ class LocalTripStore {
     _isDemo = false;
   }
 
+  /// Cleanup metadata is available only to an unbound lifecycle coordinator.
+  /// Capture generation before queueing and check again after every SQL await.
+  Future<T> _executeNeutralCleanupRead<T>(
+    Future<T> Function(Database db, void Function() check) read,
+  ) {
+    final generation = _storeGeneration;
+    void check() {
+      _getDb();
+      if (_activeOwnerId != null || generation != _storeGeneration) {
+        throw const StaleSessionEpochException(
+          'Cleanup inspection requires an unchanged, unbound store.',
+        );
+      }
+    }
+
+    return _enqueue(() async {
+      check();
+      final result = await read(_getDb(), check);
+      check();
+      return result;
+    });
+  }
+
+  Future<List<String>> listAccountOwnersForCleanup() {
+    return _executeNeutralCleanupRead((db, check) async {
+      final owners = <String>{..._blockedOwners};
+      String checkedOwner(Object? value) {
+        if (value is! String || value.isEmpty || value.trim() != value) {
+          throw const CorruptDatabaseException('Invalid cleanup owner.');
+        }
+        return value;
+      }
+
+      for (final source in const [
+        ('account_trip_snapshots', 'owner_id'),
+        ('local_import_journal', 'target_owner'),
+      ]) {
+        final rows = await db.query(
+          source.$1,
+          columns: [source.$2],
+          distinct: true,
+        );
+        check();
+        for (final row in rows) {
+          owners.add(checkedOwner(row[source.$2]));
+        }
+      }
+      final markers = await db.query('local_cleanup_state');
+      check();
+      for (final row in markers) {
+        final namespace = row['namespace'];
+        if (namespace is! String || !namespace.startsWith('account:')) {
+          throw const CorruptDatabaseException('Invalid cleanup namespace.');
+        }
+        for (final key in const ['is_blocked', 'purge_pending']) {
+          if (row[key] is! int || (row[key] != 0 && row[key] != 1)) {
+            throw const CorruptDatabaseException('Invalid cleanup flag.');
+          }
+        }
+        owners.add(checkedOwner(namespace.substring(8)));
+      }
+      return List.unmodifiable(owners.toList()..sort());
+    });
+  }
+
+  Future<bool> checkAccountCleanupComplete({required String ownerId}) {
+    if (ownerId.isEmpty || ownerId.trim() != ownerId) {
+      throw ArgumentError('Invalid cleanup owner.');
+    }
+    return _executeNeutralCleanupRead((db, check) async {
+      final rows = await db.query(
+        'local_cleanup_state',
+        where: 'namespace = ?',
+        whereArgs: ['account:$ownerId'],
+      );
+      check();
+      // Any remaining marker is conservative, including an unfinished unlock.
+      return !_blockedOwners.contains(ownerId) && rows.isEmpty;
+    });
+  }
+
   void _assertSessionHandle(SessionHandle handle) {
     if (!_isOpened || _db == null) {
       throw const StoreUnavailableException('Account store is not ready.');
