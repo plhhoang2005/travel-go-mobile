@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+
 import '../../providers/trip_provider.dart';
 import '../../models/trip_response.dart';
 import '../../../../core/theme/app_theme.dart';
@@ -9,10 +10,13 @@ import '../widgets/pareto_chart_widget.dart';
 import '../widgets/budget_donut_chart.dart';
 import '../widgets/itinerary_timeline_widget.dart';
 import '../widgets/trip_comparison_matrix_widget.dart';
+
 import 'package:latlong2/latlong.dart';
+
 import '../../../auth/providers/auth_provider.dart';
 import '../../../map/presentation/screens/trip_map_screen.dart';
 import '../../../trips/providers/saved_trips_provider.dart';
+import 'home_planner_screen.dart' show showGuestDraftSaveDialog;
 
 class DashboardResultScreen extends StatefulWidget {
   const DashboardResultScreen({super.key});
@@ -21,7 +25,8 @@ class DashboardResultScreen extends StatefulWidget {
   State<DashboardResultScreen> createState() => _DashboardResultScreenState();
 }
 
-class _DashboardResultScreenState extends State<DashboardResultScreen> with SingleTickerProviderStateMixin {
+class _DashboardResultScreenState extends State<DashboardResultScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
   @override
@@ -48,8 +53,14 @@ class _DashboardResultScreenState extends State<DashboardResultScreen> with Sing
       );
     }
 
-    final currencyFmt = NumberFormat.currency(locale: 'vi', symbol: 'đ', decimalDigits: 0);
-    final winner = res.topDestinations.isNotEmpty ? res.topDestinations.first : null;
+    final currencyFmt = NumberFormat.currency(
+      locale: 'vi',
+      symbol: 'đ',
+      decimalDigits: 0,
+    );
+    final winner = res.topDestinations.isNotEmpty
+        ? res.topDestinations.first
+        : null;
     final primaryColor = Theme.of(context).colorScheme.primary;
 
     return Scaffold(
@@ -58,8 +69,12 @@ class _DashboardResultScreenState extends State<DashboardResultScreen> with Sing
         actions: [
           IconButton(
             icon: const Icon(Icons.bookmark_add_outlined),
-            tooltip: 'Lưu Chuyến Đi',
-            onPressed: () => _showSaveTripDialog(context, res),
+            tooltip: provider.canPersistGuestDraft
+                ? 'Lưu bản nháp trên máy'
+                : 'Lưu Chuyến Đi',
+            onPressed: provider.isSavingDraft
+                ? null
+                : () => _showSaveTripDialog(context, res),
           ),
           IconButton(
             icon: const Icon(Icons.map_outlined),
@@ -69,7 +84,10 @@ class _DashboardResultScreenState extends State<DashboardResultScreen> with Sing
                 context,
                 MaterialPageRoute(
                   builder: (_) => TripMapScreen(
-                    initialDestination: (winner != null && winner.latitude != null && winner.longitude != null)
+                    initialDestination:
+                        (winner != null &&
+                            winner.latitude != null &&
+                            winner.longitude != null)
                         ? LatLng(winner.latitude!, winner.longitude!)
                         : null,
                     initialDestinationName: winner?.name,
@@ -86,10 +104,16 @@ class _DashboardResultScreenState extends State<DashboardResultScreen> with Sing
           indicatorColor: primaryColor,
           isScrollable: true,
           tabs: const [
-            Tab(text: 'Đánh Đổi Pareto', icon: Icon(Icons.auto_graph, size: 20)),
+            Tab(
+              text: 'Đánh Đổi Pareto',
+              icon: Icon(Icons.auto_graph, size: 20),
+            ),
             Tab(text: 'Ngân Sách', icon: Icon(Icons.pie_chart, size: 20)),
             Tab(text: 'Lịch Trình', icon: Icon(Icons.calendar_month, size: 20)),
-            Tab(text: 'So Sánh Phương Án', icon: Icon(Icons.compare_arrows, size: 20)),
+            Tab(
+              text: 'So Sánh Phương Án',
+              icon: Icon(Icons.compare_arrows, size: 20),
+            ),
           ],
         ),
       ),
@@ -110,12 +134,19 @@ class _DashboardResultScreenState extends State<DashboardResultScreen> with Sing
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.warning_amber_rounded, color: Color(0xFFD97706)),
+                    const Icon(
+                      Icons.warning_amber_rounded,
+                      color: Color(0xFFD97706),
+                    ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         'ĐANG DÙNG DỮ LIỆU NGOẠI TUYẾN [FALLBACK]\n${res.dataSources['reason'] ?? 'Backend Spring Boot chưa sẵn sàng'}',
-                        style: const TextStyle(fontSize: 12, color: Color(0xFF92400E), fontWeight: FontWeight.w600),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF92400E),
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ],
@@ -135,24 +166,38 @@ class _DashboardResultScreenState extends State<DashboardResultScreen> with Sing
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.white.withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(20),
                             ),
                             child: const Row(
                               children: [
-                                Icon(Icons.emoji_events, color: Colors.amber, size: 16),
+                                Icon(
+                                  Icons.emoji_events,
+                                  color: Colors.amber,
+                                  size: 16,
+                                ),
                                 SizedBox(width: 4),
                                 Text(
                                   'ĐIỂM ĐẾN TỐI ƯU NHẤT (MCDA)',
-                                  style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ],
                             ),
                           ),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(20),
@@ -171,21 +216,35 @@ class _DashboardResultScreenState extends State<DashboardResultScreen> with Sing
                       const SizedBox(height: 12),
                       Text(
                         winner.name,
-                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
+                        style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
                       ),
                       const SizedBox(height: 6),
                       Text(
                         'Vùng: ${winner.region} · Dự kiến: ${currencyFmt.format(winner.estimatedCostVnd)}',
-                        style: const TextStyle(color: Colors.white70, fontSize: 13),
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 13,
+                        ),
                       ),
                       const Divider(color: Colors.white24, height: 24),
                       Row(
                         children: [
-                          const Icon(Icons.wb_sunny_outlined, color: Colors.amberAccent, size: 18),
+                          const Icon(
+                            Icons.wb_sunny_outlined,
+                            color: Colors.amberAccent,
+                            size: 18,
+                          ),
                           const SizedBox(width: 6),
                           Text(
                             'Nhiệt độ: ${winner.avgTempMax}°C · Mưa: ${winner.avgPrecipitation}mm',
-                            style: const TextStyle(color: Colors.white, fontSize: 13),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                            ),
                           ),
                         ],
                       ),
@@ -198,8 +257,13 @@ class _DashboardResultScreenState extends State<DashboardResultScreen> with Sing
                               context,
                               MaterialPageRoute(
                                 builder: (_) => TripMapScreen(
-                                  initialDestination: (winner.latitude != null && winner.longitude != null)
-                                      ? LatLng(winner.latitude!, winner.longitude!)
+                                  initialDestination:
+                                      (winner.latitude != null &&
+                                          winner.longitude != null)
+                                      ? LatLng(
+                                          winner.latitude!,
+                                          winner.longitude!,
+                                        )
                                       : null,
                                   initialDestinationName: winner.name,
                                 ),
@@ -211,12 +275,17 @@ class _DashboardResultScreenState extends State<DashboardResultScreen> with Sing
                             foregroundColor: primaryColor,
                             elevation: 0,
                             padding: const EdgeInsets.symmetric(vertical: 10),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
                           ),
                           icon: const Icon(Icons.map_rounded, size: 18),
                           label: const Text(
                             'Xem Lộ Trình Bản Đồ & Radar Nhóm',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
                           ),
                         ),
                       ),
@@ -241,7 +310,11 @@ class _DashboardResultScreenState extends State<DashboardResultScreen> with Sing
                           color: primaryColor.withValues(alpha: 0.12),
                           shape: BoxShape.circle,
                         ),
-                        child: Icon(Icons.auto_awesome, color: primaryColor, size: 20),
+                        child: Icon(
+                          Icons.auto_awesome,
+                          color: primaryColor,
+                          size: 20,
+                        ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -250,12 +323,19 @@ class _DashboardResultScreenState extends State<DashboardResultScreen> with Sing
                           children: [
                             const Text(
                               'Thuyết Minh Quyết Định (AI Explainer)',
-                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
                             ),
                             const SizedBox(height: 6),
                             Text(
                               res.aiExplanation,
-                              style: const TextStyle(fontSize: 13, height: 1.4, color: AppTheme.slate700),
+                              style: const TextStyle(
+                                fontSize: 13,
+                                height: 1.4,
+                                color: AppTheme.slate700,
+                              ),
                             ),
                           ],
                         ),
@@ -272,17 +352,30 @@ class _DashboardResultScreenState extends State<DashboardResultScreen> with Sing
                 child: FilledButton.icon(
                   onPressed: () => _showSaveTripDialog(context, res),
                   icon: const Icon(Icons.bookmark_add_outlined, size: 20),
-                  label: const Text('Lưu Chuyến Đi Này Lên Cloud', style: TextStyle(fontWeight: FontWeight.bold)),
+                  label: Text(
+                    provider.canPersistGuestDraft
+                        ? 'Lưu bản nháp trên máy'
+                        : 'Lưu Chuyến Đi Này Lên Cloud',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
                   style: FilledButton.styleFrom(
                     backgroundColor: const Color(0xFF086C61),
                     padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                 ),
               ),
             ),
 
             const SizedBox(height: 16),
+
+            if (provider.isRestoredLocalDraft)
+              const Padding(
+                padding: EdgeInsets.only(bottom: 8),
+                child: Text('Bản nháp trên máy'),
+              ),
 
             // Tab View Body
             SizedBox(
@@ -296,11 +389,14 @@ class _DashboardResultScreenState extends State<DashboardResultScreen> with Sing
                   else
                     const Center(child: Text('Không có dữ liệu phân bổ')),
                   SingleChildScrollView(
-                    child: ItineraryTimelineWidget(itineraryDays: res.itineraryDays),
+                    child: ItineraryTimelineWidget(
+                      itineraryDays: res.itineraryDays,
+                    ),
                   ),
                   SingleChildScrollView(
                     child: TripComparisonMatrixWidget(
-                      baseBudgetVnd: res.budgetBreakdown?.totalAllocated ?? 4000000,
+                      baseBudgetVnd:
+                          res.budgetBreakdown?.totalAllocated ?? 4000000,
                     ),
                   ),
                 ],
@@ -313,10 +409,18 @@ class _DashboardResultScreenState extends State<DashboardResultScreen> with Sing
   }
 
   Future<void> _showSaveTripDialog(BuildContext context, dynamic res) async {
+    if (context.read<TripProvider>().canPersistGuestDraft) {
+      await showGuestDraftSaveDialog(context);
+      return;
+    }
     final auth = context.read<AuthProvider>();
     if (auth.isGuest || auth.currentUser == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng đăng nhập tài khoản để lưu chuyến đi lên cloud')),
+        const SnackBar(
+          content: Text(
+            'Vui lòng đăng nhập tài khoản để lưu chuyến đi lên cloud',
+          ),
+        ),
       );
       return;
     }
@@ -328,70 +432,22 @@ class _DashboardResultScreenState extends State<DashboardResultScreen> with Sing
     final result = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (dialogCtx) => _SaveTripDialog(
-        res: res,
-        defaultTitle: defaultTitle,
-      ),
+      builder: (dialogCtx) =>
+          _SaveTripDialog(res: res, defaultTitle: defaultTitle),
     );
     if (!context.mounted) return;
     if (result == true) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Đã lưu chuyến đi thành công vào tài khoản!')),
+        const SnackBar(
+          content: Text('Đã lưu chuyến đi thành công vào tài khoản!'),
+        ),
       );
     }
   }
 
   static Map<String, dynamic> _serializeTripResponse(dynamic res) {
     if (res is! PlanTripResponse) return {};
-    return {
-      'winnerId': res.winnerId,
-      'isFallback': res.isFallback,
-      'aiExplanation': res.aiExplanation,
-      'dataSources': res.dataSources,
-      'assumptions': res.assumptions,
-      'topDestinations': res.topDestinations.map((d) => {
-        'id': d.id,
-        'name': d.name,
-        'totalScore': d.totalScore,
-        'normalizedScores': d.normalizedScores,
-        'scoreContributions': d.scoreContributions,
-        'estimatedCostVnd': d.estimatedCostVnd,
-        'weatherSource': d.weatherSource,
-        'avgTempMax': d.avgTempMax,
-        'avgPrecipitation': d.avgPrecipitation,
-        'latitude': d.latitude,
-        'longitude': d.longitude,
-        'region': d.region,
-      }).toList(),
-      'budgetBreakdown': res.budgetBreakdown != null ? {
-        'totalAllocated': res.budgetBreakdown!.totalAllocated,
-        'transport': res.budgetBreakdown!.transport,
-        'accommodation': res.budgetBreakdown!.accommodation,
-        'food': res.budgetBreakdown!.food,
-        'attractions': res.budgetBreakdown!.attractions,
-        'remainingSafetyMargin': res.budgetBreakdown!.remainingSafetyMargin,
-      } : null,
-      'itineraryDays': res.itineraryDays.map((day) => {
-        'day': day.day,
-        'title': day.title,
-        'activities': day.activities.map((a) => {
-          'time': a.time,
-          'title': a.title,
-          'costVnd': a.costVnd,
-          'durationHours': a.durationHours,
-        }).toList(),
-      }).toList(),
-      'transportOptions': res.transportOptions.map((t) => {
-        'mode': t.mode,
-        'displayName': t.displayName,
-        'priceTotalVnd': t.priceTotalVnd,
-        'durationHours': t.durationHours,
-        'comfortScore': t.comfortScore,
-        'isParetoOptimal': t.isParetoOptimal,
-        'tradeoffType': t.tradeoffType,
-        'recommendationReason': t.recommendationReason,
-      }).toList(),
-    };
+    return {...res.toJson(), 'isFallback': res.isFallback};
   }
 }
 
@@ -399,10 +455,7 @@ class _SaveTripDialog extends StatefulWidget {
   final PlanTripResponse res;
   final String defaultTitle;
 
-  const _SaveTripDialog({
-    required this.res,
-    required this.defaultTitle,
-  });
+  const _SaveTripDialog({required this.res, required this.defaultTitle});
 
   @override
   State<_SaveTripDialog> createState() => _SaveTripDialogState();
@@ -429,7 +482,10 @@ class _SaveTripDialogState extends State<_SaveTripDialog> {
     return PopScope(
       canPop: !_isSaving,
       child: AlertDialog(
-        title: const Text('Lưu Chuyến Đi Lên Cloud', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        title: const Text(
+          'Lưu Chuyến Đi Lên Cloud',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -444,8 +500,13 @@ class _SaveTripDialogState extends State<_SaveTripDialog> {
               enabled: !_isSaving,
               decoration: InputDecoration(
                 labelText: 'Tên chuyến đi',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
               ),
               style: const TextStyle(fontSize: 14),
             ),
@@ -479,9 +540,17 @@ class _SaveTripDialogState extends State<_SaveTripDialog> {
                       destinationName: widget.res.topDestinations.isNotEmpty
                           ? widget.res.topDestinations.first.name
                           : 'Điểm đến',
-                      numDays: widget.res.itineraryDays.isNotEmpty ? widget.res.itineraryDays.length : 3,
-                      budgetTotal: (widget.res.budgetBreakdown?.totalAllocated ?? 4000000).toDouble(),
-                      tripPlanData: _DashboardResultScreenState._serializeTripResponse(widget.res),
+                      numDays: widget.res.itineraryDays.isNotEmpty
+                          ? widget.res.itineraryDays.length
+                          : 3,
+                      budgetTotal:
+                          (widget.res.budgetBreakdown?.totalAllocated ??
+                                  4000000)
+                              .toDouble(),
+                      tripPlanData:
+                          _DashboardResultScreenState._serializeTripResponse(
+                            widget.res,
+                          ),
                     );
 
                     if (!context.mounted) return;
@@ -494,17 +563,25 @@ class _SaveTripDialogState extends State<_SaveTripDialog> {
                       });
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text(tripsProvider.errorMessage ?? 'Không thể lưu chuyến đi lên máy chủ'),
+                          content: Text(
+                            tripsProvider.errorMessage ??
+                                'Không thể lưu chuyến đi lên máy chủ',
+                          ),
                         ),
                       );
                     }
                   },
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF086C61)),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF086C61),
+            ),
             child: _isSaving
                 ? const SizedBox(
                     width: 16,
                     height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
                   )
                 : const Text('Lưu'),
           ),
