@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+
 import '../../../../core/theme/app_theme.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
 import '../../../auth/providers/auth_provider.dart';
@@ -15,7 +16,8 @@ class MyTripsScreen extends StatefulWidget {
   State<MyTripsScreen> createState() => _MyTripsScreenState();
 }
 
-class _MyTripsScreenState extends State<MyTripsScreen> with SingleTickerProviderStateMixin {
+class _MyTripsScreenState extends State<MyTripsScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
   @override
@@ -43,7 +45,10 @@ class _MyTripsScreenState extends State<MyTripsScreen> with SingleTickerProvider
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text('Chuyến Đi Của Tôi', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text(
+          'Chuyến Đi Của Tôi',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         backgroundColor: Colors.white,
         elevation: 0,
         bottom: TabBar(
@@ -64,7 +69,9 @@ class _MyTripsScreenState extends State<MyTripsScreen> with SingleTickerProvider
           // Upcoming Tab
           tripsProvider.upcomingTrips.isNotEmpty
               ? _buildSavedTripsList(context, tripsProvider.upcomingTrips)
-              : (isCustomer ? _buildUpcomingDemoCard(context) : _buildEmptyState(context, 'Chưa có chuyến đi sắp tới')),
+              : (isCustomer
+                    ? _buildUpcomingDemoCard(context)
+                    : _buildEmptyState(context, 'Chưa có chuyến đi sắp tới')),
           // Completed Tab
           _buildEmptyState(context, 'Chưa có chuyến đi đã hoàn thành'),
           // Cancelled Tab
@@ -75,7 +82,11 @@ class _MyTripsScreenState extends State<MyTripsScreen> with SingleTickerProvider
   }
 
   Widget _buildSavedTripsList(BuildContext context, List<SavedTrip> trips) {
-    final currencyFmt = NumberFormat.currency(locale: 'vi_VN', symbol: '₫', decimalDigits: 0);
+    final currencyFmt = NumberFormat.currency(
+      locale: 'vi_VN',
+      symbol: '₫',
+      decimalDigits: 0,
+    );
 
     return ListView.separated(
       padding: const EdgeInsets.all(16),
@@ -84,7 +95,9 @@ class _MyTripsScreenState extends State<MyTripsScreen> with SingleTickerProvider
       itemBuilder: (context, index) {
         final trip = trips[index];
         return Card(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           color: Colors.white,
           elevation: 0,
           child: Padding(
@@ -96,7 +109,10 @@ class _MyTripsScreenState extends State<MyTripsScreen> with SingleTickerProvider
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFF10B981).withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(20),
@@ -113,14 +129,24 @@ class _MyTripsScreenState extends State<MyTripsScreen> with SingleTickerProvider
                     Row(
                       children: [
                         Text(
-                          '${trip.numDays} Ngày',
-                          style: const TextStyle(fontSize: 12, color: AppTheme.slate500, fontWeight: FontWeight.bold),
+                          trip.numDays == null
+                              ? 'Chưa có số ngày'
+                              : '${trip.numDays} Ngày',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppTheme.slate500,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         const SizedBox(width: 8),
                         IconButton(
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints(),
-                          icon: const Icon(Icons.delete_outline, size: 20, color: Color(0xFFEF4444)),
+                          icon: const Icon(
+                            Icons.delete_outline,
+                            size: 20,
+                            color: Color(0xFFEF4444),
+                          ),
                           tooltip: 'Xóa chuyến đi',
                           onPressed: () => _confirmDeleteTrip(context, trip),
                         ),
@@ -131,21 +157,47 @@ class _MyTripsScreenState extends State<MyTripsScreen> with SingleTickerProvider
                 const SizedBox(height: 12),
                 Text(
                   trip.title,
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppTheme.slate900),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.slate900,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   'Điểm đến: ${trip.destinationName}',
-                  style: const TextStyle(fontSize: 12, color: AppTheme.slate600),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppTheme.slate600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  trip.createdAt == null
+                      ? 'Chưa có thời điểm lưu'
+                      : 'Đã lưu: ${DateFormat('dd/MM/yyyy HH:mm').format(trip.createdAt!.toLocal())}',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppTheme.slate600,
+                  ),
                 ),
                 const Divider(height: 24, color: AppTheme.slate100),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Tổng dự toán:', style: TextStyle(fontSize: 13, color: AppTheme.slate600)),
+                    const Text(
+                      'Tổng dự toán:',
+                      style: TextStyle(fontSize: 13, color: AppTheme.slate600),
+                    ),
                     Text(
-                      currencyFmt.format(trip.budgetTotal),
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                      trip.budgetTotal == null
+                          ? 'Chưa có ngân sách'
+                          : currencyFmt.format(trip.budgetTotal),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF0F172A),
+                      ),
                     ),
                   ],
                 ),
@@ -162,7 +214,9 @@ class _MyTripsScreenState extends State<MyTripsScreen> with SingleTickerProvider
       padding: const EdgeInsets.all(16),
       children: [
         Card(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           color: Colors.white,
           elevation: 0,
           child: Padding(
@@ -174,7 +228,10 @@ class _MyTripsScreenState extends State<MyTripsScreen> with SingleTickerProvider
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFF10B981).withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(20),
@@ -197,7 +254,11 @@ class _MyTripsScreenState extends State<MyTripsScreen> with SingleTickerProvider
                 const SizedBox(height: 12),
                 const Text(
                   'Chuyến đi Đà Nẵng 3N2Đ (Persona Minh)',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppTheme.slate900),
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.slate900,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 const Text(
@@ -207,9 +268,16 @@ class _MyTripsScreenState extends State<MyTripsScreen> with SingleTickerProvider
                 const Divider(height: 24, color: AppTheme.slate100),
                 Row(
                   children: const [
-                    Icon(Icons.flight_takeoff, size: 16, color: Color(0xFF0284C7)),
+                    Icon(
+                      Icons.flight_takeoff,
+                      size: 16,
+                      color: Color(0xFF0284C7),
+                    ),
                     SizedBox(width: 6),
-                    Text('Vé máy bay khứ hồi VietJet Air', style: TextStyle(fontSize: 12)),
+                    Text(
+                      'Vé máy bay khứ hồi VietJet Air',
+                      style: TextStyle(fontSize: 12),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 6),
@@ -217,17 +285,27 @@ class _MyTripsScreenState extends State<MyTripsScreen> with SingleTickerProvider
                   children: const [
                     Icon(Icons.hotel, size: 16, color: Color(0xFF0D9488)),
                     SizedBox(width: 6),
-                    Text('Furama Resort Đà Nẵng (2 đêm)', style: TextStyle(fontSize: 12)),
+                    Text(
+                      'Furama Resort Đà Nẵng (2 đêm)',
+                      style: TextStyle(fontSize: 12),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 12),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: const [
-                    Text('Tổng thanh toán:', style: TextStyle(fontSize: 13, color: AppTheme.slate600)),
+                    Text(
+                      'Tổng thanh toán:',
+                      style: TextStyle(fontSize: 13, color: AppTheme.slate600),
+                    ),
                     Text(
                       '4.200.000đ',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF0F172A),
+                      ),
                     ),
                   ],
                 ),
@@ -254,18 +332,30 @@ class _MyTripsScreenState extends State<MyTripsScreen> with SingleTickerProvider
                 color: Color(0xFFF1F5F9),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.luggage_outlined, size: 40, color: AppTheme.slate400),
+              child: const Icon(
+                Icons.luggage_outlined,
+                size: 40,
+                color: AppTheme.slate400,
+              ),
             ),
             const SizedBox(height: 16),
             Text(
               title,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppTheme.slate800),
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: AppTheme.slate800,
+              ),
             ),
             const SizedBox(height: 6),
             const Text(
               'Để AI gợi ý hành trình tối ưu chi phí & thời gian cho chuyến đi sắp tới của bạn.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 13, color: AppTheme.slate500, height: 1.4),
+              style: TextStyle(
+                fontSize: 13,
+                color: AppTheme.slate500,
+                height: 1.4,
+              ),
             ),
             const SizedBox(height: 20),
             if (auth.isGuest || auth.currentUser == null) ...[
@@ -279,7 +369,9 @@ class _MyTripsScreenState extends State<MyTripsScreen> with SingleTickerProvider
                 label: const Text('Đăng nhập để xem chuyến đi'),
                 style: FilledButton.styleFrom(
                   backgroundColor: const Color(0xFF086C61),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                 ),
               ),
               const SizedBox(height: 10),
@@ -295,7 +387,9 @@ class _MyTripsScreenState extends State<MyTripsScreen> with SingleTickerProvider
               style: OutlinedButton.styleFrom(
                 side: const BorderSide(color: Color(0xFF0F172A)),
                 foregroundColor: const Color(0xFF0F172A),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
               ),
             ),
           ],
@@ -308,10 +402,17 @@ class _MyTripsScreenState extends State<MyTripsScreen> with SingleTickerProvider
     showDialog(
       context: context,
       builder: (dialogCtx) => AlertDialog(
-        title: const Text('Xóa Chuyến Đi', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        title: const Text(
+          'Xóa Chuyến Đi',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
         content: Text(
           'Bạn có chắc chắn muốn xóa chuyến đi "${trip.title}" không? Thao tác này sẽ xóa dữ liệu trên máy chủ.',
-          style: const TextStyle(fontSize: 13, color: AppTheme.slate700, height: 1.4),
+          style: const TextStyle(
+            fontSize: 13,
+            color: AppTheme.slate700,
+            height: 1.4,
+          ),
         ),
         actions: [
           TextButton(
@@ -319,7 +420,9 @@ class _MyTripsScreenState extends State<MyTripsScreen> with SingleTickerProvider
             child: const Text('Hủy'),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFEF4444)),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+            ),
             onPressed: () async {
               Navigator.pop(dialogCtx);
               final tripsProvider = context.read<SavedTripsProvider>();
@@ -331,13 +434,17 @@ class _MyTripsScreenState extends State<MyTripsScreen> with SingleTickerProvider
                   await tripsProvider.loadTrips(auth.currentUser?.id);
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Đã xóa chuyến đi thành công')),
+                      const SnackBar(
+                        content: Text('Đã xóa chuyến đi thành công'),
+                      ),
                     );
                   }
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text(tripsProvider.errorMessage ?? 'Xóa chuyến đi thất bại'),
+                      content: Text(
+                        tripsProvider.errorMessage ?? 'Xóa chuyến đi thất bại',
+                      ),
                     ),
                   );
                 }

@@ -14,8 +14,8 @@ void main() {
         'status': 'planning',
         'ai_plan_data': {
           'days': [
-            {'day': 1, 'activity': 'Bà Nà Hills'}
-          ]
+            {'day': 1, 'activity': 'Bà Nà Hills'},
+          ],
         },
         'created_at': '2026-10-08T10:00:00.000Z',
       };
@@ -32,23 +32,26 @@ void main() {
       expect(model.tripPlanData['days'], isNotEmpty);
     });
 
-    test('fromJson falls back to legacy trip_plan_data for old cached fixtures', () {
-      final legacyJson = {
-        'id': 'legacy-trip-2',
-        'user_id': 'user-uuid-2',
-        'title': 'Du lịch Phú Quốc',
-        'destination_name': 'Phú Quốc',
-        'trip_plan_data': {
-          'itinerary': ['Bãi Sao', 'Hòn Thơm']
-        },
-      };
+    test(
+      'fromJson falls back to legacy trip_plan_data for old cached fixtures',
+      () {
+        final legacyJson = {
+          'id': 'legacy-trip-2',
+          'user_id': 'user-uuid-2',
+          'title': 'Du lịch Phú Quốc',
+          'destination_name': 'Phú Quốc',
+          'trip_plan_data': {
+            'itinerary': ['Bãi Sao', 'Hòn Thơm'],
+          },
+        };
 
-      final model = SavedTrip.fromJson(legacyJson);
+        final model = SavedTrip.fromJson(legacyJson);
 
-      expect(model.id, 'legacy-trip-2');
-      expect(model.destinationName, 'Phú Quốc');
-      expect(model.tripPlanData['itinerary'], contains('Bãi Sao'));
-    });
+        expect(model.id, 'legacy-trip-2');
+        expect(model.destinationName, 'Phú Quốc');
+        expect(model.tripPlanData['itinerary'], contains('Bãi Sao'));
+      },
+    );
 
     test('toJson outputs ai_plan_data matching Supabase PostgreSQL schema', () {
       final trip = SavedTrip(
@@ -64,7 +67,10 @@ void main() {
 
       final jsonForInsert = trip.toJson(includeId: false);
       expect(jsonForInsert.containsKey('id'), isFalse);
-      expect(jsonForInsert['ai_plan_data'], equals({'focus': 'Ẩm thực phố cổ'}));
+      expect(
+        jsonForInsert['ai_plan_data'],
+        equals({'focus': 'Ẩm thực phố cổ'}),
+      );
       expect(jsonForInsert['destination_name'], 'Hà Nội');
       expect(jsonForInsert['status'], 'planning');
 
@@ -84,7 +90,7 @@ void main() {
         endDate: DateTime.parse('2026-11-03T18:00:00.000Z'),
         status: 'planning',
         tripPlanData: {
-          'locations': ['Fansipan', 'Bản Cát Cát']
+          'locations': ['Fansipan', 'Bản Cát Cát'],
         },
         createdAt: DateTime.parse('2026-10-08T12:00:00.000Z'),
       );
@@ -103,16 +109,14 @@ void main() {
       expect(deserialized.tripPlanData, original.tripPlanData);
     });
 
-    test('Malformed or missing plan data defaults gracefully to empty map', () {
-      final jsonNullPlan = {
-        'id': 'empty-plan-1',
-        'title': 'Empty plan trip',
-      };
+    test('Missing plan and numeric headers remain visibly unknown', () {
+      final jsonNullPlan = {'id': 'empty-plan-1', 'title': 'Empty plan trip'};
 
       final model = SavedTrip.fromJson(jsonNullPlan);
       expect(model.tripPlanData, isEmpty);
-      expect(model.numDays, 3);
-      expect(model.budgetTotal, 0.0);
+      expect(model.numDays, isNull);
+      expect(model.budgetTotal, isNull);
+      expect(model.createdAt, isNull);
     });
   });
 }
