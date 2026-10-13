@@ -1589,6 +1589,80 @@ class LocalTripStore {
     });
   }
 
+  /// Owner-guarded inventory includes attempts for older, no-longer-current revisions.
+  Future<List<LocalImportJournalRecord>> listImportJournals({
+    required SessionHandle handle,
+  }) {
+    return _executeGuardedAccountOperation(handle, (txn) async {
+      final rows = await txn.query(
+        'local_import_journal',
+        where: 'target_owner = ?',
+        whereArgs: [handle.ownerId],
+        orderBy: 'updated_at DESC, device_scope ASC, draft_id ASC, source_revision ASC',
+      );
+      final result = <LocalImportJournalRecord>[];
+      for (final row in rows) {
+        final state = row['state'];
+        if (!{
+          'staged',
+          'pending_ack',
+          'quarantined',
+          'committed',
+        }.contains(state)) {
+          throw const CorruptDatabaseException('Invalid journal state.');
+        }
+        final receipt = _parseReceiptPayload(row['receipt_payload'], row);
+        if (state == 'committed') {
+          if (receipt == null) {
+            throw const CorruptDatabaseException(
+              'Committed journal missing receipt.',
+            );
+          }
+        } else {
+          final sources = await txn.query(
+            'guest_draft_revisions',
+            where: 'device_scope = ? AND draft_id = ? AND revision = ?',
+            whereArgs: [
+              row['device_scope'],
+              row['draft_id'],
+              row['source_revision'],
+            ],
+            limit: 1,
+          );
+          if (sources.isEmpty ||
+              _mapGuestDraftRevisionRow(sources.single).digest !=
+                  row['content_digest']) {
+            throw const CorruptDatabaseException(
+              'Active journal source is missing or inconsistent.',
+            );
+          }
+        }
+        result.add(
+          LocalImportJournalRecord(
+            deviceScope: row['device_scope'] as String,
+            targetOwner: row['target_owner'] as String,
+            draftId: row['draft_id'] as String,
+            sourceRevision: row['source_revision'] as int,
+            requestKey: row['request_key'] as String,
+            contentDigest: row['content_digest'] as String,
+            state: state as String,
+            receiptPayload: row['receipt_payload'] as String?,
+            createdAt: _parseStrictUtc(
+              row['created_at'] as String,
+              'journal.created_at',
+            ),
+            updatedAt: _parseStrictUtc(
+              row['updated_at'] as String,
+              'journal.updated_at',
+            ),
+            cachedReceipt: receipt,
+          ),
+        );
+      }
+      return List.unmodifiable(result);
+    });
+  }
+
   Future<List<LocalImportJournalRecord>> listQuarantinedJournals({
     required SessionHandle handle,
   }) {
