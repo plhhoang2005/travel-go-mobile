@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../auth/models/user_model.dart';
@@ -21,13 +22,18 @@ class CustomerProfileScreen extends StatelessWidget {
     final roleColor = isGuest
         ? AppTheme.slate500
         : (user.role == UserRole.admin
-            ? const Color(0xFFEF4444)
-            : (user.role == UserRole.partner ? const Color(0xFF0D9488) : const Color(0xFF0284C7)));
+              ? const Color(0xFFEF4444)
+              : (user.role == UserRole.partner
+                    ? const Color(0xFF0D9488)
+                    : const Color(0xFF0284C7)));
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text('Tài Khoản', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text(
+          'Tài Khoản',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         backgroundColor: Colors.white,
         elevation: 0,
       ),
@@ -44,8 +50,14 @@ class CustomerProfileScreen extends StatelessWidget {
                     radius: 30,
                     backgroundColor: const Color(0xFF0F172A),
                     child: Text(
-                      displayName.isNotEmpty ? displayName[0].toUpperCase() : 'G',
-                      style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
+                      displayName.isNotEmpty
+                          ? displayName[0].toUpperCase()
+                          : 'G',
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -58,20 +70,31 @@ class CustomerProfileScreen extends StatelessWidget {
                             Flexible(
                               child: Text(
                                 displayName,
-                                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.slate900),
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppTheme.slate900,
+                                ),
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
                             const SizedBox(width: 8),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
                               decoration: BoxDecoration(
                                 color: roleColor.withValues(alpha: 0.12),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Text(
                                 roleName,
-                                style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: roleColor),
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: roleColor,
+                                ),
                               ),
                             ),
                           ],
@@ -79,7 +102,10 @@ class CustomerProfileScreen extends StatelessWidget {
                         const SizedBox(height: 4),
                         Text(
                           email,
-                          style: const TextStyle(fontSize: 13, color: AppTheme.slate500),
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: AppTheme.slate500,
+                          ),
                         ),
                       ],
                     ),
@@ -91,7 +117,10 @@ class CustomerProfileScreen extends StatelessWidget {
             // Guest Login Promotion Banner
             if (isGuest)
               Container(
-                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                margin: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
@@ -104,7 +133,11 @@ class CustomerProfileScreen extends StatelessWidget {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.account_circle_outlined, size: 36, color: Color(0xFF086C61)),
+                    const Icon(
+                      Icons.account_circle_outlined,
+                      size: 36,
+                      color: Color(0xFF086C61),
+                    ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -112,12 +145,19 @@ class CustomerProfileScreen extends StatelessWidget {
                         children: const [
                           Text(
                             'Bạn đang dùng tài khoản Khách',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0F172A)),
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                              color: Color(0xFF0F172A),
+                            ),
                           ),
                           SizedBox(height: 2),
                           Text(
                             'Đăng nhập tài khoản thật để đồng bộ lịch trình',
-                            style: TextStyle(fontSize: 11, color: Color(0xFF475569)),
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFF475569),
+                            ),
                           ),
                         ],
                       ),
@@ -127,15 +167,28 @@ class CustomerProfileScreen extends StatelessWidget {
                         backgroundColor: const Color(0xFF086C61),
                         foregroundColor: Colors.white,
                         elevation: 0,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
                       ),
                       onPressed: () {
                         Navigator.of(context).push(
-                          MaterialPageRoute(builder: (_) => const LoginScreen()),
+                          MaterialPageRoute(
+                            builder: (_) => const LoginScreen(),
+                          ),
                         );
                       },
-                      child: const Text('Đăng nhập', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                      child: const Text(
+                        'Đăng nhập',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -159,7 +212,11 @@ class CustomerProfileScreen extends StatelessWidget {
                       () {
                         if (isGuest) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Vui lòng đăng nhập để cập nhật thông tin cá nhân')),
+                            const SnackBar(
+                              content: Text(
+                                'Vui lòng đăng nhập để cập nhật thông tin cá nhân',
+                              ),
+                            ),
                           );
                         } else {
                           _showEditProfileDialog(context, auth, user);
@@ -167,11 +224,24 @@ class CustomerProfileScreen extends StatelessWidget {
                       },
                     ),
                     _buildDivider(),
-                    _buildMenuItem(Icons.people_outline, 'Danh bạ người đi cùng (Travelers)', () {}),
+                    _buildMenuItem(
+                      Icons.people_outline,
+                      'Danh bạ người đi cùng (Travelers)',
+                      () {},
+                    ),
                     _buildDivider(),
-                    _buildMenuItem(Icons.confirmation_number_outlined, 'Kho mã giảm giá & Voucher', () {}),
+                    _buildMenuItem(
+                      Icons.confirmation_number_outlined,
+                      'Kho mã giảm giá & Voucher',
+                      () {},
+                    ),
                     _buildDivider(),
-                    _buildMenuItem(Icons.currency_exchange, 'Tiền tệ & Ngôn ngữ', () {}, trailing: 'VND · Tiếng Việt'),
+                    _buildMenuItem(
+                      Icons.currency_exchange,
+                      'Tiền tệ & Ngôn ngữ',
+                      () {},
+                      trailing: 'VND · Tiếng Việt',
+                    ),
                     _buildDivider(),
                     _buildMenuItem(
                       Icons.dns_outlined,
@@ -180,9 +250,17 @@ class CustomerProfileScreen extends StatelessWidget {
                       trailing: ApiConstants.baseUrl.split('/api')[0],
                     ),
                     _buildDivider(),
-                    _buildMenuItem(Icons.security_outlined, 'Bảo mật & Điều khoản', () {}),
+                    _buildMenuItem(
+                      Icons.security_outlined,
+                      'Bảo mật & Điều khoản',
+                      () {},
+                    ),
                     _buildDivider(),
-                    _buildMenuItem(Icons.help_outline, 'Trợ giúp & Liên hệ hỗ trợ', () {}),
+                    _buildMenuItem(
+                      Icons.help_outline,
+                      'Trợ giúp & Liên hệ hỗ trợ',
+                      () {},
+                    ),
                   ],
                 ),
               ),
@@ -196,35 +274,81 @@ class CustomerProfileScreen extends StatelessWidget {
               child: SizedBox(
                 width: double.infinity,
                 height: 48,
-                child: isGuest
+                child: auth.isLoggingOut || auth.logoutNeedsRetry
+                    ? OutlinedButton.icon(
+                        onPressed: auth.isLoggingOut
+                            ? null
+                            : () async {
+                                final success = await auth.logout();
+                                if (!context.mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      success
+                                          ? 'Đã đăng xuất khỏi thiết bị này.'
+                                          : auth.logoutErrorMessage ??
+                                                'Chưa hoàn tất đăng xuất.',
+                                    ),
+                                  ),
+                                );
+                              },
+                        icon: const Icon(Icons.logout),
+                        label: Text(
+                          auth.isLoggingOut
+                              ? 'Đang đăng xuất…'
+                              : 'Thử hoàn tất đăng xuất',
+                        ),
+                      )
+                    : isGuest
                     ? FilledButton.icon(
                         onPressed: () {
                           Navigator.of(context).push(
-                            MaterialPageRoute(builder: (_) => const LoginScreen()),
+                            MaterialPageRoute(
+                              builder: (_) => const LoginScreen(),
+                            ),
                           );
                         },
                         icon: const Icon(Icons.login, size: 18),
                         label: const Text('Đăng nhập / Đăng ký ngay'),
                         style: FilledButton.styleFrom(
                           backgroundColor: const Color(0xFF0F172A),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
                       )
                     : OutlinedButton.icon(
-                        onPressed: () {
-                          auth.logout();
+                        onPressed: () async {
+                          final success = await auth.logout();
+                          if (!context.mounted) return;
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Đã đăng xuất tài khoản')),
+                            SnackBar(
+                              content: Text(
+                                success
+                                    ? 'Đã đăng xuất khỏi thiết bị này.'
+                                    : auth.logoutErrorMessage ??
+                                          'Chưa hoàn tất đăng xuất.',
+                              ),
+                            ),
                           );
                         },
-                        icon: const Icon(Icons.logout, size: 18, color: Color(0xFFEF4444)),
+                        icon: const Icon(
+                          Icons.logout,
+                          size: 18,
+                          color: Color(0xFFEF4444),
+                        ),
                         label: const Text(
                           'Đăng xuất',
-                          style: TextStyle(color: Color(0xFFEF4444), fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            color: Color(0xFFEF4444),
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         style: OutlinedButton.styleFrom(
                           side: const BorderSide(color: Color(0xFFFCA5A5)),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
                       ),
               ),
@@ -237,42 +361,80 @@ class CustomerProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildMenuItem(IconData icon, String title, VoidCallback onTap, {String? trailing}) {
+  Widget _buildMenuItem(
+    IconData icon,
+    String title,
+    VoidCallback onTap, {
+    String? trailing,
+  }) {
     return ListTile(
       leading: Icon(icon, size: 20, color: AppTheme.slate700),
-      title: Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppTheme.slate800)),
+      title: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+          color: AppTheme.slate800,
+        ),
+      ),
       trailing: trailing != null
-          ? Text(trailing, style: const TextStyle(fontSize: 12, color: AppTheme.slate500))
-          : const Icon(Icons.arrow_forward_ios, size: 14, color: AppTheme.slate400),
+          ? Text(
+              trailing,
+              style: const TextStyle(fontSize: 12, color: AppTheme.slate500),
+            )
+          : const Icon(
+              Icons.arrow_forward_ios,
+              size: 14,
+              color: AppTheme.slate400,
+            ),
       onTap: onTap,
     );
   }
 
   Widget _buildDivider() {
-    return const Divider(height: 1, indent: 56, endIndent: 16, color: Color(0xFFF1F5F9));
+    return const Divider(
+      height: 1,
+      indent: 56,
+      endIndent: 16,
+      color: Color(0xFFF1F5F9),
+    );
   }
 
   void _showBackendConfigDialog(BuildContext context) {
-    final controller = TextEditingController(text: ApiConstants.overrideBaseUrl ?? ApiConstants.baseUrl);
+    final controller = TextEditingController(
+      text: ApiConstants.overrideBaseUrl ?? ApiConstants.baseUrl,
+    );
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Cấu hình Máy chủ Backend', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        title: const Text(
+          'Cấu hình Máy chủ Backend',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
               'Nhập URL Backend API (Hữu ích khi test trên thiết bị thật qua mạng Wi-Fi LAN hoặc máy chủ từ xa):',
-              style: TextStyle(fontSize: 13, color: AppTheme.slate600, height: 1.4),
+              style: TextStyle(
+                fontSize: 13,
+                color: AppTheme.slate600,
+                height: 1.4,
+              ),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: controller,
               decoration: InputDecoration(
                 hintText: 'http://192.168.1.x:8080/api/v1',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
               ),
               style: const TextStyle(fontSize: 13),
             ),
@@ -294,10 +456,14 @@ class CustomerProfileScreen extends StatelessWidget {
               ApiConstants.overrideBaseUrl = controller.text.trim();
               Navigator.pop(ctx);
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Đã lưu URL API: ${ApiConstants.baseUrl}')),
+                SnackBar(
+                  content: Text('Đã lưu URL API: ${ApiConstants.baseUrl}'),
+                ),
               );
             },
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF086C61)),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF086C61),
+            ),
             child: const Text('Lưu'),
           ),
         ],
@@ -305,14 +471,15 @@ class CustomerProfileScreen extends StatelessWidget {
     );
   }
 
-  Future<void> _showEditProfileDialog(BuildContext context, AuthProvider auth, UserEntity user) async {
+  Future<void> _showEditProfileDialog(
+    BuildContext context,
+    AuthProvider auth,
+    UserEntity user,
+  ) async {
     final result = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (dialogCtx) => _EditProfileDialog(
-        auth: auth,
-        user: user,
-      ),
+      builder: (dialogCtx) => _EditProfileDialog(auth: auth, user: user),
     );
     if (!context.mounted) return;
     if (result == true) {
@@ -327,10 +494,7 @@ class _EditProfileDialog extends StatefulWidget {
   final AuthProvider auth;
   final UserEntity user;
 
-  const _EditProfileDialog({
-    required this.auth,
-    required this.user,
-  });
+  const _EditProfileDialog({required this.auth, required this.user});
 
   @override
   State<_EditProfileDialog> createState() => _EditProfileDialogState();
@@ -363,7 +527,10 @@ class _EditProfileDialogState extends State<_EditProfileDialog> {
     return PopScope(
       canPop: !_isSaving,
       child: AlertDialog(
-        title: const Text('Thông Tin Cá Nhân', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        title: const Text(
+          'Thông Tin Cá Nhân',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -379,8 +546,13 @@ class _EditProfileDialogState extends State<_EditProfileDialog> {
                 enabled: !_isSaving,
                 decoration: InputDecoration(
                   labelText: 'Họ và tên',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
                 ),
                 style: const TextStyle(fontSize: 14),
               ),
@@ -391,8 +563,13 @@ class _EditProfileDialogState extends State<_EditProfileDialog> {
                 keyboardType: TextInputType.phone,
                 decoration: InputDecoration(
                   labelText: 'Số điện thoại',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
                 ),
                 style: const TextStyle(fontSize: 14),
               ),
@@ -402,15 +579,24 @@ class _EditProfileDialogState extends State<_EditProfileDialog> {
                 enabled: !_isSaving,
                 decoration: InputDecoration(
                   labelText: 'Địa chỉ',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
                 ),
                 style: const TextStyle(fontSize: 14),
               ),
               const SizedBox(height: 8),
               Text(
                 'Email: ${widget.user.email} (Không thể thay đổi)',
-                style: const TextStyle(fontSize: 12, color: AppTheme.slate500, fontStyle: FontStyle.italic),
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppTheme.slate500,
+                  fontStyle: FontStyle.italic,
+                ),
               ),
             ],
           ),
@@ -431,7 +617,9 @@ class _EditProfileDialogState extends State<_EditProfileDialog> {
                     if (newName.isEmpty) {
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Họ và tên không được để trống')),
+                          const SnackBar(
+                            content: Text('Họ và tên không được để trống'),
+                          ),
                         );
                       }
                       return;
@@ -456,16 +644,25 @@ class _EditProfileDialogState extends State<_EditProfileDialog> {
                         _isSaving = false;
                       });
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(widget.auth.errorMessage ?? 'Cập nhật thất bại')),
+                        SnackBar(
+                          content: Text(
+                            widget.auth.errorMessage ?? 'Cập nhật thất bại',
+                          ),
+                        ),
                       );
                     }
                   },
-            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF086C61)),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF086C61),
+            ),
             child: _isSaving
                 ? const SizedBox(
                     width: 16,
                     height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
                   )
                 : const Text('Lưu'),
           ),

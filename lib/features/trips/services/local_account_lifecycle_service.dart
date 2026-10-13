@@ -181,6 +181,14 @@ final class _Consumer {
   _Consumer(this.invalidate, this.bind);
 }
 
+final class _AccountTransitionPermit {
+  final Object issuer;
+  final _Subject subject;
+  final int epoch;
+  final String kind;
+  _AccountTransitionPermit(this.issuer, this.subject, this.epoch, this.kind);
+}
+
 /// B6.1 primitive only: callers in B6.2 wire SDK events/lifecycle and must bracket
 /// credential mutations and account operations. No SDK mutation or remote delete.
 class LocalAccountLifecycleService extends ChangeNotifier {
@@ -189,6 +197,7 @@ class LocalAccountLifecycleService extends ChangeNotifier {
   final bool Function() _isDemo;
   final DateTime Function() _clock;
   final Future<String> Function(String token)? _verifySubject;
+  final Timer Function(Duration, void Function()) _timerFactory;
   final LifecycleRegistryFile _registry;
   final Object _issuer = Object();
   final List<_Consumer> _consumers = [];
@@ -205,6 +214,7 @@ class LocalAccountLifecycleService extends ChangeNotifier {
   bool _closed = false;
   bool _consumerFailed = false;
   Timer? _deadline;
+  _AccountTransitionPermit? _permit;
   LocalAccountLifecycleState _state = LocalAccountLifecycleState.denied;
   String? _error;
 
@@ -216,9 +226,11 @@ class LocalAccountLifecycleService extends ChangeNotifier {
     bool Function()? isDemo,
     DateTime Function()? clock,
     this._verifySubject,
+    Timer Function(Duration, void Function())? timerFactory,
   }) : _registry = registryFile ?? LifecycleRegistryFile(registryPath),
        _isDemo = isDemo ?? (() => false),
-       _clock = clock ?? (() => DateTime.now().toUtc());
+       _clock = clock ?? (() => DateTime.now().toUtc()),
+       _timerFactory = timerFactory ?? Timer.new;
 
   int get epoch => _epoch;
   LocalAccountLifecycleState get state => _state;
@@ -268,6 +280,7 @@ class LocalAccountLifecycleService extends ChangeNotifier {
   }
 
   void invalidateAccountContext() {
+    _permit = null;
     _epoch++;
     _deadline?.cancel();
     _deadline = null;
@@ -463,7 +476,7 @@ class LocalAccountLifecycleService extends ChangeNotifier {
         if (!await store.checkAccountCleanupComplete(ownerId: subject.owner)) {
           throw StateError('Account namespace is blocked.');
         }
-        if (_verifySubject != null) {
+        if (freshAuthentication && _verifySubject != null) {
           final verified = await _verifySubject(subject.token);
           if (verified != subject.owner) {
             throw StateError('Subject verification failed.');
@@ -492,7 +505,7 @@ class LocalAccountLifecycleService extends ChangeNotifier {
         }
         _state = LocalAccountLifecycleState.ready;
         _error = null;
-        _deadline = Timer(
+        _deadline = _timerFactory(
           Duration(
             milliseconds:
                 (subject.expiry - 10) * 1000 - _clock().millisecondsSinceEpoch,
@@ -520,6 +533,164 @@ class LocalAccountLifecycleService extends ChangeNotifier {
 
   Future<SessionHandle?> resumeAccount() =>
       establishAccount(freshAuthentication: false);
+
+  bool _validPermit(_AccountTransitionPermit? permit, String kind) =>
+      permit != null &&
+      identical(permit.issuer, _issuer) &&
+      permit.epoch == _epoch &&
+      permit.kind == kind &&
+      !_closed &&
+      permit.subject.expiry > _clock().millisecondsSinceEpoch ~/ 1000 + 10;
+
+  Future<void> prepareSessionRefresh() {
+    final subject = _authorizedSubject;
+    if (handle == null ||
+        subject == null ||
+        _authMutation ||
+        _revocations > 0 ||
+        _operations > 0 ||
+        _controls > 0 ||
+        _consumerFailed) {
+      return Future.error(StateError('Refresh requires a safe live grant.'));
+    }
+    invalidateAccountContext();
+    _authMutation = true;
+    final generation = _epoch;
+    _permit = _AccountTransitionPermit(_issuer, subject, generation, 'refresh');
+    return _enqueue(() async {
+      try {
+        await _write('revoking', generation, subject);
+        if (!_current(generation, subject)) {
+          throw StateError('Refresh canceled.');
+        }
+      } catch (_) {
+        _permit = null;
+        _authMutation = false;
+        _fail('Refresh preflight failed.');
+        throw StateError('Refresh preflight failed.');
+      }
+    });
+  }
+
+  Future<SessionHandle?> completeSessionRefresh({required bool sdkSucceeded}) {
+    final permit = _permit;
+    final allowed = _validPermit(permit, 'refresh');
+    _permit = null;
+    _authMutation = false;
+    if (!allowed || permit == null) {
+      if (permit != null && !_closed) return revokeAccount().then((_) => null);
+      return Future.value(null);
+    }
+    final subject = _readSubject();
+    if (subject == null ||
+        subject.owner != permit.subject.owner ||
+        (!sdkSucceeded && !subject.matches(permit.subject))) {
+      return revokeAccount().then((_) => null);
+    }
+    invalidateAccountContext();
+    final generation = _epoch;
+    return _enqueue(
+      () => _bindPreserving(generation, subject, verify: sdkSucceeded),
+    );
+  }
+
+  Future<void> suspendForegroundContext() {
+    if (_validPermit(_permit, 'live')) return Future.value();
+    final subject = _authorizedSubject;
+    final safe =
+        handle != null &&
+        subject != null &&
+        _controls == 0 &&
+        _operations == 0 &&
+        !_authMutation &&
+        _revocations == 0 &&
+        !_consumerFailed;
+    invalidateAccountContext();
+    if (safe) {
+      _permit = _AccountTransitionPermit(_issuer, subject, _epoch, 'live');
+    }
+    return Future.value();
+  }
+
+  Future<SessionHandle?> resumeForegroundContext() {
+    final permit = _permit;
+    if (!_validPermit(permit, 'live') || permit == null) return resumeAccount();
+    if (!permit.subject.matches(_readSubject())) {
+      return revokeAccount().then((_) => null);
+    }
+    invalidateAccountContext();
+    final generation = _epoch;
+    return _enqueue(
+      () => _bindPreserving(generation, permit.subject, verify: false),
+    );
+  }
+
+  Future<SessionHandle?> _bindPreserving(
+    int generation,
+    _Subject subject, {
+    required bool verify,
+  }) async {
+    try {
+      if (!_current(generation, subject) ||
+          _authMutation ||
+          _revocations > 0 ||
+          _consumerFailed) {
+        return null;
+      }
+      final store = await _loadStore();
+      if (!_current(generation, subject)) return null;
+      await _write('active', generation, subject);
+      await _purge(store, keepOwner: subject.owner);
+      if (!_current(generation, subject) ||
+          !await store.checkAccountCleanupComplete(ownerId: subject.owner)) {
+        return null;
+      }
+      if (verify && _verifySubject != null) {
+        if (await _verifySubject(subject.token) != subject.owner) {
+          throw StateError('Subject mismatch.');
+        }
+      }
+      if (!_current(generation, subject)) return null;
+      final bound = await store.activateSession(
+        ownerId: subject.owner,
+        coordinatorEpoch: generation,
+      );
+      if (!_current(generation, subject)) {
+        store.unbindSession();
+        return null;
+      }
+      _authorizedSubject = subject;
+      _lastSubject = subject;
+      _handle = bound;
+      for (final consumer in List<_Consumer>.of(_consumers)) {
+        if (!consumer.registered) continue;
+        await consumer.bind(bound);
+        if (!_current(generation, subject) || !consumer.registered) {
+          consumer.invalidate();
+        }
+        if (!_current(generation, subject)) return null;
+      }
+      _state = LocalAccountLifecycleState.ready;
+      _error = null;
+      _deadline = _timerFactory(
+        Duration(
+          milliseconds:
+              (subject.expiry - 10) * 1000 - _clock().millisecondsSinceEpoch,
+        ),
+        () {
+          if (generation == _epoch && !_closed) unawaited(revokeAccount());
+        },
+      );
+      _notifyLater();
+      return bound;
+    } catch (_) {
+      if (generation == _epoch) {
+        invalidateAccountContext();
+        _fail('Session transition failed; account remains locked.');
+      }
+      return null;
+    }
+  }
 
   Future<void> prepareAuthenticationMutation() {
     if (_closed || _authMutation || _revocations > 0) {
@@ -575,9 +746,11 @@ class LocalAccountLifecycleService extends ChangeNotifier {
   }
 
   Future<bool> sealForPause() {
-    final subject = _authorizedSubject;
+    final live = _permit;
+    final suspended = _validPermit(live, 'live');
+    final subject = suspended ? live?.subject : _authorizedSubject;
     final eligible =
-        handle != null &&
+        (suspended || handle != null) &&
         _controls == 0 &&
         _operations == 0 &&
         !_authMutation &&
