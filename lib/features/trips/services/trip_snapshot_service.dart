@@ -253,10 +253,8 @@ class TripSnapshotService {
       if (error.response?.statusCode == 404 || code == 'PGRST202') {
         return const SnapshotLookup(SnapshotLookupStatus.deploymentBlocked);
       }
-      if (error.response?.statusCode == 401 ||
-          error.response?.statusCode == 403) {
-        return const SnapshotLookup(SnapshotLookupStatus.rejected);
-      }
+      // Preserve authentication failures for the lifecycle owner. Treating
+      // them as malformed rows would leave previously displayed account data.
       rethrow;
     }
     _check(proof);
