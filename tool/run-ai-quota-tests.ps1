@@ -23,8 +23,13 @@ New-Item -ItemType Directory -Path $ownedPath | Out-Null
 try {
     & $initPath -D $dataPath -A trust -U c1_fixture_admin --encoding=UTF8 --locale=C > (Join-Path $ownedPath 'init.log') 2>&1
     if ($LASTEXITCODE -ne 0) { throw 'Owned local initdb failed.' }
-    & $pgCtlPath -D $dataPath -l (Join-Path $ownedPath 'server.log') -w start -o "-h 127.0.0.1 -p $port"
-    if ($LASTEXITCODE -ne 0) { throw 'Owned local PostgreSQL start failed.' }
+    $serverOptions = "-h 127.0.0.1 -p $port"
+    if (-not $platformIsWindows) { $serverOptions += " -k $ownedPath" }
+    & $pgCtlPath -D $dataPath -l (Join-Path $ownedPath 'server.log') -w start -o $serverOptions
+    if ($LASTEXITCODE -ne 0) {
+        Get-Content -LiteralPath (Join-Path $ownedPath 'server.log') -Tail 20
+        throw 'Owned local PostgreSQL start failed.'
+    }
     $started = $true
     $connection = @('-h','127.0.0.1','-p',"$port",'-U','c1_fixture_admin','-d','postgres','-v','ON_ERROR_STOP=1','-X','-q')
     $rolesPath = Join-Path $ownedPath 'roles.sql'
@@ -70,6 +75,10 @@ try {
     Write-Output 'AI_QUOTA_NATIVE_DUPLICATE_RACE_PASS'
 } finally {
     foreach ($process in $processes) { if (-not $process.HasExited) { $process.Kill(); $process.WaitForExit() } }
+    if (-not $started -and (Test-Path -LiteralPath $dataPath)) {
+        & $pgCtlPath -D $dataPath status > $null 2>&1
+        $started = $LASTEXITCODE -eq 0
+    }
     if ($started) {
         & $pgCtlPath -D $dataPath -m immediate -w stop
         if ($LASTEXITCODE -ne 0) { throw 'Local server stop failed; owned fixture retained.' }
