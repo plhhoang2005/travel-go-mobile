@@ -20,6 +20,7 @@ class GuestDraftsProvider extends ChangeNotifier {
   List<LocalImportJournalRecord> _attempts = [];
   List<GuestImportOutcome> _outcomes = [];
   final Set<ImportSource> _selected = {};
+  Map<String, ImportSource> _activeSources = {};
 
   GuestDraftsProvider({
     required this.store,
@@ -38,6 +39,14 @@ class GuestDraftsProvider extends ChangeNotifier {
   bool get isLoading => _loading;
   bool get isImporting => _importing;
   String? get errorMessage => _error;
+  String? get currentOwnerId => _handle?.ownerId;
+  ImportSource? sourceFor(GuestDraftSummaryRecord draft) {
+    final source = _activeSources[draft.draftId];
+    return source?.deviceScope == draft.deviceScope &&
+            source?.revision == draft.currentRevision
+        ? source
+        : null;
+  }
 
   bool _current(int generation) => !_disposed && generation == _generation;
   void _notify() {
@@ -56,6 +65,7 @@ class GuestDraftsProvider extends ChangeNotifier {
     _generation++;
     _loadGeneration++;
     _selected.clear();
+    _activeSources = {};
     _attempts = [];
     _outcomes = [];
     _error = null;
@@ -92,15 +102,35 @@ class GuestDraftsProvider extends ChangeNotifier {
     try {
       final drafts = await store.listGuestDrafts(deviceScope: deviceScope);
       if (!_current(generation) || load != _loadGeneration) return;
+      final sources = <String, ImportSource>{};
+      for (final draft in drafts) {
+        final revision = await store.getDraftRevision(
+          draftId: draft.draftId,
+          revision: draft.currentRevision,
+          deviceScope: draft.deviceScope,
+        );
+        if (!_current(generation) || load != _loadGeneration) return;
+        if (revision == null) {
+          throw StateError('Guest draft pointer has no revision.');
+        }
+        sources[draft.draftId] = ImportSource(
+          deviceScope: revision.deviceScope,
+          draftId: revision.draftId,
+          revision: revision.revision,
+          digest: revision.digest,
+        );
+      }
       final attempts = handle == null
           ? <LocalImportJournalRecord>[]
           : await store.listImportJournals(handle: handle);
       if (!_current(generation) || load != _loadGeneration) return;
       _drafts = drafts;
+      _activeSources = sources;
       _attempts = attempts;
     } catch (_) {
       if (_current(generation) && load == _loadGeneration) {
         _drafts = [];
+        _activeSources = {};
         _attempts = [];
         _error = 'Không thể đọc bản nháp an toàn.';
       }
@@ -116,11 +146,7 @@ class GuestDraftsProvider extends ChangeNotifier {
     if (_disposed || _importing) return;
     if (selected) {
       if (source.deviceScope != deviceScope ||
-          !_drafts.any(
-            (d) =>
-                d.draftId == source.draftId &&
-                d.currentRevision == source.revision,
-          )) {
+          _activeSources[source.draftId] != source) {
         throw ArgumentError(
           'Selection must refer to a displayed Guest revision.',
         );

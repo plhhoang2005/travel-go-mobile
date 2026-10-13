@@ -7,7 +7,9 @@ import '../../../auth/presentation/screens/login_screen.dart';
 import '../../../auth/providers/auth_provider.dart';
 import '../../../trip_planner/presentation/screens/home_planner_screen.dart';
 import '../../models/saved_trip_model.dart';
+import '../../providers/guest_drafts_provider.dart';
 import '../../providers/saved_trips_provider.dart';
+import '../widgets/guest_draft_import_sheet.dart';
 
 class MyTripsScreen extends StatefulWidget {
   const MyTripsScreen({super.key});
@@ -36,7 +38,9 @@ class _MyTripsScreenState extends State<MyTripsScreen>
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final tripsProvider = context.watch<SavedTripsProvider>();
-    final isCustomer = auth.currentUser?.email.contains('minh') ?? false;
+    final isCustomer =
+        auth.isDemoSession &&
+        (auth.currentUser?.email.contains('minh') ?? false);
 
     final upcomingCount = tripsProvider.upcomingTrips.isNotEmpty
         ? tripsProvider.upcomingTrips.length
@@ -51,6 +55,14 @@ class _MyTripsScreenState extends State<MyTripsScreen>
         ),
         backgroundColor: Colors.white,
         elevation: 0,
+        actions: [
+          if (auth.isAuthenticated && !auth.isDemoSession)
+            IconButton(
+              tooltip: 'Chuyển bản nháp Guest',
+              onPressed: () => _openGuestImport(context, auth.currentUser!.id),
+              icon: const Icon(Icons.move_to_inbox_outlined),
+            ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           labelColor: const Color(0xFF0F172A),
@@ -78,6 +90,28 @@ class _MyTripsScreenState extends State<MyTripsScreen>
           _buildEmptyState(context, 'Chưa có chuyến đi bị hủy'),
         ],
       ),
+    );
+  }
+
+  Future<void> _openGuestImport(BuildContext context, String ownerId) async {
+    GuestDraftsProvider? drafts;
+    try {
+      drafts = context.read<GuestDraftsProvider?>();
+    } on ProviderNotFoundException catch (_) {
+      drafts = null;
+    }
+    if (drafts == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bản nháp trên máy chưa sẵn sàng.')),
+      );
+      return;
+    }
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) =>
+          GuestDraftImportSheet(drafts: drafts!, expectedOwnerId: ownerId),
     );
   }
 
