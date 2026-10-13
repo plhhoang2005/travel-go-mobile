@@ -16,10 +16,13 @@ import 'features/auth/presentation/screens/onboarding_screen.dart';
 
 import 'features/favorites/providers/favorites_provider.dart';
 import 'features/trips/providers/saved_trips_provider.dart';
+import 'features/trips/providers/guest_drafts_provider.dart';
 import 'features/home/providers/home_catalog_provider.dart';
 import 'features/map/providers/map_provider.dart';
 import 'features/trips/services/local_trip_store.dart';
 import 'features/trips/services/local_account_lifecycle_service.dart';
+import 'features/trips/services/guest_import_service.dart';
+import 'features/trips/services/trip_snapshot_service.dart';
 import 'features/navigation/presentation/screens/main_navigation_shell.dart';
 
 /// Shared connection; resolving the native path is deferred until a draft action.
@@ -149,6 +152,11 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
   Future<LocalAccountLifecycleService>? _loadingLifecycle;
   StreamSubscription<Uri>? _links;
   final List<VoidCallback> _removeRamBindings = [];
+  Future<GuestDraftsProvider?>? _guestProviderLoading;
+  GuestDraftsProvider? _guestDrafts;
+  GuestImportService? _guestImports;
+  DioGuestImportTransport? _guestTransport;
+  TripSnapshotService? _snapshotReader;
   bool _disposed = false;
 
   @override
@@ -207,6 +215,90 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
 
   Future<LocalAccountLifecycleService> _getLifecycle() =>
       _loadingLifecycle ??= _createLifecycle();
+
+  Future<GuestDraftsProvider?> _startB6Bindings(SavedTripsProvider saved) =>
+      _guestProviderLoading ??= _createB6Bindings(saved);
+
+  Future<GuestDraftsProvider?> _createB6Bindings(
+    SavedTripsProvider saved,
+  ) async {
+    final client = _client;
+    if (client == null) return null;
+    try {
+      await _auth.initialization;
+      if (_disposed) return null;
+      final lifecycle = await _getLifecycle();
+      final store = await _runtime.getStore();
+      if (_disposed) return null;
+      final transport = DioGuestImportTransport(
+        projectUrl: SupabaseConstants.projectUrl,
+        publicKey: SupabaseConstants.publishableKey,
+      );
+      final imports = GuestImportService(
+        store: store,
+        auth: GuestImportAuthContext.supabase(client),
+        transport: transport,
+      );
+      final guest = GuestDraftsProvider(
+        store: store,
+        service: imports,
+        deviceScope: 'default',
+      );
+      final snapshots = TripSnapshotService(
+        projectUrl: SupabaseConstants.projectUrl,
+        publicKey: SupabaseConstants.publishableKey,
+        isCurrentProof: lifecycle.isCurrentProof,
+      );
+      _guestTransport = transport;
+      _guestImports = imports;
+      _guestDrafts = guest;
+      _snapshotReader = snapshots;
+      _removeRamBindings.add(
+        lifecycle.registerConsumer(
+          invalidate: saved.unbindAccount,
+          bind: (handle) async {
+            if (_disposed) return;
+            saved.bindAccount(
+              lifecycle: lifecycle,
+              store: store,
+              snapshots: snapshots,
+              handle: handle,
+            );
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!_disposed && lifecycle.handle == handle) {
+                unawaited(saved.loadTrips(handle.ownerId));
+              }
+            });
+          },
+        ),
+      );
+      _removeRamBindings.add(
+        lifecycle.registerConsumer(
+          invalidate: guest.unbindSession,
+          bind: (handle) async {
+            if (_disposed) return;
+            guest.bindSession(handle);
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!_disposed && lifecycle.handle == handle) {
+                unawaited(guest.reload());
+              }
+            });
+          },
+        ),
+      );
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!_disposed && lifecycle.handle == null) {
+          unawaited(guest.reload());
+        }
+      });
+      return guest;
+    } catch (_) {
+      // A failed binding must never authorize account cache through user ID.
+      saved.unbindAccount();
+      return null;
+    }
+  }
+
   Future<LocalAccountLifecycleService> _createLifecycle() async {
     final path = await _runtime.getLifecycleRegistryPath();
     return LocalAccountLifecycleService(
@@ -256,6 +348,10 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
     for (final remove in _removeRamBindings) {
       remove();
     }
+    _guestDrafts?.dispose();
+    _guestImports?.dispose();
+    _guestTransport?.close();
+    _snapshotReader?.close();
     _auth.dispose();
     unawaited(
       _closeResources().catchError((Object _) {
@@ -300,7 +396,9 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
         ChangeNotifierProvider(create: (_) => FavoritesProvider()),
         ChangeNotifierProxyProvider<AuthProvider, SavedTripsProvider>(
           create: (_) {
-            final saved = SavedTripsProvider();
+            final saved = SavedTripsProvider(
+              requiresLifecycle: _client != null,
+            );
             _removeRamBindings.add(
               _auth.registerAccountInvalidator(() {
                 saved.updateAuthContext(
@@ -314,8 +412,15 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
           },
           update: (_, auth, savedTrips) => updateSavedTripsFromAuth(
             auth,
-            savedTrips ?? SavedTripsProvider(),
+            savedTrips ??
+                SavedTripsProvider(requiresLifecycle: _client != null),
           ),
+        ),
+        FutureProvider<GuestDraftsProvider?>(
+          create: (context) =>
+              _startB6Bindings(context.read<SavedTripsProvider>()),
+          initialData: null,
+          lazy: false,
         ),
         ChangeNotifierProvider(create: (_) => HomeCatalogProvider()),
         ChangeNotifierProvider(create: (_) => MapProvider()),
