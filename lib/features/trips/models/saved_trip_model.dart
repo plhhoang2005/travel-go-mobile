@@ -3,41 +3,43 @@ class SavedTrip {
   final String userId;
   final String title;
   final String destinationName;
-  final int numDays;
-  final double budgetTotal;
+  final int? numDays;
+  final double? budgetTotal;
   final DateTime? startDate;
   final DateTime? endDate;
   final String status;
   final Map<String, dynamic> tripPlanData;
-  final DateTime createdAt;
+  final DateTime? createdAt;
 
   const SavedTrip({
     required this.id,
     required this.userId,
     required this.title,
     required this.destinationName,
-    this.numDays = 3,
-    this.budgetTotal = 0,
+    this.numDays,
+    this.budgetTotal,
     this.startDate,
     this.endDate,
     this.status = 'planning',
     required this.tripPlanData,
-    required this.createdAt,
+    this.createdAt,
   });
 
   factory SavedTrip.fromJson(Map<String, dynamic> json) {
     final rawPlan = json['ai_plan_data'] ?? json['trip_plan_data'];
     final planMap = rawPlan is Map<String, dynamic>
         ? rawPlan
-        : (rawPlan is Map ? Map<String, dynamic>.from(rawPlan) : <String, dynamic>{});
+        : (rawPlan is Map
+              ? Map<String, dynamic>.from(rawPlan)
+              : <String, dynamic>{});
 
     return SavedTrip(
       id: json['id'] as String? ?? '',
       userId: json['user_id'] as String? ?? '',
       title: json['title'] as String? ?? '',
       destinationName: json['destination_name'] as String? ?? '',
-      numDays: (json['num_days'] as num?)?.toInt() ?? 3,
-      budgetTotal: (json['budget_total'] as num?)?.toDouble() ?? 0.0,
+      numDays: json['num_days'] is int ? json['num_days'] as int : null,
+      budgetTotal: (json['budget_total'] as num?)?.toDouble(),
       startDate: json['start_date'] != null
           ? DateTime.tryParse(json['start_date'] as String)
           : null,
@@ -46,9 +48,9 @@ class SavedTrip {
           : null,
       status: json['status'] as String? ?? 'planning',
       tripPlanData: planMap,
-      createdAt: json['created_at'] != null
-          ? DateTime.tryParse(json['created_at'] as String) ?? DateTime.now()
-          : DateTime.now(),
+      createdAt: json['created_at'] is String
+          ? DateTime.tryParse(json['created_at'] as String)
+          : null,
     );
   }
 
