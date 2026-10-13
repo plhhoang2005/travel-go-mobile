@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 
 import '../models/local_trip_records.dart';
 import '../services/guest_import_service.dart';
@@ -44,6 +44,14 @@ class GuestDraftsProvider extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
+  void _notifyAfterFrame() {
+    try {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _notify());
+    } catch (_) {
+      _notify();
+    }
+  }
+
   void _clear() {
     _generation++;
     _loadGeneration++;
@@ -62,14 +70,14 @@ class GuestDraftsProvider extends ChangeNotifier {
     if (_disposed) throw StateError('Provider disposed.');
     service.bindSession(handle);
     _handle = handle;
-    _notify();
+    _notifyAfterFrame();
   }
 
   void unbindSession() {
     _clear();
     _handle = null;
     service.unbindSession();
-    _notify();
+    _notifyAfterFrame();
   }
 
   Future<void> reload() async {

@@ -1,9 +1,69 @@
 import 'dart:async';
+import 'dart:typed_data';
 
+import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:travelgo_mobile/features/trips/models/saved_trip_model.dart';
+import 'package:travelgo_mobile/features/trips/models/trip_payload_codec.dart';
 import 'package:travelgo_mobile/features/trips/providers/saved_trips_provider.dart';
+import 'package:travelgo_mobile/features/trips/services/local_account_lifecycle_service.dart';
+import 'package:travelgo_mobile/features/trips/services/trip_snapshot_service.dart';
 import 'package:travelgo_mobile/features/trips/services/trips_service.dart';
+
+import 'local_account_lifecycle_test.dart' as lifecycle_fixtures;
+import 'local_trip_store_test.dart' as store_fixtures;
+
+const _ownedTripId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+
+class _UnauthorizedAdapter implements HttpClientAdapter {
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async => ResponseBody.fromString('{"message":"unauthorized"}', 401);
+
+  @override
+  void close({bool force = false}) {}
+}
+
+class _SnapshotFixture extends TripSnapshotService {
+  Future<SnapshotFetchBatch> Function(AccountSessionProof)? fetch;
+  Future<SnapshotLookup> Function(AccountSessionProof, String)? read;
+
+  _SnapshotFixture(LocalAccountLifecycleService lifecycle)
+    : super(
+        projectUrl: 'https://staging.example.test',
+        publicKey: 'fixture-public',
+        isCurrentProof: lifecycle.isCurrentProof,
+      );
+
+  @override
+  Future<SnapshotFetchBatch> fetchSnapshots({
+    required AccountSessionProof proof,
+  }) => fetch!(proof);
+
+  @override
+  Future<SnapshotLookup> readOwnedSnapshot({
+    required AccountSessionProof proof,
+    required String tripId,
+  }) => read!(proof, tripId);
+}
+
+RemoteTripSnapshot _remote(String owner) => RemoteTripSnapshot(
+  ownerId: owner,
+  tripId: _ownedTripId,
+  payload: store_fixtures.createValidPayload(),
+  remoteVersion: null,
+  fetchedAt: DateTime.now().toUtc(),
+  headers: LegacyTripRowContext(
+    id: _ownedTripId,
+    userId: owner,
+    title: 'Đà Nẵng',
+    destinationName: 'Đà Nẵng',
+  ),
+);
 
 class FakeTripsService extends TripsService {
   List<SavedTrip> fakeTrips = [];
@@ -73,6 +133,251 @@ class FakeTripsService extends TripsService {
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  sqfliteFfiInit();
+
+  Future<void> withStrictProvider(
+    Future<void> Function(
+      SavedTripsProvider provider,
+      _SnapshotFixture snapshots,
+      LocalAccountLifecycleService lifecycle,
+      store_fixtures.TestStoreContext context,
+    )
+    body,
+  ) async {
+    await store_fixtures.runWithStore((context) async {
+      final session = lifecycle_fixtures.sessionFor(lifecycle_fixtures.ownerA);
+      final lifecycle = LocalAccountLifecycleService(
+        storeLoader: () async => context.store,
+        sessionReader: () => session,
+        registryPath: '${context.tempDir.path}/account_cache_lifecycle_v1.json',
+      );
+      final snapshots = _SnapshotFixture(lifecycle);
+      final provider = SavedTripsProvider(requiresLifecycle: true);
+      try {
+        expect(
+          await lifecycle.establishAccount(freshAuthentication: true),
+          isNotNull,
+        );
+        provider.bindAccount(
+          lifecycle: lifecycle,
+          store: context.store,
+          snapshots: snapshots,
+          handle: lifecycle.handle!,
+        );
+        await body(provider, snapshots, lifecycle, context);
+      } finally {
+        provider.dispose();
+        snapshots.close();
+        await lifecycle.close();
+      }
+    });
+  }
+
+  group('B6.4 lifecycle-bound SQLite cache', () {
+    test(
+      'stale load request for another owner cannot clear active binding',
+      () async {
+        await withStrictProvider((
+          provider,
+          snapshots,
+          lifecycle,
+          context,
+        ) async {
+          await provider.loadTrips(lifecycle_fixtures.ownerB);
+          expect(provider.currentUserId, lifecycle_fixtures.ownerA);
+          expect(provider.cacheState, AccountCacheState.loading);
+        });
+      },
+    );
+
+    test(
+      'late online response after unbind cannot republish account data',
+      () async {
+        await withStrictProvider((
+          provider,
+          snapshots,
+          lifecycle,
+          context,
+        ) async {
+          final pending = Completer<SnapshotFetchBatch>();
+          snapshots.fetch = (_) => pending.future;
+          final work = provider.loadTrips(lifecycle_fixtures.ownerA);
+          provider.unbindAccount();
+          final remote = _remote(lifecycle_fixtures.ownerA);
+          pending.complete(SnapshotFetchBatch([remote], remote.fetchedAt));
+          await work;
+          expect(provider.trips, isEmpty);
+          expect(provider.accountSnapshots, isEmpty);
+          expect(provider.currentUserId, isNull);
+        });
+      },
+    );
+
+    test(
+      'online validated snapshot reaches only owned SQLite namespace',
+      () async {
+        await withStrictProvider((
+          provider,
+          snapshots,
+          lifecycle,
+          context,
+        ) async {
+          final remote = _remote(lifecycle_fixtures.ownerA);
+          snapshots.fetch = (_) async =>
+              SnapshotFetchBatch([remote], remote.fetchedAt);
+          snapshots.read = (_, _) async =>
+              const SnapshotLookup(SnapshotLookupStatus.unavailable);
+          await provider.loadTrips(lifecycle_fixtures.ownerA);
+          expect(provider.cacheState, AccountCacheState.online);
+          expect(provider.trips.single.id, _ownedTripId);
+          expect(
+            provider.accountSnapshots.single.ownerId,
+            lifecycle_fixtures.ownerA,
+          );
+          expect(
+            await context.store.getSnapshot(
+              handle: lifecycle.handle!,
+              tripId: _ownedTripId,
+            ),
+            isNotNull,
+          );
+        });
+      },
+    );
+
+    test(
+      'connectivity loss reads checked owner cache, then unbind hides it',
+      () async {
+        await withStrictProvider((
+          provider,
+          snapshots,
+          lifecycle,
+          context,
+        ) async {
+          final remote = _remote(lifecycle_fixtures.ownerA);
+          await context.store.replaceSnapshot(
+            handle: lifecycle.handle!,
+            tripId: _ownedTripId,
+            payload: remote.payload,
+            fetchedAt: remote.fetchedAt,
+          );
+          snapshots.fetch = (_) async => throw DioException(
+            requestOptions: RequestOptions(path: '/rest/v1/trips'),
+            type: DioExceptionType.connectionTimeout,
+          );
+          await provider.loadTrips(lifecycle_fixtures.ownerA);
+          expect(provider.cacheState, AccountCacheState.offline);
+          expect(provider.trips.single.userId, lifecycle_fixtures.ownerA);
+          provider.unbindAccount();
+          expect(provider.trips, isEmpty);
+          expect(provider.accountSnapshots, isEmpty);
+          await provider.loadTrips(lifecycle_fixtures.ownerA);
+          expect(provider.trips, isEmpty);
+        });
+      },
+    );
+
+    test(
+      '401 denies cached account data instead of offline fallback',
+      () async {
+        await withStrictProvider((
+          provider,
+          snapshots,
+          lifecycle,
+          context,
+        ) async {
+          final remote = _remote(lifecycle_fixtures.ownerA);
+          await context.store.replaceSnapshot(
+            handle: lifecycle.handle!,
+            tripId: _ownedTripId,
+            payload: remote.payload,
+            fetchedAt: remote.fetchedAt,
+          );
+          final request = RequestOptions(path: '/rest/v1/trips');
+          snapshots.fetch = (_) async => throw DioException(
+            requestOptions: request,
+            response: Response(requestOptions: request, statusCode: 401),
+            type: DioExceptionType.badResponse,
+          );
+          await provider.loadTrips(lifecycle_fixtures.ownerA);
+          expect(provider.cacheState, AccountCacheState.blocked);
+          expect(provider.trips, isEmpty);
+          expect(lifecycle.handle, isNull);
+        });
+      },
+    );
+
+    test(
+      'imported RPC 401 remains an auth error for provider denial',
+      () async {
+        await withStrictProvider((
+          provider,
+          snapshots,
+          lifecycle,
+          context,
+        ) async {
+          final adapter = TripSnapshotService(
+            projectUrl: 'https://staging.example.test',
+            publicKey: 'fixture-public',
+            isCurrentProof: lifecycle.isCurrentProof,
+            adapter: _UnauthorizedAdapter(),
+          );
+          try {
+            await expectLater(
+              adapter.readImportedSnapshot(
+                proof: lifecycle.captureProof(),
+                tripId: _ownedTripId,
+              ),
+              throwsA(
+                isA<DioException>().having(
+                  (error) => error.response?.statusCode,
+                  'status',
+                  401,
+                ),
+              ),
+            );
+          } finally {
+            adapter.close();
+          }
+        });
+      },
+    );
+
+    test(
+      'partial list cannot evict an absent trip without owner recheck',
+      () async {
+        await withStrictProvider((
+          provider,
+          snapshots,
+          lifecycle,
+          context,
+        ) async {
+          final remote = _remote(lifecycle_fixtures.ownerA);
+          await context.store.replaceSnapshot(
+            handle: lifecycle.handle!,
+            tripId: _ownedTripId,
+            payload: remote.payload,
+            fetchedAt: remote.fetchedAt,
+          );
+          snapshots.fetch = (_) async =>
+              SnapshotFetchBatch([], DateTime.now().toUtc());
+          snapshots.read = (_, _) async =>
+              const SnapshotLookup(SnapshotLookupStatus.rejected);
+          await provider.loadTrips(lifecycle_fixtures.ownerA);
+          expect(provider.cacheState, AccountCacheState.error);
+          expect(
+            await context.store.getSnapshot(
+              handle: lifecycle.handle!,
+              tripId: _ownedTripId,
+            ),
+            isNotNull,
+          );
+        });
+      },
+    );
+  });
+
   group('SavedTripsProvider & Server Ack Tests (R03, DB-001, INT-002)', () {
     late FakeTripsService fakeService;
     late SavedTripsProvider provider;
@@ -466,7 +771,11 @@ void main() {
         tripPlanData: {},
       );
       final delWork = p.deleteTrip('trip-1');
-      expect(fake.deleteCalls, 1, reason: 'Must enter the real asynchronous DELETE path');
+      expect(
+        fake.deleteCalls,
+        1,
+        reason: 'Must enter the real asynchronous DELETE path',
+      );
 
       p.dispose();
 
@@ -508,7 +817,11 @@ void main() {
       expect(p.trips.single.id, 'trip-a-1');
 
       final deleteFuture = p.deleteTrip('trip-a-1');
-      expect(fake.deleteCalls, 1, reason: 'Must enter the real asynchronous DELETE path');
+      expect(
+        fake.deleteCalls,
+        1,
+        reason: 'Must enter the real asynchronous DELETE path',
+      );
 
       // User switches to User B while delete is in-flight
       fake.fakeTrips = [];
@@ -520,7 +833,11 @@ void main() {
       delComp.complete(true);
       final result = await deleteFuture;
 
-      expect(result, isFalse, reason: 'Acknowledgement belongs to an invalidated session');
+      expect(
+        result,
+        isFalse,
+        reason: 'Acknowledgement belongs to an invalidated session',
+      );
       expect(p.currentUserId, 'user-b');
       expect(p.trips, isEmpty);
       p.dispose();
