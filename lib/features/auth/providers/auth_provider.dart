@@ -1,10 +1,43 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../../trips/services/local_account_lifecycle_service.dart';
 import '../models/user_model.dart';
 
 class AuthProvider extends ChangeNotifier {
   final SupabaseClient? _injectedClient;
   final Future<String?> Function(String userId)? _trustedRoleFetcher;
+  final Future<LocalAccountLifecycleService> Function()? _lifecycleLoader;
+  final Session? Function()? _sessionReader;
+  final Stream<AuthState>? _authStateChanges;
+  final DateTime Function() _clock;
+  final Timer Function(Duration, void Function()) _timerFactory;
+  final Future<bool> Function(OAuthProvider)? _oauthLauncher;
+  StreamSubscription<AuthState>? _authSubscription;
+  LocalAccountLifecycleService? _lifecycle;
+  Future<LocalAccountLifecycleService>? _loadingLifecycle;
+  late final Future<void> _initialization;
+  Future<void> _credentialTail = Future.value();
+  Future<void> _appTail = Future.value();
+  Future<bool>? _logoutFuture;
+  bool _initializing = false;
+  bool _loggingOut = false;
+  bool _logoutRetry = false;
+  String? _logoutError;
+  bool _disposed = false;
+  bool _foreground = true;
+  AppLifecycleState _lastLifecycleState = AppLifecycleState.resumed;
+  bool _credentialBusy = false;
+  bool _refreshQueued = false;
+  int _requestGeneration = 0;
+  Timer? _refreshTimer;
+  _OAuthIntent? _oauth;
+  Completer<void>? _foregroundReady;
+  final Set<VoidCallback> _invalidators = {};
+  VoidCallback? _removeLifecycleConsumer;
   UserEntity? _currentUser;
   bool _isGuest = false;
   bool _isLoading = false;
@@ -21,12 +54,27 @@ class AuthProvider extends ChangeNotifier {
   bool get isAuthenticated => _currentUser != null;
   bool get isEmailConfirmationPending => _isEmailConfirmationPending;
   int get authEpoch => _authEpoch;
+  Future<void> get initialization => _initialization;
+  bool get isInitializing => _initializing;
+  bool get isLoggingOut => _loggingOut;
+  bool get logoutNeedsRetry => _logoutRetry;
+  String? get logoutErrorMessage => _logoutError;
 
   AuthProvider({
     SupabaseClient? client,
     this._trustedRoleFetcher,
-  }) : _injectedClient = client {
-    _initSession();
+    this._lifecycleLoader,
+    this._sessionReader,
+    this._authStateChanges,
+    DateTime Function()? clock,
+    Timer Function(Duration, void Function())? timerFactory,
+    this._oauthLauncher,
+  }) : _injectedClient = client,
+       _clock = clock ?? (() => DateTime.now().toUtc()),
+       _timerFactory = timerFactory ?? Timer.new {
+    _initialization = _lifecycleLoader == null
+        ? Future.sync(_initSession)
+        : _initializeGuarded();
   }
 
   SupabaseClient? get _supabaseClient {
@@ -51,7 +99,8 @@ class AuthProvider extends ChangeNotifier {
       _fetchTrustedRole(session.user.id, _authEpoch);
     }
 
-    client.auth.onAuthStateChange.listen((data) {
+    _authSubscription = client.auth.onAuthStateChange.listen((data) {
+      if (_disposed) return;
       final session = data.session;
       _authEpoch++;
       if (session != null) {
@@ -78,13 +127,15 @@ class AuthProvider extends ChangeNotifier {
     String? fallbackPhone,
   }) {
     final meta = user.userMetadata ?? {};
-    final fullName = (meta['full_name'] as String?)?.trim() ??
+    final fullName =
+        (meta['full_name'] as String?)?.trim() ??
         fallbackName?.trim() ??
         (user.email != null && user.email!.contains('@')
             ? user.email!.split('@').first
             : 'Thành viên TravelGO');
 
-    final phone = (meta['phone'] as String?)?.trim() ??
+    final phone =
+        (meta['phone'] as String?)?.trim() ??
         fallbackPhone?.trim() ??
         (user.phone ?? '');
 
@@ -115,8 +166,8 @@ class AuthProvider extends ChangeNotifier {
           final newRole = roleStr == 'admin'
               ? UserRole.admin
               : roleStr == 'partner'
-                  ? UserRole.partner
-                  : UserRole.customer;
+              ? UserRole.partner
+              : UserRole.customer;
 
           if (_currentUser != null && _currentUser!.role != newRole) {
             _currentUser = _currentUser!.copyWith(role: newRole);
@@ -149,17 +200,23 @@ class AuthProvider extends ChangeNotifier {
             if (current != null) {
               final newRole = roleStr != null
                   ? (roleStr == 'admin'
-                      ? UserRole.admin
-                      : roleStr == 'partner'
-                          ? UserRole.partner
-                          : UserRole.customer)
+                        ? UserRole.admin
+                        : roleStr == 'partner'
+                        ? UserRole.partner
+                        : UserRole.customer)
                   : current.role;
 
               _currentUser = current.copyWith(
-                fullName: (serverName != null && serverName.isNotEmpty) ? serverName : current.fullName,
-                phone: (serverPhone != null && serverPhone.isNotEmpty) ? serverPhone : current.phone,
+                fullName: (serverName != null && serverName.isNotEmpty)
+                    ? serverName
+                    : current.fullName,
+                phone: (serverPhone != null && serverPhone.isNotEmpty)
+                    ? serverPhone
+                    : current.phone,
                 avatarUrl: serverAvatar ?? current.avatarUrl,
-                address: (serverAddress != null && serverAddress.isNotEmpty) ? serverAddress : current.address,
+                address: (serverAddress != null && serverAddress.isNotEmpty)
+                    ? serverAddress
+                    : current.address,
                 role: newRole,
               );
               notifyListeners();
@@ -174,6 +231,14 @@ class AuthProvider extends ChangeNotifier {
   }
 
   void continueAsGuest() {
+    if (_lifecycleLoader != null) {
+      _requestGeneration++;
+      _isGuest = true;
+      _cancelOAuth();
+      _lifecycle?.invalidateAccountContext();
+      onLocalAccountInvalidated();
+      return;
+    }
     _currentUser = null;
     _isGuest = true;
     _isDemoSession = false;
@@ -183,6 +248,14 @@ class AuthProvider extends ChangeNotifier {
 
   /// Real Supabase Email & Password Login without any mock bypasses
   Future<bool> login(String email, String password) async {
+    if (_lifecycleLoader != null) {
+      return _guardedMutation(
+        (client) => client.auth.signInWithPassword(
+          email: email.trim(),
+          password: password,
+        ),
+      );
+    }
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -231,12 +304,15 @@ class AuthProvider extends ChangeNotifier {
 
   /// Real Supabase OAuth Sign-In (Google & Facebook)
   Future<bool> signInWithOAuth(OAuthProvider provider) async {
+    if (_lifecycleLoader != null) return _guardedOAuth(provider);
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     final client = _supabaseClient;
-    final providerName = provider == OAuthProvider.google ? 'Google' : 'Facebook';
+    final providerName = provider == OAuthProvider.google
+        ? 'Google'
+        : 'Facebook';
     if (client == null) {
       _errorMessage = 'Chưa thể kết nối tới cơ sở dữ liệu Supabase.';
       _isLoading = false;
@@ -255,8 +331,11 @@ class AuthProvider extends ChangeNotifier {
     } on AuthException catch (e) {
       _isLoading = false;
       final lower = e.message.toLowerCase();
-      if (lower.contains('not enabled') || lower.contains('disabled') || lower.contains('unsupported')) {
-        _errorMessage = 'Nhà cung cấp $providerName chưa được kích hoạt trên Supabase Dashboard. Vui lòng sử dụng đăng nhập Email/Mật khẩu thật.';
+      if (lower.contains('not enabled') ||
+          lower.contains('disabled') ||
+          lower.contains('unsupported')) {
+        _errorMessage =
+            'Nhà cung cấp $providerName chưa được kích hoạt trên Supabase Dashboard. Vui lòng sử dụng đăng nhập Email/Mật khẩu thật.';
       } else {
         _errorMessage = _translateAuthError(e.message);
       }
@@ -265,10 +344,14 @@ class AuthProvider extends ChangeNotifier {
     } catch (e) {
       _isLoading = false;
       final lower = e.toString().toLowerCase();
-      if (lower.contains('not enabled') || lower.contains('disabled') || lower.contains('unsupported')) {
-        _errorMessage = 'Nhà cung cấp $providerName chưa được kích hoạt trên Supabase Dashboard. Vui lòng sử dụng đăng nhập Email/Mật khẩu thật.';
+      if (lower.contains('not enabled') ||
+          lower.contains('disabled') ||
+          lower.contains('unsupported')) {
+        _errorMessage =
+            'Nhà cung cấp $providerName chưa được kích hoạt trên Supabase Dashboard. Vui lòng sử dụng đăng nhập Email/Mật khẩu thật.';
       } else {
-        _errorMessage = 'Không thể kết nối dịch vụ $providerName: ${e.toString()}';
+        _errorMessage =
+            'Không thể kết nối dịch vụ $providerName: ${e.toString()}';
       }
       notifyListeners();
       return false;
@@ -278,12 +361,14 @@ class AuthProvider extends ChangeNotifier {
   /// Helper retained strictly for unit test fixtures
   @visibleForTesting
   Future<void> quickDemoLogin(UserRole role) async {
+    _requestGeneration++;
     _authEpoch++;
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     await Future.delayed(const Duration(milliseconds: 100));
+    if (_disposed) return;
 
     switch (role) {
       case UserRole.customer:
@@ -298,7 +383,8 @@ class AuthProvider extends ChangeNotifier {
     }
 
     _isGuest = false;
-    _isDemoSession = true; // Demo identity has local provenance and no live credentials
+    _isDemoSession =
+        true; // Demo identity has local provenance and no live credentials
     _isLoading = false;
     notifyListeners();
   }
@@ -310,6 +396,7 @@ class AuthProvider extends ChangeNotifier {
     String? fallbackName,
     String? fallbackPhone,
   }) {
+    _requestGeneration++;
     _authEpoch++;
     _currentUser = _mapSupabaseUser(
       user,
@@ -331,6 +418,16 @@ class AuthProvider extends ChangeNotifier {
     required String phone,
     required String password,
   }) async {
+    if (_lifecycleLoader != null) {
+      return _guardedMutation(
+        (client) => client.auth.signUp(
+          email: email.trim(),
+          password: password,
+          data: {'full_name': fullName.trim(), 'phone': phone.trim()},
+        ),
+        allowConfirmation: true,
+      );
+    }
     _isLoading = true;
     _errorMessage = null;
     _isEmailConfirmationPending = false;
@@ -395,6 +492,16 @@ class AuthProvider extends ChangeNotifier {
 
   /// OTP verification via Supabase verifyOTP
   Future<bool> verifyOtp(String code, {String? email}) async {
+    if (_lifecycleLoader != null) {
+      if (email == null || email.trim().isEmpty) return false;
+      return _guardedMutation(
+        (client) => client.auth.verifyOTP(
+          email: email.trim(),
+          token: code.trim(),
+          type: OtpType.signup,
+        ),
+      );
+    }
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -472,10 +579,16 @@ class AuthProvider extends ChangeNotifier {
     if (_isDemoSession) {
       // Demo session local update
       _currentUser = user.copyWith(
-        fullName: fullName != null && fullName.trim().isNotEmpty ? fullName.trim() : user.fullName,
-        phone: phone != null && phone.trim().isNotEmpty ? phone.trim() : user.phone,
+        fullName: fullName != null && fullName.trim().isNotEmpty
+            ? fullName.trim()
+            : user.fullName,
+        phone: phone != null && phone.trim().isNotEmpty
+            ? phone.trim()
+            : user.phone,
         avatarUrl: avatarUrl ?? user.avatarUrl,
-        address: address != null && address.trim().isNotEmpty ? address.trim() : user.address,
+        address: address != null && address.trim().isNotEmpty
+            ? address.trim()
+            : user.address,
       );
       notifyListeners();
       return true;
@@ -531,7 +644,8 @@ class AuthProvider extends ChangeNotifier {
       // UI-01: Must have a valid returned row with matching user ID from the mutation itself
       if (res == null || res['id'] != user.id) {
         _isLoading = false;
-        _errorMessage = 'Không thể xác thực bản ghi hồ sơ đã cập nhật từ máy chủ';
+        _errorMessage =
+            'Không thể xác thực bản ghi hồ sơ đã cập nhật từ máy chủ';
         notifyListeners();
         return false;
       }
@@ -565,7 +679,8 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  void logout() {
+  Future<bool> logout() {
+    if (_lifecycleLoader != null) return _guardedLogout();
     _authEpoch++;
     _currentUser = null;
     _isGuest = true;
@@ -576,8 +691,570 @@ class AuthProvider extends ChangeNotifier {
 
     final client = _supabaseClient;
     if (client != null) {
-      client.auth.signOut().catchError((_) {});
+      return client.auth.signOut().then((_) => true, onError: (_) => false);
     }
+    return Future.value(true);
+  }
+
+  @override
+  void notifyListeners() {
+    if (!_disposed) super.notifyListeners();
+  }
+
+  void _notifyDeferred() {
+    if (_disposed) return;
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      SchedulerBinding.instance.addPostFrameCallback((_) => notifyListeners());
+    } else {
+      scheduleMicrotask(notifyListeners);
+    }
+  }
+
+  void onLocalAccountInvalidated() {
+    final guestAvailable =
+        _isGuest || _currentUser != null || _sdkSession() != null;
+    _authEpoch++;
+    _currentUser = null;
+    _isGuest = guestAvailable;
+    _isDemoSession = false;
+    _refreshTimer?.cancel();
+    for (final invalidate in List<VoidCallback>.of(_invalidators)) {
+      invalidate();
+    }
+    _notifyDeferred();
+  }
+
+  VoidCallback registerAccountInvalidator(VoidCallback invalidate) {
+    _invalidators.add(invalidate);
+    return () => _invalidators.remove(invalidate);
+  }
+
+  Future<T> _enqueueCredential<T>(Future<T> Function() action) {
+    final completion = Completer<T>();
+    _credentialTail = _credentialTail.then((_) async {
+      try {
+        completion.complete(await action());
+      } catch (e, st) {
+        completion.completeError(e, st);
+      }
+    });
+    return completion.future;
+  }
+
+  Session? _sdkSession() {
+    try {
+      return _sessionReader != null
+          ? _sessionReader()
+          : _supabaseClient?.auth.currentSession;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<LocalAccountLifecycleService> _getLifecycle() =>
+      _loadingLifecycle ??= _loadLifecycle();
+  Future<LocalAccountLifecycleService> _loadLifecycle() async {
+    final service = await _lifecycleLoader!();
+    _lifecycle = service;
+    if (_disposed) throw StateError('Auth closed.');
+    _removeLifecycleConsumer = service.registerConsumer(
+      invalidate: onLocalAccountInvalidated,
+      bind: (_) async {},
+    );
+    return service;
+  }
+
+  Future<void> _initializeGuarded() {
+    _initializing = true;
+    _authSubscription =
+        (_authStateChanges ?? _supabaseClient?.auth.onAuthStateChange)?.listen(
+          _observeSdk,
+          onError: (_) {
+            if (!_credentialBusy && !_disposed) {
+              _errorMessage = 'Không thể kiểm tra phiên đăng nhập.';
+              _denyObservedSession();
+            }
+          },
+        );
+    final generation = _requestGeneration;
+    return _enqueueCredential(() async {
+      try {
+        final service = await _getLifecycle();
+        if (_disposed || generation != _requestGeneration) return;
+        await _awaitForeground();
+        if (_disposed || generation != _requestGeneration) return;
+        await service.resumeAccount();
+        _publish(generation);
+      } catch (_) {
+        if (!_disposed && generation == _requestGeneration) {
+          onLocalAccountInvalidated();
+          _errorMessage =
+              'Chưa thể kiểm tra dữ liệu tài khoản; bạn vẫn có thể dùng Guest.';
+        }
+      } finally {
+        _initializing = false;
+        _notifyDeferred();
+      }
+    });
+  }
+
+  void _observeSdk(AuthState event) {
+    if (_disposed || _initializing || _credentialBusy || _loggingOut) return;
+    final session = event.session;
+    final current = _sdkSession();
+    if (session != null &&
+        current != null &&
+        session.user.id == _currentUser?.id &&
+        session.accessToken == current.accessToken &&
+        _lifecycle?.handle != null) {
+      if (event.event == AuthChangeEvent.userUpdated) {
+        final previousRole = _currentUser!.role;
+        _currentUser = _mapSupabaseUser(session.user)
+            .copyWith(role: previousRole);
+        _notifyDeferred();
+      }
+      return;
+    }
+    if (session == null && _currentUser == null) return;
+    _denyObservedSession();
+  }
+
+  void _denyObservedSession() {
+    _requestGeneration++;
+    _cancelOAuth();
+    _lifecycle?.invalidateAccountContext();
+    onLocalAccountInvalidated();
+    unawaited(
+      _enqueueCredential(() async {
+        if (_disposed) return;
+        try {
+          await (await _getLifecycle()).revokeAccount();
+        } catch (_) {
+          _errorMessage = 'Cần kiểm tra lại phiên và dọn dữ liệu tài khoản.';
+        }
+        _notifyDeferred();
+      }),
+    );
+  }
+
+  bool _publish(int generation) {
+    if (_disposed ||
+        !_foreground ||
+        generation != _requestGeneration ||
+        _loggingOut ||
+        _logoutRetry) {
+      return false;
+    }
+    final service = _lifecycle;
+    final session = _sdkSession();
+    final handle = service?.handle;
+    if (handle == null ||
+        session == null ||
+        handle.ownerId != session.user.id) {
+      return false;
+    }
+    final proof = service!.captureProof();
+    if (!service.isCurrentProof(proof) ||
+        proof.accessToken != session.accessToken) {
+      return false;
+    }
+    _authEpoch++;
+    _currentUser = _mapSupabaseUser(session.user);
+    _isGuest = false;
+    _isDemoSession = false;
+    _errorMessage = null;
+    _fetchTrustedRole(session.user.id, _authEpoch);
+    _scheduleRefresh();
+    _notifyDeferred();
+    return true;
+  }
+
+  void _scheduleRefresh({bool retry = false}) {
+    _refreshTimer?.cancel();
+    final session = _sdkSession();
+    final expires = session?.expiresAt;
+    if (!_foreground || expires == null || _currentUser == null || _disposed) {
+      return;
+    }
+    final remaining = expires * 1000 - _clock().millisecondsSinceEpoch;
+    if (remaining <= 10000) return;
+    final delay = retry ? 30000 : (remaining - 60000).clamp(0, remaining);
+    _refreshTimer = _timerFactory(Duration(milliseconds: delay), () {
+      if (!_disposed && _foreground) unawaited(refreshSessionIfNeeded());
+    });
+  }
+
+  Future<void> _awaitForeground() async {
+    if (!_foreground && !_disposed) {
+      _foregroundReady ??= Completer<void>();
+      await _foregroundReady!.future;
+    }
+  }
+
+  Future<bool> _guardedMutation(
+    Future<AuthResponse> Function(SupabaseClient) sdk, {
+    bool allowConfirmation = false,
+  }) {
+    if (_disposed || _logoutRetry) return Future.value(false);
+    _cancelOAuth();
+    final generation = ++_requestGeneration;
+    _lifecycle?.invalidateAccountContext();
+    onLocalAccountInvalidated();
+    _isLoading = true;
+    _errorMessage = null;
+    _notifyDeferred();
+    return _enqueueCredential(() async {
+      LocalAccountLifecycleService? service;
+      var dispatched = false;
+      _credentialBusy = true;
+      try {
+        if (_disposed || generation != _requestGeneration || _logoutRetry) {
+          return false;
+        }
+        final client = _supabaseClient;
+        if (client == null) throw StateError('SDK unavailable.');
+        service = await _getLifecycle();
+        await service.prepareAuthenticationMutation();
+        if (_disposed || generation != _requestGeneration) return false;
+        dispatched = true;
+        final response = await sdk(client);
+        if (_disposed || generation != _requestGeneration) {
+          await client.auth.signOut(scope: SignOutScope.local);
+          return false;
+        }
+        service.completeAuthenticationMutation();
+        if (allowConfirmation &&
+            response.session == null &&
+            response.user != null) {
+          _isEmailConfirmationPending = true;
+          return true;
+        }
+        _isEmailConfirmationPending = false;
+        if (response.session == null ||
+            response.user == null ||
+            _sdkSession()?.user.id != response.user!.id) {
+          return false;
+        }
+        await _awaitForeground();
+        if (_disposed || generation != _requestGeneration) {
+          await client.auth.signOut(scope: SignOutScope.local);
+          return false;
+        }
+        await service.establishAccount(freshAuthentication: true);
+        return _publish(generation);
+      } catch (_) {
+        if (!_disposed && generation == _requestGeneration) {
+          _errorMessage = dispatched
+              ? 'Không thể hoàn tất xác thực tài khoản.'
+              : 'Chưa thể chuẩn bị phiên an toàn; vui lòng thử lại.';
+        }
+        return false;
+      } finally {
+        service?.completeAuthenticationMutation();
+        _credentialBusy = false;
+        if (generation == _requestGeneration) _isLoading = false;
+        _notifyDeferred();
+      }
+    });
+  }
+
+  Future<bool> _guardedLogout() {
+    final existing = _logoutFuture;
+    if (existing != null) return existing;
+    _requestGeneration++;
+    _cancelOAuth();
+    _foregroundReady?.complete();
+    _foregroundReady = null;
+    _lifecycle?.invalidateAccountContext();
+    onLocalAccountInvalidated();
+    _loggingOut = true;
+    _logoutError = null;
+    _notifyDeferred();
+    final operation = _enqueueCredential(() async {
+      LocalAccountLifecycleService? service;
+      var localClean = false;
+      var sdkClean = false;
+      _credentialBusy = true;
+      try {
+        service = await _getLifecycle();
+        await service.prepareAuthenticationMutation();
+        localClean = await service.revokeAccount();
+        final client = _supabaseClient;
+        if (client != null) {
+          try {
+            await client.auth.signOut(scope: SignOutScope.local);
+            sdkClean = true;
+          } catch (_) {
+            sdkClean = false;
+          }
+        } else {
+          sdkClean = _sdkSession() == null;
+        }
+      } catch (_) {
+        localClean = false;
+      } finally {
+        service?.completeAuthenticationMutation();
+        _credentialBusy = false;
+      }
+      final success = localClean && sdkClean;
+      _logoutRetry = !success;
+      _logoutError = success
+          ? null
+          : !localClean
+          ? 'Chưa dọn xong dữ liệu tài khoản trên máy. Vui lòng thử hoàn tất đăng xuất.'
+          : 'Đã khóa dữ liệu trên máy nhưng chưa hoàn tất thông báo đăng xuất. Vui lòng thử lại.';
+      _loggingOut = false;
+      _isLoading = false;
+      _logoutFuture = null;
+      _notifyDeferred();
+      return success;
+    });
+    _logoutFuture = operation;
+    return operation;
+  }
+
+  Future<bool> refreshSessionIfNeeded() {
+    if (_disposed ||
+        !_foreground ||
+        _credentialBusy ||
+        _loggingOut ||
+        _refreshQueued ||
+        _logoutRetry ||
+        _lifecycle?.handle == null) {
+      return Future.value(false);
+    }
+    _refreshQueued = true;
+    final generation = _requestGeneration;
+    return _enqueueCredential(() async {
+      if (_disposed || !_foreground || generation != _requestGeneration) {
+        return false;
+      }
+      _credentialBusy = true;
+      final service = _lifecycle!;
+      var sdkSucceeded = false;
+      final oldExpiry = _sdkSession()?.expiresAt;
+      try {
+        await service.prepareSessionRefresh();
+        try {
+          await _supabaseClient!.auth.refreshSession();
+          sdkSucceeded = true;
+        } catch (_) {
+          sdkSucceeded = false;
+        }
+        await service.completeSessionRefresh(sdkSucceeded: sdkSucceeded);
+        final published = _publish(generation);
+        if (published &&
+            (!sdkSucceeded || _sdkSession()?.expiresAt == oldExpiry)) {
+          _scheduleRefresh(retry: true);
+        }
+        return published;
+      } catch (_) {
+        _errorMessage = 'Chưa thể làm mới phiên đăng nhập.';
+        return false;
+      } finally {
+        _credentialBusy = false;
+        _notifyDeferred();
+      }
+    }).whenComplete(() => _refreshQueued = false);
+  }
+
+  Future<void> handleAppLifecycleState(AppLifecycleState state) {
+    if (_disposed || _lifecycleLoader == null) return Future.value();
+    if (state == _lastLifecycleState) return _appTail;
+    _lastLifecycleState = state;
+    if (state == AppLifecycleState.resumed) {
+      _foreground = true;
+      _foregroundReady?.complete();
+      _foregroundReady = null;
+    } else {
+      _foreground = false;
+      _refreshTimer?.cancel();
+      if (state == AppLifecycleState.detached) {
+        _lifecycle?.invalidateAccountContext();
+      } else if (state == AppLifecycleState.inactive ||
+          state == AppLifecycleState.hidden) {
+        unawaited(_lifecycle?.suspendForegroundContext() ?? Future.value());
+      }
+      onLocalAccountInvalidated();
+    }
+    final result = Completer<void>();
+    _appTail = _appTail.then((_) async {
+      try {
+        if (_disposed) return;
+        final service = await _getLifecycle();
+        if (state == AppLifecycleState.paused) {
+          await service.sealForPause();
+        } else if (state == AppLifecycleState.resumed &&
+            _foreground &&
+            !_credentialBusy &&
+            !_loggingOut &&
+            !_initializing) {
+          await service.resumeForegroundContext();
+          _publish(_requestGeneration);
+        }
+      } catch (_) {
+        _errorMessage =
+            'Cần kiểm tra lại phiên trước khi mở dữ liệu tài khoản.';
+      } finally {
+        result.complete();
+        _notifyDeferred();
+      }
+    });
+    return result.future;
+  }
+
+  void _cancelOAuth() {
+    _foregroundReady?.complete();
+    _foregroundReady = null;
+    final intent = _oauth;
+    if (intent == null) return;
+    intent.canceled = true;
+    intent.timeout?.cancel();
+    if (!intent.callback.isCompleted) intent.callback.complete(null);
+    if (!intent.result.isCompleted) intent.result.complete(false);
+    _oauth = null;
+    _isLoading = false;
+  }
+
+  bool acceptsAuthCallback(Uri uri) {
+    final intent = _oauth;
+    if (intent == null ||
+        intent.canceled ||
+        intent.claimed ||
+        _disposed ||
+        _loggingOut ||
+        intent.generation != _requestGeneration) {
+      return false;
+    }
+    return uri.scheme == 'io.supabase.travelgo' &&
+        uri.host == 'login-callback' &&
+        uri.path.isEmpty &&
+        uri.userInfo.isEmpty &&
+        !uri.hasPort &&
+        !uri.hasFragment &&
+        ((uri.queryParametersAll['code']?.length == 1 &&
+                (uri.queryParameters['code']?.trim().isNotEmpty ?? false)) ||
+            uri.queryParameters.containsKey('error')) &&
+        !uri.queryParameters.keys.any((key) => key.contains('token'));
+  }
+
+  Future<bool> handleAuthCallback(Uri uri) {
+    if (!acceptsAuthCallback(uri)) return Future.value(false);
+    final intent = _oauth!;
+    intent.claimed = true;
+    intent.callback.complete(uri);
+    return intent.result.future;
+  }
+
+  Future<bool> _guardedOAuth(OAuthProvider provider) {
+    if (_disposed || _logoutRetry || _oauth != null) return Future.value(false);
+    final generation = ++_requestGeneration;
+    final intent = _OAuthIntent(generation);
+    _oauth = intent;
+    _lifecycle?.invalidateAccountContext();
+    _isLoading = true;
+    onLocalAccountInvalidated();
+    intent.timeout = _timerFactory(const Duration(seconds: 120), () {
+      if (identical(_oauth, intent)) {
+        _requestGeneration++;
+        _cancelOAuth();
+        _notifyDeferred();
+      }
+    });
+    unawaited(
+      _enqueueCredential(() async {
+        LocalAccountLifecycleService? service;
+        _credentialBusy = true;
+        var exchanged = false;
+        try {
+          final client = _supabaseClient;
+          if (client == null || intent.canceled || _disposed) return;
+          service = await _getLifecycle();
+          await service.prepareAuthenticationMutation();
+          if (intent.canceled || _disposed) return;
+          final launched = _oauthLauncher != null
+              ? await _oauthLauncher(provider)
+              : await client.auth.signInWithOAuth(
+                  provider,
+                  redirectTo: 'io.supabase.travelgo://login-callback',
+                );
+          if (!launched || intent.canceled) return;
+          final uri = await intent.callback.future;
+          if (uri == null ||
+              intent.canceled ||
+              _disposed ||
+              uri.queryParameters.containsKey('error')) {
+            return;
+          }
+          // Continuation of this credential job, not a second queued job.
+          exchanged = true;
+          final response = await client.auth.exchangeCodeForSession(
+            uri.queryParameters['code']!,
+          );
+          if (intent.canceled ||
+              generation != _requestGeneration ||
+              _disposed) {
+            await client.auth.signOut(scope: SignOutScope.local);
+            return;
+          }
+          service.completeAuthenticationMutation();
+          await _awaitForeground();
+          if (intent.canceled ||
+              generation != _requestGeneration ||
+              _disposed ||
+              _sdkSession()?.user.id != response.session.user.id) {
+            await client.auth.signOut(scope: SignOutScope.local);
+            return;
+          }
+          await service.establishAccount(freshAuthentication: true);
+          if (!intent.result.isCompleted) {
+            intent.result.complete(_publish(generation));
+          }
+        } catch (_) {
+          if (!_disposed) {
+            _errorMessage = 'Không thể hoàn tất đăng nhập qua nhà cung cấp.';
+          }
+          if (exchanged && intent.canceled) {
+            try {
+              await _supabaseClient?.auth.signOut(scope: SignOutScope.local);
+            } catch (_) {
+              _logoutRetry = true;
+              _logoutError = 'Cần hoàn tất đăng xuất phiên đã hủy.';
+            }
+          }
+        } finally {
+          service?.completeAuthenticationMutation();
+          intent.timeout?.cancel();
+          if (!intent.result.isCompleted) intent.result.complete(false);
+          if (identical(_oauth, intent)) _oauth = null;
+          _credentialBusy = false;
+          if (generation == _requestGeneration) _isLoading = false;
+          _notifyDeferred();
+        }
+      }),
+    );
+    return intent.result.future;
+  }
+
+  Future<void> close() {
+    dispose();
+    return Future.wait([_credentialTail, _appTail]).then((_) {});
+  }
+
+  @override
+  void dispose() {
+    if (_disposed) return;
+    _requestGeneration++;
+    _cancelOAuth();
+    _refreshTimer?.cancel();
+    _lifecycle?.invalidateAccountContext();
+    onLocalAccountInvalidated();
+    _disposed = true;
+    unawaited(_authSubscription?.cancel() ?? Future.value());
+    _removeLifecycleConsumer?.call();
+    _invalidators.clear();
+    super.dispose();
   }
 
   String _translateAuthError(String message) {
@@ -585,7 +1262,8 @@ class AuthProvider extends ChangeNotifier {
     if (lower.contains('invalid login credentials')) {
       return 'Email hoặc mật khẩu không chính xác.';
     }
-    if (lower.contains('user already registered') || lower.contains('already registered')) {
+    if (lower.contains('user already registered') ||
+        lower.contains('already registered')) {
       return 'Email này đã được đăng ký tài khoản. Vui lòng đăng nhập.';
     }
     if (lower.contains('password should be at least')) {
@@ -600,9 +1278,20 @@ class AuthProvider extends ChangeNotifier {
     if (lower.contains('email not confirmed')) {
       return 'Email chưa được xác thực. Vui lòng kiểm tra hộp thư email hoặc tắt tính năng "Confirm email" trên Supabase Dashboard.';
     }
-    if (lower.contains('not enabled') || lower.contains('provider is not enabled')) {
+    if (lower.contains('not enabled') ||
+        lower.contains('provider is not enabled')) {
       return 'Nhà cung cấp đăng nhập này chưa được kích hoạt trên Supabase Dashboard.';
     }
     return message;
   }
+}
+
+final class _OAuthIntent {
+  final int generation;
+  final callback = Completer<Uri?>();
+  final result = Completer<bool>();
+  bool canceled = false;
+  bool claimed = false;
+  Timer? timeout;
+  _OAuthIntent(this.generation);
 }

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:app_links/app_links.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 import 'package:provider/provider.dart';
@@ -11,12 +12,15 @@ import 'core/theme/app_theme.dart';
 import 'features/trip_planner/providers/trip_provider.dart';
 import 'features/auth/providers/auth_provider.dart';
 import 'features/auth/presentation/screens/splash_screen.dart';
+import 'features/auth/presentation/screens/onboarding_screen.dart';
 
 import 'features/favorites/providers/favorites_provider.dart';
 import 'features/trips/providers/saved_trips_provider.dart';
 import 'features/home/providers/home_catalog_provider.dart';
 import 'features/map/providers/map_provider.dart';
 import 'features/trips/services/local_trip_store.dart';
+import 'features/trips/services/local_account_lifecycle_service.dart';
+import 'features/navigation/presentation/screens/main_navigation_shell.dart';
 
 /// Shared connection; resolving the native path is deferred until a draft action.
 class LocalTripStoreRuntime {
@@ -24,7 +28,11 @@ class LocalTripStoreRuntime {
   Future<LocalTripStore>? _opening;
   Future<void>? _closing;
   bool _closed = false;
-  LocalTripStoreRuntime({required this.factory});
+  final Future<String> Function()? registryPathLoader;
+  LocalTripStoreRuntime({required this.factory, this.registryPathLoader});
+  Future<String> getLifecycleRegistryPath() async => registryPathLoader != null
+      ? await registryPathLoader!()
+      : p.join(await getDatabasesPath(), 'account_cache_lifecycle_v1.json');
   Future<LocalTripStore> getStore() {
     if (_closed) {
       return Future.error(StateError('Local storage runtime is closed.'));
@@ -61,12 +69,9 @@ class LocalTripStoreRuntime {
   }
 }
 
-Future<LocalTripStore> _createPlannerStore() async {
+Future<LocalTripStore> _createPlannerStore(String directory) async {
   final store = LocalTripStore(
-    databasePath: p.join(
-      await getDatabasesPath(),
-      LocalTripStore.defaultDatabaseName,
-    ),
+    databasePath: p.join(directory, LocalTripStore.defaultDatabaseName),
   );
   try {
     await store.open();
@@ -85,9 +90,14 @@ Future<void> main() async {
     await Supabase.initialize(
       url: SupabaseConstants.projectUrl,
       publishableKey: SupabaseConstants.publishableKey,
+      authOptions: const FlutterAuthClientOptions(
+        autoRefreshToken: false,
+        detectSessionInUri: false,
+        authFlowType: AuthFlowType.pkce,
+      ),
     );
   } catch (e) {
-    debugPrint('Supabase initialization notice: $e');
+    debugPrint('Supabase initialization did not complete.');
   }
   runApp(const TravelGoApp());
 }
@@ -115,31 +125,167 @@ SavedTripsProvider updateSavedTripsFromAuth(
   return provider;
 }
 
-class TravelGoApp extends StatelessWidget {
+class TravelGoApp extends StatefulWidget {
   final LocalTripStoreRuntime? localStoreRuntime;
-  const TravelGoApp({super.key, this.localStoreRuntime});
+  final SupabaseClient? authClient;
+  final Stream<Uri>? authCallbackLinks;
+  final Future<Uri?> Function()? initialAuthLinkLoader;
+  const TravelGoApp({
+    super.key,
+    this.localStoreRuntime,
+    this.authClient,
+    this.authCallbackLinks,
+    this.initialAuthLinkLoader,
+  });
+
+  @override
+  State<TravelGoApp> createState() => _TravelGoAppState();
+}
+
+class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
+  late final LocalTripStoreRuntime _runtime;
+  late final AuthProvider _auth;
+  SupabaseClient? _client;
+  Future<LocalAccountLifecycleService>? _loadingLifecycle;
+  StreamSubscription<Uri>? _links;
+  final List<VoidCallback> _removeRamBindings = [];
+  bool _disposed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _client = widget.authClient;
+    if (_client == null) {
+      try {
+        _client = Supabase.instance.client;
+      } catch (_) {
+        _client = null;
+      }
+    }
+    Future<String>? directory;
+    Future<String> databaseDirectory() => directory ??= getDatabasesPath();
+    _runtime =
+        widget.localStoreRuntime ??
+        LocalTripStoreRuntime(
+          factory: () async => _createPlannerStore(await databaseDirectory()),
+          registryPathLoader: () async => p.join(
+            await databaseDirectory(),
+            'account_cache_lifecycle_v1.json',
+          ),
+        );
+    _auth = AuthProvider(
+      client: _client,
+      lifecycleLoader: _client == null ? null : _getLifecycle,
+      sessionReader: () => _client?.auth.currentSession,
+    );
+    WidgetsBinding.instance.addObserver(this);
+    if (_client != null) {
+      _links = (widget.authCallbackLinks ?? AppLinks().uriLinkStream).listen(
+        (uri) {
+          if (!_disposed) unawaited(_auth.handleAuthCallback(uri));
+        },
+        onError: (_) {
+          /* Link failures do not grant account authority. */
+        },
+      );
+      unawaited(_readInitialLink());
+    }
+  }
+
+  Future<void> _readInitialLink() async {
+    try {
+      final initial =
+          await (widget.initialAuthLinkLoader?.call() ??
+              AppLinks().getInitialLink());
+      if (!_disposed && initial != null) {
+        await _auth.handleAuthCallback(initial);
+      }
+    } catch (_) {
+      /* No callback is safer than a fabricated authentication. */
+    }
+  }
+
+  Future<LocalAccountLifecycleService> _getLifecycle() =>
+      _loadingLifecycle ??= _createLifecycle();
+  Future<LocalAccountLifecycleService> _createLifecycle() async {
+    final path = await _runtime.getLifecycleRegistryPath();
+    return LocalAccountLifecycleService(
+      storeLoader: _runtime.getStore,
+      registryPath: path,
+      sessionReader: () => _client?.auth.currentSession,
+      isDemo: () => _auth.isDemoSession,
+      verifySubject: (token) async {
+        final user = await _client?.auth.getUser(token);
+        if (user?.user == null) {
+          throw StateError('Subject verification unavailable.');
+        }
+        return user!.user!.id;
+      },
+    );
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!_disposed) unawaited(_auth.handleAppLifecycleState(state));
+  }
+
+  Future<void> _closeResources() async {
+    try {
+      await _auth.close();
+    } finally {
+      try {
+        final pending = _loadingLifecycle;
+        if (pending != null) {
+          try {
+            await (await pending).close();
+          } catch (_) {
+            debugPrint('Account lifecycle close did not complete.');
+          }
+        }
+      } finally {
+        await _runtime.close();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    WidgetsBinding.instance.removeObserver(this);
+    unawaited(_links?.cancel() ?? Future.value());
+    for (final remove in _removeRamBindings) {
+      remove();
+    }
+    _auth.dispose();
+    unawaited(
+      _closeResources().catchError((Object _) {
+        debugPrint('Local resources close did not complete.');
+      }),
+    );
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AuthProvider()),
-        Provider<LocalTripStoreRuntime>(
-          create: (_) =>
-              localStoreRuntime ??
-              LocalTripStoreRuntime(factory: _createPlannerStore),
-          dispose: (_, runtime) {
-            unawaited(
-              runtime.close().catchError((Object error) {
-                debugPrint('Local storage close did not complete.');
+        ChangeNotifierProvider.value(value: _auth),
+        Provider<LocalTripStoreRuntime>.value(value: _runtime),
+        ChangeNotifierProxyProvider<AuthProvider, TripProvider>(
+          create: (context) {
+            final trip = TripProvider(localStoreLoader: _runtime.getStore);
+            _removeRamBindings.add(
+              _auth.registerAccountInvalidator(() {
+                trip.setPlannerContext(
+                  isGuest: true,
+                  isDemo: false,
+                  ownerId: null,
+                  authEpoch: _auth.authEpoch,
+                );
               }),
             );
+            return trip;
           },
-        ),
-        ChangeNotifierProxyProvider<AuthProvider, TripProvider>(
-          create: (context) => TripProvider(
-            localStoreLoader: context.read<LocalTripStoreRuntime>().getStore,
-          ),
           update: (_, auth, trip) {
             final provider = trip!;
             provider.setPlannerContext(
@@ -153,7 +299,19 @@ class TravelGoApp extends StatelessWidget {
         ),
         ChangeNotifierProvider(create: (_) => FavoritesProvider()),
         ChangeNotifierProxyProvider<AuthProvider, SavedTripsProvider>(
-          create: (_) => SavedTripsProvider(),
+          create: (_) {
+            final saved = SavedTripsProvider();
+            _removeRamBindings.add(
+              _auth.registerAccountInvalidator(() {
+                saved.updateAuthContext(
+                  isAuthenticated: false,
+                  isDemoSession: false,
+                  userId: null,
+                );
+              }),
+            );
+            return saved;
+          },
           update: (_, auth, savedTrips) => updateSavedTripsFromAuth(
             auth,
             savedTrips ?? SavedTripsProvider(),
@@ -166,8 +324,117 @@ class TravelGoApp extends StatelessWidget {
         title: 'TravelGO Mobile',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
-        home: const SplashScreen(),
+        home: _AuthBootstrap(auth: _auth),
       ),
     );
+  }
+}
+
+class _AuthBootstrap extends StatefulWidget {
+  final AuthProvider auth;
+  const _AuthBootstrap({required this.auth});
+  @override
+  State<_AuthBootstrap> createState() => _AuthBootstrapState();
+}
+
+class _AuthBootstrapState extends State<_AuthBootstrap> {
+  final _navigatorKey = GlobalKey<NavigatorState>();
+  late final _routeObserver = _BootstrapRouteObserver(_onSplashReplaced);
+  bool _guestChosen = false;
+  bool _resolved = false;
+  bool _splashReplacedWhilePending = false;
+  bool _routeCorrected = false;
+  bool _correctionScheduled = false;
+
+  void _onSplashReplaced() {
+    if (!_resolved) _splashReplacedWhilePending = true;
+  }
+
+  void _correctPendingRoute() {
+    if (!_resolved ||
+        !_splashReplacedWhilePending ||
+        _routeCorrected ||
+        _correctionScheduled) {
+      return;
+    }
+    _correctionScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final destination = widget.auth.isAuthenticated || widget.auth.isGuest
+          ? const MainNavigationShell()
+          : const OnboardingScreen();
+      _navigatorKey.currentState?.pushAndRemoveUntil(
+        MaterialPageRoute<void>(builder: (_) => destination),
+        (_) => false,
+      );
+      setState(() => _routeCorrected = true);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<void>(
+    future: widget.auth.initialization,
+    builder: (_, snapshot) {
+      _resolved =
+          _guestChosen || snapshot.connectionState == ConnectionState.done;
+      _correctPendingRoute();
+      final waiting =
+          !_resolved || (_splashReplacedWhilePending && !_routeCorrected);
+      // The navigator stays mounted across authorization and Guest choice.
+      // A Splash timer that fired while authorization was pending is hidden
+      // until its route is replaced with the result of the completed check.
+      return Stack(
+        children: [
+          IgnorePointer(
+            ignoring: waiting,
+            child: Navigator(
+              key: _navigatorKey,
+              observers: [_routeObserver],
+              onGenerateRoute: (_) =>
+                  MaterialPageRoute<void>(builder: (_) => const SplashScreen()),
+            ),
+          ),
+          if (waiting)
+            Positioned.fill(
+              child: ColoredBox(
+                color: const Color(0xAA000000),
+                child: SafeArea(
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const CircularProgressIndicator(),
+                        const SizedBox(height: 16),
+                        const Text('Đang kiểm tra phiên đăng nhập'),
+                        const SizedBox(height: 16),
+                        TextButton(
+                          onPressed: () {
+                            widget.auth.continueAsGuest();
+                            setState(() => _guestChosen = true);
+                          },
+                          child: const Text('Tiếp tục với Guest'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      );
+    },
+  );
+}
+
+class _BootstrapRouteObserver extends NavigatorObserver {
+  final VoidCallback onSplashReplaced;
+  _BootstrapRouteObserver(this.onSplashReplaced);
+  bool _sawFirstReplacement = false;
+
+  @override
+  void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
+    if (_sawFirstReplacement) return;
+    _sawFirstReplacement = true;
+    onSplashReplaced();
   }
 }
