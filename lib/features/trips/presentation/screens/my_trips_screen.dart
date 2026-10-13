@@ -10,6 +10,7 @@ import '../../models/saved_trip_model.dart';
 import '../../providers/guest_drafts_provider.dart';
 import '../../providers/saved_trips_provider.dart';
 import '../widgets/guest_draft_import_sheet.dart';
+import 'saved_trip_snapshot_screen.dart';
 
 class MyTripsScreen extends StatefulWidget {
   const MyTripsScreen({super.key});
@@ -116,6 +117,16 @@ class _MyTripsScreenState extends State<MyTripsScreen>
   }
 
   Widget _buildSavedTripsList(BuildContext context, List<SavedTrip> trips) {
+    final provider = context.watch<SavedTripsProvider>();
+    final canDelete =
+        !provider.requiresLifecycle ||
+        provider.cacheState == AccountCacheState.online;
+    final statusLabel = switch (provider.cacheState) {
+      AccountCacheState.offline => 'BẢN TRÊN MÁY · NGOẠI TUYẾN',
+      AccountCacheState.online => 'ĐÃ LƯU TRÊN CLOUD',
+      _ when !provider.requiresLifecycle => 'ĐÃ LƯU TRÊN CLOUD',
+      _ => 'CHƯA KIỂM TRA ĐƯỢC SERVER',
+    };
     final currencyFmt = NumberFormat.currency(
       locale: 'vi_VN',
       symbol: '₫',
@@ -142,24 +153,30 @@ class _MyTripsScreenState extends State<MyTripsScreen>
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF10B981).withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: const Text(
-                        'ĐÃ LƯU TRÊN CLOUD',
-                        style: TextStyle(
-                          color: Color(0xFF047857),
-                          fontWeight: FontWeight.bold,
-                          fontSize: 11,
+                    Flexible(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF10B981)
+                              .withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          statusLabel,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Color(0xFF047857),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 11,
+                          ),
                         ),
                       ),
                     ),
+                    const SizedBox(width: 8),
                     Row(
                       children: [
                         Text(
@@ -182,7 +199,9 @@ class _MyTripsScreenState extends State<MyTripsScreen>
                             color: Color(0xFFEF4444),
                           ),
                           tooltip: 'Xóa chuyến đi',
-                          onPressed: () => _confirmDeleteTrip(context, trip),
+                          onPressed: canDelete
+                              ? () => _confirmDeleteTrip(context, trip)
+                              : null,
                         ),
                       ],
                     ),
@@ -234,6 +253,21 @@ class _MyTripsScreenState extends State<MyTripsScreen>
                       ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => SavedTripSnapshotScreen(
+                          tripId: trip.id,
+                          expectedOwnerId: trip.userId,
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.route_outlined),
+                  label: const Text('Xem lịch trình đã lưu'),
                 ),
               ],
             ),
