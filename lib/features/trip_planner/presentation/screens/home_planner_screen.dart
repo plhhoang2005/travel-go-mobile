@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../providers/trip_provider.dart';
 import 'dashboard_result_screen.dart';
 import '../../../trips/models/local_trip_records.dart';
+import '../widgets/selected_destination_controls.dart';
 
 /// Shared local save entry point; the state owns and disposes its title controller.
 Future<void> showGuestDraftSaveDialog(BuildContext context) async {
@@ -127,7 +128,8 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      context.read<TripProvider>().init();
+      final trip = context.read<TripProvider>();
+      if (!trip.hasSelectedDestination) trip.init();
     });
   }
 
@@ -181,49 +183,44 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Row(
-          children: [
-            Icon(Icons.explore, color: primaryColor),
-            const SizedBox(width: 8),
-            const Flexible(
-              child: Text('TravelGO Mobile', overflow: TextOverflow.ellipsis),
-            ),
-          ],
-        ),
+        title: const Text('TravelGO Mobile', overflow: TextOverflow.ellipsis),
         actions: [
-          Container(
-            margin: const EdgeInsets.only(right: 16),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: provider.isBackendOnline
-                  ? const Color(0xFF10B981).withValues(alpha: 0.15)
-                  : const Color(0xFFF59E0B).withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.circle,
-                  size: 8,
-                  color: provider.isBackendOnline
-                      ? const Color(0xFF10B981)
-                      : const Color(0xFFF59E0B),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  provider.isBackendOnline ? 'API Sẵn Sàng' : 'Chế Độ Dự Phòng',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
+          if (!provider.hasSelectedDestination)
+            Container(
+              margin: const EdgeInsets.only(right: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: provider.isBackendOnline
+                    ? const Color(0xFF10B981).withValues(alpha: 0.15)
+                    : const Color(0xFFF59E0B).withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.circle,
+                    size: 8,
                     color: provider.isBackendOnline
-                        ? const Color(0xFF047857)
-                        : const Color(0xFFB45309),
+                        ? const Color(0xFF10B981)
+                        : const Color(0xFFF59E0B),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 6),
+                  Text(
+                    provider.isBackendOnline
+                        ? 'API Sẵn Sàng'
+                        : 'Chế Độ Dự Phòng',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: provider.isBackendOnline
+                          ? const Color(0xFF047857)
+                          : const Color(0xFFB45309),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
         ],
       ),
       body: SingleChildScrollView(
@@ -231,70 +228,80 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            const SelectedDestinationControls(),
+            if (provider.hasSelectedDestination) ...[
+              Text('Nơi xuất phát: ${req.origin}'),
+              const SizedBox(height: 8),
+            ],
             // Intro Header
-            const Text(
-              'Lập Kế Hoạch Chuyến Đi Thông Minh',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            Text(
+              provider.hasSelectedDestination
+                  ? 'Thông tin chuyến đi'
+                  : 'Lập Kế Hoạch Chuyến Đi Thông Minh',
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 4),
-            const Text(
-              'Được tính toán bởi mô hình MCDA & Tối ưu hóa Pareto (Spring Boot Backend)',
-              style: TextStyle(fontSize: 13, color: Colors.grey),
+            Text(
+              provider.hasSelectedDestination
+                  ? 'Điều chỉnh ngân sách, số ngày và sở thích trước khi lưu bản nháp.'
+                  : 'Được tính toán bởi mô hình MCDA & Tối ưu hóa Pareto (Spring Boot Backend)',
+              style: const TextStyle(fontSize: 13, color: Colors.grey),
             ),
             const SizedBox(height: 16),
 
             // Quick Presets
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Gợi ý kịch bản mẫu:',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
+            if (!provider.hasSelectedDestination)
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Gợi ý kịch bản mẫu:',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        ActionChip(
-                          avatar: const Icon(
-                            Icons.person,
-                            size: 16,
-                            color: Color(0xFF0284C7),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          ActionChip(
+                            avatar: const Icon(
+                              Icons.person,
+                              size: 16,
+                              color: Color(0xFF0284C7),
+                            ),
+                            label: const Text('Persona Minh (4 triệu - 3N2Đ)'),
+                            onPressed: () => provider.applyPreset(1),
                           ),
-                          label: const Text('Persona Minh (4 triệu - 3N2Đ)'),
-                          onPressed: () => provider.applyPreset(1),
-                        ),
-                        ActionChip(
-                          avatar: const Icon(
-                            Icons.beach_access,
-                            size: 16,
-                            color: Color(0xFF10B981),
+                          ActionChip(
+                            avatar: const Icon(
+                              Icons.beach_access,
+                              size: 16,
+                              color: Color(0xFF10B981),
+                            ),
+                            label: const Text('Phú Quốc (8 triệu - 4 ngày)'),
+                            onPressed: () => provider.applyPreset(2),
                           ),
-                          label: const Text('Phú Quốc (8 triệu - 4 ngày)'),
-                          onPressed: () => provider.applyPreset(2),
-                        ),
-                        ActionChip(
-                          avatar: const Icon(
-                            Icons.directions_bus,
-                            size: 16,
-                            color: Color(0xFFF59E0B),
+                          ActionChip(
+                            avatar: const Icon(
+                              Icons.directions_bus,
+                              size: 16,
+                              color: Color(0xFFF59E0B),
+                            ),
+                            label: const Text('Vũng Tàu (1.5 triệu - 2 ngày)'),
+                            onPressed: () => provider.applyPreset(3),
                           ),
-                          label: const Text('Vũng Tàu (1.5 triệu - 2 ngày)'),
-                          onPressed: () => provider.applyPreset(3),
-                        ),
-                      ],
-                    ),
-                  ],
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
 
             const SizedBox(height: 16),
 
@@ -550,7 +557,7 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
               width: double.infinity,
               height: 52,
               child: ElevatedButton.icon(
-                onPressed: provider.isLoading
+                onPressed: provider.isLoading || provider.hasSelectedDestination
                     ? null
                     : () async {
                         final navigator = Navigator.of(context);

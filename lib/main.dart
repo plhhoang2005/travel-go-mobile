@@ -18,6 +18,7 @@ import 'features/favorites/providers/favorites_provider.dart';
 import 'features/trips/providers/saved_trips_provider.dart';
 import 'features/trips/providers/guest_drafts_provider.dart';
 import 'features/home/providers/home_catalog_provider.dart';
+import 'features/explore/providers/discovery_provider.dart';
 import 'features/map/providers/map_provider.dart';
 import 'features/trips/services/local_trip_store.dart';
 import 'features/trips/services/local_account_lifecycle_service.dart';
@@ -423,6 +424,7 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
           lazy: false,
         ),
         ChangeNotifierProvider(create: (_) => HomeCatalogProvider()),
+        ChangeNotifierProvider(create: (_) => DiscoveryProvider()),
         ChangeNotifierProvider(create: (_) => MapProvider()),
       ],
       child: MaterialApp(

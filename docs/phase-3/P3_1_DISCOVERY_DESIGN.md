@@ -1,9 +1,11 @@
 # P3.1 — Khám phá điểm đến và chuẩn bị chuyến đi
 
-Ngày: 2026-10-15. Revision: R2. **DESIGN PROPOSED — CHỜ OWNER DUYỆT.**
+Ngày: 2026-10-15. Revision: R2. **OWNER APPROVED — 2026-10-15.**
 Owner đã đồng ý hướng Discovery → manual planner/budget → AI trong chat.
-Đó là approval hướng ưu tiên, chưa là approval bản thiết kế này hoặc code.
-Codex-only; superpowers dùng cho phân tích/thiết kế, tắt khi sửa product code.
+Owner đã duyệt bản R2 trong chat: “ok duyệt r2”. Bước tiếp theo là lập plan;
+Owner sau đó yêu cầu “tiến hành làm p3.1” và làm hết P3.1 để test, cấp quyền
+triển khai theo plan. Codex-only; superpowers mặc định OFF,
+chỉ dùng khi Owner yêu cầu rõ cho task hiện tại, tắt khi sửa product code.
 
 ## 1. Mục tiêu và baseline
 
@@ -191,7 +193,7 @@ chỉ từ browsing/handoff. D10 còn cần Android; FFI không thay manual acce
 
 ## 8. Ranh giới kế hoạch và rollout
 
-Sau khi Owner duyệt spec R1, lập implementation plan riêng: packet tối đa năm
+Sau khi Owner duyệt spec R2, lập implementation plan riêng: packet tối đa năm
 file, allowlist cụ thể, thứ tự dependency, behavior tests và lệnh verify. Mục
 tiêu là nhóm catalogue asset/parser, Discovery UI/state, rồi planner handoff;
 đây chỉ là decomposition thiết kế, chưa freeze số packet hoặc cấp quyền code.
@@ -205,7 +207,7 @@ Lỗi fallback legacy Home đã phát hiện nằm ở service nuốt lỗi và 
 dấu thành công. Discovery mới tránh đường đó, nhưng Home cũ vẫn là finding có
 phạm vi riêng; không tuyên bố sửa toàn app hoặc dữ liệu Home hiện tại là verified.
 
-## 9. Handover và trạng thái review
+## 9. Handover thiết kế ban đầu và trạng thái review
 
 Changed: tài liệu thiết kế này; chưa sửa product source/config/data.
 Why: dùng lại dữ liệu/SQLite V1; ngăn chọn một nơi nhưng engine trả nơi khác,
@@ -220,7 +222,8 @@ nếu backend chưa hỗ trợ thì chặn minh bạch, không đổi dữ liệ
 Self-review R2: đã tách data inventory, hoạt động đón khách và lịch mẫu; giữ
 ownership/generation/Phase 2 compatibility. Bước data review và marker publication
 phải được freeze trong plan/data packet trước implementation. **Owner review:
-PENDING. Implementation plan: NOT WRITTEN. Product implementation: NOT STARTED.**
+APPROVED 2026-10-15. Implementation plan: AUTHORIZED. Product implementation:
+IMPLEMENTED; kết quả verification và nghiệm thu tại P3_1_ACCEPTANCE_REPORT.md.**
 
 ## 10. Delta sau Owner review catalogue
 

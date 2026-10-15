@@ -65,6 +65,15 @@ class TripProvider extends ChangeNotifier {
 
   PlanTripRequest get currentRequest => _currentRequest;
   PlanTripResponse? get currentResponse => _currentResponse;
+  TripMetadataV1 get currentMetadata => _metadata;
+  bool get hasSelectedDestination => _metadata.destinationId != null;
+  bool get isAccountWorkspace => !_guest && !_demo && _owner != null;
+  bool get canReplaceWorkspace =>
+      !_disposed &&
+      !_draftLoading &&
+      _saveFuture == null &&
+      !_demo &&
+      (_guest || _owner != null);
   bool get isLoading => _isLoading;
   bool get isBackendOnline => _isBackendOnline;
   String? get errorMessage => _errorMessage;
@@ -174,6 +183,7 @@ class TripProvider extends ChangeNotifier {
   }
 
   Future<void> init() async {
+    if (_disposed || hasSelectedDestination) return;
     final generation = _generation;
     try {
       final online = await _apiService.checkHealth();
@@ -216,7 +226,9 @@ class TripProvider extends ChangeNotifier {
   }
 
   Future<bool> submitPlan() async {
-    if (_disposed || !_hasInput) return false;
+    // The current engine chooses its own destination. Never send a selected
+    // destination workspace to it, including restored drafts with saved results.
+    if (_disposed || !_hasInput || hasSelectedDestination) return false;
     _invalidate();
     final generation = _generation;
     final operation = _planOperation;
@@ -423,6 +435,69 @@ class TripProvider extends ChangeNotifier {
     }
     _invalidate();
     _resetWorkspace();
+    _notify();
+    return true;
+  }
+
+  bool prepareDestinationWorkspace({
+    required String destinationId,
+    required String destinationName,
+    required int expectedWorkspaceGeneration,
+    bool replaceDirty = false,
+  }) {
+    if (!RegExp(r'^[a-z0-9]+(?:-[a-z0-9]+)*$').hasMatch(destinationId) ||
+        destinationName.trim().isEmpty) {
+      return false;
+    }
+    TripMetadataV1 metadata;
+    try {
+      metadata = TripMetadataV1(
+        title: 'Chuyến đi $destinationName',
+        destinationId: destinationId,
+        destinationName: destinationName,
+      );
+    } on TripPayloadException {
+      return false;
+    }
+    return _replaceWorkspace(
+      metadata,
+      expectedWorkspaceGeneration,
+      replaceDirty,
+    );
+  }
+
+  bool useSuggestedDestination({
+    required int expectedWorkspaceGeneration,
+    bool replaceDirty = false,
+  }) => _replaceWorkspace(
+    TripMetadataV1(),
+    expectedWorkspaceGeneration,
+    replaceDirty,
+  );
+
+  bool _replaceWorkspace(
+    TripMetadataV1 metadata,
+    int expectedGeneration,
+    bool replaceDirty,
+  ) {
+    if (!canReplaceWorkspace ||
+        expectedGeneration != _generation ||
+        (isDraftDirty && !replaceDirty)) {
+      return false;
+    }
+    final request = TripPayloadCodec.deepFreezeRequest(
+      _hasInput ? _currentRequest : PlanTripRequest.presetMinh(),
+    );
+    _invalidate();
+    _currentRequest = request;
+    _metadata = metadata;
+    _currentResponse = null;
+    _draftId = null;
+    _draftRevision = null;
+    _savedDigest = null;
+    _hasInput = true;
+    _restored = false;
+    _activity = true;
     _notify();
     return true;
   }

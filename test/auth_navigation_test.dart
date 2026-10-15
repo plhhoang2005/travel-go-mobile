@@ -18,6 +18,7 @@ import 'package:travelgo_mobile/features/trips/providers/saved_trips_provider.da
 import 'package:travelgo_mobile/features/trips/services/trips_service.dart';
 import 'package:travelgo_mobile/features/trip_planner/providers/trip_provider.dart';
 import 'package:travelgo_mobile/features/home/providers/home_catalog_provider.dart';
+import 'package:travelgo_mobile/features/explore/providers/discovery_provider.dart';
 import 'package:travelgo_mobile/main.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:http/http.dart' as http;
@@ -166,6 +167,7 @@ void main() {
               ChangeNotifierProvider(create: (_) => FavoritesProvider()),
               ChangeNotifierProvider(create: (_) => SavedTripsProvider()),
               ChangeNotifierProvider(create: (_) => HomeCatalogProvider()),
+              ChangeNotifierProvider(create: (_) => DiscoveryProvider()),
             ],
             child: MaterialApp(
               theme: AppTheme.lightTheme,

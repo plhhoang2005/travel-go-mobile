@@ -1,7 +1,8 @@
 # P3.1 — Đối chiếu phản hồi catalogue của Owner
 
-Ngày kiểm: 2026-10-15. Phạm vi: review dữ liệu và hiệu chỉnh thiết kế, chưa sửa
-JSON, code hoặc database. Giữ 12 destination IDs. Đây không là review toàn bộ
+Ngày kiểm: 2026-10-15. Phạm vi review ban đầu: dữ liệu và hiệu chỉnh thiết kế,
+chưa sửa JSON. Cập nhật triển khai P0 được ghi riêng tại mục 6 bên dưới; chưa sửa
+Flutter runtime hoặc database. Giữ 12 destination IDs. Đây không là review toàn bộ
 72 địa điểm hoặc chứng nhận mọi địa điểm đang đón khách ở ngày kiểm.
 
 ## 1. Kết luận và nguyên nhân
@@ -78,3 +79,57 @@ Problems: lịch mới chưa được biên tập/duyệt; Bảo Đại 4/2026 v
 hiện tại chưa xác nhận. Không chấp nhận tất cả claim Owner như verified.
 Lesson Candidate: danh tính, điều kiện hoạt động và khả thi lịch phải có evidence
 riêng; disclaimer không thay việc sửa nội dung sai.
+
+## 6. Triển khai P0 sau Owner authorization — 2026-10-15
+
+Owner duyệt R2 rồi yêu cầu “tiến hành làm p3.1”. Đây là quyền thực hiện plan
+`P3_1_IMPLEMENTATION_PLAN.md`, không phải quyền rollout primary hoặc merge mới.
+Mục 1–5 là evidence thiết kế ban đầu; mục này ghi dữ liệu thực sự đã đổi ở P0.
+
+Đã đọc lại hai trang gốc trong lượt P0:
+
+- [SAPANAPRO](https://sapanapro.com/tam-la-nguoi-dao-tri-thuc-ban-dia-khoa-hoc/):
+  phần thông tin doanh nghiệp dùng SAPANAPRO và ghi địa chỉ tại Tả Phìn.
+  Chỉ xác nhận tên/quan hệ vùng; không thẩm định các claim sức khỏe của bài,
+  không xác minh dịch vụ tắm tại chỗ hoặc tình trạng nhận khách hiện tại.
+- [Chùa Linh Ứng – Bãi Bụt](https://danangfantasticity.com/en/kham-pha/chua-linh-ung-bai-but-da-nang):
+  trang Cổng du lịch thành phố, bài 27/11/2018, mô tả chùa ở bán đảo Sơn Trà
+  và tượng Quan Thế Âm trong quần thể. Không dùng bài cũ để xác nhận hoạt động
+  ở tháng 10/2026, giá/giờ, hoặc các claim kỷ lục trên trang.
+
+JSON thêm `spe-operator` và `dn-linh-ung` với checkedAt 2026-10-15; đổi tên/binding
+hai place tương ứng, bảo toàn `sa-pa/sapa-napro`, `da-nang/lady-buddha` và nguồn
+`spe`/`dn` cũ. Cụ thể: SAPANAPRO, Tả Phìn; Tượng Quan Thế Âm — chùa Linh Ứng Bãi
+Bụt, Sơn Trà. Không đổi statue ID thành một điểm chùa độc lập để nhân đôi hoạt động.
+Root checkedAt và nguồn cũ giữ 2026-10-13. Không thêm field operational mới.
+
+### Register publication của 12 candidates
+
+Tất cả thêm `editorialReview.status=pending`, reviewedAt=null, sourceIds và
+conditions rỗng; reviewNotes ghi lý do. Chưa nâng sample nào thành reviewed.
+Danh sách này là rà soát điều kiện công bố, không chứng nhận tính khả thi.
+
+| Destination ID | Sample ID | Publication | Việc còn thiếu |
+| --- | --- | --- | --- |
+| ha-noi | ha-noi/sample-1 | PENDING / ẩn lịch ngày | Tuyến và thời lượng chưa kiểm độc lập. |
+| ha-long | ha-long/sample-1 | PENDING / ẩn lịch ngày | Sửa ghép hang theo tuyến tàu; không coi Mê Cung–Thiên Cung cùng tuyến. |
+| sa-pa | sa-pa/sample-1 | PENDING / ẩn lịch ngày | Ngày chợ, di chuyển và dịch vụ đón khách. |
+| ninh-binh | ninh-binh/sample-1 | PENDING / ẩn lịch ngày | Tuyến/thời lượng giữa các khu. |
+| hue | hue/sample-1 | PENDING / ẩn lịch ngày | Thời lượng/di chuyển khi nhóm các lăng. |
+| da-nang | da-nang/sample-1 | PENDING / ẩn lịch ngày | Phân biệt Sơn Trà và điểm con, không nhân đôi hoạt động. |
+| hoi-an | hoi-an/sample-1 | PENDING / ẩn lịch ngày | Thời lượng nhóm phố cổ và điều kiện từng điểm. |
+| nha-trang | nha-trang/sample-1 | PENDING / ẩn lịch ngày | Hòn Mun hiện tại; claim Bảo Đại mở lại chưa kiểm chứng. |
+| da-lat | da-lat/sample-1 | PENDING / ẩn lịch ngày | Chọn tuyến Bidoup, không ghép Linh Phước mặc định. |
+| ho-chi-minh | ho-chi-minh/sample-1 | PENDING / ẩn lịch ngày | Chính sách khách tham quan Đức Bà khi trùng tu. |
+| phu-quoc | phu-quoc/sample-1 | PENDING / ẩn lịch ngày | Vùng Bắc/Nam, Hòn Thơm, vận hành và tuyến. |
+| can-tho | can-tho/sample-1 | PENDING / ẩn lịch ngày | Di chuyển Cồn Sơn–Bằng Lăng. |
+
+Các day arrays cũ giữ trong inventory làm candidate chưa công bố; chưa sửa lịch
+mới theo tuyến. Publication policy và parser/UI về sau phải chặn hiển thị chúng,
+không coi thêm marker/disclaimer là đã sửa itinerary sai. Runtime chưa đọc JSON
+này ở P0, nên chưa claim UI đã ẩn ngày hoặc Discovery D05 đã PASS.
+
+Hợp đồng marker chi tiết đã freeze trong plan mục 3 và README catalogue. Node
+validator giữ tám negative controls cũ, thêm kiểm URL/ngày/marker/nguồn và fixture
+hai ngày với một/ba điểm. Fixture reviewed là synthetic chỉ kiểm cấu trúc;
+không là evidence biên tập hoặc quyền publish lịch Hà Nội thật.
