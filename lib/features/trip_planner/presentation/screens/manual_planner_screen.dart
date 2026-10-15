@@ -6,14 +6,19 @@ import '../../../trips/models/editable_trip_codec.dart';
 import '../../models/editable_trip_command.dart';
 import '../../models/editable_trip_document.dart';
 import '../../providers/manual_planner_provider.dart';
+import '../../services/editable_trip_validator.dart';
 import '../widgets/manual_activity_form.dart';
+import '../widgets/manual_budget_panel.dart';
+import '../widgets/manual_expense_form.dart';
 import '../widgets/manual_itinerary_timeline.dart';
+import '../widgets/manual_save_preview.dart';
 import '../widgets/manual_trip_input_form.dart';
 
 class ManualPlannerScreen extends StatefulWidget {
   final ManualPlannerProvider planner;
   final List<catalogue.DestinationReference> destinations;
   final String Function()? newId;
+  final bool enableBudget;
   final Widget Function(BuildContext, ManualPlannerProvider)? budgetBuilder;
   final Future<void> Function(BuildContext, ManualPlannerProvider)?
   onReviewSave;
@@ -22,6 +27,7 @@ class ManualPlannerScreen extends StatefulWidget {
     required this.planner,
     required this.destinations,
     this.newId,
+    this.enableBudget = false,
     this.budgetBuilder,
     this.onReviewSave,
   });
@@ -165,6 +171,67 @@ class _ManualPlannerScreenState extends State<ManualPlannerScreen> {
     if (result != null) _dispatch(DayNotesCommand(day.id, result));
   }
 
+  Future<void> _expense(ManualExpenseKind kind, String? expenseId) async {
+    final doc = planner.document;
+    if (doc == null || !planner.isEditable) return;
+    final result = await _route<EditableCommand>(
+      ManualExpenseForm(
+        document: doc,
+        kind: kind,
+        expenseId: expenseId,
+        newId: _newId,
+      ),
+    );
+    if (result != null) _dispatch(result);
+  }
+
+  Future<void> _review() async {
+    if (!planner.isEditable ||
+        planner.isSaving ||
+        planner.hasPendingSave ||
+        planner.state == ManualPlannerState.conflict) {
+      return;
+    }
+    final preview = planner.previewSave();
+    EditableValidationIssue? resolution;
+    await _route<void>(
+      ManualSavePreview(
+        planner: planner,
+        preview: preview,
+        onResolveIssue: (issue) => resolution = issue,
+      ),
+    );
+    if (!mounted ||
+        planner.document == null ||
+        planner.draftId != preview.draftId ||
+        planner.currentOwnerId != preview.proof?.ownerId) {
+      return;
+    }
+    planner.cancelPreview();
+    final issue = resolution;
+    if (issue == null) return;
+    final doc = planner.document!;
+    final item = doc.items
+        .where(
+          (i) =>
+              issue.itemIds.contains(i.id) ||
+              issue.path.startsWith('items.${i.id}'),
+        )
+        .firstOrNull;
+    if (item != null) {
+      final day = doc.days.firstWhere((d) => d.id == item.dayId);
+      setState(() {
+        _budget = false;
+        _dayId = day.id;
+      });
+      await _activity(day, item: item);
+    } else if (issue.path.startsWith('input.')) {
+      await _input();
+    } else {
+      _setBudget(true);
+    }
+  }
+
   Future<void> _chooseDay({TripItem? moving}) async {
     final doc = planner.document;
     if (doc == null) return;
@@ -287,15 +354,31 @@ class _EditorSections extends StatelessWidget {
 
     return Column(
       children: [
-        if (settings.budgetBuilder != null) _EditorModes(screen: screen),
+        if (settings.enableBudget || settings.budgetBuilder != null)
+          _EditorModes(screen: screen),
         Expanded(
-          child: screen._budget && settings.budgetBuilder != null
-              ? Column(
-                  children: [
-                    _EditorHeader(planner: planner, onInput: screen._input),
-                    Expanded(child: settings.budgetBuilder!(context, planner)),
-                  ],
-                )
+          child: screen._budget
+              ? settings.budgetBuilder != null
+                    ? Column(
+                        children: [
+                          _EditorHeader(
+                            planner: planner,
+                            onInput: screen._input,
+                          ),
+                          Expanded(
+                            child: settings.budgetBuilder!(context, planner),
+                          ),
+                        ],
+                      )
+                    : ManualBudgetPanel(
+                        planner: planner,
+                        header: _EditorHeader(
+                          planner: planner,
+                          onInput: screen._input,
+                        ),
+                        onEditExpense: (kind, id) =>
+                            run(() => screen._expense(kind, id)),
+                      )
               : ManualItineraryTimeline(
                   header: _EditorHeader(
                     planner: planner,
@@ -317,13 +400,23 @@ class _EditorSections extends StatelessWidget {
                   onEditDayNotes: (d) => run(() => screen._notes(d)),
                 ),
         ),
-        if (settings.onReviewSave != null && planner.isEditable)
+        if (planner.isEditable &&
+            (settings.enableBudget || settings.onReviewSave != null))
           Padding(
             padding: const EdgeInsets.all(16),
             child: FilledButton(
-              onPressed: planner.isSaving || planner.hasPendingSave
+              onPressed:
+                  planner.isSaving ||
+                      planner.hasPendingSave ||
+                      planner.state == ManualPlannerState.conflict
                   ? null
-                  : () => settings.onReviewSave!(context, planner),
+                  : () => run(() {
+                      if (settings.onReviewSave != null) {
+                        settings.onReviewSave!(context, planner);
+                      } else {
+                        screen._review();
+                      }
+                    }),
               child: const Text('Xem lại trước khi lưu'),
             ),
           ),
@@ -380,6 +473,7 @@ class _EditorHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final input = planner.document!.input;
+    final generation = planner.editorGeneration;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
       child: Column(
@@ -402,6 +496,21 @@ class _EditorHeader extends StatelessWidget {
             Text(
               planner.errorMessage!,
               style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          if (planner.state == ManualPlannerState.uncertain)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                onPressed: planner.isSaving
+                    ? null
+                    : () {
+                        if (planner.editorGeneration == generation &&
+                            planner.state == ManualPlannerState.uncertain) {
+                          planner.retrySave();
+                        }
+                      },
+                child: const Text('Thử lại lần lưu trước'),
+              ),
             ),
           Align(
             alignment: Alignment.centerLeft,
