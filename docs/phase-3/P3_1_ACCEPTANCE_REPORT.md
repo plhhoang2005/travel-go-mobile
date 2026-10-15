@@ -1,6 +1,6 @@
 # P3.1 — Bàn giao Discovery để Owner test
 
-Ngày: 2026-10-15. **IMPLEMENTED — AUTOMATED CHECKS PASS; APK BUILD PENDING;
+Ngày: 2026-10-15. **IMPLEMENTED — AUTOMATED CHECKS PASS; STAGING APK READY;
 Owner Android acceptance PENDING.** R2 đã duyệt; Owner yêu cầu làm hết P3.1 trong
 cùng lượt, bỏ việc dừng theo packet. Codex-only, superpowers OFF, không subagents.
 
@@ -58,7 +58,8 @@ Final verification: analyzer No issues found (6.1s), exit 0; full Flutter suite
 macOS hash giữ A3E74B87727BB64B1A151FD73324E80246B712C8663792DBB01E82EACEA5AD74.
 `git diff --check` PASS. Final logs nằm trong build/p31-flutter-tests-final.log
 và build/p31-catalogue-tests-final.log, là local generated artifacts, không stage.
-Source commit/APK fingerprint được bổ sung sau build.
+Source sản phẩm/APK: `abc98147ce30caad89184b310559d388f1b3d5a4` (local).
+Commit bàn giao sau đó chỉ sửa báo cáo này, không đổi code đã build/test.
 Không dùng kết quả Phase 2 làm bằng chứng runtime P3.1. CI chưa chạy cho nhánh
 local này; chưa push/PR/merge và không claim hosted checks PASS.
 
@@ -82,6 +83,29 @@ local này; chưa push/PR/merge và không claim hosted checks PASS.
 Các fixture reviewed chỉ là dữ liệu synthetic kiểm nhánh UI/parser, không nâng
 status mẫu thật. Tám negative controls dữ liệu cũ giữ nguyên. Lỗi navigation
 fixture thiếu Provider được sửa bằng DI, không xóa/sửa expect cho test pass.
+
+### Artifact STAGING để cài test
+
+- Build: `flutter build apk --release --target-platform android-arm64 --no-pub`,
+  dart-define TRAVELGO_ENV=staging và publishable key staging hiện có; exit 0,
+  Gradle 120.8s. Không lưu key vào tài liệu hoặc thêm secret vào repository.
+- Target: travel-go-staging (`bkocylxbuyvdgxccpixx`), package hiện có
+  `com.travelgo.travelgo_mobile`, ARM64. Release dùng debug signing đã có sẵn;
+  không thay native config/keystore/dependencies trong task.
+- File build: `build/app/outputs/flutter-apk/app-release.apk`.
+- Bản xuất: `C:/Users/ASUS/.codex/visualizations/2026/10/15/01a13e60-f404-7293-9fdb-748ab9a31e91/TravelGO-P3.1-STAGING.apk`.
+- Kích thước: 21,447,975 bytes (~20.5 MiB).
+- SHA-256: `66D675C13F01115AAB633E8709410216BBC49F4D77F39DBB4F2823DFB6880FCA`.
+- Kiểm ZIP APK: catalogue có mặt và bytes trùng reviewed source, SHA-256
+  `C14CECC97149A3ACF64F439D44662333BBB8756BD580E18F368AC053BDD1542A`;
+  `lib/arm64-v8a/libapp.so` có staging URL và chuỗi STAGING. Bản xuất có hash
+  trùng file build. Đây là artifact verification, không thay Android UI test.
+- `adb devices -l` sau build không có thiết bị; install/launch/manual UI NOT RUN.
+  Khi kết nối đúng DNY-NX9, có thể dùng `adb install -r <APK>` để giữ app data;
+  không uninstall/clear. Không ghi manual acceptance PASS trước Owner test.
+- Build có warning Java/Gradle về native-access và source/target 8 của dependency;
+  build vẫn exit 0. Analyzer không có warning/info. Không sửa native config chỉ
+  để ẩn các build warnings không thuộc P3.1.
 
 ## 4. Problems và giới hạn test
 
