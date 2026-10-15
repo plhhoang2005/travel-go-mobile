@@ -1,6 +1,6 @@
 # P3.1 — Khám phá điểm đến và chuẩn bị chuyến đi
 
-Ngày: 2026-10-15. Revision: R1. **DESIGN PROPOSED — CHỜ OWNER DUYỆT.**
+Ngày: 2026-10-15. Revision: R2. **DESIGN PROPOSED — CHỜ OWNER DUYỆT.**
 Owner đã đồng ý hướng Discovery → manual planner/budget → AI trong chat.
 Đó là approval hướng ưu tiên, chưa là approval bản thiết kế này hoặc code.
 Codex-only; superpowers dùng cho phân tích/thiết kế, tắt khi sửa product code.
@@ -8,7 +8,8 @@ Codex-only; superpowers dùng cho phân tích/thiết kế, tắt khi sửa prod
 ## 1. Mục tiêu và baseline
 
 Guest hoặc người đã đăng nhập có thể tìm một trong 12 điểm đến đã chốt, xem
-địa điểm/nguồn và ví dụ ba ngày, rồi đưa đúng lựa chọn vào workspace planner.
+địa điểm/nguồn, xem ví dụ đã qua review biên tập nếu có, rồi đưa đúng lựa chọn
+vào workspace planner. Không coi ví dụ là tour ba ngày hai đêm đã khả thi.
 Guest lưu được bản nháp chỉ có đầu vào bằng SQLite hiện có. Không tự gọi engine,
 Gemini hoặc lưu cloud khi chọn điểm đến. Không dùng số màn hình để báo Done.
 
@@ -30,7 +31,10 @@ test. Không thêm package, native permission, Supabase table hoặc deployment.
 Các lựa chọn đã cân nhắc: publish lên Supabase cần schema/ACL/target approval;
 viết cứng dữ liệu Dart làm khó truy nguồn. Asset phù hợp dữ liệu tham khảo tĩnh.
 
-Nguồn biên tập duy nhất là `docs/phase-2/catalogue/catalogue_readiness_v1.json`.
+Nguồn biên tập là `docs/phase-2/catalogue/catalogue_readiness_v1.json`; bản hiện
+tại vẫn là readiness chưa chỉnh dữ liệu sau Owner review. Phải có bước review
+dữ liệu trước khi publish runtime, theo `P3_1_CATALOGUE_REVIEW.md`; không lấy
+approval thiết kế để tự đánh dấu các lịch cũ đã khả thi.
 Runtime copy dự kiến `assets/catalogue/catalogue_readiness_v1.json`; test so sánh
 byte với nguồn, không chỉnh riêng hai bản. `pubspec.yaml` chỉ khai báo asset;
 không thay dependencies hoặc lockfile. Asset declaration cần Owner duyệt cùng
@@ -51,18 +55,28 @@ PlaceReference, SampleReference và SampleDay. Giữ schemaVersion=1 của catal
 
 - Chính xác 12 destination IDs: ha-noi, ha-long, sa-pa, ninh-binh, hue, da-nang,
   hoi-an, nha-trang, da-lat, ho-chi-minh, phu-quoc, can-tho.
-- Mỗi nơi có sáu địa điểm, tổng 72, một sample ba ngày; source ID và place ID
-  duy nhất; sample chỉ tham chiếu địa điểm thuộc đúng destination.
+- Bản nguồn hiện có sáu địa điểm mỗi nơi, tổng 72, một sample ba ngày mỗi nơi.
+  Đây là số liệu kiểm kê, không phải yêu cầu ép mọi lịch dùng đủ sáu điểm hoặc
+  hai điểm mỗi ngày. Source ID/place ID duy nhất; sample chỉ tham chiếu địa điểm
+  thuộc đúng destination. Giữ stable IDs khi sửa tên hoặc thay lịch mẫu.
 - Kiểm kiểu, trường bắt buộc, string không rỗng và tham chiếu. Từ chối schema
   không hỗ trợ, source thiếu, duplicate ID, sample chéo destination và marker
   xác minh sai. Không trả list rỗng thành công để che asset hỏng.
-- Source URL phải HTTPS, không username/password, thuộc vietnam.travel hoặc
-  www.vietnam.travel; checkedAt là ngày hợp lệ. URL chỉ hiển thị để tham khảo;
+- Source URL phải HTTPS, không username/password, thuộc allowlist nguồn đã đọc
+  và duyệt trong data packet. Baseline hiện chỉ vietnam.travel; không mở wildcard
+  mọi domain. Nguồn operator/ban quản lý bổ sung cần source record thật, phạm vi
+  claim và ngày kiểm riêng; checkedAt phải là ngày hợp lệ. URL chỉ hiển thị để tham khảo;
   P3.1 không thêm launcher/WebView hoặc mở site tự động.
 - coordinates, openingHours, priceVnd, durationMinutes giữ null; operationalStatus
   unknown, routingReady=false. Không đổi null thành 0, miễn phí hoặc tọa độ giả.
 - Giữ checkedAt/status/rights và cảnh báo sample. Ngày kiểm nguồn không phải ngày
   xác minh giá, giờ mở cửa hoặc khả năng đi thực tế.
+- Review danh tính, hoạt động đón khách và review lịch trình là ba trạng thái
+  riêng. Có thật trong vùng không đồng nghĩa đang mở cửa hoặc thuận tuyến.
+  Sample chỉ có status not_feasibility_verified như bản cũ được coi là cần review
+  biên tập, chưa đủ điều kiện publish lịch theo ngày. Data packet được review
+  trước sẽ chọn và freeze marker cho các ví dụ biên tập có điều kiện; không
+  đổi marker chỉ để bật UI hoặc coi user-report là xác minh độc lập.
 
 Vùng là bảng ánh xạ biên tập theo ID, không phải ranh giới hành chính: Bắc gồm
 Hà Nội/Hạ Long/Sa Pa/Ninh Bình; Trung gồm Huế/Đà Nẵng/Hội An/Nha Trang; Tây Nguyên
@@ -83,9 +97,11 @@ substring theo tên destination. Không tự mở rộng alias không có trong 
 
 Chọn card mở detail: tên/vùng, sáu địa điểm, source title/URL/ngày kiểm, các
 trường thiếu ghi “Chưa xác minh”. Không hiện badge nhiệt độ mặc định hoặc price
-0. “Xem ví dụ 3 ngày” mở preview theo ngày; nhãn “Ví dụ tham khảo — chưa xác minh
-tính khả thi”, cảnh báo thiếu giá/giờ/di chuyển. Không gọi đó là AI vừa tạo.
-P3.1 chỉ xem sample; chưa copy sample thành itinerary chỉnh sửa được.
+0. Chỉ bật “Xem ví dụ tham khảo” khi sample đã qua review biên tập có ghi nguồn,
+điều kiện và giới hạn; nhãn “Chưa xác minh tính khả thi”. Lịch còn cần sửa chỉ
+hiện “Ví dụ đang được rà soát”, không render ngày/route sai dù có disclaimer.
+Không tự chia đều ngày hoặc coi ví dụ là AI vừa tạo. P3.1 chỉ xem sample đủ điều
+kiện, chưa copy thành itinerary chỉnh sửa được; không claim đủ 12 mẫu khả thi.
 
 State rõ loading/ready/error; ready có search-empty riêng. Catalogue bundled
 dùng offline bình thường, không gắn [FALLBACK] chỉ vì không có mạng. Asset hỏng
@@ -152,11 +168,11 @@ và model planner được duyệt ở bước sau, không chuyển thuật toá
 
 | ID | Hành vi phải chứng minh | Cách kiểm tra sau approval implementation |
 | --- | --- | --- |
-| D01 | Đủ 12 ID/72 place/12 sample; runtime copy đúng nguồn | Parser + byte comparison |
+| D01 | Đủ 12 ID; kiểm kê nguồn 72 place/12 candidate; runtime copy đúng bản đã review | Parser + byte comparison |
 | D02 | Lỗi kiểu/schema/source/ID/sample chéo bị từ chối | Negative parser fixtures |
 | D03 | Search có/không dấu, đ/Đ, tổ hợp, trim; filter kết hợp; empty/reset | State + widget |
 | D04 | Detail đúng source/date; unknown không thành free/live/verified | Widget + malformed fixtures |
-| D05 | Sample đúng ngày/place/warnings, không mutate và không gọi AI | Widget + immutable models |
+| D05 | Candidate chưa review không hiện lịch theo ngày; mẫu có điều kiện giữ cảnh báo; không ép 2 điểm/ngày | Publication policy + widget |
 | D06 | Offline đọc bundled; asset lỗi có retry; không sáu preset che lỗi | Loader/state + widget |
 | D07 | Chọn destination đúng, tạo input workspace mới, giữ request hợp lệ | Provider + widget |
 | D08 | Hủy thay thế giữ nguyên cả payload/digest/ID; draft cũ còn nguyên | Provider/widget + SQLite FFI |
@@ -201,6 +217,20 @@ account input persistence là giới hạn rõ của P3.1, không được báo 
 Lesson Candidate: lựa chọn UI chỉ có hiệu lực khi contract/service hiểu nó;
 nếu backend chưa hỗ trợ thì chặn minh bạch, không đổi dữ liệu để che mismatch.
 
-Self-review R1: contract data/UI/ownership/generation và Phase 2 compatibility
-đã đối chiếu; không còn placeholder cần suy đoán khi lập plan. **Owner review:
+Self-review R2: đã tách data inventory, hoạt động đón khách và lịch mẫu; giữ
+ownership/generation/Phase 2 compatibility. Bước data review và marker publication
+phải được freeze trong plan/data packet trước implementation. **Owner review:
 PENDING. Implementation plan: NOT WRITTEN. Product implementation: NOT STARTED.**
+
+## 10. Delta sau Owner review catalogue
+
+Root cause: readiness đã kiểm tên/nguồn nhưng phần lớn cặp sample theo thứ tự
+list, chưa có chứng cứ tuyến/điều kiện hoạt động. Disclaimer đơn lẻ không sửa được lịch
+ghép sai. R2 bỏ nghĩa “ba ngày hai đêm dùng ngay”, thêm review trước publication,
+và giữ riêng các claim chưa kiểm chứng. Chi tiết tại `P3_1_CATALOGUE_REVIEW.md`.
+
+recommended_day thuộc SampleDay, không gắn cố định lên PlaceReference. Mô hình
+về sau có thể bổ sung category, location, loại hoạt động, duration có đơn vị/basis,
+route/zone và opening evidence có observedAt/source; không tự suy giá trị thiếu.
+P3.1 không thêm schema DB chỉ vì đề xuất field. AI chỉ đề xuất; server phải kiểm
+tra hoạt động được phép, thời gian và dữ liệu tuyến trước khi coi lịch khả thi.
