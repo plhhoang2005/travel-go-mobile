@@ -1,9 +1,9 @@
 # P3.2 — Lịch trình thủ công và ngân sách cho Guest/tài khoản
 
 Ngày: 2026-10-15. Revision: R1.
-**IN-CHAT DIRECTION APPROVED; WRITTEN SPEC PENDING OWNER REVIEW.**
-Đây là đặc tả đề xuất để review; chưa có implementation plan P3.2, code,
-migration hoặc quyền triển khai database từ tài liệu này.
+**OWNER APPROVED R1 — 2026-10-15. IMPLEMENTATION NOT AUTHORIZED.**
+Owner trả lời “duyệt” cho written spec R1 trong chat. Approval cho phép lập
+implementation plan, chưa cấp quyền code, migration hoặc triển khai database.
 
 ## 1. Ý định đã thống nhất và trạng thái thực tế
 
@@ -433,8 +433,8 @@ flutter test --no-pub --reporter expanded: 527 PASS (27s), exit 0. Không có te
 P3.2 mới vì chưa implementation; đây chỉ là regression baseline. Log ignored:
 build/p32-design-flutter-regression.log. Scan có 18 acceptance rows, không có
 TODO/TBD/FIXME hoặc trailing whitespace; chỉ một file tài liệu được stage.
-Problems: P3.1 Owner test còn pending; schema live/SQL runtime V2 chưa kiểm;
-chưa có implementation plan hoặc approval written spec. Account edit chưa
+Problems tại lúc bàn giao R1: P3.1 Owner test còn pending; schema live/SQL runtime
+V2 chưa kiểm; lúc đó chưa có implementation plan hoặc approval written spec. Account edit chưa
 submit nằm RAM là giới hạn được nêu rõ, không có offline account edit/autosync.
 Lesson Candidate: payload hiển thị không đủ để làm editor → thiếu identity và
 version gây mất liên kết tiền → tách editable aggregate, dùng mutation/version
@@ -452,3 +452,8 @@ Nguồn kỹ thuật bổ sung đã đọc ngày 2026-10-15:
 [Supabase RLS](https://supabase.com/docs/guides/database/postgres/row-level-security).
 Changelog markdown không tải được trong lượt khảo sát trước (web content type;
 shell DNS); cần kiểm breaking changes phù hợp trước implementation Supabase.
+
+Approval follow-up: Owner duyệt written R1; kế hoạch tiếp theo nằm ở
+`P3_2_IMPLEMENTATION_PLAN.md`. Read-only staging metadata trong task lập plan
+xác nhận B3 tồn tại và chưa có ba bảng editable remote; không chạy DDL/DML hoặc
+V2 runtime test, không thay đổi trạng thái P3.1 manual acceptance.
