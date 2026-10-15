@@ -10,6 +10,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/constants/supabase_constants.dart';
 import 'core/theme/app_theme.dart';
 import 'features/trip_planner/providers/trip_provider.dart';
+import 'features/trip_planner/providers/manual_planner_provider.dart';
+import 'features/trips/providers/editable_drafts_provider.dart';
+import 'features/trips/services/editable_trip_repository.dart';
+import 'features/trips/services/editable_trip_service.dart';
 import 'features/auth/providers/auth_provider.dart';
 import 'features/auth/presentation/screens/splash_screen.dart';
 import 'features/auth/presentation/screens/onboarding_screen.dart';
@@ -88,6 +92,68 @@ Future<LocalTripStore> _createPlannerStore(String directory) async {
   }
 }
 
+/// One shared V2 repository/editor/draft set, opened only for an explicit action.
+class ManualPlannerResources {
+  final ManualPlannerProvider planner;
+  final EditableDraftsProvider drafts;
+  final EditableTripRepository repository;
+  final EditableTripService? ownedService;
+  bool _disposed = false;
+  ManualPlannerResources({
+    required this.planner,
+    required this.drafts,
+    required this.repository,
+    this.ownedService,
+  });
+  void dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    planner.dispose();
+    drafts.dispose();
+    ownedService?.close();
+  }
+}
+
+class ManualPlannerRuntime {
+  final Future<ManualPlannerResources> Function() factory;
+  Future<ManualPlannerResources>? _opening;
+  Future<void>? _closing;
+  bool _closed = false;
+  ManualPlannerRuntime({required this.factory});
+  Future<ManualPlannerResources> getResources() {
+    if (_closed) return Future.error(StateError('Manual runtime is closed.'));
+    return _opening ??= _open();
+  }
+
+  Future<ManualPlannerResources> _open() async {
+    try {
+      final result = await factory();
+      if (_closed) {
+        result.dispose();
+        throw StateError('Manual opening canceled by disposal.');
+      }
+      return result;
+    } catch (_) {
+      _opening = null;
+      rethrow;
+    }
+  }
+
+  Future<void> close() => _closing ??= _close();
+  Future<void> _close() async {
+    _closed = true;
+    final pending = _opening;
+    if (pending == null) return;
+    ManualPlannerResources resources;
+    try {
+      resources = await pending;
+    } catch (_) {
+      return;
+    }
+    resources.dispose();
+  }
+}
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
@@ -148,6 +214,7 @@ class TravelGoApp extends StatefulWidget {
 
 class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
   late final LocalTripStoreRuntime _runtime;
+  late final ManualPlannerRuntime _manualRuntime;
   late final AuthProvider _auth;
   SupabaseClient? _client;
   Future<LocalAccountLifecycleService>? _loadingLifecycle;
@@ -187,6 +254,7 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
       lifecycleLoader: _client == null ? null : _getLifecycle,
       sessionReader: () => _client?.auth.currentSession,
     );
+    _manualRuntime = ManualPlannerRuntime(factory: _createManualResources);
     WidgetsBinding.instance.addObserver(this);
     if (_client != null) {
       _links = (widget.authCallbackLinks ?? AppLinks().uriLinkStream).listen(
@@ -216,6 +284,36 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
 
   Future<LocalAccountLifecycleService> _getLifecycle() =>
       _loadingLifecycle ??= _createLifecycle();
+
+  Future<ManualPlannerResources> _createManualResources() async {
+    final lifecycle = await _getLifecycle();
+    final store = await _runtime.getStore();
+    if (_disposed) throw StateError('App resources are closed.');
+    final service = EditableTripService(
+      projectUrl: SupabaseConstants.projectUrl,
+      publicKey: SupabaseConstants.publishableKey,
+      isCurrentProof: lifecycle.isCurrentProof,
+    );
+    final repository = EditableTripRepository(
+      store: store,
+      lifecycle: lifecycle,
+      service: service,
+    );
+    return ManualPlannerResources(
+      repository: repository,
+      ownedService: service,
+      planner: ManualPlannerProvider(
+        repositoryLoader: () async => repository,
+        lifecycle: lifecycle,
+      ),
+      drafts: EditableDraftsProvider(
+        storeLoader: _runtime.getStore,
+        repositoryLoader: () async => repository,
+        lifecycle: lifecycle,
+        deviceScope: 'default',
+      ),
+    );
+  }
 
   Future<GuestDraftsProvider?> _startB6Bindings(SavedTripsProvider saved) =>
       _guestProviderLoading ??= _createB6Bindings(saved);
@@ -324,6 +422,7 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
 
   Future<void> _closeResources() async {
     try {
+      await _manualRuntime.close();
       await _auth.close();
     } finally {
       try {
@@ -368,6 +467,7 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
       providers: [
         ChangeNotifierProvider.value(value: _auth),
         Provider<LocalTripStoreRuntime>.value(value: _runtime),
+        Provider<ManualPlannerRuntime>.value(value: _manualRuntime),
         ChangeNotifierProxyProvider<AuthProvider, TripProvider>(
           create: (context) {
             final trip = TripProvider(localStoreLoader: _runtime.getStore);

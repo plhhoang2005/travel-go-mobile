@@ -5,7 +5,8 @@ import '../../providers/trip_provider.dart';
 import 'planner_workspace_actions.dart';
 
 class SelectedDestinationControls extends StatelessWidget {
-  const SelectedDestinationControls({super.key});
+  final VoidCallback? onManualPlanner;
+  const SelectedDestinationControls({super.key, this.onManualPlanner});
   @override
   Widget build(BuildContext context) {
     final trip = context.watch<TripProvider>();
@@ -30,11 +31,17 @@ class SelectedDestinationControls extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              trip.isAccountWorkspace
-                  ? 'Chưa hỗ trợ tự lập lịch cho điểm đến đã chọn.'
-                  : 'Bạn có thể lưu thông tin chuyến đi. Chưa hỗ trợ tự lập lịch cho điểm đến đã chọn.',
+              'Tính năng tự động chưa hỗ trợ điểm đến đã chọn. Bạn có thể tự lập lịch trình.',
             ),
             const SizedBox(height: 8),
+            if (onManualPlanner != null) ...[
+              FilledButton.icon(
+                onPressed: trip.canReplaceWorkspace ? onManualPlanner : null,
+                icon: const Icon(Icons.edit_outlined),
+                label: const Text('Tự lập lịch trình'),
+              ),
+              const SizedBox(height: 8),
+            ],
             OutlinedButton(
               onPressed: trip.canReplaceWorkspace
                   ? () => replacePlannerWorkspace(context)

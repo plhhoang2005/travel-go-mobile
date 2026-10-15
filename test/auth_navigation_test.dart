@@ -17,6 +17,7 @@ import 'package:travelgo_mobile/features/trips/models/saved_trip_model.dart';
 import 'package:travelgo_mobile/features/trips/providers/saved_trips_provider.dart';
 import 'package:travelgo_mobile/features/trips/services/trips_service.dart';
 import 'package:travelgo_mobile/features/trip_planner/providers/trip_provider.dart';
+import 'package:travelgo_mobile/features/trip_planner/services/manual_trip_factory.dart';
 import 'package:travelgo_mobile/features/home/providers/home_catalog_provider.dart';
 import 'package:travelgo_mobile/features/explore/providers/discovery_provider.dart';
 import 'package:travelgo_mobile/main.dart';
@@ -1088,7 +1089,21 @@ void _b62AuthTests() {
             );
             final trip = Provider.of<TripProvider>(context, listen: false);
             expect(saved.currentUserId, sdk.owner);
+            final manual = await Provider.of<ManualPlannerRuntime>(
+              context,
+              listen: false,
+            ).getResources();
+            manual.planner.openNew(
+              ManualTripFactory().fromInput(
+                trip.currentRequest,
+                trip.currentMetadata,
+              ),
+            );
+            expect(manual.planner.currentOwnerId, sdk.owner);
+            expect(opens, 1);
             final logout = auth.logout();
+            expect(manual.planner.document, isNull);
+            expect(manual.drafts.selected, isEmpty);
             expect(saved.currentUserId, isNull);
             expect(saved.trips, isEmpty);
             expect(trip.canPersistGuestDraft, isTrue);
