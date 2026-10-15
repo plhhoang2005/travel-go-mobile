@@ -7,7 +7,13 @@ The six protected Owner paths and prior untracked review documents stay untouche
 
 ## Observed source and verification
 
-Main after B8 PR #31: `522c0d1958434c844302fdbff20872fd85e60e7c`.
+Current merged main: `77fd1a85fd815771bfdb79f325556676c3fccc43` after PRs
+#34/#35/#37/#36. Owner explicitly delegated self-review/merge for that operation
+only; all reviewed heads and final-main CI were verified. The later staging
+build configuration is PR #38 and is not merged. Manual mobile acceptance below
+uses its source `c3694305112a540385d3ddf65bcf5f0da0abd239`.
+
+Historical main after B8 PR #31: `522c0d1958434c844302fdbff20872fd85e60e7c`.
 PR #28 merged B6.3; #29/#30 originally merged into feature branches; #32/#33
 promoted B6.4/B7 to main. Do not recreate or cherry-pick those source changes.
 
@@ -15,18 +21,20 @@ promoted B6.4/B7 to main. Do not recreate or cherry-pick those source changes.
 | --- | --- | --- |
 | B9 | [PR #34](https://github.com/plhhoang2005/travel-go-mobile/pull/34), `0d6759ca0845840c577db7c4483d0aeb6571e5cb`, four files | Analyzer clean; 470 Flutter tests; 3 integrated FFI tests; native Android three launches/purge failure/owned cleanup and production app restore PASS; CI PASS. |
 | C1 quota | [PR #35](https://github.com/plhhoang2005/travel-go-mobile/pull/35), `7b20d5bc5ffe2de274c0bee4f8a8c4d5dc1ea906`, five files | Native PostgreSQL SQL/role/rollback/midnight/refund/expiry and session races PASS; native/Flutter CI PASS. Staging bootstrap Owner-reported; 2026-10-15 Codex independently verified live ACL/RLS/caps and real-role quota/retry/refund behavior. |
-| C2 gateway | [draft PR #36](https://github.com/plhhoang2005/travel-go-mobile/pull/36), `81c8874627cd36ed8bc378b293913d1a53cbf6d3`, five files, stacked on C1 | 20 core tests and CI PASS. Codex staging C3 technical acceptance PASS on 2026-10-15 with temporary synthetic-only entrypoint config; original reviewed bytes restored and hosted disabled. Language-quality caveat below; real-user runtime integration is not claimed. |
+| C2 gateway | [merged PR #36](https://github.com/plhhoang2005/travel-go-mobile/pull/36), original source `81c8874627cd36ed8bc378b293913d1a53cbf6d3`, five files; integrated head d3216e7 had identical patches | 20 core tests and CI PASS. Codex staging C3 technical acceptance PASS on 2026-10-15 with temporary synthetic-only entrypoint config; original reviewed bytes restored and hosted disabled. Language-quality caveat below; functional AI UI integration is not claimed. |
 | Catalogue | Independent `codex/phase-2-catalogue-readiness` source unit, five files | 12 approved IDs, 72 named source references and 12 authored examples; unknown operational fields preserved. Exact PR/CI supplied at handover. Not runtime publication. |
 
 Local test logs/output are observed by Codex. The earlier B3 extended native
 staging controls were Owner-reported and separately recorded in
 `R06_IMPORT_CONTRACT.md`; do not relabel them as this turn's new live execution.
 
-## Concrete Owner gates before live closure
+## Integration and deployment status
 
-1. Review/merge #34 and #35 into main (independent). #36 remains draft so it cannot
-   accidentally merge into its feature base. After #35 merges, Codex retargets
-   #36 to main, confirms its five files/CI and marks ready. Catalogue is independent.
+1. Completed: #34/#35/#37/#36 merged under Owner's one-time delegation. #36 was
+   retargeted to main, its identical five-file diff checked and combined-head CI
+   passed before merge. Main push CI passed too. PR #38 now carries the explicit
+   staging build setup and this manual acceptance update; normal Owner source
+   review/merge gate applies to it. Seven mobile checks are Owner-confirmed PASS.
 2. Staging-only approval received: "Duyệt thử trên staging, chưa thay đổi bản
    chính." Owner reported exact-target/absent-schema preflight and C1 apply/ACL
    postconditions PASS using pinned #35 bytes. Do not rerun bootstrap or infer
@@ -51,17 +59,21 @@ The source and local/CI checks above are concrete reviewable results. Merge,
 staging secrets and target-specific apply are Owner-controlled operations, not
 substitute PASS labels. No paid service was provisioned.
 
-## Still open / phase boundary
+## Evidence boundaries / remaining phase decisions
 
-- Continuous production mobile UI/auth-to-staging import, real A/B logout,
-  offline recovery and remote re-download remains NOT RUN. B9 native probes
-  use synthetic sessions and an isolated store; FFI remote transport is controlled.
+- The normal mobile app's staging build completed the seven manual checks below
+  with Owner-reported PASS on DNY-NX9, including selected import, offline read,
+  A/B isolation and retry. This is manual Owner evidence, not Codex-observed UI
+  automation or a dump/audit of private account records. B9 native/FFI fault
+  controls remain separate evidence, including deliberately lost acknowledgments.
 - Hosted disabled function responds as independently observed by Codex. Enabled
   synthetic Auth/receipt/quota/Gemini route passed on 2026-10-15. Free-tier status
   is Owner-confirmed, not an independent billing-console audit. Source gate
   rejects real private/free-text context. Actual
   privacy consent/retention and account policy need deployment decisions before
-  enabling real users; no personal data was sent during this work.
+  enabling real private AI contexts; no private itinerary/free-text data was sent
+  to Gemini in the synthetic readiness exercise. Manual Auth testing uses
+  Owner-entered test accounts on staging; no passwords are recorded here.
 - Catalogue operational location/price/opening/travel data and runtime use are
   not verified; licence/distribution not declared cleared. Preparing the source
   names/examples is not a claim of AC-052 runtime PASS.
@@ -71,9 +83,11 @@ substitute PASS labels. No paid service was provisioned.
 - Manual itinerary/expense editing and the functional AI modules are Phase 3;
   do not claim AC-012/018/020/052 from a readiness gateway/data file.
 
-Phase 2 is **source-prepared in the listed areas; not fully closed/deployed**.
-Continue live verification after the required Owner actions. Prefer resuming
-from these exact PR heads instead of redoing earlier approvals or implementations.
+Phase 2's **seven-check manual mobile staging acceptance has passed according to
+Owner**. That does not assert primary rollout, completion of Phase 3 modules or
+instructor rubric clearance. Final closure must state its accepted scope and
+resolve the remaining decisions above; PR #38 is not yet merged. Older pending
+states in dated sections below are historical, superseded by the later evidence.
 
 ## Staging execution checklist and subsequent bootstrap evidence
 
@@ -395,3 +409,46 @@ PR metadata rechecked: #34/#35/#37 open, non-draft and based on main 522c0d1;
 #36 gateway/native 38392935588 success. These are existing completed runs, not new
 live executions. Publish this document selectively on the catalogue feature
 branch; verify the new #37 commit's exact five-file scope and its new CI runs.
+
+## Owner mobile staging acceptance — 2026-10-15
+
+This section supersedes earlier pending mobile-acceptance notes. Owner tested the
+STAGING build on the physical DNY-NX9 and reported all seven checks PASS:
+
+| Check | Result | Evidence source |
+| --- | --- | --- |
+| 1. Save Guest draft | PASS | Owner manual report |
+| 2. Close and reopen app | PASS | Owner manual report |
+| 3. Edit and cancel replacement | PASS | Owner manual report |
+| 4. Select and confirm import | PASS | Owner manual report |
+| 5. Read offline | PASS | Owner manual report |
+| 6. Switch account A → B → A | PASS | Owner manual report |
+| 7. Lose network and retry | PASS | Owner manual report |
+
+Owner previously confirmed the STAGING ribbon and retained Guest drafts. Tested
+APK source: c3694305112a540385d3ddf65bcf5f0da0abd239, PR #38; target:
+travel-go-staging (bkocylxbuyvdgxccpixx). APK SHA-256:
+6f6dfb6030e2fb53545f2915b8fde3011b6359fad00bb2cdd0bcf5941b578f25.
+Installation used adb install -r without clearing app data; the local SQLite
+file hash was unchanged across installation before the manual acceptance run.
+
+These are Owner-reported results, not Codex-observed UI automation. No account
+password, private account rows or itinerary payload were collected for this
+record. Ordinary network-loss/retry acceptance does not prove a controlled loss
+of the response after server commit; the SQL/native and B9 fault-control evidence
+remains separately scoped. App close/reopen does not prove physical power-loss
+durability. Functional AI modules and instructor-rubric acceptance are separate.
+
+At tested source c369430: flutter analyze returned No issues found; the default
+Flutter suite passed 471 tests, and three additional explicit-target test runs
+passed (staging fixture key, missing staging key, unknown target). Exact-head
+Flutter PR CI 38680078427 succeeded. This documentation-only follow-up does not
+change the tested application source; these local tests were not rerun merely
+to record Owner evidence. CI for the subsequent documentation commit must be
+checked separately before PR readiness.
+
+PR #38 adds three app/config-test files and this closeout document (four files
+total). It still requires normal Owner review/merge; the earlier one-time merge
+delegation covered PRs #34–#37 only. Seven-check staging mobile acceptance is
+complete as Owner-reported evidence. No primary migration, new deployment or
+production rollout is authorized by this record; primary B3 remains NOT APPLIED.
