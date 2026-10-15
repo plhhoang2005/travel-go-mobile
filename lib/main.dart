@@ -428,6 +428,13 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
       child: MaterialApp(
         title: 'TravelGO Mobile',
         debugShowCheckedModeBanner: false,
+        builder: SupabaseConstants.isStaging
+            ? (context, child) => Banner(
+                message: 'STAGING',
+                location: BannerLocation.topEnd,
+                child: child ?? const SizedBox.shrink(),
+              )
+            : null,
         theme: AppTheme.lightTheme,
         home: _AuthBootstrap(auth: _auth),
       ),
