@@ -1,0 +1,7 @@
+project_id = "travel-go-mobile"
+
+# The handler verifies every bearer with the configured Supabase Auth /user API.
+# This also supports verified anonymous subjects and asymmetric JWT signing keys.
+# The gateway remains disabled until explicit readiness flags/secrets are set.
+[functions.ai-request]
+verify_jwt = false

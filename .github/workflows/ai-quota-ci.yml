@@ -1,12 +1,15 @@
 name: AI quota native PostgreSQL
 on:
   pull_request:
-    branches: [main]
+    branches: [main, 'codex/**']
     paths:
       - 'supabase/migrations/*ai_quota.sql'
       - 'supabase/tests/ai_quota.sql'
       - 'tool/run-ai-quota-tests.ps1'
       - '.github/workflows/ai-quota-ci.yml'
+      - 'supabase/functions/ai-request/**'
+      - 'supabase/config.toml'
+      - 'test/ai_gateway_test.mjs'
   push:
     branches: [main]
     paths:
@@ -14,6 +17,9 @@ on:
       - 'supabase/tests/ai_quota.sql'
       - 'tool/run-ai-quota-tests.ps1'
       - '.github/workflows/ai-quota-ci.yml'
+      - 'supabase/functions/ai-request/**'
+      - 'supabase/config.toml'
+      - 'test/ai_gateway_test.mjs'
 permissions:
   contents: read
 jobs:
@@ -27,3 +33,13 @@ jobs:
           $init = Get-ChildItem /usr/lib/postgresql -Filter initdb -Recurse | Select-Object -First 1
           if ($null -eq $init) { throw 'Native PostgreSQL runtime unavailable on runner.' }
           ./tool/run-ai-quota-tests.ps1 -PgBin $init.DirectoryName
+  gateway-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Gateway auth, privacy, quota and lost acknowledgement
+        run: node --test test/ai_gateway_test.mjs
