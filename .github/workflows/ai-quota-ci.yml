@@ -1,0 +1,29 @@
+name: AI quota native PostgreSQL
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'supabase/migrations/*ai_quota.sql'
+      - 'supabase/tests/ai_quota.sql'
+      - 'tool/run-ai-quota-tests.ps1'
+      - '.github/workflows/ai-quota-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/migrations/*ai_quota.sql'
+      - 'supabase/tests/ai_quota.sql'
+      - 'tool/run-ai-quota-tests.ps1'
+      - '.github/workflows/ai-quota-ci.yml'
+permissions:
+  contents: read
+jobs:
+  native-postgresql:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Owned PostgreSQL acceptance and concurrency
+        shell: pwsh
+        run: |
+          $init = Get-ChildItem /usr/lib/postgresql -Filter initdb -Recurse | Select-Object -First 1
+          if ($null -eq $init) { throw 'Native PostgreSQL runtime unavailable on runner.' }
+          ./tool/run-ai-quota-tests.ps1 -PgBin $init.DirectoryName
