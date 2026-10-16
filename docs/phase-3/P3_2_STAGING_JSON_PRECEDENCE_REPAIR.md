@@ -1,10 +1,23 @@
 # T6–T7 — Gói sửa JSON precedence và query alias R2
 
-2026-10-16, Asia/Saigon. **R2 PREPARED; TEMP-FUNCTION REGRESSION PASS; NOT APPLIED.**
+2026-10-16, Asia/Saigon. **R2 APPLIED; FULL SQL / 12 CONCURRENT SCHEDULES / CLEANUP PASS.**
 Owner đã duyệt R1 tại commit `7fdd0fe`. Apply R1 bị regression guard từ chối và
-rollback hoàn toàn; R2 bên dưới có hash mới, chưa được apply.
-Staging gốc đã apply; native TLS connection thành công, SQL positive suite FAIL.
+rollback hoàn toàn. Owner sau đó duyệt R2 `1cdf6b0`; R2 đã apply và nghiệm thu SQL PASS.
+Staging gốc và R2 đã apply; native TLS/full SQL suites/concurrency/cleanup PASS.
 Primary ngoài scope. Không reset/drop/sửa dữ liệu chuyến đi hoặc apply lại file gốc.
+
+## Kết quả apply R2 sau approval
+
+Owner duyệt exact `1cdf6b0` trong chat. 2026-10-16 13:26 UTC apply success;
+regression trong migration PASS trước COMMIT. Registry lưu đúng R2 SHA-256 rồi
+align version MCP `20261016132610` → CLI `20261016045559` bằng UPDATE có điều kiện.
+Full native runner exit 0: 4 SQL suites + 12 observed-lock schedules + exact cleanup
+**PASS**. Postcheck 13:27:46 UTC: fixture users/probe functions/forbidden table grants/
+private helper execute đều 0; RLS 3/3, RPC ACL 6/6 đúng; B3 hashes/ACL giữ nguyên.
+Chi tiết tại [runtime report](D:/Travel-Go-Android/travel-go/docs/phase-3/P3_2_STAGING_RUNTIME_REPORT.md).
+Các phần dưới lưu hồ sơ chuẩn bị trước approval và lịch sử R1; trạng thái NOT RUN /
+chờ duyệt trong các mục lịch sử đã được kết quả R2 phía trên thay thế.
+Không apply lại migration này. Android/Owner acceptance vẫn PENDING.
 
 ## Changed
 
@@ -59,7 +72,7 @@ né lỗi, không bỏ validation hoặc đổi test thành chấp nhận lỗi.
 
 ## Testing và cleanup
 
-### R1 apply đã thử, R2 chỉ kiểm bằng hàm tạm
+### Lịch sử trước approval R2: R1 rollback, R2 kiểm bằng hàm tạm
 
 - R1 hash `eeb9123e80961887193fdd0c528696615f252ac97c9957730c8dff03736da1a6`
   được gửi đúng theo approval `7fdd0fe`. Preflight live 12:16:20 ICT khớp baseline.
@@ -103,7 +116,7 @@ Logs tại artifact folder `C:/Users/ASUS/.codex/visualizations/2026/10/15/01a13
 `P3_2_STAGING_CONNECTION.log`, `P3_2_STAGING_EXECUTION.log`,
 `P3_2_SQL_FAILURE_PRIVATE.log`. Không chứa mật khẩu; stderr không đưa vào Git.
 
-## Gói apply/test cần Owner duyệt
+## Gói apply/test đã được Owner duyệt và thực hiện (hồ sơ trước approval)
 
 Approval R1 không mở rộng sang R2 có hash mới. [Plan §4](D:/Travel-Go-Android/travel-go/docs/phase-3/P3_2_IMPLEMENTATION_PLAN.md:653)
 yêu cầu khi SQL source failure: giữ database state và review lại package.

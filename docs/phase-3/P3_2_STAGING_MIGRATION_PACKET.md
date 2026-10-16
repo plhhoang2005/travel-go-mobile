@@ -1,9 +1,10 @@
 # P3.2 — Gói duyệt migration staging T6–T7
 
-Ngày 2026-10-16. **BASE APPLIED; R1 REPAIR ROLLED BACK; R2 REVIEW PENDING.**
-Native connection đã dùng được. Xem [gói sửa JSON precedence](D:/Travel-Go-Android/travel-go/docs/phase-3/P3_2_STAGING_JSON_PRECEDENCE_REPAIR.md);
-R1 đã được duyệt nhưng regression lỗi nên không commit; R2 đã qua pg_temp unit
-regression, chưa apply. Manifest gốc dưới đây vẫn giữ nguyên 8/8 hashes.
+Ngày 2026-10-16. **BASE + R2 APPLIED; FULL SQL / 12 RACES / CLEANUP PASS.**
+Native connection đã dùng được. R1 rollback do regression lỗi; Owner sau đó duyệt
+R2 `1cdf6b0`, đã apply đúng hash và nghiệm thu PostgreSQL đầy đủ lúc 13:27 UTC.
+Xem [gói sửa JSON/query alias R2](D:/Travel-Go-Android/travel-go/docs/phase-3/P3_2_STAGING_JSON_PRECEDENCE_REPAIR.md).
+Manifest gốc dưới đây giữ nguyên 8/8 hashes. Android/whole P3.2 acceptance PENDING.
 Owner đã duyệt apply/test trong chat. Kết quả runtime cập nhật ở
 [staging runtime report](D:/Travel-Go-Android/travel-go/docs/phase-3/P3_2_STAGING_RUNTIME_REPORT.md).
 Các phần source/hash/SOP bên dưới giữ hồ sơ gói đã duyệt; không apply lại migration.

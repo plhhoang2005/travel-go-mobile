@@ -1,7 +1,7 @@
 # P3.2 — Manual planner and budget acceptance
 
 Ngày kiểm: 2026-10-16. Branch: `codex/phase-3-discovery-design`.
-Trạng thái: **CLIENT SOURCE VERIFIED; WHOLE P3.2 ACCEPTANCE PENDING**.
+Trạng thái: **CLIENT SOURCE VERIFIED; STAGING SQL / CONCURRENCY PASS; ANDROID / WHOLE P3.2 ACCEPTANCE PENDING**.
 App source: `7c103ac` (T16), trước đó T14 `b9074eb`, T15 `8ee26c0`, UI3 `4981bee`.
 Các file T17 chỉ thêm tests/probe/report, không đổi runtime app.
 
@@ -48,19 +48,19 @@ thiết bị thì source/analyzer không được báo thành native persistence
 | M01 | validator, trip input form, Guest/account validation tests | Android PENDING |
 | M02 | command/mutator + button CRUD/reorder widget tests | Android PENDING |
 | M03 | resize preview/unknown/ack invalidation tests | Android PENDING |
-| M04 | integer budget vectors + basis/overflow + budget UI tests | SQL NOT RUN; Android PENDING |
-| M05 | activity removal unlinks actual without changing ledger amounts | SQL NOT RUN; Android PENDING |
+| M04 | integer budget vectors + basis/overflow + budget UI tests | SQL PASS; Android PENDING |
+| M05 | activity removal unlinks actual without changing ledger amounts | SQL PASS; Android PENDING |
 | M06 | SQLite FFI faults/reopen + T17 Guest integrated restart | Native device NOT RUN |
 | M07 | V1 regression vectors + T15 copy/cancel/source binding | Android PENDING |
 | M08 | populated V1→V2 atomic upgrade/fault regression | Native device NOT RUN |
-| M09 | T16 selected revision + lost ack/recovery/preserve newer Guest | Native PostgreSQL NOT RUN |
-| M10 | service/repository/provider receipt + account save tests | Live staging NOT RUN |
-| M11 | frozen request/old receipt/new head/conflict client tests | Independent SQL sessions NOT RUN |
-| M12 | typed commands and atomic local document tests | SQL adversarial NOT RUN |
-| M13 | lifecycle/proof/late responses/purge/real disk sealed restart | SQL roles/device NOT RUN |
+| M09 | T16 selected revision + lost ack/recovery/preserve newer Guest | Native PostgreSQL PASS; Android PENDING |
+| M10 | service/repository/provider receipt + account save tests | Live staging SQL PASS; Android PENDING |
+| M11 | frozen request/old receipt/new head/conflict client tests | 12 observed-lock schedules PASS; Android PENDING |
+| M12 | typed commands and atomic local document tests | SQL adversarial PASS; Android PENDING |
+| M13 | lifecycle/proof/late responses/purge/real disk sealed restart | SQL roles PASS; device PENDING |
 | M14 | T15 complete offline view and unavailable; monotonic cache tests | Airplane-mode device PENDING |
-| M15 | client rejects identity/protocol/deployment errors | Real ACL/RLS/bypass controls NOT RUN |
-| M16 | T15 warning/cancel/version conflict/delete/cache removal | SQL tombstone/races NOT RUN |
+| M15 | client rejects identity/protocol/deployment errors | Real ACL/RLS/bypass controls PASS; device PENDING |
+| M16 | T15 warning/cancel/version conflict/delete/cache removal | SQL tombstone/races PASS; Android PENDING |
 | M17 | widget sizes/text scaling/button reorder/forms/focus | TalkBack/landscape/device PENDING |
 | M18 | Discovery→Huế→manual Guest integrated regression, no engine/AI | Android PENDING |
 
@@ -72,19 +72,18 @@ thiết bị thì source/analyzer không được báo thành native persistence
   3 bảng/6 RPC V2 chưa tồn tại. B3 definition/ACL/owner/search_path không đổi.
   Local SelfTest và dry-run **PASS**, Pester **14/14 PASS**; native child-process
   timeout/nonzero/drain đã kiểm. Đây không phải SQL database runtime PASS.
-  Owner đã duyệt apply/test; migration **APPLIED** trên staging `bkocylxbuyvdgxccpixx`,
-  post-apply metadata và anon/missing-auth smoke PASS. Native PG connection đã thành
-  công; positive SQL suite **FAIL** do JSON operator precedence ở reorderDay/ack.
-  Negative/B3 suites và 12 races **NOT RUN**. [Forward fix](D:/Travel-Go-Android/travel-go/docs/phase-3/P3_2_STAGING_JSON_PRECEDENCE_REPAIR.md)
-  R1 apply đã rollback do regression phát hiện alias trùng biến; R2 đã qua
-  pg_temp regression/12-command block, chưa apply, chờ duyệt hash R2 theo plan §4.
+  Owner duyệt R2 `1cdf6b0`; migration gốc + R2 **APPLIED** trên staging
+  `bkocylxbuyvdgxccpixx`. Native runner sau R2 **exit 0**, 4 SQL suites và
+  **12 observed-lock schedules PASS**, exact synthetic cleanup PASS. Postcheck
+  2026-10-16 13:27:46 UTC xác nhận 0 fixture users, quyền private/RPC đúng và B3
+  definitions/ACL giữ nguyên. R1 từng rollback; không còn chờ apply/duyệt R2.
   Chi tiết ở [runtime report](D:/Travel-Go-Android/travel-go/docs/phase-3/P3_2_STAGING_RUNTIME_REPORT.md).
 - No deployment performed. Primary B3 stays **NOT APPLIED** per handoff;
   primary is outside scope. Không apply lại migration staging đã thành công.
-- APK, when built, is a **Guest/UI staging test build**. Account V2 list/save/edit/
-  import depend on missing staging RPC/schema and will report server not ready.
-  Legacy list also requires the mixed discriminator RPC; do not silently fall
-  back to broad V1 decoding. This APK is not account runtime acceptance.
+- Existing staging APK vẫn chưa được install/test trên điện thoại trong task này.
+  Staging RPC/schema prerequisite đã sẵn sàng và SQL PASS; Account V2 list/save/
+  edit/import/delete phải được nghiệm thu từ app thật trước khi báo toàn luồng PASS.
+  SQL-only repair không đổi app source nên chưa cần rebuild chỉ vì migration này.
 - Owner P3.1 acceptance remains PENDING. Whole P3.2 cannot be COMPLETE from
   synthetic tests. No push/PR/hosted CI/merge in this scope.
 - Device inventory at 2026-10-16: `adb devices -l` empty. No install/clear/uninstall.
