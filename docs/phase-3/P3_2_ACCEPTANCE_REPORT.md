@@ -66,9 +66,14 @@ thiết bị thì source/analyzer không được báo thành native persistence
 
 ## Problems / limits
 
-- T6 migration + T7 SQL tests/native concurrency runner **NOT WRITTEN**. Metadata
-  preflight/ACL/trigger inspection must be refreshed before completing that packet.
-  SQL SelfTest/dry-run and live checks are therefore **NOT RUN**, not PASS.
+- T6 migration, positive/negative SQL suites và T7 native runner đã viết/commit.
+  Gói nguồn và hash được chốt tại [hồ sơ migration staging](D:/Travel-Go-Android/travel-go/docs/phase-3/P3_2_STAGING_MIGRATION_PACKET.md).
+  Metadata baseline staging đối chiếu đầy đủ ngày 2026-10-16 04:23:04 UTC: khớp;
+  3 bảng/6 RPC V2 chưa tồn tại. B3 definition/ACL/owner/search_path không đổi.
+  Local SelfTest và dry-run **PASS**, Pester **14/14 PASS**; native child-process
+  timeout/nonzero/drain đã kiểm. Đây không phải SQL database runtime PASS.
+  SQL suites, RLS thật và 12 lịch chạy đồng thời trên staging **NOT RUN**,
+  chờ Owner duyệt riêng đúng gói apply/test/cleanup.
 - No migration applied or deploy performed. Primary B3 stays **NOT APPLIED** per
   handoff; primary is outside scope. Only possible future staging target:
   `bkocylxbuyvdgxccpixx`, after Owner approves the exact reviewed package.
@@ -96,6 +101,15 @@ thiết bị thì source/analyzer không được báo thành native persistence
    chưa triển khai làm bằng chứng test account thành công.
 
 ## Lesson Candidate
+
+T6/T7 bổ sung: hash fixture thuộc exact rawText, không phải canonicalText →
+đọc đúng hợp đồng trước khi so digest; giữ nguyên chuỗi gửi lên khi retry.
+Pester 3.4 tại máy này trả false với Throw không có expected message → dùng
+detector try/catch tường minh và negative control để kiểm chính bộ kiểm thử.
+
+T6/T7 verification local ngày 2026-10-16: `flutter analyze --no-pub` sạch (4.6s),
+`flutter test --no-pub --reporter expanded` **655 PASS** (46s); không đổi Dart,
+không rebuild APK, không có SQL parser/runtime PASS hoặc nghiệm thu điện thoại mới.
 
 Account từ chối Guest write → race test phải mô phỏng một workspace Guest khác
 trên disk synthetic, không nới quyền của account để test PASS. Retry đọc revision
