@@ -60,6 +60,7 @@ SELECT pg_temp.p32_assert(NOT has_function_privilege('anon',p.oid,'EXECUTE') AND
  FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND p.proname IN
  ('create_editable_trip_v2','update_editable_trip_v2','delete_editable_trip_v2','get_editable_trip_v2','get_editable_mutation_v2','list_owned_trips_v2');
 SELECT pg_temp.p32_assert(private.p32_validate(value::text,true)=value,'account-ready base') FROM p32_ctx WHERE key='base';
+SELECT private.p32_entity('{"id":"x","ordinal":1,"date":null,"notes":""}','id ordinal date notes');
 SELECT pg_temp.p32_assert(private.p32_nonblank('v') AND NOT private.p32_nonblank(E'\u000b'),'Dart trim vertical tab without trimming letter v');
 SELECT pg_temp.p32_assert(value#>>'{input,totalBudgetVnd}'='500000' AND value#>>'{input,travelerCount}'='3'
  AND (value#>>'{estimates,0,unitAmountVnd}')::bigint*3=300000 AND value#>'{estimates,1,unitAmountVnd}'='null'::jsonb
@@ -133,6 +134,49 @@ BEGIN
  r:=public.create_editable_trip_v2(gen_random_uuid(),body,pg_temp.p32_hash(body));
 END $f$;
 RESET ROLE;
+-- Exercise every typed op, including intermediate resize state, acknowledgments
+-- and the explicit actual-ledger boundary. No activity operation changes money.
+DO $f$ DECLARE doc jsonb; a jsonb; b jsonb; day2 jsonb; estimate jsonb; expense jsonb; commands jsonb;
+ inp jsonb; issue jsonb; expected_amount jsonb; day1 text;
+BEGIN
+ SELECT value INTO doc FROM p32_ctx WHERE key='base'; day1:=doc#>>'{days,0,id}';
+ a:=jsonb_build_object('id',gen_random_uuid(),'dayId',day1,'position',0,'title','A','placeId',NULL,'startMinute',540,'endMinute',600,'notes','',
+ 'provenance',jsonb_build_object('quality','user_provided','sourceRefs','[]'::jsonb,'observedAt',NULL));
+ b:=a||jsonb_build_object('id',gen_random_uuid(),'position',1,'title','B','startMinute',600,'endMinute',660);
+ estimate:=(doc#>'{estimates,0}')||jsonb_build_object('itemId',a->'id');
+ expense:=(doc#>'{actualExpenses,0}')||jsonb_build_object('itemId',b->'id'); expected_amount:=expense->'amountVnd';
+ commands:=jsonb_build_array(jsonb_build_object('op','addItem','item',a),jsonb_build_object('op','addItem','item',b),
+ jsonb_build_object('op','putEstimate','estimate',estimate),jsonb_build_object('op','putActual','actual',expense),
+ jsonb_build_object('op','setDayNotes','dayId',day1,'notes','Notes'));
+ doc:=private.p32_replay(doc,commands); PERFORM private.p32_validate(doc::text,true);
+ doc:=private.p32_replay(doc,jsonb_build_array(jsonb_build_object('op','moveItem','itemId',a->'id','dayId',day1,'position',1),
+ jsonb_build_object('op','reorderDay','dayId',day1,'orderedItemIds',jsonb_build_array(a->'id',b->'id'))));
+ PERFORM pg_temp.p32_assert(doc#>>'{items,0,id}'=a->>'id' AND doc#>'{actualExpenses,0,amountVnd}'=expected_amount,'move/reorder keep actual');
+ b:=b||jsonb_build_object('startMinute',570,'endMinute',630);
+ doc:=private.p32_replay(doc,jsonb_build_array(jsonb_build_object('op','editItem','itemId',b->'id')||(b-'id'-'dayId'-'position')));
+ SELECT value INTO issue FROM jsonb_array_elements(private.p32_issues(doc)) WHERE value->>'issueCode'='overlap';
+ PERFORM pg_temp.p32_assert(issue IS NOT NULL,'overlap fingerprint exists');
+ doc:=private.p32_replay(doc,jsonb_build_array(jsonb_build_object('op','acknowledgeIssue','exception',issue||jsonb_build_object('reason','Owner accepts this overlap'))));
+ PERFORM private.p32_validate(doc::text,true);
+ inp:=(doc->'input')||'{"endDate":"2026-10-16"}'::jsonb;
+ day2:=jsonb_build_object('id',gen_random_uuid(),'ordinal',2,'date','2026-10-16','notes','');
+ doc:=private.p32_replay(doc,jsonb_build_array(jsonb_build_object('op','setInput','input',inp),
+ jsonb_build_object('op','resizeDays','days',(doc->'days')||jsonb_build_array(day2),'moves','[]'::jsonb,'removedItemIds','[]'::jsonb),
+ jsonb_build_object('op','moveItem','itemId',b->'id','dayId',day2->'id','position',0)));
+ PERFORM private.p32_validate(doc::text,true);
+ PERFORM pg_temp.p32_assert(doc->'exceptions'='[]'::jsonb AND doc#>'{actualExpenses,0,amountVnd}'=expected_amount,'move invalidates scoped acknowledgment without changing actual');
+ inp:=(doc->'input')||'{"endDate":"2026-10-15"}'::jsonb;
+ doc:=private.p32_replay(doc,jsonb_build_array(jsonb_build_object('op','setInput','input',inp),
+ jsonb_build_object('op','resizeDays','days',jsonb_build_array(doc#>'{days,0}'),'moves','[]'::jsonb,'removedItemIds',jsonb_build_array(b->'id'))));
+ PERFORM private.p32_validate(doc::text,true);
+ PERFORM pg_temp.p32_assert(doc#>'{actualExpenses,0,amountVnd}'=expected_amount AND doc#>'{actualExpenses,0,itemId}'='null'::jsonb
+ AND doc#>>'{actualExpenses,0,sourceItemSnapshot,title}'='B','resize removes only item and keeps actual snapshot/money');
+ doc:=private.p32_replay(doc,jsonb_build_array(jsonb_build_object('op','removeItem','itemId',a->'id')));
+ PERFORM pg_temp.p32_assert(doc->'items'='[]'::jsonb AND doc#>'{actualExpenses,0,amountVnd}'=expected_amount,'remove actual protection');
+ doc:=private.p32_replay(doc,jsonb_build_array(jsonb_build_object('op','deleteActual','expenseId',expense->'id')));
+ PERFORM private.p32_validate(doc::text,true);
+ PERFORM pg_temp.p32_assert(doc->'actualExpenses'='[]'::jsonb AND jsonb_array_length(doc->'estimates')=2,'explicit deleteActual leaves estimates');
+END $f$;
 DO $f$ DECLARE doc jsonb; result jsonb; item jsonb; BEGIN
  SELECT value INTO doc FROM p32_ctx WHERE key='base';
  item:=jsonb_build_object('id',gen_random_uuid(),'dayId',doc#>'{days,0,id}','position',0,'title','Museum','placeId',NULL,'startMinute',540,'endMinute',600,'notes','',

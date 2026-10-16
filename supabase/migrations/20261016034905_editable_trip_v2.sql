@@ -263,7 +263,7 @@ DECLARE e record; x jsonb; nullable boolean;
 BEGIN
  PERFORM private.p32_keys(v,names);
  FOR e IN SELECT * FROM jsonb_each(v) LOOP
- nullable:=e.key=ANY(string_to_array('destinationId destinationName startDate endDate placeId itemId startMinute endMinute unitAmountVnd customQuantity observedAt sourceItemSnapshot',' '));
+ nullable:=e.key=ANY(string_to_array('destinationId destinationName startDate endDate placeId itemId startMinute endMinute unitAmountVnd customQuantity observedAt sourceItemSnapshot date',' '));
  IF nullable AND e.value='null'::jsonb THEN CONTINUE; END IF;
  CASE e.key
  WHEN 'provenance' THEN PERFORM private.p32_entity(e.value,'quality sourceRefs observedAt');
