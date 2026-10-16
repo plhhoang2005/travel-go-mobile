@@ -59,7 +59,7 @@ REVOKE ALL ON private.editable_trip_documents,private.editable_trip_mutations,pr
 CREATE FUNCTION private.p32_require(ok boolean,code text DEFAULT 'invalid_document') RETURNS void LANGUAGE plpgsql SET search_path='' AS $f$
 BEGIN IF ok IS DISTINCT FROM true THEN RAISE EXCEPTION '%',code; END IF; END $f$;
 CREATE FUNCTION private.p32_nonblank(v text) RETURNS boolean LANGUAGE sql IMMUTABLE SET search_path='' AS $f$
- SELECT btrim(v,E' \t\n\r\f\v\u0085\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff')<>'' $f$;
+ SELECT btrim(v,E' \t\n\r\f\u000b\u0085\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff')<>'' $f$;
 CREATE FUNCTION private.p32_keys(v jsonb,names text) RETURNS void LANGUAGE plpgsql SET search_path='' AS $f$
 BEGIN PERFORM private.p32_require(jsonb_typeof(v)='object' AND
  (SELECT array_agg(k ORDER BY k COLLATE "C") FROM jsonb_object_keys(v) k)=
@@ -255,18 +255,41 @@ BEGIN SELECT value INTO old FROM jsonb_array_elements(doc->'items') WHERE value-
  result:=private.p32_order(result,old->>'dayId',coalesce((SELECT jsonb_agg(value ORDER BY (value->>'position')::integer) FROM jsonb_array_elements(result->'items') WHERE value->>'dayId'=old->>'dayId'),'[]'));
  RETURN private.p32_insert(result,old||jsonb_build_object('dayId',dayid,'position',pos)); END $f$;
 
+-- Command decoding checks every entity before replay, even when a later command
+-- overwrites/removes it. Match Dart casts without imposing final-state semantic
+-- bounds on an intermediate batch state.
+CREATE FUNCTION private.p32_entity(v jsonb,names text) RETURNS void LANGUAGE plpgsql SET search_path='' AS $f$
+DECLARE e record; x jsonb; nullable boolean;
+BEGIN
+ PERFORM private.p32_keys(v,names);
+ FOR e IN SELECT * FROM jsonb_each(v) LOOP
+ nullable:=e.key=ANY(string_to_array('destinationId destinationName startDate endDate placeId itemId startMinute endMinute unitAmountVnd customQuantity observedAt sourceItemSnapshot',' '));
+ IF nullable AND e.value='null'::jsonb THEN CONTINUE; END IF;
+ CASE e.key
+ WHEN 'provenance' THEN PERFORM private.p32_entity(e.value,'quality sourceRefs observedAt');
+ WHEN 'sourceItemSnapshot' THEN PERFORM private.p32_entity(e.value,'title dayId date');
+ WHEN 'interests','itemIds','sourceRefs' THEN
+  PERFORM private.p32_require(jsonb_typeof(e.value)='array');
+  FOR x IN SELECT * FROM jsonb_array_elements(e.value) LOOP PERFORM private.p32_require(jsonb_typeof(x)='string'); END LOOP;
+ WHEN 'active' THEN PERFORM private.p32_require(jsonb_typeof(e.value)='boolean');
+ WHEN 'ordinal','position','travelerCount','totalBudgetVnd','amountVnd','startMinute','endMinute','unitAmountVnd','customQuantity' THEN
+  PERFORM private.p32_require(jsonb_typeof(e.value)='number');
+ ELSE PERFORM private.p32_require(jsonb_typeof(e.value)='string'); END CASE;
+ END LOOP;
+END $f$;
 CREATE FUNCTION private.p32_replay(base jsonb,commands jsonb) RETURNS jsonb LANGUAGE plpgsql SET search_path='' AS $f$
 DECLARE doc jsonb:=base; c jsonb; op text; item jsonb; ordered jsonb; e jsonb; kind text; affected text[]; moved text[]; removed text[]; nextids text[]; issues jsonb; before_count integer;
 BEGIN PERFORM private.p32_list(commands,4000);
  FOR c IN SELECT * FROM jsonb_array_elements(commands) LOOP op:=c->>'op';
  CASE op
- WHEN 'setInput' THEN PERFORM private.p32_keys(c,'op input'); doc:=jsonb_set(doc,'{input}',c->'input');
+ WHEN 'setInput' THEN PERFORM private.p32_keys(c,'op input');
+ PERFORM private.p32_entity(c->'input','title destinationId destinationName startDate endDate timezone origin travelerCount totalBudgetVnd interests priority'); doc:=jsonb_set(doc,'{input}',c->'input');
  WHEN 'setDayNotes' THEN PERFORM private.p32_keys(c,'op dayId notes'); PERFORM private.p32_text(c->'notes',2000,true);
  PERFORM private.p32_require(EXISTS(SELECT 1 FROM jsonb_array_elements(doc->'days') d WHERE d->'id'=c->'dayId'),'invalid_command');
  SELECT jsonb_agg(CASE WHEN value->'id'=c->'dayId' THEN value||jsonb_build_object('notes',c->'notes') ELSE value END ORDER BY ordinality) INTO ordered FROM jsonb_array_elements(doc->'days') WITH ORDINALITY; doc:=jsonb_set(doc,'{days}',ordered);
- WHEN 'addItem' THEN PERFORM private.p32_keys(c,'op item'); item:=c->'item';
+ WHEN 'addItem' THEN PERFORM private.p32_keys(c,'op item'); item:=c->'item'; PERFORM private.p32_entity(item,'id dayId position title placeId startMinute endMinute notes provenance');
  PERFORM private.p32_require(NOT EXISTS(SELECT 1 FROM jsonb_array_elements(doc->'items') i WHERE i->'id'=item->'id'),'invalid_command'); doc:=private.p32_insert(doc,item);
- WHEN 'editItem' THEN PERFORM private.p32_keys(c,'op itemId title placeId startMinute endMinute notes provenance');
+ WHEN 'editItem' THEN PERFORM private.p32_entity(c,'op itemId title placeId startMinute endMinute notes provenance');
  PERFORM private.p32_require(EXISTS(SELECT 1 FROM jsonb_array_elements(doc->'items') i WHERE i->'id'=c->'itemId'),'invalid_command');
  SELECT jsonb_agg(CASE WHEN value->'id'=c->'itemId' THEN value||(c-'op'-'itemId') ELSE value END ORDER BY ordinality) INTO ordered FROM jsonb_array_elements(doc->'items') WITH ORDINALITY; doc:=jsonb_set(doc,'{items}',ordered);
  WHEN 'moveItem' THEN PERFORM private.p32_keys(c,'op itemId dayId position'); doc:=private.p32_move(doc,c->>'itemId',c->>'dayId',c->'position');
@@ -279,6 +302,7 @@ BEGIN PERFORM private.p32_list(commands,4000);
  SELECT coalesce(jsonb_agg(i.value ORDER BY o.ordinality),'[]') INTO ordered FROM jsonb_array_elements(c->'orderedItemIds') WITH ORDINALITY o JOIN jsonb_array_elements(doc->'items') i ON i.value->'id'=o.value;
  doc:=private.p32_order(doc,c->>'dayId',ordered);
  WHEN 'resizeDays' THEN PERFORM private.p32_keys(c,'op days moves removedItemIds'); PERFORM private.p32_list(c->'days',366); PERFORM private.p32_list(c->'moves',1000); PERFORM private.p32_list(c->'removedItemIds',1000);
+ FOR e IN SELECT * FROM jsonb_array_elements(c->'days') LOOP PERFORM private.p32_entity(e,'id ordinal date notes'); END LOOP;
  SELECT coalesce(array_agg(value->>'id'),'{}') INTO nextids FROM jsonb_array_elements(c->'days');
  PERFORM private.p32_require(cardinality(nextids)=(SELECT count(DISTINCT x) FROM unnest(nextids) x),'invalid_command');
  SELECT coalesce(array_agg(value->>'id'),'{}') INTO affected FROM jsonb_array_elements(doc->'items') WHERE NOT value->>'dayId'=ANY(nextids);
@@ -288,14 +312,15 @@ BEGIN PERFORM private.p32_list(commands,4000);
  NOT moved&&removed AND affected @> moved AND affected @> removed AND (moved||removed) @> affected,'invalid_command');
  FOR e IN SELECT * FROM jsonb_array_elements(c->'removedItemIds') LOOP doc:=private.p32_remove(doc,e#>>'{}'); END LOOP;
  doc:=jsonb_set(doc,'{days}',c->'days');
- FOR e IN SELECT * FROM jsonb_array_elements(c->'moves') LOOP PERFORM private.p32_keys(e,'itemId dayId position'); doc:=private.p32_move(doc,e->>'itemId',e->>'dayId',e->'position'); END LOOP;
+ FOR e IN SELECT * FROM jsonb_array_elements(c->'moves') LOOP PERFORM private.p32_entity(e,'itemId dayId position'); doc:=private.p32_move(doc,e->>'itemId',e->>'dayId',e->'position'); END LOOP;
  WHEN 'putEstimate','putActual' THEN kind:=CASE WHEN op='putEstimate' THEN 'estimates' ELSE 'actualExpenses' END;
  PERFORM private.p32_keys(c,CASE WHEN op='putEstimate' THEN 'op estimate' ELSE 'op actual' END); e:=c->(CASE WHEN op='putEstimate' THEN 'estimate' ELSE 'actual' END);
+ PERFORM private.p32_entity(e,CASE WHEN op='putEstimate' THEN 'id itemId category unitAmountVnd basis customQuantity active description provenance' ELSE 'id itemId amountVnd category paidOn description sourceItemSnapshot provenance' END);
  SELECT coalesce(jsonb_agg(CASE WHEN value->'id'=e->'id' THEN e ELSE value END ORDER BY ordinality),'[]'),count(*) FILTER(WHERE value->'id'=e->'id') INTO ordered,before_count FROM jsonb_array_elements(doc->kind) WITH ORDINALITY;
  IF before_count=0 THEN ordered:=ordered||jsonb_build_array(e); END IF; doc:=jsonb_set(doc,ARRAY[kind],ordered);
  WHEN 'deleteActual' THEN PERFORM private.p32_keys(c,'op expenseId'); PERFORM private.p32_require(EXISTS(SELECT 1 FROM jsonb_array_elements(doc->'actualExpenses') e WHERE e->'id'=c->'expenseId'),'invalid_command');
  SELECT coalesce(jsonb_agg(value ORDER BY ordinality),'[]') INTO ordered FROM jsonb_array_elements(doc->'actualExpenses') WITH ORDINALITY WHERE value->'id'<>c->'expenseId'; doc:=jsonb_set(doc,'{actualExpenses}',ordered);
- WHEN 'acknowledgeIssue' THEN PERFORM private.p32_keys(c,'op exception'); e:=c->'exception'; PERFORM private.p32_keys(e,'issueCode itemIds reason fingerprint');
+ WHEN 'acknowledgeIssue' THEN PERFORM private.p32_keys(c,'op exception'); e:=c->'exception'; PERFORM private.p32_entity(e,'issueCode itemIds reason fingerprint');
  PERFORM private.p32_require(private.p32_nonblank(e->>'reason') AND EXISTS(SELECT 1 FROM jsonb_array_elements(private.p32_issues(doc)) i WHERE i->>'issueCode'=e->>'issueCode' AND i->>'fingerprint'=e->>'fingerprint' AND jsonb_array_length(i->'itemIds')=jsonb_array_length(e->'itemIds') AND i->'itemIds' @> e->'itemIds' AND e->'itemIds' @> i->'itemIds'),'invalid_command');
  SELECT coalesce(jsonb_agg(value ORDER BY ordinality),'[]') INTO ordered FROM jsonb_array_elements(doc->'exceptions') WITH ORDINALITY WHERE value->>'fingerprint'<>e->>'fingerprint'; doc:=jsonb_set(doc,'{exceptions}',ordered||jsonb_build_array(e));
  ELSE RAISE EXCEPTION 'invalid_command'; END CASE; END LOOP;

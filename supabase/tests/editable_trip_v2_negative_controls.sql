@@ -10,6 +10,8 @@ SELECT pg_temp.p32_assert(private.p32_parse('{"n":-0}')='{"n":0}'::jsonb,'intege
 SELECT pg_temp.p32_error('SELECT private.p32_parse(''{"n":9007199254740992}'')','invalid_input');
 SELECT pg_temp.p32_error(format('SELECT private.p32_parse(%L)',repeat('[',34)||'0'||repeat(']',34)),'invalid_input');
 SELECT pg_temp.p32_error(format('SELECT private.p32_parse(%L)',repeat(' ',1048577)),'invalid_input');
+SELECT pg_temp.p32_error('SELECT private.p32_entity(''{"id":"x","ordinal":1,"date":null,"notes":"","extra":true}'',''id ordinal date notes'')','invalid_document');
+SELECT pg_temp.p32_error('SELECT private.p32_entity(''{"id":"x","ordinal":"1","date":null,"notes":""}'',''id ordinal date notes'')','invalid_document');
 SELECT pg_temp.p32_error(format('SELECT private.p32_validate(%L,true)',raw_text),'invalid_document') FROM p32_vectors WHERE name='money_unknown_unicode';
 SELECT pg_temp.p32_error(format('SELECT private.p32_validate(%L)',jsonb_set(value,'{actualExpenses,0,amountVnd}','-1')::text),'invalid_document') FROM p32_ctx WHERE key='base';
 SELECT pg_temp.p32_error(format('SELECT private.p32_validate(%L)',jsonb_set(value,'{days}',(value->'days')||(value->'days'))::text),'invalid_document') FROM p32_ctx WHERE key='base';

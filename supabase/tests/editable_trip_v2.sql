@@ -45,7 +45,7 @@ DO $f$ DECLARE v record; BEGIN
   IF v.expected_error IS NULL THEN
    PERFORM pg_temp.p32_assert(private.p32_validate(v.raw_text)=v.raw_text::jsonb,'T1 decode:'||v.name);
    PERFORM pg_temp.p32_assert(private.p32_canonical(v.raw_text::jsonb)=v.canonical_text,'T1 canonical:'||v.name);
-   PERFORM pg_temp.p32_assert(pg_temp.p32_hash(v.canonical_text)=v.expected_digest,'T1 digest:'||v.name);
+   PERFORM pg_temp.p32_assert(pg_temp.p32_hash(v.raw_text)=v.expected_digest,'T1 exact submitted digest:'||v.name);
   ELSE PERFORM pg_temp.p32_error(format('SELECT private.p32_validate(%L)',v.raw_text),v.expected_error); END IF;
  END LOOP;
 END $f$;
@@ -60,6 +60,7 @@ SELECT pg_temp.p32_assert(NOT has_function_privilege('anon',p.oid,'EXECUTE') AND
  FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND p.proname IN
  ('create_editable_trip_v2','update_editable_trip_v2','delete_editable_trip_v2','get_editable_trip_v2','get_editable_mutation_v2','list_owned_trips_v2');
 SELECT pg_temp.p32_assert(private.p32_validate(value::text,true)=value,'account-ready base') FROM p32_ctx WHERE key='base';
+SELECT pg_temp.p32_assert(private.p32_nonblank('v') AND NOT private.p32_nonblank(E'\u000b'),'Dart trim vertical tab without trimming letter v');
 SELECT pg_temp.p32_assert(value#>>'{input,totalBudgetVnd}'='500000' AND value#>>'{input,travelerCount}'='3'
  AND (value#>>'{estimates,0,unitAmountVnd}')::bigint*3=300000 AND value#>'{estimates,1,unitAmountVnd}'='null'::jsonb
  AND value#>>'{actualExpenses,0,amountVnd}'='250000','money: budget/known/unknown/actual independent') FROM p32_ctx WHERE key='base';
