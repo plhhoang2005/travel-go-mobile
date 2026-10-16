@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../../auth/providers/auth_provider.dart';
 import '../../providers/saved_trips_provider.dart';
+import 'editable_trip_detail_screen.dart';
 
 /// Displays only the validated snapshot already published by the account cache.
 class SavedTripSnapshotScreen extends StatelessWidget {
@@ -53,6 +54,7 @@ class SavedTripSnapshotScreen extends StatelessWidget {
               ),
             )
           : ListView(
+              key: const ValueKey('saved.v1'),
               padding: const EdgeInsets.all(16),
               children: [
                 Text(
@@ -154,6 +156,17 @@ class SavedTripSnapshotScreen extends StatelessWidget {
                       ),
                   ],
                 ],
+                const SizedBox(height: 16),
+                OutlinedButton.icon(
+                  onPressed: () => Navigator.push<void>(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => LegacyTripCopyScreen(snapshot: snapshot),
+                    ),
+                  ),
+                  icon: const Icon(Icons.copy_outlined),
+                  label: const Text('Tạo bản sao để chỉnh sửa'),
+                ),
               ],
             ),
     );

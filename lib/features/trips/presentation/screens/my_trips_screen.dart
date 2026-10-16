@@ -7,6 +7,8 @@ import '../../../auth/presentation/screens/login_screen.dart';
 import '../../../auth/providers/auth_provider.dart';
 import '../../../trip_planner/presentation/screens/home_planner_screen.dart';
 import '../../models/saved_trip_model.dart';
+import '../../models/editable_remote_records.dart';
+import 'editable_trip_detail_screen.dart';
 import '../../providers/guest_drafts_provider.dart';
 import '../../providers/saved_trips_provider.dart';
 import '../widgets/guest_draft_import_sheet.dart';
@@ -43,8 +45,13 @@ class _MyTripsScreenState extends State<MyTripsScreen>
         auth.isDemoSession &&
         (auth.currentUser?.email.contains('minh') ?? false);
 
-    final upcomingCount = tripsProvider.upcomingTrips.isNotEmpty
-        ? tripsProvider.upcomingTrips.length
+    final owned =
+        auth.isAuthenticated &&
+        !auth.isDemoSession &&
+        auth.currentUser?.id == tripsProvider.currentUserId;
+    final visible = owned ? tripsProvider.visibleTrips : <OwnedTripSummary>[];
+    final upcomingCount = visible.isNotEmpty
+        ? visible.length
         : (isCustomer ? 1 : 0);
 
     return Scaffold(
@@ -80,8 +87,34 @@ class _MyTripsScreenState extends State<MyTripsScreen>
         controller: _tabController,
         children: [
           // Upcoming Tab
-          tripsProvider.upcomingTrips.isNotEmpty
-              ? _buildSavedTripsList(context, tripsProvider.upcomingTrips)
+          visible.isNotEmpty || (owned && tripsProvider.hasMoreTrips)
+              ? _buildSavedTripsList(context, visible)
+              : owned &&
+                    (tripsProvider.isLoading ||
+                        tripsProvider.cacheErrorMessage != null)
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          tripsProvider.isLoading
+                              ? 'Đang tải chuyến đi…'
+                              : tripsProvider.cacheErrorMessage!,
+                        ),
+                        TextButton(
+                          onPressed: tripsProvider.isLoading
+                              ? null
+                              : () => tripsProvider.loadTrips(
+                                  auth.currentUser?.id,
+                                ),
+                          child: const Text('Thử lại'),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
               : (isCustomer
                     ? _buildUpcomingDemoCard(context)
                     : _buildEmptyState(context, 'Chưa có chuyến đi sắp tới')),
@@ -116,7 +149,10 @@ class _MyTripsScreenState extends State<MyTripsScreen>
     );
   }
 
-  Widget _buildSavedTripsList(BuildContext context, List<SavedTrip> trips) {
+  Widget _buildSavedTripsList(
+    BuildContext context,
+    List<OwnedTripSummary> trips,
+  ) {
     final provider = context.watch<SavedTripsProvider>();
     final canDelete =
         !provider.requiresLifecycle ||
@@ -135,10 +171,36 @@ class _MyTripsScreenState extends State<MyTripsScreen>
 
     return ListView.separated(
       padding: const EdgeInsets.all(16),
-      itemCount: trips.length,
+      itemCount: trips.length + 1,
       separatorBuilder: (context, index) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
-        final trip = trips[index];
+        if (index == trips.length) {
+          return Column(
+            children: [
+              Text(
+                'Đã tải ${trips.length} chuyến${provider.hasMoreTrips ? ' · còn chuyến chưa tải' : ''}',
+              ),
+              if (provider.cacheErrorMessage != null)
+                Text(provider.cacheErrorMessage!),
+              if (provider.hasMoreTrips)
+                TextButton(
+                  onPressed: provider.isLoading ? null : provider.loadMoreTrips,
+                  child: Text(
+                    provider.isLoading ? 'Đang tải…' : 'Xem thêm chuyến đi',
+                  ),
+                ),
+            ],
+          );
+        }
+        final summary = trips[index];
+        if (summary.kind == OwnedTripKind.editableV2) {
+          return _EditableTripRow(summary: summary, status: statusLabel);
+        }
+        final matches = provider.trips.where(
+          (t) => t.id == summary.tripId && t.userId == summary.ownerId,
+        );
+        if (matches.isEmpty) return const SizedBox.shrink();
+        final trip = matches.first;
         return Card(
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
@@ -524,4 +586,47 @@ class _MyTripsScreenState extends State<MyTripsScreen>
       ),
     );
   }
+}
+
+class _EditableTripRow extends StatelessWidget {
+  final OwnedTripSummary summary;
+  final String status;
+  const _EditableTripRow({required this.summary, required this.status});
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: Theme.of(context).colorScheme.surface,
+      border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(status, style: Theme.of(context).textTheme.labelMedium),
+        const SizedBox(height: 8),
+        Text(summary.title, style: Theme.of(context).textTheme.titleMedium),
+        Text('Điểm đến: ${summary.destinationName}'),
+        const Text('Lịch trình tự lập · có dự kiến và sổ chi riêng'),
+        if (summary.createdAt.millisecondsSinceEpoch != 0)
+          Text(
+            'Đã lưu: ${DateFormat('dd/MM/yyyy HH:mm').format(summary.createdAt.toLocal())}',
+          ),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: () => Navigator.push<void>(
+            context,
+            MaterialPageRoute(
+              builder: (_) => EditableTripDetailScreen(
+                tripId: summary.tripId,
+                expectedOwnerId: summary.ownerId,
+              ),
+            ),
+          ),
+          icon: const Icon(Icons.edit_calendar_outlined),
+          label: const Text('Xem lịch trình tự lập'),
+        ),
+      ],
+    ),
+  );
 }
