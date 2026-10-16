@@ -156,10 +156,10 @@ CREATE FUNCTION private.p32_issues(doc jsonb) RETURNS jsonb LANGUAGE sql SET sea
  FROM pairs CROSS JOIN LATERAL (
   SELECT jsonb_agg(value->'id' ORDER BY value->>'id' COLLATE "C") ids,
   jsonb_agg(jsonb_build_object('id',value->'id','dayId',value->'dayId',
-   'date',(SELECT d->'date' FROM jsonb_array_elements(doc->'days') d WHERE d->>'id'=value->>'dayId'),
+   'date',(SELECT d->'date' FROM jsonb_array_elements(doc->'days') d WHERE d->>'id'=scoped_item.value->>'dayId'),
    'position',value->'position','startMinute',value->'startMinute','endMinute',value->'endMinute')
    ORDER BY value->>'id' COLLATE "C") scoped
-  FROM jsonb_array_elements(jsonb_build_array(a,b))) f)
+  FROM jsonb_array_elements(jsonb_build_array(a,b)) scoped_item(value)) f)
  SELECT coalesce(jsonb_agg(jsonb_build_object('issueCode',code,'itemIds',ids,'fingerprint',fingerprint)),'[]') FROM fingerprints $f$;
 
 CREATE FUNCTION private.p32_validate(raw text,account_save boolean DEFAULT false) RETURNS jsonb LANGUAGE plpgsql SET search_path='' AS $f$

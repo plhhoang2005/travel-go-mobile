@@ -156,6 +156,11 @@ BEGIN
  doc:=private.p32_replay(doc,jsonb_build_array(jsonb_build_object('op','editItem','itemId',b->'id')||(b-'id'-'dayId'-'position')));
  SELECT value INTO issue FROM jsonb_array_elements(private.p32_issues(doc)) WHERE value->>'issueCode'='overlap';
  PERFORM pg_temp.p32_assert(issue IS NOT NULL,'overlap fingerprint exists');
+ PERFORM pg_temp.p32_assert(issue->>'fingerprint'=(SELECT pg_temp.p32_hash(private.p32_canonical(jsonb_build_object('code','overlap',
+ 'itemIds',jsonb_agg(i->'id' ORDER BY i->>'id' COLLATE "C"),
+ 'scopedFields',jsonb_agg(jsonb_build_object('id',i->'id','dayId',i->'dayId','date','2026-10-15',
+ 'position',i->'position','startMinute',i->'startMinute','endMinute',i->'endMinute') ORDER BY i->>'id' COLLATE "C"))))
+ FROM jsonb_array_elements(doc->'items') i),'fingerprint includes actual date rather than shadowed inner value');
  doc:=private.p32_replay(doc,jsonb_build_array(jsonb_build_object('op','acknowledgeIssue','exception',issue||jsonb_build_object('reason','Owner accepts this overlap'))));
  PERFORM private.p32_validate(doc::text,true);
  inp:=(doc->'input')||'{"endDate":"2026-10-16"}'::jsonb;
