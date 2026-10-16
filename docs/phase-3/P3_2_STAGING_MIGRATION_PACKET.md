@@ -1,6 +1,8 @@
 # P3.2 — Gói duyệt migration staging T6–T7
 
-Ngày 2026-10-16. **STAGING MIGRATION APPLIED; FULL SQL/RACE ACCEPTANCE PENDING.**
+Ngày 2026-10-16. **STAGING APPLIED; NATIVE SQL POSITIVE FAIL; REPAIR REVIEW PENDING.**
+Native connection đã dùng được. Xem [gói sửa JSON precedence](D:/Travel-Go-Android/travel-go/docs/phase-3/P3_2_STAGING_JSON_PRECEDENCE_REPAIR.md);
+forward fix chưa apply. Manifest gốc dưới đây vẫn giữ nguyên 8/8 hashes.
 Owner đã duyệt apply/test trong chat. Kết quả runtime cập nhật ở
 [staging runtime report](D:/Travel-Go-Android/travel-go/docs/phase-3/P3_2_STAGING_RUNTIME_REPORT.md).
 Các phần source/hash/SOP bên dưới giữ hồ sơ gói đã duyệt; không apply lại migration.

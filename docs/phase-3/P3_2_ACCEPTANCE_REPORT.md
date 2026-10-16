@@ -73,8 +73,10 @@ thiết bị thì source/analyzer không được báo thành native persistence
   Local SelfTest và dry-run **PASS**, Pester **14/14 PASS**; native child-process
   timeout/nonzero/drain đã kiểm. Đây không phải SQL database runtime PASS.
   Owner đã duyệt apply/test; migration **APPLIED** trên staging `bkocylxbuyvdgxccpixx`,
-  post-apply metadata và anon/missing-auth smoke PASS. Full SQL suites/ownership/
-  12 races **NOT RUN**, chờ Owner cấu hình native PG connection; không cần duyệt lại.
+  post-apply metadata và anon/missing-auth smoke PASS. Native PG connection đã thành
+  công; positive SQL suite **FAIL** do JSON operator precedence ở reorderDay/ack.
+  Negative/B3 suites và 12 races **NOT RUN**. [Forward fix](D:/Travel-Go-Android/travel-go/docs/phase-3/P3_2_STAGING_JSON_PRECEDENCE_REPAIR.md)
+  đã chuẩn bị, chưa apply, chờ Owner review hash mới theo plan §4.
   Chi tiết ở [runtime report](D:/Travel-Go-Android/travel-go/docs/phase-3/P3_2_STAGING_RUNTIME_REPORT.md).
 - No deployment performed. Primary B3 stays **NOT APPLIED** per handoff;
   primary is outside scope. Không apply lại migration staging đã thành công.

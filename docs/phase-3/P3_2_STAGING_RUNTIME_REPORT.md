@@ -1,8 +1,21 @@
 # T6–T7 staging — apply thành công, nghiệm thu còn chờ native connection
 
 Ngày 2026-10-16. Owner đã duyệt apply và chạy kiểm tra đúng gói staging trong chat.
-**MIGRATION APPLIED; POST-APPLY METADATA/ACL SMOKE PASS; FULL SQL/RACES NOT RUN.**
+**MIGRATION APPLIED; NATIVE SQL POSITIVE FAIL; FORWARD FIX PREPARED, NOT APPLIED.**
 Không coi P3.2 hoặc Account acceptance là hoàn tất.
+
+## Cập nhật sau khi Owner cấu hình native connection
+
+- Native TLS connect thành công `postgres|postgres|t`; không cần Owner nhập lại mật khẩu.
+- ExecuteStaging FAIL tại positive suite, lỗi `boolean -> unknown` trong reorderDay.
+  Negative/B3 suites và 12 races chưa chạy. Không báo SQL nghiệm thu PASS.
+- Transaction fixture rollback; read-only 2026-10-16 11:56:25 ICT xác nhận cả hai
+  namespace synthetic users còn 0. Không đổi migration đã apply hoặc data sản phẩm.
+- Đã chuẩn bị [gói forward fix](D:/Travel-Go-Android/travel-go/docs/phase-3/P3_2_STAGING_JSON_PRECEDENCE_REPAIR.md)
+  cho 5 vị trí toán hạng JSON trong hai private functions, có preflight/regression
+  transaction. Fix chưa apply, chờ duyệt hash mới theo plan §4.
+- SelfTest/dry-run PASS; corrected expression SELECT true/true. New DDL/full
+  SQL suites sau sửa NOT RUN. Các kiểm post-apply/ACL bên dưới là evidence lịch sử.
 
 ## Changed
 
@@ -80,9 +93,8 @@ MCP sinh registry timestamp khác CLI file → xác nhận exact stored SQL hash
 đồng bộ duy nhất registry entry → không để lần migration sau coi cùng source là
 hai migration. Apply thành công không đồng nghĩa native concurrency PASS.
 
-Tiếp theo: Owner chạy helper cấu hình cục bộ và nhắn đã cấu hình xong. Đọc metadata
-không chứa password tại `%LOCALAPPDATA%/TravelGO/staging-db/connection.json`, xác
-minh target/path, rồi chạy đúng runner ExecuteStaging đã duyệt và kiểm cleanup.
-Nếu source/runtime lỗi, giữ database state và báo lỗi; không reset/drop/reapply.
+Tiếp theo: Owner duyệt gói JSON precedence repair; cấu hình native đã dùng được,
+không yêu cầu nhập lại. Sau approval apply đúng forward migration rồi chạy lại
+runner và kiểm cleanup. Giữ state hiện tại; không reset/drop/reapply file gốc.
 Giữ Codex-only, superpowers OFF, no subagents/Docker/main push; giữ nguyên sáu
 Owner paths, macOS dirty file và unrelated untracked docs.
