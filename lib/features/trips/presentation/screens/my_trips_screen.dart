@@ -12,6 +12,7 @@ import 'editable_trip_detail_screen.dart';
 import '../../providers/guest_drafts_provider.dart';
 import '../../providers/saved_trips_provider.dart';
 import '../widgets/guest_draft_import_sheet.dart';
+import '../widgets/editable_draft_import_selection.dart';
 import 'saved_trip_snapshot_screen.dart';
 
 class MyTripsScreen extends StatefulWidget {
@@ -87,7 +88,16 @@ class _MyTripsScreenState extends State<MyTripsScreen>
         controller: _tabController,
         children: [
           // Upcoming Tab
-          visible.isNotEmpty || (owned && tripsProvider.hasMoreTrips)
+          !auth.isAuthenticated &&
+                  !auth.isDemoSession &&
+                  auth.currentUser == null
+              ? EditableGuestDraftList(
+                  fallback: _buildEmptyState(
+                    context,
+                    'Chưa có chuyến đi sắp tới',
+                  ),
+                )
+              : visible.isNotEmpty || (owned && tripsProvider.hasMoreTrips)
               ? _buildSavedTripsList(context, visible)
               : owned &&
                     (tripsProvider.isLoading ||
@@ -614,15 +624,25 @@ class _EditableTripRow extends StatelessWidget {
           ),
         const SizedBox(height: 8),
         OutlinedButton.icon(
-          onPressed: () => Navigator.push<void>(
-            context,
-            MaterialPageRoute(
-              builder: (_) => EditableTripDetailScreen(
-                tripId: summary.tripId,
-                expectedOwnerId: summary.ownerId,
+          onPressed: () async {
+            final trips = context.read<SavedTripsProvider>();
+            final epoch = trips.sessionEpoch;
+            await Navigator.push<void>(
+              context,
+              MaterialPageRoute(
+                builder: (_) => EditableTripDetailScreen(
+                  tripId: summary.tripId,
+                  expectedOwnerId: summary.ownerId,
+                ),
               ),
-            ),
-          ),
+            );
+            if (!context.mounted ||
+                trips.sessionEpoch != epoch ||
+                trips.currentUserId != summary.ownerId) {
+              return;
+            }
+            await trips.loadTrips(summary.ownerId);
+          },
           icon: const Icon(Icons.edit_calendar_outlined),
           label: const Text('Xem lịch trình tự lập'),
         ),

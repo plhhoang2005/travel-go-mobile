@@ -7,6 +7,7 @@ import '../../../auth/providers/auth_provider.dart';
 import '../../providers/guest_drafts_provider.dart';
 import '../../providers/saved_trips_provider.dart';
 import '../../services/guest_import_service.dart';
+import 'editable_draft_import_selection.dart';
 
 /// Explicit, owner-bound consent surface. Opening or reloading never imports.
 class GuestDraftImportSheet extends StatefulWidget {
@@ -215,6 +216,25 @@ class _GuestDraftImportSheetState extends State<GuestDraftImportSheet> {
                       Expanded(
                         child: ListView(
                           children: [
+                            OutlinedButton.icon(
+                              onPressed: _busy || provider.isImporting
+                                  ? null
+                                  : () => Navigator.push<void>(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            EditableDraftImportSelection(
+                                              expectedOwnerId:
+                                                  widget.expectedOwnerId,
+                                            ),
+                                      ),
+                                    ),
+                              icon: const Icon(Icons.edit_calendar_outlined),
+                              label: const Text(
+                                'Chọn bản nháp lịch trình tự lập',
+                              ),
+                            ),
+                            const Text('Bản nháp từ kế hoạch cũ'),
                             if (!provider.isLoading && available.isEmpty)
                               const ListTile(
                                 title: Text(
