@@ -20,6 +20,18 @@ T17 thêm `manual_planner_end_to_end_test.dart` và Android target
 đọc dữ liệu của app chính. Launch hai lần để kiểm sealed restart/A→B. Chưa có
 thiết bị thì source/analyzer không được báo thành native persistence PASS.
 
+## DNY-NX9 device testing — chưa đạt
+
+Đã install và test một phần trên DNY-NX9 Android16. Guest save/cold reopen,
+reorder/move/resize cancel và dự kiến arithmetic PASS; Account import/list/read
+PASS. B create/save cũng được UI và server xác nhận. Delete activity dialog FAIL;
+B list không cập nhật sau tạo và cold-start B quay Guest ít nhất37s. Login có
+cửa sổ chờ ít nhất80s, chưa đo tổng latency. Các bài Account còn lại BLOCKED;
+Owner xác nhận chủ động dùng B, không có bằng chứng đổi sai identity. Toàn P3.2 chưa nghiệm thu.
+Chi tiết và từng giới hạn ở [phone test report](D:/Travel-Go-Android/travel-go/docs/phase-3/P3_2_DNY_NX9_PHONE_TEST_REPORT.md).
+Các dòng Android PENDING bên dưới là coverage tổng, không phủ nhận evidence từng
+bài hoặc biến chúng thành whole-flow PASS. Chưa sửa lỗi theo yêu cầu test trước.
+
 ## Testing
 
 - T14: analyzer sạch; focused 82 PASS; full 638 PASS.
@@ -86,7 +98,7 @@ thiết bị thì source/analyzer không được báo thành native persistence
   SQL-only repair không đổi app source nên chưa cần rebuild chỉ vì migration này.
 - Owner P3.1 acceptance remains PENDING. Whole P3.2 cannot be COMPLETE from
   synthetic tests. No push/PR/hosted CI/merge in this scope.
-- Device inventory at 2026-10-16: `adb devices -l` empty. No install/clear/uninstall.
+- Device inventory ban đầu trống; sau đó DNY-NX9 đã kết nối TLS/Wi-Fi, install -r staging thành công. Không clear data/uninstall; xem phone test report.
 - Previous diagnostic PNGs are NOT ACCEPTED visual evidence. No visual or
   accessibility PASS is inferred from widget tests or UI skill suggestions.
 - Preserve Owner generated macOS change and all unrelated/private files.
@@ -136,6 +148,6 @@ chỉ retire đúng revision có ack. Bản mới hơn tiếp tục tồn tại 
 - Catalogue trong APK trùng bytes cả source và asset, SHA-256
   `C14CECC97149A3ACF64F439D44662333BBB8756BD580E18F368AC053BDD1542A`.
 - Staging URL + nhãn STAGING có trong app binary. Hash bản xuất trùng bản build.
-- ADB không có thiết bị: install/launch/native two-stage probe/phone UI NOT RUN.
-- **Chỉ test Guest/UI hiện tại. Account runtime chờ T6/T7 + exact staging apply
-  approval + kiểm SQL thật. Không tự apply hoặc đổi sang primary.**
+- Evidence ban đầu chưa có ADB device đã được thay bằng phone test report: staging install/launch/UI một phần đã chạy trên DNY-NX9; native two-stage probe chưa chạy.
+- SQL staging đã PASS; Account phone tests đã chạy một phần và phát hiện lỗi.
+  Xem phone report; chưa coi APK đạt nghiệm thu toàn luồng. Không đổi sang primary.
