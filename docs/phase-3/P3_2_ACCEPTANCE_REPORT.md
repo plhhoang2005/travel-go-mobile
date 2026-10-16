@@ -72,11 +72,12 @@ thiết bị thì source/analyzer không được báo thành native persistence
   3 bảng/6 RPC V2 chưa tồn tại. B3 definition/ACL/owner/search_path không đổi.
   Local SelfTest và dry-run **PASS**, Pester **14/14 PASS**; native child-process
   timeout/nonzero/drain đã kiểm. Đây không phải SQL database runtime PASS.
-  SQL suites, RLS thật và 12 lịch chạy đồng thời trên staging **NOT RUN**,
-  chờ Owner duyệt riêng đúng gói apply/test/cleanup.
-- No migration applied or deploy performed. Primary B3 stays **NOT APPLIED** per
-  handoff; primary is outside scope. Only possible future staging target:
-  `bkocylxbuyvdgxccpixx`, after Owner approves the exact reviewed package.
+  Owner đã duyệt apply/test; migration **APPLIED** trên staging `bkocylxbuyvdgxccpixx`,
+  post-apply metadata và anon/missing-auth smoke PASS. Full SQL suites/ownership/
+  12 races **NOT RUN**, chờ Owner cấu hình native PG connection; không cần duyệt lại.
+  Chi tiết ở [runtime report](D:/Travel-Go-Android/travel-go/docs/phase-3/P3_2_STAGING_RUNTIME_REPORT.md).
+- No deployment performed. Primary B3 stays **NOT APPLIED** per handoff;
+  primary is outside scope. Không apply lại migration staging đã thành công.
 - APK, when built, is a **Guest/UI staging test build**. Account V2 list/save/edit/
   import depend on missing staging RPC/schema and will report server not ready.
   Legacy list also requires the mixed discriminator RPC; do not silently fall

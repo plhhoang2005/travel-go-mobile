@@ -1,6 +1,9 @@
 # P3.2 — Gói duyệt migration staging T6–T7
 
-Ngày 2026-10-16. **SOURCE REVIEWABLE; LOCAL CHECKS PASS; DATABASE EXECUTION NOT RUN.**
+Ngày 2026-10-16. **STAGING MIGRATION APPLIED; FULL SQL/RACE ACCEPTANCE PENDING.**
+Owner đã duyệt apply/test trong chat. Kết quả runtime cập nhật ở
+[staging runtime report](D:/Travel-Go-Android/travel-go/docs/phase-3/P3_2_STAGING_RUNTIME_REPORT.md).
+Các phần source/hash/SOP bên dưới giữ hồ sơ gói đã duyệt; không apply lại migration.
 Repo `plhhoang2005/travel-go-mobile`, workspace `D:/Travel-Go-Android/travel-go`,
 branch `codex/phase-3-discovery-design`. Không push/PR/deploy trong task này.
 Source HEAD được ràng buộc: `0a499cf95d9645128e2349d39573ba817fda199f`.
