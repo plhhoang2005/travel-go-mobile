@@ -10,6 +10,9 @@ import '../services/local_account_lifecycle_service.dart';
 import '../services/local_trip_store.dart';
 import '../services/trip_snapshot_service.dart';
 import '../services/trips_service.dart';
+import '../services/editable_trip_repository.dart';
+import '../services/editable_trip_service.dart';
+import '../models/editable_remote_records.dart';
 
 enum AccountCacheState {
   idle,
@@ -33,6 +36,9 @@ class SavedTripsProvider extends ChangeNotifier {
   String? _cacheErrorMessage;
   String? _cacheWriteMessage;
 
+  EditableTripRepository? _editableRepository;
+  List<OwnedTripSummary> _visibleTrips = [];
+  OwnedTripCursor? _nextCursor;
   List<SavedTrip> _trips = [];
   bool _isLoading = false;
   String? _currentUserId;
@@ -47,7 +53,61 @@ class SavedTripsProvider extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   String? get currentUserId => _currentUserId;
   int get sessionEpoch => _sessionEpoch;
-  int get count => _trips.length;
+  int get count => visibleTrips.length;
+  bool get hasMoreTrips => _nextCursor != null;
+  List<OwnedTripSummary> get visibleTrips {
+    if (requiresLifecycle &&
+        (_accountHandle == null || _lifecycle?.handle != _accountHandle)) {
+      return const [];
+    }
+    return List.unmodifiable(
+      _editableRepository == null ? _trips.map(_legacySummary) : _visibleTrips,
+    );
+  }
+
+  static OwnedTripSummary _legacySummary(SavedTrip trip) => OwnedTripSummary(
+    kind: OwnedTripKind.legacyV1,
+    tripId: trip.id,
+    ownerId: trip.userId,
+    title: trip.title,
+    destinationName: trip.destinationName,
+    createdAt:
+        trip.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+    version: null,
+  );
+  static OwnedTripSummary _editableSummary(
+    EditableHead head, {
+    DateTime? createdAt,
+  }) => OwnedTripSummary(
+    kind: OwnedTripKind.editableV2,
+    tripId: head.tripId,
+    ownerId: head.ownerId,
+    title: head.document.input.title,
+    destinationName:
+        head.document.input.destinationName ?? 'Chưa chọn điểm đến',
+    // Epoch is an unknown-sort placeholder for cached entries, never a claimed creation date.
+    createdAt: createdAt ?? DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+    version: head.version,
+  );
+  void bindEditableRepository(EditableTripRepository repository) {
+    if (_isDisposed || !requiresLifecycle) return;
+    if (!identical(repository.lifecycle, _lifecycle) ||
+        !identical(repository.store, _cacheStore)) {
+      throw StateError('Editable repository does not match account storage.');
+    }
+    _editableRepository = repository;
+    _visibleTrips = [];
+    _nextCursor = null;
+    _notifyDeferred();
+  }
+
+  Future<void> loadMoreTrips() async {
+    if (_isLoading || _nextCursor == null || _editableRepository == null) {
+      return;
+    }
+    await _loadMixedTrips(_currentUserId, more: true);
+  }
+
   List<AccountTripSnapshotRecord> get accountSnapshots =>
       List.unmodifiable(_accountSnapshots);
   AccountCacheState get cacheState => _cacheState;
@@ -71,6 +131,8 @@ class SavedTripsProvider extends ChangeNotifier {
     _accountHandle = handle;
     _currentUserId = handle.ownerId;
     _trips = [];
+    _visibleTrips = [];
+    _nextCursor = null;
     _accountSnapshots = [];
     _cacheState = AccountCacheState.loading;
     _cacheErrorMessage = null;
@@ -172,7 +234,253 @@ class SavedTripsProvider extends ChangeNotifier {
       _accountHandle?.ownerId == owner &&
       _lifecycle?.isCurrentProof(proof) == true;
 
+  Future<void> _tryMixedOffline(
+    LocalTripStore store,
+    SessionHandle handle,
+    String owner,
+    int epoch,
+    AccountSessionProof proof,
+  ) async {
+    try {
+      await _showOwnedOffline(store, handle, owner, epoch, proof);
+    } catch (_) {
+      if (!_currentAccount(owner, epoch, proof)) return;
+      _visibleTrips = [];
+      _trips = [];
+      _accountSnapshots = [];
+      _nextCursor = null;
+      _cacheState = AccountCacheState.error;
+      _cacheErrorMessage = 'Cache trên máy chưa thể đọc an toàn.';
+    }
+  }
+
+  void _sortVisible() => _visibleTrips.sort((a, b) {
+    final time = b.createdAt.compareTo(a.createdAt);
+    return time != 0 ? time : b.tripId.compareTo(a.tripId);
+  });
+  Future<void> _loadMixedTrips(String? owner, {bool more = false}) async {
+    final lifecycle = _lifecycle,
+        store = _cacheStore,
+        adapter = _snapshotService;
+    final handle = _accountHandle, repository = _editableRepository;
+    if (handle != null && owner != handle.ownerId) return;
+    if (owner == null ||
+        lifecycle == null ||
+        store == null ||
+        adapter == null ||
+        handle == null ||
+        repository == null) {
+      clearLocal();
+      return;
+    }
+    AccountSessionProof proof;
+    VoidCallback finish;
+    try {
+      proof = lifecycle.captureProof();
+      finish = lifecycle.beginAccountOperation(proof);
+    } catch (_) {
+      clearLocal();
+      return;
+    }
+    final epoch = ++_sessionEpoch;
+    _isLoading = true;
+    _cacheState = AccountCacheState.loading;
+    _cacheErrorMessage = null;
+    _errorMessage = null;
+    _notifyDeferred();
+    try {
+      final page = await repository.listOwned(
+        cursor: more ? _nextCursor : null,
+      );
+      if (!_currentAccount(owner, epoch, proof)) return;
+      if (page.items.any((t) => t.ownerId != owner) ||
+          page.items.map((t) => t.tripId).toSet().length != page.items.length) {
+        throw const SnapshotRejectedException('Invalid mixed list identity.');
+      }
+      final summaries = <String, OwnedTripSummary>{
+        if (more)
+          for (final row in _visibleTrips) row.tripId: row,
+        for (final row in page.items) row.tripId: row,
+      };
+      final batch = await adapter.fetchLegacySnapshots(
+        proof: proof,
+        tripIds: page.items
+            .where((t) => t.kind == OwnedTripKind.legacyV1)
+            .map((t) => t.tripId)
+            .toList(),
+      );
+      if (!_currentAccount(owner, epoch, proof)) return;
+      final remote = {for (final row in batch.snapshots) row.tripId: row};
+      for (final row in page.items.where(
+        (t) => t.kind == OwnedTripKind.legacyV1,
+      )) {
+        if (!remote.containsKey(row.tripId)) summaries.remove(row.tripId);
+      }
+      final legacyCache = await store.listSnapshots(handle: handle);
+      if (!_currentAccount(owner, epoch, proof)) return;
+      final editableCache = await store.listEditableSnapshots(handle: handle);
+      if (!_currentAccount(owner, epoch, proof)) return;
+      for (final row in page.items.where(
+        (t) => t.kind == OwnedTripKind.editableV2,
+      )) {
+        if (legacyCache.any((cached) => cached.tripId == row.tripId)) {
+          throw const SnapshotRejectedException('Cached trip kind changed.');
+        }
+        final view = await repository.readTrip(row.tripId, allowCached: false);
+        if (!_currentAccount(owner, epoch, proof)) return;
+        if (view.head == null) {
+          summaries.remove(row.tripId);
+          continue;
+        }
+        if (view.state != EditableTripViewState.online ||
+            view.head!.ownerId != owner ||
+            row.version == null ||
+            view.head!.version < row.version!) {
+          throw const SnapshotRejectedException(
+            'Editable list head unavailable.',
+          );
+        }
+        summaries[row.tripId] = _editableSummary(
+          view.head!,
+          createdAt: row.createdAt,
+        );
+      }
+      final removed = <String>[];
+      for (final cached in legacyCache.where(
+        (c) => !remote.containsKey(c.tripId),
+      )) {
+        final checked = await adapter.readOwnedSnapshot(
+          proof: proof,
+          tripId: cached.tripId,
+        );
+        if (!_currentAccount(owner, epoch, proof)) return;
+        if (checked.status == SnapshotLookupStatus.ready &&
+            checked.snapshot != null) {
+          remote[cached.tripId] = checked.snapshot!;
+        } else if ({
+          SnapshotLookupStatus.deleted,
+          SnapshotLookupStatus.unavailable,
+        }.contains(checked.status)) {
+          removed.add(cached.tripId);
+          summaries.remove(cached.tripId);
+        } else {
+          throw const SnapshotRejectedException(
+            'Absent legacy recheck failed.',
+          );
+        }
+      }
+      for (final cached in editableCache.where(
+        (c) => !page.items.any((t) => t.tripId == c.head.tripId),
+      )) {
+        final view = await repository.readTrip(
+          cached.head.tripId,
+          allowCached: false,
+        );
+        if (!_currentAccount(owner, epoch, proof)) return;
+        if (view.head == null) {
+          summaries.remove(cached.head.tripId);
+          continue;
+        }
+        if (view.state != EditableTripViewState.online ||
+            view.head!.ownerId != owner) {
+          throw const SnapshotRejectedException(
+            'Absent editable recheck failed.',
+          );
+        }
+        summaries[cached.head.tripId] = _editableSummary(
+          view.head!,
+          createdAt:
+              summaries[cached.head.tripId]?.createdAt ??
+              _visibleTrips
+                  .where((t) => t.tripId == cached.head.tripId)
+                  .firstOrNull
+                  ?.createdAt,
+        );
+      }
+      for (final row in remote.values) {
+        if (row.ownerId != owner) {
+          throw const SnapshotRejectedException('Legacy owner mismatch.');
+        }
+        if (!_currentAccount(owner, epoch, proof)) return;
+        await store.replaceSnapshot(
+          handle: handle,
+          tripId: row.tripId,
+          payload: row.payload,
+          remoteVersion: row.remoteVersion,
+          fetchedAt: row.fetchedAt,
+        );
+        summaries.putIfAbsent(
+          row.tripId,
+          () => _legacySummary(_fromRemote(row)),
+        );
+      }
+      for (final id in removed) {
+        if (!_currentAccount(owner, epoch, proof)) return;
+        await store.deleteSnapshot(handle: handle, tripId: id);
+      }
+      final cache = await store.listSnapshots(handle: handle);
+      if (!_currentAccount(owner, epoch, proof)) return;
+      _accountSnapshots = cache;
+      _trips = remote.values.map(_fromRemote).toList();
+      _visibleTrips = summaries.values.toList();
+      _sortVisible();
+      _nextCursor = page.nextCursor;
+      _cacheState = AccountCacheState.online;
+      _cacheErrorMessage = null;
+      _cacheWriteMessage = null;
+    } on EditableRemoteException catch (error) {
+      if (!_currentAccount(owner, epoch, proof)) return;
+      if (error.code == 'unauthorized') {
+        lifecycle.invalidateAccountContext();
+        clearLocal();
+        _cacheState = AccountCacheState.blocked;
+        _cacheErrorMessage = 'Phiên đăng nhập cần được kiểm tra lại.';
+        _notifyDeferred();
+      } else if (error.kind == EditableRemoteFailure.uncertain) {
+        await _tryMixedOffline(store, handle, owner, epoch, proof);
+      } else {
+        _visibleTrips = [];
+        _trips = [];
+        _accountSnapshots = [];
+        _nextCursor = null;
+        _cacheState = AccountCacheState.error;
+        _cacheErrorMessage =
+            error.kind == EditableRemoteFailure.deploymentBlocked
+            ? 'Chức năng danh sách chuyến đi chưa sẵn sàng trên máy chủ.'
+            : 'Không thể kiểm tra danh sách chuyến đi an toàn.';
+      }
+    } on DioException catch (error) {
+      if (!_currentAccount(owner, epoch, proof)) return;
+      if ({401, 403}.contains(error.response?.statusCode)) {
+        lifecycle.invalidateAccountContext();
+        clearLocal();
+        _cacheState = AccountCacheState.blocked;
+        _cacheErrorMessage = 'Phiên đăng nhập cần được kiểm tra lại.';
+      } else if (_isConnectivityError(error)) {
+        await _tryMixedOffline(store, handle, owner, epoch, proof);
+      } else {
+        _cacheState = AccountCacheState.error;
+        _cacheErrorMessage = 'Không thể kiểm tra danh sách chuyến đi.';
+      }
+    } catch (_) {
+      if (_currentAccount(owner, epoch, proof)) {
+        _cacheState = AccountCacheState.error;
+        _cacheErrorMessage = 'Dữ liệu chuyến đi chưa thể kiểm tra an toàn.';
+      }
+    } finally {
+      finish();
+      if (_currentAccount(owner, epoch, proof)) {
+        _isLoading = false;
+        _notifyDeferred();
+      }
+    }
+  }
+
   Future<void> _loadOwnedTrips(String? userId) async {
+    if (_editableRepository != null) {
+      await _loadMixedTrips(userId);
+      return;
+    }
     final lifecycle = _lifecycle;
     final store = _cacheStore;
     final adapter = _snapshotService;
@@ -329,12 +637,23 @@ class SavedTripsProvider extends ChangeNotifier {
     if (!_currentAccount(owner, epoch, proof)) return;
     _accountSnapshots = cache;
     _trips = cache.map(_fromCached).toList();
-    _cacheState = cache.isEmpty
+    if (_editableRepository != null) {
+      final editable = await store.listEditableSnapshots(handle: handle);
+      if (!_currentAccount(owner, epoch, proof)) return;
+      _visibleTrips = [
+        ..._trips.map(_legacySummary),
+        ...editable.map((row) => _editableSummary(row.head)),
+      ];
+      _sortVisible();
+      _nextCursor = null;
+    }
+    final empty = _editableRepository == null
+        ? cache.isEmpty
+        : _visibleTrips.isEmpty;
+    _cacheState = empty
         ? AccountCacheState.unavailable
         : AccountCacheState.offline;
-    _cacheErrorMessage = cache.isEmpty
-        ? 'Chưa có chuyến đi lưu trên máy.'
-        : null;
+    _cacheErrorMessage = empty ? 'Chưa có chuyến đi lưu trên máy.' : null;
     _errorMessage = null;
   }
 
@@ -478,6 +797,11 @@ class SavedTripsProvider extends ChangeNotifier {
       // STRICT LAW: Success only after valid server ID acknowledgement
       if (saved.id.isNotEmpty && saved.userId == targetUserId) {
         _trips.insert(0, saved);
+        if (_editableRepository != null) {
+          _visibleTrips.removeWhere((t) => t.tripId == saved.id);
+          _visibleTrips.insert(0, _legacySummary(saved));
+          _sortVisible();
+        }
         if (proof != null) {
           try {
             final lookedUp = await _snapshotService!.readOwnedSnapshot(
@@ -601,6 +925,7 @@ class SavedTripsProvider extends ChangeNotifier {
         notifyListeners();
         return false;
       }
+      _visibleTrips.removeWhere((t) => t.tripId == tripId);
       if (proof != null) {
         try {
           await _cacheStore!.deleteSnapshot(
@@ -635,6 +960,8 @@ class SavedTripsProvider extends ChangeNotifier {
   }
 
   void clearLocal() {
+    _visibleTrips = [];
+    _nextCursor = null;
     _sessionEpoch++;
     _trips = [];
     _currentUserId = null;

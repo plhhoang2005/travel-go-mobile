@@ -225,6 +225,8 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
   GuestImportService? _guestImports;
   DioGuestImportTransport? _guestTransport;
   TripSnapshotService? _snapshotReader;
+  EditableTripRepository? _editableRepository;
+  EditableTripService? _editableService;
   bool _disposed = false;
 
   @override
@@ -289,19 +291,9 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
     final lifecycle = await _getLifecycle();
     final store = await _runtime.getStore();
     if (_disposed) throw StateError('App resources are closed.');
-    final service = EditableTripService(
-      projectUrl: SupabaseConstants.projectUrl,
-      publicKey: SupabaseConstants.publishableKey,
-      isCurrentProof: lifecycle.isCurrentProof,
-    );
-    final repository = EditableTripRepository(
-      store: store,
-      lifecycle: lifecycle,
-      service: service,
-    );
+    final repository = _getEditableRepository(lifecycle, store);
     return ManualPlannerResources(
       repository: repository,
-      ownedService: service,
       planner: ManualPlannerProvider(
         repositoryLoader: () async => repository,
         lifecycle: lifecycle,
@@ -312,6 +304,25 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
         lifecycle: lifecycle,
         deviceScope: 'default',
       ),
+    );
+  }
+
+  EditableTripRepository _getEditableRepository(
+    LocalAccountLifecycleService lifecycle,
+    LocalTripStore store,
+  ) {
+    final existing = _editableRepository;
+    if (existing != null) return existing;
+    final service = EditableTripService(
+      projectUrl: SupabaseConstants.projectUrl,
+      publicKey: SupabaseConstants.publishableKey,
+      isCurrentProof: lifecycle.isCurrentProof,
+    );
+    _editableService = service;
+    return _editableRepository = EditableTripRepository(
+      store: store,
+      lifecycle: lifecycle,
+      service: service,
     );
   }
 
@@ -357,12 +368,14 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
           invalidate: saved.unbindAccount,
           bind: (handle) async {
             if (_disposed) return;
+            final editable = _getEditableRepository(lifecycle, store);
             saved.bindAccount(
               lifecycle: lifecycle,
               store: store,
               snapshots: snapshots,
               handle: handle,
             );
+            saved.bindEditableRepository(editable);
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (!_disposed && lifecycle.handle == handle) {
                 unawaited(saved.loadTrips(handle.ownerId));
@@ -452,6 +465,7 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
     _guestImports?.dispose();
     _guestTransport?.close();
     _snapshotReader?.close();
+    _editableService?.close();
     _auth.dispose();
     unawaited(
       _closeResources().catchError((Object _) {
