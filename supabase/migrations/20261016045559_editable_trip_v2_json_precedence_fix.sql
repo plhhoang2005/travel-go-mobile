@@ -1,4 +1,4 @@
--- Forward fix only. Original applied migration stays immutable.
+-- Forward fix R2: JSON precedence and distinct query aliases. Original stays immutable.
 -- CLI returned: 20261016045559_editable_trip_v2_json_precedence_fix.sql
 -- Separate exact staging repair approval required before apply.
 BEGIN;
@@ -75,8 +75,8 @@ BEGIN
  IF account_save THEN
  issues:=private.p32_issues(doc);
  FOR i IN SELECT * FROM jsonb_array_elements(issues) LOOP
- PERFORM private.p32_require(EXISTS(SELECT 1 FROM jsonb_array_elements(doc->'exceptions') e WHERE e->>'issueCode'=i->>'issueCode' AND e->>'fingerprint'=i->>'fingerprint'
- AND jsonb_array_length(e->'itemIds')=jsonb_array_length(i->'itemIds') AND (e->'itemIds') @> (i->'itemIds') AND private.p32_nonblank(e->>'reason')));
+ PERFORM private.p32_require(EXISTS(SELECT 1 FROM jsonb_array_elements(doc->'exceptions') AS exception_row(value) WHERE exception_row.value->>'issueCode'=i->>'issueCode' AND exception_row.value->>'fingerprint'=i->>'fingerprint'
+ AND jsonb_array_length(exception_row.value->'itemIds')=jsonb_array_length(i->'itemIds') AND (exception_row.value->'itemIds') @> (i->'itemIds') AND private.p32_nonblank(exception_row.value->>'reason')));
  END LOOP; END IF; RETURN doc; END $f$;
 
 CREATE OR REPLACE FUNCTION private.p32_replay(base jsonb,commands jsonb) RETURNS jsonb LANGUAGE plpgsql SET search_path='' AS $f$
@@ -120,7 +120,7 @@ BEGIN PERFORM private.p32_list(commands,4000);
  PERFORM private.p32_entity(e,CASE WHEN op='putEstimate' THEN 'id itemId category unitAmountVnd basis customQuantity active description provenance' ELSE 'id itemId amountVnd category paidOn description sourceItemSnapshot provenance' END);
  SELECT coalesce(jsonb_agg(CASE WHEN value->'id'=e->'id' THEN e ELSE value END ORDER BY ordinality),'[]'),count(*) FILTER(WHERE value->'id'=e->'id') INTO ordered,before_count FROM jsonb_array_elements(doc->kind) WITH ORDINALITY;
  IF before_count=0 THEN ordered:=ordered||jsonb_build_array(e); END IF; doc:=jsonb_set(doc,ARRAY[kind],ordered);
- WHEN 'deleteActual' THEN PERFORM private.p32_keys(c,'op expenseId'); PERFORM private.p32_require(EXISTS(SELECT 1 FROM jsonb_array_elements(doc->'actualExpenses') e WHERE e->'id'=c->'expenseId'),'invalid_command');
+ WHEN 'deleteActual' THEN PERFORM private.p32_keys(c,'op expenseId'); PERFORM private.p32_require(EXISTS(SELECT 1 FROM jsonb_array_elements(doc->'actualExpenses') AS actual_row(value) WHERE actual_row.value->'id'=c->'expenseId'),'invalid_command');
  SELECT coalesce(jsonb_agg(value ORDER BY ordinality),'[]') INTO ordered FROM jsonb_array_elements(doc->'actualExpenses') WITH ORDINALITY WHERE value->'id'<>c->'expenseId'; doc:=jsonb_set(doc,'{actualExpenses}',ordered);
  WHEN 'acknowledgeIssue' THEN PERFORM private.p32_keys(c,'op exception'); e:=c->'exception'; PERFORM private.p32_entity(e,'issueCode itemIds reason fingerprint');
  PERFORM private.p32_require(private.p32_nonblank(e->>'reason') AND EXISTS(SELECT 1 FROM jsonb_array_elements(private.p32_issues(doc)) i WHERE i->>'issueCode'=e->>'issueCode' AND i->>'fingerprint'=e->>'fingerprint' AND jsonb_array_length(i->'itemIds')=jsonb_array_length(e->'itemIds') AND (i->'itemIds') @> (e->'itemIds') AND (e->'itemIds') @> (i->'itemIds')),'invalid_command');
@@ -129,8 +129,8 @@ BEGIN PERFORM private.p32_list(commands,4000);
  SELECT coalesce(jsonb_agg(i.value ORDER BY d.ordinality,(i.value->>'position')::integer),'[]') INTO ordered FROM jsonb_array_elements(doc->'items') i JOIN jsonb_array_elements(doc->'days') WITH ORDINALITY d ON d.value->'id'=i.value->'dayId';
  PERFORM private.p32_require(jsonb_array_length(ordered)=jsonb_array_length(doc->'items'),'invalid_command'); doc:=jsonb_set(doc,'{items}',ordered);
  issues:=private.p32_issues(doc);
- SELECT coalesce(jsonb_agg(e.value ORDER BY e.ordinality),'[]') INTO ordered FROM jsonb_array_elements(doc->'exceptions') WITH ORDINALITY e
- WHERE EXISTS(SELECT 1 FROM jsonb_array_elements(issues) i WHERE i->>'issueCode'=e.value->>'issueCode' AND i->>'fingerprint'=e.value->>'fingerprint');
+ SELECT coalesce(jsonb_agg(exception_row.value ORDER BY exception_row.ordinality),'[]') INTO ordered FROM jsonb_array_elements(doc->'exceptions') WITH ORDINALITY exception_row
+ WHERE EXISTS(SELECT 1 FROM jsonb_array_elements(issues) i WHERE i->>'issueCode'=exception_row.value->>'issueCode' AND i->>'fingerprint'=exception_row.value->>'fingerprint');
  RETURN jsonb_set(doc,'{exceptions}',ordered); END $f$;
 
 -- Synthetic JSON values only: no users, trips or ledger rows are written.
@@ -150,6 +150,14 @@ BEGIN
  END LOOP;
  PERFORM private.p32_validate(result::text,true);
  IF result->'actualExpenses' IS DISTINCT FROM doc->'actualExpenses' THEN RAISE EXCEPTION 'repair_actual_regression'; END IF;
+ result:=private.p32_replay(result,jsonb_build_array(jsonb_build_object('op','deleteActual','expenseId',doc#>'{actualExpenses,0,id}')));
+ IF result->'actualExpenses'<>'[]'::jsonb OR result->'estimates' IS DISTINCT FROM doc->'estimates' THEN RAISE EXCEPTION 'repair_delete_actual_regression'; END IF;
+ PERFORM private.p32_validate(result::text,true);
+ BEGIN
+  PERFORM private.p32_replay(result,jsonb_build_array(jsonb_build_object('op','deleteActual','expenseId',doc#>'{actualExpenses,0,id}')));
+  RAISE EXCEPTION 'repair_missing_delete_error';
+ EXCEPTION WHEN OTHERS THEN IF SQLERRM<>'invalid_command' THEN RAISE; END IF;
+ END;
  IF EXISTS(SELECT 1 FROM pg_proc WHERE oid IN ('private.p32_validate(text,boolean)'::regprocedure,'private.p32_replay(jsonb,jsonb)'::regprocedure) AND
  (proacl IS DISTINCT FROM ARRAY['postgres=X/postgres'::aclitem] OR pg_get_userbyid(proowner)<>'postgres' OR proconfig IS DISTINCT FROM ARRAY['search_path=""'])) THEN RAISE EXCEPTION 'repair_acl_drift'; END IF;
 END $regression$;

@@ -1,8 +1,23 @@
 # T6–T7 staging — apply thành công, nghiệm thu còn chờ native connection
 
 Ngày 2026-10-16. Owner đã duyệt apply và chạy kiểm tra đúng gói staging trong chat.
-**MIGRATION APPLIED; NATIVE SQL POSITIVE FAIL; FORWARD FIX PREPARED, NOT APPLIED.**
+**BASE APPLIED; R1 REPAIR ROLLED BACK; R2 TEMP-UNIT PASS, NOT APPLIED.**
 Không coi P3.2 hoặc Account acceptance là hoàn tất.
+
+## Cập nhật apply repair R1 và chuẩn bị R2
+
+Owner duyệt exact `7fdd0fe`. Hash R1 và original manifest 8/8 khớp, preflight live
+12:16:20 ICT khớp hai function definitions. Supabase apply_migration R1 chạy đến
+regression account validation rồi ERROR 42702 `e is ambiguous`, tự rollback.
+12:17:53 ICT xác nhận repair history absent và hai private definitions vẫn là
+`51256cfeb2a57bf023e90da33503bd08` / `713fa2d3b6c0f836e19dec6b2cdf485a`.
+Không align history hoặc thử apply R2 khi chưa được duyệt hash mới.
+
+R2 sửa thêm query alias tại exception validation/deleteActual/filtering, chỉ trong
+cùng hai private functions; thêm deleteActual positive/negative regression.
+Đã kiểm body R2 qua pg_temp clones + regression và 12-command block: **PASS**,
+transaction rollback; không thay permanent functions hoặc ghi app fixture rows.
+R2 source hash và gói review cập nhật ở repair packet. Full suites/races chưa chạy.
 
 ## Cập nhật sau khi Owner cấu hình native connection
 
@@ -93,7 +108,7 @@ MCP sinh registry timestamp khác CLI file → xác nhận exact stored SQL hash
 đồng bộ duy nhất registry entry → không để lần migration sau coi cùng source là
 hai migration. Apply thành công không đồng nghĩa native concurrency PASS.
 
-Tiếp theo: Owner duyệt gói JSON precedence repair; cấu hình native đã dùng được,
+Tiếp theo: Owner duyệt gói JSON precedence/query alias repair **R2**; cấu hình native đã dùng được,
 không yêu cầu nhập lại. Sau approval apply đúng forward migration rồi chạy lại
 runner và kiểm cleanup. Giữ state hiện tại; không reset/drop/reapply file gốc.
 Giữ Codex-only, superpowers OFF, no subagents/Docker/main push; giữ nguyên sáu

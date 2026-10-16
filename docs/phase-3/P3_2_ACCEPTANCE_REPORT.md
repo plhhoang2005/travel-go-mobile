@@ -76,7 +76,8 @@ thiết bị thì source/analyzer không được báo thành native persistence
   post-apply metadata và anon/missing-auth smoke PASS. Native PG connection đã thành
   công; positive SQL suite **FAIL** do JSON operator precedence ở reorderDay/ack.
   Negative/B3 suites và 12 races **NOT RUN**. [Forward fix](D:/Travel-Go-Android/travel-go/docs/phase-3/P3_2_STAGING_JSON_PRECEDENCE_REPAIR.md)
-  đã chuẩn bị, chưa apply, chờ Owner review hash mới theo plan §4.
+  R1 apply đã rollback do regression phát hiện alias trùng biến; R2 đã qua
+  pg_temp regression/12-command block, chưa apply, chờ duyệt hash R2 theo plan §4.
   Chi tiết ở [runtime report](D:/Travel-Go-Android/travel-go/docs/phase-3/P3_2_STAGING_RUNTIME_REPORT.md).
 - No deployment performed. Primary B3 stays **NOT APPLIED** per handoff;
   primary is outside scope. Không apply lại migration staging đã thành công.
