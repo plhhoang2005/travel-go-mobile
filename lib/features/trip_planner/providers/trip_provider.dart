@@ -247,13 +247,19 @@ class TripProvider extends ChangeNotifier {
   }
 
   Future<bool> submitPlan() async {
-    // The current engine chooses its own destination. Never send a selected
-    // destination workspace to it, including restored drafts with saved results.
-    if (_disposed || !_hasInput || hasSelectedDestination) return false;
+    if (_disposed || !_hasInput) return false;
     _invalidate();
     final generation = _generation;
     final operation = _planOperation;
-    final request = TripPayloadCodec.deepFreezeRequest(_currentRequest);
+    final outgoingRequest = hasSelectedDestination
+        ? _currentRequest.copyWith(
+            destinationId: _metadata.destinationId,
+            destinationName: _metadata.destinationName,
+            startDate: _metadata.startDate,
+            endDate: _metadata.endDate,
+          )
+        : _currentRequest;
+    final request = TripPayloadCodec.deepFreezeRequest(outgoingRequest);
     _currentResponse = null;
     _restored = false;
     _activity = true;
