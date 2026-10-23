@@ -66,10 +66,13 @@ class MapProvider extends ChangeNotifier {
   StreamSubscription<LocationResult>? _locationSubscription;
 
   int _radarGeneration = 0;
+  int _routeContextGeneration = 0;
   bool _appPaused = false;
   bool _disposed = false;
 
   // Getters
+  int get routeContextGeneration => _routeContextGeneration;
+  bool isContextActive(int generation) => _routeContextGeneration == generation;
   MapMode get currentMode => _currentMode;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
@@ -468,11 +471,36 @@ class MapProvider extends ChangeNotifier {
     super.dispose();
   }
 
+  int beginRouteContext() {
+    _routeContextGeneration++;
+    _destination = null;
+    _destinationName = null;
+    _waypoints = [];
+    _currentRoute = null;
+    _selectedWaypoint = null;
+    _errorMessage = null;
+    return _routeContextGeneration;
+  }
+
+  void endRouteContext(int generation) {
+    if (generation == _routeContextGeneration) {
+      _routeContextGeneration++;
+      _destination = null;
+      _destinationName = null;
+      _waypoints = [];
+      _currentRoute = null;
+      _selectedWaypoint = null;
+      _errorMessage = null;
+    }
+  }
+
   Future<void> init({
     LatLng? targetDestination,
     String? targetName,
     List<RouteWaypoint>? waypoints,
+    int? contextGeneration,
   }) async {
+    final generation = contextGeneration ?? beginRouteContext();
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -480,6 +508,8 @@ class MapProvider extends ChangeNotifier {
     try {
       // 1. Resolve current user/origin location
       final locationResult = await _locationService.getCurrentUserLocation();
+      if (generation != _routeContextGeneration || _disposed) return;
+
       _origin = locationResult.position;
       _originName = locationResult.locationName;
       _isMockGps = locationResult.isMock;
@@ -499,17 +529,26 @@ class MapProvider extends ChangeNotifier {
       if (targetDestination != null) {
         _destination = targetDestination;
         _destinationName = targetName ?? 'Điểm đến';
+      } else {
+        _destination = null;
+        _destinationName = null;
       }
 
       // 4. Lazy evaluation: Only fetch route if destination is provided!
       if (_destination != null) {
-        await _fetchRoute();
+        await _fetchRoute(contextGeneration: generation);
+      } else {
+        _currentRoute = null;
       }
     } catch (e) {
-      _errorMessage = 'Không thể khởi tạo bản đồ: $e';
+      if (generation == _routeContextGeneration && !_disposed) {
+        _errorMessage = 'Không thể khởi tạo bản đồ: $e';
+      }
     } finally {
-      _isLoading = false;
-      notifyListeners();
+      if (generation == _routeContextGeneration && !_disposed) {
+        _isLoading = false;
+        notifyListeners();
+      }
     }
   }
 
@@ -525,7 +564,10 @@ class MapProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void clearRoute() => enterLocateOnlyMode();
+  void clearRoute() {
+    _routeContextGeneration++;
+    enterLocateOnlyMode();
+  }
 
   void setOrigin(LatLng position, String name) {
     _origin = position;
@@ -662,16 +704,21 @@ class MapProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> _fetchRoute() async {
+  Future<void> _fetchRoute({int? contextGeneration}) async {
+    final generation = contextGeneration ?? _routeContextGeneration;
     if (_destination == null) return;
+    _currentRoute = null;
     try {
-      _currentRoute = await _apiService.getRoute(
+      final route = await _apiService.getRoute(
         origin: _origin,
         destination: _destination!,
         waypoints: _waypoints,
       );
+      if (generation != _routeContextGeneration || _disposed) return;
+      _currentRoute = route;
       _errorMessage = null;
     } on RoutingException catch (e) {
+      if (generation != _routeContextGeneration || _disposed) return;
       if (e.backendUnreachable) {
         _currentRoute = _generateLocalOfflineLine();
         _errorMessage =
@@ -681,6 +728,7 @@ class MapProvider extends ChangeNotifier {
         _currentRoute = null;
       }
     } catch (e) {
+      if (generation != _routeContextGeneration || _disposed) return;
       _errorMessage = 'Lỗi không xác định: $e';
       _currentRoute = _generateLocalOfflineLine();
     }
