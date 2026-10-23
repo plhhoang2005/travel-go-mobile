@@ -26,6 +26,12 @@ import 'features/favorites/providers/favorites_provider.dart';
 import 'features/trips/providers/saved_trips_provider.dart';
 import 'features/trips/providers/guest_drafts_provider.dart';
 import 'features/home/providers/home_catalog_provider.dart';
+import 'features/explore/providers/public_catalogue_provider.dart';
+import 'features/explore/services/public_catalogue_repository.dart';
+import 'features/explore/services/public_catalogue_cache.dart';
+import 'features/explore/services/catalogue_parser.dart';
+import 'features/explore/models/public_catalogue_snapshot.dart';
+import 'features/explore/models/place_visit_details.dart';
 import 'features/explore/providers/discovery_provider.dart';
 import 'features/explore/providers/place_visit_details_provider.dart';
 import 'features/explore/services/place_visit_cache.dart';
@@ -234,6 +240,7 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
   TripSnapshotService? _snapshotReader;
   EditableTripRepository? _editableRepository;
   EditableTripService? _editableService;
+  PublicCatalogueProvider? _publicCatalogueProvider;
   bool _disposed = false;
 
   @override
@@ -447,9 +454,57 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
     );
   }
 
+  PublicCatalogueProvider _getPublicCatalogueProvider() {
+    return _publicCatalogueProvider ??= PublicCatalogueProvider(
+      repository: PublicCatalogueRepository(
+        seedLoader: () async {
+          final text = await rootBundle.loadString('assets/catalogue/catalogue_readiness_v1.json');
+          final catalogue = CatalogueParser().parse(text);
+          final manifest = DiscoveryManifest(
+            contract: 'travelgo.discovery.manifest.v2',
+            schemaVersion: 2,
+            version: 1,
+            objectKey: 'releases/v2/1.json',
+            sha256: 'c14cecc97149a3acf64f439d44662333bbb8756bd580e18f368ac053bdd1542a',
+            byteLength: text.length,
+            publishedAt: DateTime.utc(2026, 10, 20),
+          );
+          return PublicCatalogueSnapshot(
+            version: 1,
+            sha256: manifest.sha256,
+            origin: 'seed',
+            manifest: manifest,
+            catalogue: catalogue,
+            visits: VisitCatalogue.fromPublicProjection(
+              version: 1,
+              publishedAt: manifest.publishedAt,
+              releaseSha256: manifest.sha256,
+              data: const {},
+              expectedPlaceIds: catalogue.destinations.expand((d) => d.places).map((p) => p.id).toSet(),
+              now: DateTime.now(),
+            ),
+            fetchedAt: DateTime.now(),
+            payloadText: text,
+          );
+        },
+        cache: PublicCatalogueCache(
+          databasePath: () async => p.join(await getDatabasesPath(), 'public_discovery_v2.db'),
+        ),
+        client: Dio(),
+        projectOrigin: SupabaseConstants.projectUrl,
+        publishableKey: SupabaseConstants.publishableKey,
+      ),
+    )..load();
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (!_disposed) unawaited(_auth.handleAppLifecycleState(state));
+    if (!_disposed) {
+      unawaited(_auth.handleAppLifecycleState(state));
+      if (state == AppLifecycleState.resumed) {
+        unawaited(_publicCatalogueProvider?.onResume() ?? Future.value());
+      }
+    }
   }
 
   Future<void> _closeResources() async {
@@ -558,8 +613,21 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
           lazy: false,
         ),
         ChangeNotifierProvider(create: (_) => HomeCatalogProvider()),
-        ChangeNotifierProvider(create: (_) => DiscoveryProvider()),
-        ChangeNotifierProvider(
+        ChangeNotifierProvider<PublicCatalogueProvider>.value(
+          value: _getPublicCatalogueProvider(),
+        ),
+        ChangeNotifierProxyProvider<PublicCatalogueProvider, DiscoveryProvider>(
+          create: (_) => DiscoveryProvider(),
+          update: (_, publicCat, discovery) {
+            final d = discovery ?? DiscoveryProvider();
+            final snapshot = publicCat.snapshot;
+            if (snapshot != null) {
+              d.bindPublicSnapshot(snapshot);
+            }
+            return d;
+          },
+        ),
+        ChangeNotifierProxyProvider<PublicCatalogueProvider, PlaceVisitDetailsProvider>(
           create: (_) => PlaceVisitDetailsProvider(
             now: DateTime.now,
             repositoryFactory: (catalogue) async => VisitDetailsRepository(
@@ -580,11 +648,41 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
                   .expand((destination) => destination.places)
                   .map((place) => place.id)
                   .toSet(),
-              // Pin the supported base inventory; changing it needs a new release.
               expectedCatalogueSha256: 'c14cecc97149a3acf64f439d44662333bbb8756bd580e18f368ac053bdd1542a',
               now: DateTime.now,
             ),
           ),
+          update: (_, publicCat, visitsProvider) {
+            final vp = visitsProvider ?? PlaceVisitDetailsProvider(
+              now: DateTime.now,
+              repositoryFactory: (catalogue) async => VisitDetailsRepository(
+                dio: Dio(),
+                ownsDio: true,
+                cache: SqliteVisitReleaseCache(
+                  databasePath: () async => p.join(
+                    await getDatabasesPath(),
+                    'travelgo_discovery_public_v1.db',
+                  ),
+                ),
+                seedLoader: () => rootBundle.loadString(
+                  'assets/catalogue/place_visit_details_v1.json',
+                ),
+                projectOrigin: Uri.parse(SupabaseConstants.projectUrl),
+                remoteEnabled: SupabaseConstants.isStaging,
+                expectedPlaceIds: catalogue.destinations
+                    .expand((destination) => destination.places)
+                    .map((place) => place.id)
+                    .toSet(),
+                expectedCatalogueSha256: 'c14cecc97149a3acf64f439d44662333bbb8756bd580e18f368ac053bdd1542a',
+                now: DateTime.now,
+              ),
+            );
+            final snapshot = publicCat.snapshot;
+            if (snapshot != null) {
+              vp.bindPublicSnapshot(snapshot);
+            }
+            return vp;
+          },
         ),
         ChangeNotifierProvider(create: (_) => MapProvider()),
       ],

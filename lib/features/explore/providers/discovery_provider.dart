@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:travelgo_mobile/features/explore/models/public_catalogue_snapshot.dart';
 
 import '../models/catalogue_reference.dart';
 import '../services/catalogue_repository.dart';
@@ -15,10 +17,32 @@ class DiscoveryProvider extends ChangeNotifier {
   String? _region;
   int _loadGeneration = 0;
   bool _disposed = false, _started = false;
+  int? _version;
+
   CatalogueReference? get catalogue => _catalogue;
   DiscoveryLoadState get state => _state;
   String get query => _query;
   String? get region => _region;
+  int? get version => _version;
+
+  void bindPublicSnapshot(PublicCatalogueSnapshot snapshot) {
+    if (_disposed) return;
+    if (_version == snapshot.version && _catalogue != null) return;
+    _version = snapshot.version;
+    _catalogue = snapshot.catalogue;
+    _state = DiscoveryLoadState.ready;
+    _started = true;
+    _notifySafely();
+  }
+
+  void _notifySafely() {
+    if (_disposed) return;
+    scheduleMicrotask(() {
+      if (!_disposed) {
+        notifyListeners();
+      }
+    });
+  }
   List<DestinationReference> get visibleDestinations {
     final query = foldSearch(_query);
     return List.unmodifiable(
