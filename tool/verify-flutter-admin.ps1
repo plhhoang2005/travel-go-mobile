@@ -552,10 +552,80 @@ GRANT ALL ON ALL TABLES IN SCHEMA auth TO anon,authenticated,service_role;
     # Publication Mode
     if ($Mode -in @('Publication', 'All')) {
         Write-Host "`n--- [Mode: Publication] Verification ---"
-        if (Test-Path (Join-Path $repoRoot 'test/discovery_publication_gateway_test.mjs')) {
-            Invoke-Check 'publication-node-tests' $nodeExecutable @('--test', 'test/discovery_publication_gateway_test.mjs')
+        $pubNodeTests = @()
+        if (Test-Path (Join-Path $repoRoot 'test/discovery_public_bundle_test.mjs')) {
+            $pubNodeTests += 'test/discovery_public_bundle_test.mjs'
+        }
+        if (Test-Path (Join-Path $repoRoot 'test/admin_publication_gateway_test.mjs')) {
+            $pubNodeTests += 'test/admin_publication_gateway_test.mjs'
+        }
+        if ($pubNodeTests.Count -gt 0) {
+            Invoke-Check 'publication-node-tests' $nodeExecutable (@('--test') + $pubNodeTests)
+        }
+
+        if ($DryRun) {
+            Invoke-Sql -Label 'discovery_publication.sql' -File 'supabase/tests/discovery_publication.sql'
         } else {
-            Write-Host "Publication suite pending Task P1-P11 implementation (recorded as NOT RUN)."
+            Assert-PostgresBinaries
+            $conn = Start-IsolatedPostgres -Purpose 'admin-postgres-publication'
+            try {
+                Invoke-Sql 'synthetic auth substrate' -Sql @'
+CREATE ROLE anon NOLOGIN;
+CREATE ROLE authenticated NOLOGIN;
+CREATE ROLE service_role NOLOGIN BYPASSRLS;
+CREATE SCHEMA auth;
+CREATE TABLE auth.users(
+  id uuid PRIMARY KEY,
+  email text,
+  phone text,
+  raw_user_meta_data jsonb,
+  is_anonymous boolean DEFAULT false,
+  deleted_at timestamptz,
+  banned_until timestamptz,
+  email_confirmed_at timestamptz,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+CREATE TABLE auth.sessions(
+  id uuid PRIMARY KEY,
+  user_id uuid REFERENCES auth.users(id),
+  not_after timestamptz,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$
+  SELECT nullif(current_setting('request.jwt.claim.sub',true),'')::uuid;
+$$;
+CREATE FUNCTION auth.jwt() RETURNS jsonb LANGUAGE sql STABLE AS $$
+  SELECT coalesce(nullif(current_setting('request.jwt.claims',true),'')::jsonb,'{}'::jsonb);
+$$;
+GRANT USAGE ON SCHEMA public,auth TO anon,authenticated,service_role;
+GRANT ALL ON ALL TABLES IN SCHEMA auth TO anon,authenticated,service_role;
+'@ -Connection $conn
+                Invoke-Sql 'baseline.sql' -File (Join-Path $repoRoot 'supabase/staging/baseline.sql') -Connection $conn
+                Invoke-Sql 'profile_privacy.sql' -File (Join-Path $repoRoot 'supabase/migrations/202610080001_profile_privacy.sql') -Connection $conn
+                Invoke-Sql 'profile_preferences.sql' -File (Join-Path $repoRoot 'supabase/migrations/202610190001_profile_preferences.sql') -Connection $conn
+                Invoke-Sql 'two_role_foundation.sql' -File (Join-Path $repoRoot 'supabase/migrations/20261020145005_two_role_foundation.sql') -Connection $conn
+
+                # Draft migrations
+                Invoke-Sql 'admin_discovery_drafts.sql' -File (Join-Path $repoRoot 'supabase/migrations/20261020151440_admin_discovery_drafts.sql') -Connection $conn
+                $draftCommandsMigration = Get-ChildItem -Path (Join-Path $repoRoot 'supabase/migrations') -Filter '*_admin_discovery_commands.sql' -ErrorAction SilentlyContinue | Select-Object -First 1
+                if ($draftCommandsMigration) {
+                    Invoke-Sql 'admin_discovery_commands migration' -File $draftCommandsMigration.FullName -Connection $conn
+                }
+
+                # Publication migration
+                $pubMigration = Get-ChildItem -Path (Join-Path $repoRoot 'supabase/migrations') -Filter '*_discovery_publication_v2.sql' -ErrorAction SilentlyContinue | Select-Object -First 1
+                if ($pubMigration) {
+                    Invoke-Sql 'discovery_publication_v2 migration' -File $pubMigration.FullName -Connection $conn
+                }
+
+                if (Test-Path (Join-Path $repoRoot 'supabase/tests/discovery_publication.sql')) {
+                    Invoke-Sql 'discovery_publication.sql' -File (Join-Path $repoRoot 'supabase/tests/discovery_publication.sql') -Connection $conn
+                }
+            } finally {
+                Stop-PostgresInstance
+            }
         }
     }
 

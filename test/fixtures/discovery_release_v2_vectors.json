@@ -1,0 +1,142 @@
+{
+  "vectors": [
+    {
+      "name": "standard_active_catalogue",
+      "frozenDraft": {
+        "inventory": {
+          "destinations": [
+            {
+              "id": "da-nang",
+              "name": "Đà Nẵng",
+              "slug": "da-nang",
+              "region": "Miền Trung",
+              "description": "Thành phố biển xinh đẹp với bãi biển Mỹ Khê tuyệt vời",
+              "imageUrl": "https://example.com/images/da-nang.jpg",
+              "isActive": true,
+              "sourceRefs": ["src-vn-01"]
+            },
+            {
+              "id": "nha-trang",
+              "name": "Nha Trang",
+              "slug": "nha-trang",
+              "region": "Miền Trung",
+              "description": "Điểm đến tạm ẩn",
+              "isActive": false,
+              "sourceRefs": ["src-vn-01"]
+            }
+          ],
+          "places": [
+            {
+              "id": "da-nang/ba-na-hills",
+              "destinationId": "da-nang",
+              "name": "Bà Nà Hills",
+              "slug": "ba-na-hills",
+              "description": "Khu du lịch trên đỉnh núi Chúa",
+              "imageUrl": "https://example.com/images/ba-na.jpg",
+              "latitude": 15.998,
+              "longitude": 108.025,
+              "isActive": true,
+              "sourceRefs": ["src-vn-01"]
+            },
+            {
+              "id": "da-nang/cau-rong-hidden",
+              "destinationId": "da-nang",
+              "name": "Cầu Rồng Ẩn",
+              "slug": "cau-rong-hidden",
+              "description": "Địa điểm chưa duyệt",
+              "isActive": false
+            }
+          ]
+        },
+        "sources": [
+          {
+            "id": "src-vn-01",
+            "title": "Cổng thông tin Du lịch Việt Nam",
+            "publisher": "Tổng cục Du lịch",
+            "url": "https://vietnam.travel",
+            "checkedAt": "2026-10-20T08:00:00Z"
+          }
+        ],
+        "places": [
+          {
+            "id": "da-nang/ba-na-hills",
+            "facts": {
+              "typicalDurationMinutes": 240,
+              "admissionRequired": true
+            }
+          }
+        ],
+        "packages": []
+      },
+      "version": 1,
+      "preparedAt": "2026-10-23T10:00:00.000Z",
+      "expectedActiveDestinations": 1,
+      "expectedActivePlaces": 1,
+      "expectedDestinationIds": ["da-nang"],
+      "expectedPlaceIds": ["da-nang/ba-na-hills"]
+    },
+    {
+      "name": "all_hidden_catalogue",
+      "frozenDraft": {
+        "inventory": {
+          "destinations": [
+            {
+              "id": "da-nang",
+              "name": "Đà Nẵng",
+              "slug": "da-nang",
+              "region": "Miền Trung",
+              "description": "Đang bảo trì",
+              "isActive": false
+            }
+          ],
+          "places": [
+            {
+              "id": "da-nang/ba-na-hills",
+              "destinationId": "da-nang",
+              "name": "Bà Nà Hills",
+              "slug": "ba-na-hills",
+              "description": "Ẩn",
+              "isActive": true
+            }
+          ]
+        },
+        "sources": [],
+        "places": [],
+        "packages": []
+      },
+      "version": 2,
+      "preparedAt": "2026-10-23T10:05:00.000Z",
+      "expectedActiveDestinations": 0,
+      "expectedActivePlaces": 0,
+      "expectedDestinationIds": [],
+      "expectedPlaceIds": []
+    },
+    {
+      "name": "vietnamese_combining_characters",
+      "frozenDraft": {
+        "inventory": {
+          "destinations": [
+            {
+              "id": "hue",
+              "name": "Thừa Thiên Huế",
+              "slug": "thua-thien-hue",
+              "region": "Miền Trung",
+              "description": "Cố đô Huế cổ kính với chùa Thiên Mụ và sông Hương thơ mộng",
+              "isActive": true
+            }
+          ],
+          "places": []
+        },
+        "sources": [],
+        "places": [],
+        "packages": []
+      },
+      "version": 3,
+      "preparedAt": "2026-10-23T10:10:00.000Z",
+      "expectedActiveDestinations": 1,
+      "expectedActivePlaces": 0,
+      "expectedDestinationIds": ["hue"],
+      "expectedPlaceIds": []
+    }
+  ]
+}
