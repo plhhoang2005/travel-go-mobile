@@ -93,9 +93,8 @@ void main() {
             true,
           );
           expect(reopened.currentMetadata.destinationName, 'Huế');
-          expect(await reopened.submitPlan(), false);
-          expect(api.plans, 0);
-          expect(api.health, 0);
+          expect(await reopened.submitPlan(), true);
+          expect(api.plans, 1);
           reopened.dispose();
         }),
       );

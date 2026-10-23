@@ -14,8 +14,12 @@ class EditableCodecException implements Exception {
   String toString() => 'EditableCodecException($code, $path)';
 }
 
-class _DynamicDestinationSet extends SetBase<String> {
-  static const _seeds = <String>{
+/// Separate contract: never relax the frozen V1 reader to accept editable data.
+class EditableTripCodec {
+  static const maxMoney = 9007199254740991;
+  static const maxCount = 2147483647;
+  static const maxBytes = 1024 * 1024;
+  static const destinations = <String>{
     'ha-noi',
     'ha-long',
     'sa-pa',
@@ -29,41 +33,6 @@ class _DynamicDestinationSet extends SetBase<String> {
     'phu-quoc',
     'can-tho',
   };
-
-  const _DynamicDestinationSet();
-
-  @override
-  bool contains(Object? element) {
-    if (element is! String) return false;
-    return _seeds.contains(element) ||
-        EditableTripCodec.isValidDestinationId(element);
-  }
-
-  @override
-  Iterator<String> get iterator => _seeds.iterator;
-
-  @override
-  int get length => _seeds.length;
-
-  @override
-  String? lookup(Object? element) => contains(element) ? element as String : null;
-
-  @override
-  Set<String> toSet() => _seeds.toSet();
-
-  @override
-  bool add(String value) => throw UnsupportedError('Immutable destination set');
-
-  @override
-  bool remove(Object? value) => throw UnsupportedError('Immutable destination set');
-}
-
-/// Separate contract: never relax the frozen V1 reader to accept editable data.
-class EditableTripCodec {
-  static const maxMoney = 9007199254740991;
-  static const maxCount = 2147483647;
-  static const maxBytes = 1024 * 1024;
-  static const destinations = _DynamicDestinationSet();
   static bool isValidDestinationId(String id) =>
       _destinationIdRegex.hasMatch(id);
   static const categories = <String>{

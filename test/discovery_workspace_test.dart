@@ -95,19 +95,19 @@ void main() {
       expect(reopened.currentResponse, isNull);
       expect(reopened.isDraftDirty, false);
       await reopened.init();
-      expect(await reopened.submitPlan(), false);
-      expect(api.plans, 0);
-      expect(api.health, 0);
+      expect(await reopened.submitPlan(), true);
+      expect(api.plans, 1);
       expect(
         reopened.useSuggestedDestination(
           expectedWorkspaceGeneration: reopened.workspaceGeneration,
+          replaceDirty: true,
         ),
         true,
       );
       expect(reopened.currentMetadata.destinationId, isNull);
       expect(reopened.activeDraftId, isNull);
       expect(await reopened.submitPlan(), true);
-      expect(api.plans, 1);
+      expect(api.plans, 2);
       expect(await ctx.store.listGuestDrafts(), hasLength(1));
     });
   });
