@@ -385,17 +385,46 @@ BEGIN
     );
   END IF;
 
-  -- Published overview from public.discovery_release_manifest
-  IF to_regclass('public.discovery_release_manifest') IS NOT NULL THEN
+  -- Published overview from public.discovery_release_manifest & private_discovery_admin.releases
+  IF to_regclass('public.discovery_release_manifest') IS NOT NULL AND to_regclass('private_discovery_admin.releases') IS NOT NULL THEN
     SELECT jsonb_build_object(
-      'version', version,
-      'objectKey', object_key,
-      'sha256', sha256,
-      'byteLength', byte_length,
-      'publishedAt', to_char(published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+      'version', m.version::text,
+      'sourceRevision', r.source_revision,
+      'activeDestinations', coalesce(
+        CASE
+          WHEN rc.payload_text IS NOT NULL AND ((rc.payload_text::jsonb) ? 'catalogue')
+            THEN jsonb_array_length((rc.payload_text::jsonb)->'catalogue'->'destinations')
+          WHEN v.payload IS NOT NULL AND ((v.payload) ? 'inventory')
+            THEN (SELECT count(*)::int FROM jsonb_array_elements(v.payload->'inventory'->'destinations') d WHERE (d->>'isActive')::boolean)
+          ELSE (SELECT count(*)::int FROM private_discovery_admin.destinations WHERE is_active = true)
+        END,
+        0
+      ),
+      'activePlaces', coalesce(
+        CASE
+          WHEN rc.payload_text IS NOT NULL AND ((rc.payload_text::jsonb) ? 'catalogue')
+            THEN (SELECT count(*)::int FROM jsonb_array_elements((rc.payload_text::jsonb)->'catalogue'->'destinations') d, jsonb_array_elements(d->'places') p)
+          WHEN v.payload IS NOT NULL AND ((v.payload) ? 'inventory')
+            THEN (SELECT count(*)::int FROM jsonb_array_elements(v.payload->'inventory'->'places') p WHERE (p->>'isActive')::boolean)
+          ELSE (SELECT count(*)::int FROM private_discovery_admin.places WHERE is_active = true)
+        END,
+        0
+      )
     ) INTO v_published
-    FROM public.discovery_release_manifest
-    WHERE id = 'current';
+    FROM public.discovery_release_manifest m
+    JOIN private_discovery_admin.releases r ON r.version = m.version
+    LEFT JOIN private_discovery_admin.release_candidates rc ON rc.preview_id = r.candidate_id
+    LEFT JOIN private_discovery_admin.versions v ON v.revision = r.source_revision
+    WHERE m.id = 'current';
+  ELSIF to_regclass('public.discovery_release_manifest') IS NOT NULL THEN
+    SELECT jsonb_build_object(
+      'version', m.version::text,
+      'sourceRevision', 1,
+      'activeDestinations', 0,
+      'activePlaces', 0
+    ) INTO v_published
+    FROM public.discovery_release_manifest m
+    WHERE m.id = 'current';
   END IF;
 
   RETURN jsonb_build_object(

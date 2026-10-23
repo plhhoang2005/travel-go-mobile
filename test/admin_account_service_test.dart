@@ -188,6 +188,36 @@ void main() {
         throwsFormatException,
       );
     });
+
+    test('DashboardSnapshot.fromJson parses published stats with integer or string version from SQL DTO (D2)', () {
+      final snapWithIntVersion = DashboardSnapshot.fromJson({
+        'asOf': '2026-10-23T12:00:00.000Z',
+        'days': 7,
+        'totalUsers': 5,
+        'lockedUsers': 0,
+        'activeAdmins': 1,
+        'registrations': [],
+        'draft': {
+          'revision': 6,
+          'activeDestinations': 12,
+          'hiddenDestinations': 0,
+          'activePlaces': 72,
+          'hiddenPlaces': 0,
+        },
+        'published': {
+          'version': 1,
+          'sourceRevision': 5,
+          'activeDestinations': 12,
+          'activePlaces': 72,
+        },
+      });
+
+      expect(snapWithIntVersion.published, isNotNull);
+      expect(snapWithIntVersion.published!.version, '1');
+      expect(snapWithIntVersion.published!.sourceRevision, 5);
+      expect(snapWithIntVersion.published!.activeDestinations, 12);
+      expect(snapWithIntVersion.published!.activePlaces, 72);
+    });
   });
 
   group('AdminAccountService Transport and Security', () {

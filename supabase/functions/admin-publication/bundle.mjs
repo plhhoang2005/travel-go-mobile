@@ -133,6 +133,38 @@ export function validateAndProjectPublicBundle({ frozenDraft, version, preparedA
     d.places.sort((a, b) => a.id.localeCompare(b.id));
   }
 
+  // Visit details places projection: only active places
+  const projectedVisitPlaces = [];
+  for (const vp of rawVisitPlaces) {
+    const pid = vp.placeId || vp.id;
+    if (activePlaceIds.has(pid)) {
+      projectedVisitPlaces.push(vp);
+      if (Array.isArray(vp.sourceRefs)) {
+        for (const s of vp.sourceRefs) referencedSourceIds.add(String(s));
+      }
+      if (Array.isArray(vp.price?.evidence?.sourceIds)) {
+        for (const s of vp.price.evidence.sourceIds) referencedSourceIds.add(String(s));
+      }
+      if (Array.isArray(vp.hours?.evidence?.sourceIds)) {
+        for (const s of vp.hours.evidence.sourceIds) referencedSourceIds.add(String(s));
+      }
+      if (Array.isArray(vp.evidence?.sourceIds)) {
+        for (const s of vp.evidence.sourceIds) referencedSourceIds.add(String(s));
+      }
+    }
+  }
+  projectedVisitPlaces.sort((a, b) => ((a.placeId || a.id) || '').localeCompare((b.placeId || b.id) || ''));
+
+  // Collect source references from packages
+  for (const pkg of rawPackages) {
+    if (Array.isArray(pkg.sourceIds)) {
+      for (const s of pkg.sourceIds) referencedSourceIds.add(String(s));
+    }
+    if (Array.isArray(pkg.sourceRefs)) {
+      for (const s of pkg.sourceRefs) referencedSourceIds.add(String(s));
+    }
+  }
+
   // Sources projection: only referenced sources
   const projectedSources = [];
   for (const s of rawSources) {
@@ -147,16 +179,6 @@ export function validateAndProjectPublicBundle({ frozenDraft, version, preparedA
     }
   }
   projectedSources.sort((a, b) => a.id.localeCompare(b.id));
-
-  // Visit details places projection: only active places
-  const projectedVisitPlaces = [];
-  for (const vp of rawVisitPlaces) {
-    const pid = vp.placeId || vp.id;
-    if (activePlaceIds.has(pid)) {
-      projectedVisitPlaces.push(vp);
-    }
-  }
-  projectedVisitPlaces.sort((a, b) => ((a.placeId || a.id) || '').localeCompare((b.placeId || b.id) || ''));
 
   const bundle = {
     contract: 'travelgo.discovery.release.v2',

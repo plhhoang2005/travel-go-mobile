@@ -451,7 +451,8 @@ class PublishedCatalogueStats {
   });
 
   factory PublishedCatalogueStats.fromJson(Map<String, dynamic> json) {
-    final version = json['version'];
+    final versionRaw = json['version'];
+    final version = versionRaw is int ? versionRaw.toString() : versionRaw;
     final sourceRevision = json['sourceRevision'];
     final activeDestinations = json['activeDestinations'];
     final activePlaces = json['activePlaces'];

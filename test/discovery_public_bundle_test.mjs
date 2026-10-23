@@ -142,6 +142,8 @@ test('validateAndProjectPublicBundle preserves visit places with placeId and kee
 
   assert.equal(blockers.length, 0, 'Must have zero blockers');
   assert.equal(bundle.visitDetails.places.length, 72, 'All 72 visit details places must be preserved');
+  assert.equal(bundle.visitDetails.sources.length, 24, 'All 24 referenced sources must be preserved in visitDetails.sources (D1)');
+  assert.equal(bundle.catalogue.sources.length, 24, 'All 24 referenced sources must be preserved in catalogue.sources (D1)');
   assert.ok(bundle.visitDetails.places.every(p => p.placeId && p.price && p.hours), 'Every place must retain placeId, price, and hours facts');
 });
 
