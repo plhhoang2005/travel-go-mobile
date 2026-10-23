@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../models/trip_response.dart';
+import '../../services/trip_date_policy.dart';
 
 class ItineraryTimelineWidget extends StatelessWidget {
   final List<ItineraryDay> itineraryDays;
+  final String? startDate;
 
-  const ItineraryTimelineWidget({super.key, required this.itineraryDays});
+  const ItineraryTimelineWidget({
+    super.key,
+    required this.itineraryDays,
+    this.startDate,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -18,6 +24,17 @@ class ItineraryTimelineWidget extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: itineraryDays.map((day) {
+        String dayDateLabel;
+        if (startDate != null && startDate!.trim().isNotEmpty) {
+          try {
+            dayDateLabel = TripDatePolicy.calculateEndDate(startDate!, day.day);
+          } catch (_) {
+            dayDateLabel = 'Chưa chọn ngày';
+          }
+        } else {
+          dayDateLabel = 'Chưa chọn ngày';
+        }
+
         return Card(
           margin: const EdgeInsets.only(bottom: 16),
           child: Padding(
@@ -34,7 +51,7 @@ class ItineraryTimelineWidget extends StatelessWidget {
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
-                        'NGÀY ${day.day}',
+                        'NGÀY ${day.day} · $dayDateLabel',
                         style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,

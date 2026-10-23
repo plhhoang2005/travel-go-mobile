@@ -1,283 +1,291 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../../../../core/theme/app_theme.dart';
+import '../../models/trip_response.dart';
 
-class TripOptionData {
-  final String title;
-  final String badgeText;
-  final bool isRecommended;
-  final int costVnd;
-  final String accommodation;
-  final String transport;
-  final String highlights;
-  final String flexibility;
-  final String targetAudience;
-
-  const TripOptionData({
-    required this.title,
-    required this.badgeText,
-    required this.isRecommended,
-    required this.costVnd,
-    required this.accommodation,
-    required this.transport,
-    required this.highlights,
-    required this.flexibility,
-    required this.targetAudience,
-  });
-}
-
-class TripComparisonMatrixWidget extends StatefulWidget {
+class TripComparisonMatrixWidget extends StatelessWidget {
+  final PlanTripResponse response;
+  final int? requestedBudgetVnd;
   final int baseBudgetVnd;
 
   const TripComparisonMatrixWidget({
     super.key,
-    required this.baseBudgetVnd,
+    required this.response,
+    this.requestedBudgetVnd,
+    this.baseBudgetVnd = 0,
   });
 
   @override
-  State<TripComparisonMatrixWidget> createState() => _TripComparisonMatrixWidgetState();
-}
-
-class _TripComparisonMatrixWidgetState extends State<TripComparisonMatrixWidget> {
-  int _selectedIndex = 0;
-
-  List<TripOptionData> _buildOptions() {
-    return [
-      const TripOptionData(
-        title: 'Cân Bằng',
-        badgeText: 'MCDA Đề Xuất',
-        isRecommended: true,
-        costVnd: 4200000,
-        accommodation: 'Resort Biển 4★ (Deluxe View)',
-        transport: 'Máy bay VietJet Air (Khứ hồi)',
-        highlights: 'Cáp treo Bà Nà Hills & Cầu Vàng',
-        flexibility: 'Miễn phí hủy phòng trước 48h',
-        targetAudience: 'Nhóm bạn / Lần đầu khám phá',
-      ),
-      const TripOptionData(
-        title: 'Tiết Kiệm',
-        badgeText: 'Ngân Sách Tối Thiểu',
-        isRecommended: false,
-        costVnd: 3450000,
-        accommodation: 'Khách sạn Trung tâm 3★',
-        transport: 'Xe khách Limousine giường nằm',
-        highlights: 'City Tour, Chợ Đêm & Biển Mỹ Khê',
-        flexibility: 'Đổi ngày có phí linh hoạt',
-        targetAudience: 'Ưu tiên tối ưu chi tiêu',
-      ),
-      const TripOptionData(
-        title: 'Trải Nghiệm',
-        badgeText: 'Nghỉ Dưỡng Cao Cấp',
-        isRecommended: false,
-        costVnd: 4850000,
-        accommodation: 'Resort Biển 5★ & Spa',
-        transport: 'Vé máy bay giờ đẹp + Xe riêng',
-        highlights: 'Tour riêng Sơn Trà & Tiệc tối hải sản',
-        flexibility: 'Miễn phí hủy & Đổi lịch trình 24h',
-        targetAudience: 'Cặp đôi & Nghỉ dưỡng thư giãn',
-      ),
-    ];
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final currencyFmt = NumberFormat.currency(locale: 'vi', symbol: 'đ', decimalDigits: 0);
     final theme = Theme.of(context);
-    final options = _buildOptions();
+    final currencyFmt = NumberFormat.currency(locale: 'vi', symbol: 'đ', decimalDigits: 0);
+
+    final destinations = response.topDestinations;
+    final transports = response.transportOptions;
+
+    if (destinations.isEmpty && transports.isEmpty) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Center(
+            child: Column(
+              children: [
+                Icon(Icons.compare_arrows, size: 40, color: Colors.grey.shade400),
+                const SizedBox(height: 12),
+                Text(
+                  'Chưa có phương án so sánh',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Section Header
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Ma Trận So Sánh Phương Án',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.slate900,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Dựa trên ngân sách ${currencyFmt.format(widget.baseBudgetVnd)} của bạn',
-                  style: theme.textTheme.bodySmall?.copyWith(color: AppTheme.slate700),
-                ),
-              ],
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                '3 Kịch Bản',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: theme.colorScheme.primary,
-                ),
-              ),
-            ),
-          ],
-        ),
-
-        const SizedBox(height: 16),
-
-        // Tabs to toggle options
-        Row(
-          children: List.generate(options.length, (index) {
-            final opt = options[index];
-            final isSelected = _selectedIndex == index;
-            return Expanded(
-              child: Padding(
-                padding: EdgeInsets.only(right: index < options.length - 1 ? 8.0 : 0),
-                child: InkWell(
-                  onTap: () => setState(() => _selectedIndex = index),
-                  borderRadius: BorderRadius.circular(12),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-                    decoration: BoxDecoration(
-                      color: isSelected ? theme.colorScheme.primary : Colors.white,
-                      border: Border.all(
-                        color: isSelected ? theme.colorScheme.primary : AppTheme.slate200,
-                        width: isSelected ? 2 : 1,
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Column(
-                      children: [
-                        if (opt.isRecommended)
-                          Container(
-                            margin: const EdgeInsets.only(bottom: 4),
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: isSelected ? Colors.white : AppTheme.accentOrange,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              'ĐỀ XUẤT',
-                              style: TextStyle(
-                                fontSize: 9,
-                                fontWeight: FontWeight.bold,
-                                color: isSelected ? theme.colorScheme.primary : Colors.white,
-                              ),
-                            ),
-                          ),
-                        Text(
-                          opt.title,
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                            color: isSelected ? Colors.white : AppTheme.slate900,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          currencyFmt.format(opt.costVnd),
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: isSelected ? Colors.white70 : AppTheme.accentOrange,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            );
-          }),
-        ),
-
-        const SizedBox(height: 16),
-
-        // Detail Card for selected option
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        // Header
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 8.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Chi Tiết Phương Án: ${options[_selectedIndex].title}',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                    ),
-                    Text(
-                      currencyFmt.format(options[_selectedIndex].costVnd),
-                      style: const TextStyle(
-                        fontSize: 16,
+                      'So Sánh Phương Án Thực Tế',
+                      style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
-                        color: AppTheme.accentOrange,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      requestedBudgetVnd != null
+                          ? 'Ngân sách yêu cầu: ${currencyFmt.format(requestedBudgetVnd)}'
+                          : 'Chưa có ngân sách đầu vào',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: Colors.grey.shade600,
                       ),
                     ),
                   ],
                 ),
-                const Divider(height: 24),
-                _buildCriterionRow(
-                  Icons.hotel_outlined,
-                  'Chỗ ở',
-                  options[_selectedIndex].accommodation,
-                ),
-                const SizedBox(height: 12),
-                _buildCriterionRow(
-                  Icons.flight_takeoff_outlined,
-                  'Di chuyển',
-                  options[_selectedIndex].transport,
-                ),
-                const SizedBox(height: 12),
-                _buildCriterionRow(
-                  Icons.attractions_outlined,
-                  'Trải nghiệm',
-                  options[_selectedIndex].highlights,
-                ),
-                const SizedBox(height: 12),
-                _buildCriterionRow(
-                  Icons.event_available_outlined,
-                  'Chính sách',
-                  options[_selectedIndex].flexibility,
-                ),
-                const SizedBox(height: 12),
-                _buildCriterionRow(
-                  Icons.group_outlined,
-                  'Phù hợp với',
-                  options[_selectedIndex].targetAudience,
-                ),
-              ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+
+        // 1. Destinations comparison
+        if (destinations.isNotEmpty) ...[
+          Card(
+            margin: const EdgeInsets.only(bottom: 12),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: const [
+                      Icon(Icons.place_outlined, color: Color(0xFF0284C7), size: 20),
+                      SizedBox(width: 8),
+                      Text(
+                        'Điểm Đến Đề Xuất (Theo Xếp Hạng)',
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  ...destinations.asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final dest = entry.value;
+                    final isWinner = dest.id == response.winnerId;
+
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: isWinner ? const Color(0xFFF0F9FF) : Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: isWinner ? const Color(0xFF0284C7) : Colors.grey.shade200,
+                          width: isWinner ? 1.5 : 1.0,
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: isWinner ? const Color(0xFF0284C7) : Colors.grey.shade600,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  isWinner ? 'Hạng #${index + 1} · Lựa chọn tối ưu' : 'Hạng #${index + 1}',
+                                  style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  dest.name,
+                                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                              Text(
+                                '${dest.totalScore.toStringAsFixed(1)} điểm',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: isWinner ? const Color(0xFF0284C7) : Colors.black87,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Khu vực: ${dest.region}',
+                                style: const TextStyle(fontSize: 12, color: Colors.grey),
+                              ),
+                              Text(
+                                'Chi phí ước tính: ${currencyFmt.format(dest.estimatedCostVnd)}',
+                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                              ),
+                            ],
+                          ),
+                          if (dest.avgTempMax > 0 || dest.weatherSource.isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              'Thời tiết: ${dest.avgTempMax.toStringAsFixed(0)}°C · Mưa: ${(dest.avgPrecipitation * 100).toStringAsFixed(0)}%',
+                              style: const TextStyle(fontSize: 11, color: Colors.grey),
+                            ),
+                          ],
+                        ],
+                      ),
+                    );
+                  }),
+                ],
+              ),
             ),
           ),
-        ),
-      ],
-    );
-  }
+        ],
 
-  Widget _buildCriterionRow(IconData icon, String label, String value) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, size: 18, color: AppTheme.primaryColor),
-        const SizedBox(width: 8),
-        SizedBox(
-          width: 85,
-          child: Text(
-            label,
-            style: const TextStyle(fontSize: 13, color: AppTheme.slate700, fontWeight: FontWeight.w500),
+        // 2. Transport options comparison
+        if (transports.isNotEmpty) ...[
+          Card(
+            margin: const EdgeInsets.only(bottom: 12),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: const [
+                      Icon(Icons.directions_bus_outlined, color: Color(0xFF0284C7), size: 20),
+                      SizedBox(width: 8),
+                      Text(
+                        'Phương Tiện Di Chuyển',
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    '* Chi phí hiển thị là tổng chi phí di chuyển cho cả nhóm.',
+                    style: TextStyle(fontSize: 11, color: Colors.grey, fontStyle: FontStyle.italic),
+                  ),
+                  const SizedBox(height: 12),
+                  ...transports.map((opt) {
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: opt.isParetoOptimal ? const Color(0xFFECFDF5) : Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: opt.isParetoOptimal ? const Color(0xFF10B981) : Colors.grey.shade200,
+                          width: opt.isParetoOptimal ? 1.5 : 1.0,
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              if (opt.isParetoOptimal) ...[
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF10B981),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: const Text(
+                                    'Pareto',
+                                    style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                              ],
+                              Expanded(
+                                child: Text(
+                                  opt.displayName,
+                                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                              Text(
+                                currencyFmt.format(opt.priceTotalVnd),
+                                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Thời gian: ${opt.durationHours.toStringAsFixed(1)} giờ · Tiện nghi: ${opt.comfortScore}/10',
+                                style: const TextStyle(fontSize: 12, color: Colors.grey),
+                              ),
+                              if (opt.tradeoffType.isNotEmpty)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                  decoration: BoxDecoration(
+                                    color: Colors.blue.shade50,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    opt.tradeoffType,
+                                    style: TextStyle(fontSize: 11, color: Colors.blue.shade800, fontWeight: FontWeight.w500),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          if (opt.recommendationReason.isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              opt.recommendationReason,
+                              style: TextStyle(fontSize: 11, color: Colors.grey.shade700, fontStyle: FontStyle.italic),
+                            ),
+                          ],
+                        ],
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ),
           ),
-        ),
-        Expanded(
-          child: Text(
-            value,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppTheme.slate900),
-          ),
-        ),
+        ],
       ],
     );
   }

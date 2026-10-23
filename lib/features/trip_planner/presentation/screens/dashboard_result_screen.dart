@@ -393,12 +393,14 @@ class _DashboardResultScreenState extends State<DashboardResultScreen>
                   SingleChildScrollView(
                     child: ItineraryTimelineWidget(
                       itineraryDays: res.itineraryDays,
+                      startDate: provider.currentRequest.startDate,
                     ),
                   ),
                   SingleChildScrollView(
                     child: TripComparisonMatrixWidget(
-                      baseBudgetVnd:
-                          res.budgetBreakdown?.totalAllocated ?? 4000000,
+                      response: res,
+                      requestedBudgetVnd: provider.currentRequest.budgetVnd,
+                      baseBudgetVnd: res.budgetBreakdown?.totalAllocated ?? 0,
                     ),
                   ),
                 ],
