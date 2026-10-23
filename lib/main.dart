@@ -24,6 +24,11 @@ import 'features/trips/services/editable_trip_service.dart';
 import 'features/auth/providers/auth_provider.dart';
 import 'features/auth/services/account_access_service.dart';
 import 'features/auth/presentation/screens/splash_screen.dart';
+import 'features/auth/models/password_recovery_state.dart';
+import 'features/auth/services/recovery_intent_store.dart';
+import 'features/auth/services/password_recovery_service.dart';
+import 'features/auth/providers/password_recovery_provider.dart';
+import 'features/auth/presentation/widgets/password_recovery_gate.dart';
 import 'features/auth/presentation/screens/onboarding_screen.dart';
 
 import 'features/favorites/providers/favorites_provider.dart';
@@ -182,6 +187,14 @@ Future<void> main() async {
   final backendConfig = await BackendApiConfig.load(prefs);
   ApiConstants.configure(backendConfig);
 
+  PendingRecovery? initialRecovery;
+  if (prefs != null) {
+    try {
+      final store = RecoveryIntentStore(prefs, projectNamespace: 'travelgo');
+      initialRecovery = await store.read();
+    } catch (_) {}
+  }
+
   try {
     await Supabase.initialize(
       url: SupabaseConstants.projectUrl,
@@ -195,7 +208,12 @@ Future<void> main() async {
   } catch (e) {
     debugPrint('Supabase initialization did not complete.');
   }
-  runApp(TravelGoApp(backendConfig: backendConfig));
+  runApp(
+    TravelGoApp(
+      backendConfig: backendConfig,
+      initialRecoveryIntentId: initialRecovery?.intentId,
+    ),
+  );
 }
 
 SavedTripsProvider updateSavedTripsFromAuth(
@@ -227,6 +245,10 @@ class TravelGoApp extends StatefulWidget {
   final Stream<Uri>? authCallbackLinks;
   final Future<Uri?> Function()? initialAuthLinkLoader;
   final BackendApiConfig? backendConfig;
+  final PasswordRecoveryProvider? recoveryProvider;
+  final RecoveryIntentStore? recoveryIntentStore;
+  final PasswordRecoveryService? recoveryService;
+  final String? initialRecoveryIntentId;
   const TravelGoApp({
     super.key,
     this.localStoreRuntime,
@@ -234,6 +256,10 @@ class TravelGoApp extends StatefulWidget {
     this.authCallbackLinks,
     this.initialAuthLinkLoader,
     this.backendConfig,
+    this.recoveryProvider,
+    this.recoveryIntentStore,
+    this.recoveryService,
+    this.initialRecoveryIntentId,
   });
 
   @override
@@ -245,6 +271,7 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
   late final ManualPlannerRuntime _manualRuntime;
   late final AuthProvider _auth;
   late final BackendApiConfig _backendConfig;
+  late final PasswordRecoveryProvider _recoveryProvider;
   SupabaseClient? _client;
   Future<LocalAccountLifecycleService>? _loadingLifecycle;
   StreamSubscription<Uri>? _links;
@@ -287,13 +314,33 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
       client: _client,
       lifecycleLoader: _client == null ? null : _getLifecycle,
       sessionReader: () => _client?.auth.currentSession,
+      initialRecoveryIntentId: widget.initialRecoveryIntentId,
     );
+    final recoveryStore = widget.recoveryIntentStore ??
+        RecoveryIntentStore(
+          _backendConfig.preferences,
+          projectNamespace: 'travelgo',
+        );
+    _recoveryProvider = widget.recoveryProvider ??
+        PasswordRecoveryProvider(
+          service: widget.recoveryService ?? PasswordRecoveryService(),
+          store: recoveryStore,
+          auth: _auth,
+          clientProvider: () => _client,
+        );
+    unawaited(_recoveryProvider.initializeFromStore());
     _manualRuntime = ManualPlannerRuntime(factory: _createManualResources);
     WidgetsBinding.instance.addObserver(this);
     if (_client != null) {
       _links = (widget.authCallbackLinks ?? AppLinks().uriLinkStream).listen(
         (uri) {
-          if (!_disposed) unawaited(_auth.handleAuthCallback(uri));
+          if (!_disposed) {
+            if (uri.queryParameters['flow'] == 'recovery') {
+              unawaited(_recoveryProvider.handleCallback(uri));
+            } else {
+              unawaited(_auth.handleAuthCallback(uri));
+            }
+          }
         },
         onError: (_) {
           /* Link failures do not grant account authority. */
@@ -309,7 +356,11 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
           await (widget.initialAuthLinkLoader?.call() ??
               AppLinks().getInitialLink());
       if (!_disposed && initial != null) {
-        await _auth.handleAuthCallback(initial);
+        if (initial.queryParameters['flow'] == 'recovery') {
+          await _recoveryProvider.handleCallback(initial);
+        } else {
+          await _auth.handleAuthCallback(initial);
+        }
       }
     } catch (_) {
       /* No callback is safer than a fabricated authentication. */
@@ -577,6 +628,9 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
       providers: [
         ChangeNotifierProvider.value(value: _backendConfig),
         ChangeNotifierProvider.value(value: _auth),
+        ChangeNotifierProvider<PasswordRecoveryProvider>.value(
+          value: _recoveryProvider,
+        ),
         Provider<Future<LocalAccountLifecycleService> Function()>.value(value: _getLifecycle),
         Provider<LocalTripStoreRuntime>.value(value: _runtime),
         Provider<ManualPlannerRuntime>.value(value: _manualRuntime),
@@ -741,7 +795,9 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
               )
             : null,
         theme: AppTheme.lightTheme,
-        home: _AuthBootstrap(auth: _auth),
+        home: PasswordRecoveryGate(
+          child: _AuthBootstrap(auth: _auth),
+        ),
       ),
     );
   }

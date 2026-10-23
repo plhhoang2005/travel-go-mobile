@@ -45,12 +45,61 @@ class AuthProvider extends ChangeNotifier {
   String? _travelPreferencesError;
   bool _isLoading = false;
   bool _isDemoSession = false;
+  bool _isRecovering = false;
+  bool _recoveryBootstrapBlocked = false;
+  String? _currentRecoveryIntentId;
   String? _errorMessage;
   bool _isEmailConfirmationPending = false;
   int _authEpoch = 0;
 
   UserEntity? get currentUser => _currentUser;
   bool get isGuest => _isGuest;
+  bool get isRecovering => _isRecovering;
+  bool get recoveryBootstrapBlocked => _recoveryBootstrapBlocked;
+
+  Future<void> resolveRecoveryBootstrap(String? intentId) async {
+    _recoveryBootstrapBlocked = false;
+    if (intentId != null) {
+      _currentRecoveryIntentId = intentId;
+      _isRecovering = true;
+    }
+    notifyListeners();
+  }
+
+  Future<void> beginRecovery(String intentId) async {
+    _isRecovering = true;
+    _currentRecoveryIntentId = intentId;
+    _requestGeneration++;
+    _lifecycle?.invalidateAccountContext();
+    onLocalAccountInvalidated();
+    notifyListeners();
+  }
+
+  Future<void> finishRecovery(String intentId) async {
+    if (_currentRecoveryIntentId == intentId) {
+      _isRecovering = false;
+      _currentRecoveryIntentId = null;
+      notifyListeners();
+    }
+  }
+
+  Future<T> runRecoveryMutation<T>(
+    String intentId,
+    Future<T> Function(SupabaseClient) action,
+  ) {
+    if (_disposed) throw StateError('AuthProvider is disposed');
+    final client = _supabaseClient;
+    if (client == null) throw StateError('SDK client unavailable');
+    return _enqueueCredential(() async {
+      if (_disposed) throw StateError('AuthProvider is disposed');
+      _credentialBusy = true;
+      try {
+        return await action(client);
+      } finally {
+        _credentialBusy = false;
+      }
+    });
+  }
   bool get travelPreferencesLoading => _travelPreferencesLoading;
   bool get travelPreferencesLoaded => _travelPreferencesLoaded;
   String? get travelPreferencesError => _travelPreferencesError;
@@ -75,9 +124,13 @@ class AuthProvider extends ChangeNotifier {
     DateTime Function()? clock,
     Timer Function(Duration, void Function())? timerFactory,
     this._oauthLauncher,
+    this._recoveryBootstrapBlocked = false,
+    String? initialRecoveryIntentId,
   }) : _injectedClient = client,
        _clock = clock ?? (() => DateTime.now().toUtc()),
-       _timerFactory = timerFactory ?? Timer.new {
+       _timerFactory = timerFactory ?? Timer.new,
+       _currentRecoveryIntentId = initialRecoveryIntentId,
+       _isRecovering = initialRecoveryIntentId != null {
     _initialization = _lifecycleLoader == null
         ? Future.sync(_initSession)
         : _initializeGuarded();
@@ -93,6 +146,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   void _initSession() {
+    if (_recoveryBootstrapBlocked || _isRecovering) return;
     final client = _supabaseClient;
     if (client == null) return;
 
@@ -908,6 +962,7 @@ class AuthProvider extends ChangeNotifier {
     final generation = _requestGeneration;
     return _enqueueCredential(() async {
       try {
+        if (_recoveryBootstrapBlocked || _isRecovering) return;
         final service = await _getLifecycle();
         if (_disposed || generation != _requestGeneration) return;
         await _awaitForeground();
@@ -928,7 +983,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   void _observeSdk(AuthState event) {
-    if (_disposed || _initializing || _credentialBusy || _loggingOut) return;
+    if (_disposed || _initializing || _credentialBusy || _loggingOut || _isRecovering) return;
     final session = event.session;
     final current = _sdkSession();
     if (session != null &&

@@ -52,6 +52,7 @@ class BackendApiConfig extends ChangeNotifier {
   int get revision => _revision;
   String? get persistenceError => _persistenceError;
   bool get hasPersistence => _prefs != null;
+  SharedPreferences? get preferences => _prefs;
 
   static String normalizeAndValidateUrl(String raw) {
     final trimmed = raw.trim();
