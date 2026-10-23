@@ -10,19 +10,23 @@ import 'package:travelgo_mobile/features/admin/presentation/screens/admin_draft_
 import 'package:travelgo_mobile/features/admin/presentation/screens/admin_users_screen.dart';
 import 'package:travelgo_mobile/features/admin/providers/admin_account_provider.dart';
 import 'package:travelgo_mobile/features/admin/providers/admin_catalogue_provider.dart';
+import 'package:travelgo_mobile/features/admin/providers/admin_publication_provider.dart';
 import 'package:travelgo_mobile/features/admin/services/admin_account_service.dart';
 import 'package:travelgo_mobile/features/admin/services/admin_catalogue_service.dart';
+import 'package:travelgo_mobile/features/admin/services/admin_publication_service.dart';
 import 'package:travelgo_mobile/features/auth/providers/auth_provider.dart';
 import 'package:travelgo_mobile/features/trips/services/local_account_lifecycle_service.dart';
 
 class AdminShellScreen extends StatefulWidget {
   final AdminAccountProvider? provider;
   final AdminCatalogueProvider? catalogueProvider;
+  final AdminPublicationProvider? publicationProvider;
 
   const AdminShellScreen({
     super.key,
     this.provider,
     this.catalogueProvider,
+    this.publicationProvider,
   });
 
   @override
@@ -32,6 +36,7 @@ class AdminShellScreen extends StatefulWidget {
 class _AdminShellScreenState extends State<AdminShellScreen> {
   AdminAccountProvider? _ownedProvider;
   AdminCatalogueProvider? _ownedCatalogueProvider;
+  AdminPublicationProvider? _ownedPublicationProvider;
   int _selectedIndex = 0;
   bool _isCheckingAccess = true;
 
@@ -102,10 +107,37 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
     return _ownedCatalogueProvider!;
   }
 
+  AdminPublicationProvider _getEffectivePublicationProvider() {
+    if (widget.publicationProvider != null) return widget.publicationProvider!;
+    if (_ownedPublicationProvider != null) return _ownedPublicationProvider!;
+
+    final auth = context.read<AuthProvider>();
+    Future<LocalAccountLifecycleService> Function()? lifecycleLoader;
+    try {
+      lifecycleLoader = context.read<Future<LocalAccountLifecycleService> Function()>();
+    } catch (_) {
+      lifecycleLoader = () => Future.error(StateError('Lifecycle loader not found in context.'));
+    }
+
+    final service = AdminPublicationService(
+      dio: Dio(),
+      projectOrigin: Uri.parse(SupabaseConstants.projectUrl),
+      publicKey: SupabaseConstants.publishableKey,
+      lifecycleLoader: lifecycleLoader,
+    );
+
+    _ownedPublicationProvider = AdminPublicationProvider(
+      service: service,
+      authProvider: auth,
+    );
+    return _ownedPublicationProvider!;
+  }
+
   @override
   void dispose() {
     _ownedProvider?.dispose();
     _ownedCatalogueProvider?.dispose();
+    _ownedPublicationProvider?.dispose();
     super.dispose();
   }
 
@@ -113,11 +145,13 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
   Widget build(BuildContext context) {
     final effectiveProvider = _getEffectiveProvider();
     final effectiveCatalogueProvider = _getEffectiveCatalogueProvider();
+    final effectivePublicationProvider = _getEffectivePublicationProvider();
 
     return MultiProvider(
       providers: [
         ChangeNotifierProvider<AdminAccountProvider>.value(value: effectiveProvider),
         ChangeNotifierProvider<AdminCatalogueProvider>.value(value: effectiveCatalogueProvider),
+        ChangeNotifierProvider<AdminPublicationProvider>.value(value: effectivePublicationProvider),
       ],
       child: Consumer<AdminAccountProvider>(
         builder: (context, provider, _) {
