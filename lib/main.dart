@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:dio/dio.dart';
 import 'package:app_links/app_links.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
@@ -8,6 +10,7 @@ import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/constants/supabase_constants.dart';
+import 'core/testing/p32_drop_committed_reply_adapter.dart';
 import 'core/theme/app_theme.dart';
 import 'features/trip_planner/providers/trip_provider.dart';
 import 'features/trip_planner/providers/manual_planner_provider.dart';
@@ -15,6 +18,7 @@ import 'features/trips/providers/editable_drafts_provider.dart';
 import 'features/trips/services/editable_trip_repository.dart';
 import 'features/trips/services/editable_trip_service.dart';
 import 'features/auth/providers/auth_provider.dart';
+import 'features/auth/services/account_access_service.dart';
 import 'features/auth/presentation/screens/splash_screen.dart';
 import 'features/auth/presentation/screens/onboarding_screen.dart';
 
@@ -23,6 +27,9 @@ import 'features/trips/providers/saved_trips_provider.dart';
 import 'features/trips/providers/guest_drafts_provider.dart';
 import 'features/home/providers/home_catalog_provider.dart';
 import 'features/explore/providers/discovery_provider.dart';
+import 'features/explore/providers/place_visit_details_provider.dart';
+import 'features/explore/services/place_visit_cache.dart';
+import 'features/explore/services/place_visit_details_repository.dart';
 import 'features/map/providers/map_provider.dart';
 import 'features/trips/services/local_trip_store.dart';
 import 'features/trips/services/local_account_lifecycle_service.dart';
@@ -317,6 +324,9 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
       projectUrl: SupabaseConstants.projectUrl,
       publicKey: SupabaseConstants.publishableKey,
       isCurrentProof: lifecycle.isCurrentProof,
+      adapter: const bool.fromEnvironment('TRAVELGO_P32_DROP_UI_REPLY')
+          ? P32DropCommittedReplyAdapter()
+          : null,
     );
     _editableService = service;
     return _editableRepository = EditableTripRepository(
@@ -423,7 +433,16 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
         if (user?.user == null) {
           throw StateError('Subject verification unavailable.');
         }
-        return user!.user!.id;
+        final subjectId = user!.user!.id;
+        final accessService = AccountAccessService(client: _client);
+        final access = await accessService.verify(token);
+        if (access.subjectId != subjectId) {
+          throw StateError('Subject mismatch during access verification');
+        }
+        if (!access.isEnabled) {
+          throw StateError('Account access not enabled: ${access.state}');
+        }
+        return subjectId;
       },
     );
   }
@@ -539,6 +558,33 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
         ),
         ChangeNotifierProvider(create: (_) => HomeCatalogProvider()),
         ChangeNotifierProvider(create: (_) => DiscoveryProvider()),
+        ChangeNotifierProvider(
+          create: (_) => PlaceVisitDetailsProvider(
+            now: DateTime.now,
+            repositoryFactory: (catalogue) async => VisitDetailsRepository(
+              dio: Dio(),
+              ownsDio: true,
+              cache: SqliteVisitReleaseCache(
+                databasePath: () async => p.join(
+                  await getDatabasesPath(),
+                  'travelgo_discovery_public_v1.db',
+                ),
+              ),
+              seedLoader: () => rootBundle.loadString(
+                'assets/catalogue/place_visit_details_v1.json',
+              ),
+              projectOrigin: Uri.parse(SupabaseConstants.projectUrl),
+              remoteEnabled: SupabaseConstants.isStaging,
+              expectedPlaceIds: catalogue.destinations
+                  .expand((destination) => destination.places)
+                  .map((place) => place.id)
+                  .toSet(),
+              // Pin the supported base inventory; changing it needs a new release.
+              expectedCatalogueSha256: 'c14cecc97149a3acf64f439d44662333bbb8756bd580e18f368ac053bdd1542a',
+              now: DateTime.now,
+            ),
+          ),
+        ),
         ChangeNotifierProvider(create: (_) => MapProvider()),
       ],
       child: MaterialApp(
@@ -615,42 +661,72 @@ class _AuthBootstrapState extends State<_AuthBootstrap> {
         children: [
           IgnorePointer(
             ignoring: waiting,
-            child: Navigator(
-              key: _navigatorKey,
-              observers: [_routeObserver],
-              onGenerateRoute: (_) =>
-                  MaterialPageRoute<void>(builder: (_) => const SplashScreen()),
+            child: NavigatorPopHandler<Object?>(
+              enabled: !waiting,
+              onPopWithResult: (result) {
+                if (!waiting) _navigatorKey.currentState?.maybePop(result);
+              },
+              child: Navigator(
+                key: _navigatorKey,
+                observers: [_routeObserver],
+                onGenerateRoute: (_) => MaterialPageRoute<void>(
+                  builder: (_) => const SplashScreen(),
+                ),
+              ),
             ),
           ),
           if (waiting)
             Positioned.fill(
-              child: ColoredBox(
-                color: const Color(0xAA000000),
-                child: SafeArea(
-                  child: Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const CircularProgressIndicator(),
-                        const SizedBox(height: 16),
-                        const Text('Đang kiểm tra phiên đăng nhập'),
-                        const SizedBox(height: 16),
-                        TextButton(
-                          onPressed: () {
-                            widget.auth.continueAsGuest();
-                            setState(() => _guestChosen = true);
-                          },
-                          child: const Text('Tiếp tục với Guest'),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+              child: _BootstrapWaitingOverlay(
+                onGuest: () {
+                  widget.auth.continueAsGuest();
+                  setState(() => _guestChosen = true);
+                },
               ),
             ),
         ],
       );
     },
+  );
+}
+
+class _BootstrapWaitingOverlay extends StatelessWidget {
+  final VoidCallback onGuest;
+  const _BootstrapWaitingOverlay({required this.onGuest});
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Theme.of(context).colorScheme.surface,
+    child: SafeArea(
+      child: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(
+                width: 32,
+                height: 32,
+                child: CircularProgressIndicator(),
+              ),
+              const SizedBox(height: 24),
+              Semantics(
+                liveRegion: true,
+                child: Text(
+                  'Đang kiểm tra phiên đăng nhập',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyLarge,
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextButton(
+                onPressed: onGuest,
+                child: const Text('Tiếp tục với Guest'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
   );
 }
 

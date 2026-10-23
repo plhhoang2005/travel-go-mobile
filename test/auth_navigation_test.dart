@@ -1,5 +1,11 @@
 // ignore_for_file: depend_on_referenced_packages
 import 'dart:async';
+
+import 'package:travelgo_mobile/features/auth/presentation/screens/login_screen.dart';
+import 'package:travelgo_mobile/features/auth/presentation/screens/register_screen.dart';
+import 'package:travelgo_mobile/features/auth/presentation/screens/forgot_password_screen.dart';
+import 'package:travelgo_mobile/features/auth/presentation/screens/otp_verification_screen.dart';
+
 import 'dart:io';
 import 'dart:convert';
 
@@ -50,6 +56,7 @@ class FakeTripsServiceForNav extends TripsService {
 }
 
 void main() {
+  _authRefreshUiTests();
   _b62LifecycleTests();
   _b62AuthTests();
   group('AuthProvider Unit Tests', () {
@@ -75,12 +82,10 @@ void main() {
       expect(auth.isGuest, isFalse);
     });
 
-    test('quickDemoLogin with partner sets Furama profile', () async {
-      final auth = AuthProvider();
-      await auth.quickDemoLogin(UserRole.partner);
-      expect(auth.isAuthenticated, isTrue);
-      expect(auth.currentUser?.role, UserRole.partner);
-      expect(auth.currentUser?.fullName, 'Resort Furama Đà Nẵng');
+    test('supported account roles are exactly customer and admin', () {
+      expect(UserRole.values.map((role) => role.name), ['customer', 'admin']);
+      expect(UserRole.customer.displayName, 'Khách hàng');
+      expect(UserRole.admin.displayName, 'Quản trị viên');
     });
 
     test('quickDemoLogin with admin sets Admin profile', () async {
@@ -698,6 +703,7 @@ class _SdkFixture {
       exchangeRelease;
   Completer<void>? passwordEntered, passwordRelease;
   bool failLogout = false;
+  bool failPassword = false;
   bool userOnly = false;
   bool confirmOnly = false;
   bool rejectOldCode = false;
@@ -732,6 +738,13 @@ class _SdkFixture {
               passwordEntered!.complete();
             }
             await passwordRelease?.future;
+            if (failPassword) {
+              return http.Response(
+                '{"message":"Invalid login credentials","code":"invalid_credentials"}',
+                400,
+                headers: {'content-type': 'application/json'},
+              );
+            }
           }
           if (grant == 'pkce') {
             final body = jsonDecode(request.body) as Map<String, dynamic>;
@@ -819,6 +832,7 @@ Future<void> _withAuthFixture(
   Future<void> Function(local_fixtures.TestStoreContext)? configure,
   Timer Function(Duration, void Function())? authTimer,
   Timer Function(Duration, void Function())? serviceTimer,
+  LifecycleRegistryFile Function(String path)? registryFactory,
 }) async {
   await local_fixtures.runWithStore((ctx) async {
     final sdk = _SdkFixture();
@@ -832,6 +846,9 @@ Future<void> _withAuthFixture(
         storeLoader: () async => ctx.store,
         sessionReader: () => sdk.client.auth.currentSession,
         registryPath: '${ctx.tempDir.path}/account_cache_lifecycle_v1.json',
+        registryFile: registryFactory?.call(
+          '${ctx.tempDir.path}/account_cache_lifecycle_v1.json',
+        ),
         timerFactory: serviceTimer,
         verifySubject: (token) async =>
             (await sdk.client.auth.getUser(token)).user!.id,
@@ -886,6 +903,53 @@ Future<void> _withAuthFixture(
 }
 
 void _b62AuthTests() {
+  test(
+    'login timing separates SDK and local authorization without credentials',
+    () async {
+      final messages = <String>[];
+      final originalPrint = debugPrint;
+      debugPrint = (String? message, {int? wrapWidth}) {
+        if (message != null) messages.add(message);
+      };
+      try {
+        await _withAuthFixture((ctx, sdk, service, auth) async {
+          messages.clear();
+          sdk.passwordEntered = Completer();
+          sdk.passwordRelease = Completer();
+          final login = auth.login(
+            'fixture@example.invalid',
+            'fixture-password',
+          );
+          await sdk.passwordEntered!.future;
+          expect(auth.isLoading, isTrue);
+          expect(auth.isAuthenticated, isFalse);
+          expect(
+            messages.any((m) => m.contains('authentication_sdk')),
+            isFalse,
+          );
+          sdk.passwordRelease!.complete();
+          expect(await login, isTrue);
+          final timings = messages
+              .where((m) => m.startsWith('[TravelGO auth]'))
+              .toList();
+          expect(timings.any((m) => m.contains('authentication_sdk')), isTrue);
+          expect(timings.any((m) => m.contains('account_authorize')), isTrue);
+          for (final message in timings) {
+            expect(message, matches(r'^\[TravelGO auth\] [a-z_]+ \d+ms$'));
+            expect(message, isNot(contains('fixture')));
+            expect(message, isNot(contains(sdk.owner)));
+            expect(
+              message,
+              isNot(contains(sdk.client.auth.currentSession!.accessToken)),
+            );
+          }
+        });
+      } finally {
+        debugPrint = originalPrint;
+      }
+    },
+  );
+
   test(
     'A04 repeated lifecycle delivery cannot purge a restored live account',
     () async {
@@ -1145,6 +1209,11 @@ void _b62AuthTests() {
             final auth = Provider.of<AuthProvider>(context, listen: false);
             await tester.pump(const Duration(seconds: 2));
             expect(find.text('Đang kiểm tra phiên đăng nhập'), findsOneWidget);
+            final pendingStyle = DefaultTextStyle.of(
+              tester.element(find.text('Đang kiểm tra phiên đăng nhập')),
+            ).style;
+            expect(pendingStyle.fontSize, lessThanOrEqualTo(24));
+            expect(pendingStyle.decoration, isNot(TextDecoration.underline));
             await Future<void>.delayed(const Duration(milliseconds: 1700));
             await tester.pump();
             expect(find.text('Đang kiểm tra phiên đăng nhập'), findsOneWidget);
@@ -1159,6 +1228,44 @@ void _b62AuthTests() {
             expect(auth.currentUser, isNull);
             await tester.pump(const Duration(milliseconds: 400));
             expect(find.byType(MainNavigationShell), findsOneWidget);
+            await tester.pumpAndSettle();
+            final innerNavigator = Navigator.of(
+              tester.element(find.byType(MainNavigationShell)),
+            );
+            unawaited(
+              innerNavigator.push<void>(
+                MaterialPageRoute<void>(
+                  builder: (_) =>
+                      const Scaffold(body: Text('Nested system Back test')),
+                ),
+              ),
+            );
+            await tester.pumpAndSettle();
+            expect(innerNavigator.canPop(), isTrue);
+            await tester.binding.handlePopRoute();
+            await tester.pumpAndSettle();
+            expect(find.text('Nested system Back test'), findsNothing);
+            expect(find.byType(MainNavigationShell), findsOneWidget);
+            var blockedPops = 0;
+            unawaited(
+              innerNavigator.push<void>(
+                MaterialPageRoute<void>(
+                  builder: (_) => PopScope(
+                    canPop: false,
+                    onPopInvokedWithResult: (didPop, _) {
+                      if (!didPop) blockedPops++;
+                    },
+                    child: const Scaffold(body: Text('Dirty nested form')),
+                  ),
+                ),
+              ),
+            );
+            await tester.pumpAndSettle();
+            expect(innerNavigator.canPop(), isTrue);
+            await tester.binding.handlePopRoute();
+            await tester.pumpAndSettle();
+            expect(blockedPops, 1);
+            expect(find.text('Dirty nested form'), findsOneWidget);
             await tester.pumpWidget(const SizedBox.shrink());
             await auth.close();
             await runtime.close();
@@ -1177,6 +1284,239 @@ void _b62AuthTests() {
       });
     },
   );
+  test(
+    'PHONE03 new auth startup restores active account after server gate',
+    () async {
+      await local_fixtures.runWithStore((ctx) async {
+        final sdk = _SdkFixture();
+        await sdk.client.auth.setInitialSession(
+          jsonEncode(sdk.sessionData(sdk.owner)),
+        );
+        final path = '${ctx.tempDir.path}/account_cache_lifecycle_v1.json';
+        LocalAccountLifecycleService makeService() =>
+            LocalAccountLifecycleService(
+              storeLoader: () async => ctx.store,
+              sessionReader: () => sdk.client.auth.currentSession,
+              registryPath: path,
+              verifySubject: (token) async =>
+                  (await sdk.client.auth.getUser(token)).user!.id,
+            );
+        final first = makeService();
+        await first.establishAccount(freshAuthentication: true);
+        await first.close();
+        sdk.calls.clear();
+        final restarted = makeService();
+        final auth = AuthProvider(
+          client: sdk.client,
+          lifecycleLoader: () async => restarted,
+          trustedRoleFetcher: (_) async => 'customer',
+        );
+        try {
+          await auth.initialization;
+          expect(auth.isAuthenticated, isTrue);
+          expect(auth.isGuest, isFalse);
+          expect(auth.currentUser!.id, sdk.owner);
+          expect(sdk.calls, ['verify-subject']);
+        } finally {
+          auth.dispose();
+          await restarted.close();
+          await sdk.client.dispose();
+        }
+      });
+    },
+  );
+  for (final outcome in [
+    'loader',
+    'store',
+    'verify',
+    'guest',
+    'guest-loader',
+    'changed-owner',
+    'expired',
+    'verifier-denied',
+    'invalid-registry',
+  ]) {
+    test(
+      'PHONE03 interrupted cold startup $outcome preserves authority boundaries',
+      () async {
+        await local_fixtures.runWithStore((ctx) async {
+          final sdk = _SdkFixture();
+          await sdk.client.auth.setInitialSession(
+            jsonEncode(sdk.sessionData(sdk.owner)),
+          );
+          final path = '${ctx.tempDir.path}/account_cache_lifecycle_v1.json';
+          final first = LocalAccountLifecycleService(
+            storeLoader: () async => ctx.store,
+            sessionReader: () => sdk.client.auth.currentSession,
+            registryPath: path,
+          );
+          final handle = (await first.establishAccount(
+            freshAuthentication: true,
+          ))!;
+          await ctx.store.replaceSnapshot(
+            handle: handle,
+            tripId: 'startup-A',
+            payload: local_fixtures.createValidPayload(),
+            fetchedAt: DateTime.now().toUtc(),
+          );
+          await ctx.store.saveDraftRevision(
+            draftId: 'Guest',
+            payload: local_fixtures.createValidPayload(),
+          );
+          await first.close();
+          final entered = Completer<void>(), release = Completer<void>();
+          var verifications = 0;
+          final restarted = LocalAccountLifecycleService(
+            storeLoader: () async {
+              if (outcome != 'verify') {
+                if (!entered.isCompleted) entered.complete();
+                await release.future;
+              }
+              return ctx.store;
+            },
+            sessionReader: () => sdk.client.auth.currentSession,
+            registryPath: path,
+            verifySubject: (_) async {
+              verifications++;
+              if (outcome == 'verify' && !entered.isCompleted) {
+                entered.complete();
+                await release.future;
+              }
+              if (outcome == 'verifier-denied') {
+                throw StateError('Controlled verification failure');
+              }
+              return sdk.owner;
+            },
+          );
+          final auth = AuthProvider(
+            client: sdk.client,
+            lifecycleLoader: () async {
+              if (outcome.endsWith('loader')) {
+                if (!entered.isCompleted) entered.complete();
+                await release.future;
+              }
+              return restarted;
+            },
+            trustedRoleFetcher: (_) async => 'customer',
+          );
+          try {
+            await entered.future.timeout(const Duration(seconds: 5));
+            final inactive = auth.handleAppLifecycleState(
+              AppLifecycleState.inactive,
+            );
+            final hidden = auth.handleAppLifecycleState(
+              AppLifecycleState.hidden,
+            );
+            final paused = auth.handleAppLifecycleState(
+              AppLifecycleState.paused,
+            );
+            expect(auth.currentUser, isNull);
+            expect(restarted.handle, isNull);
+            if (outcome.startsWith('guest')) auth.continueAsGuest();
+            if (outcome == 'changed-owner') {
+              await sdk.client.auth.setInitialSession(
+                jsonEncode(sdk.sessionData(lifecycle_fixtures.ownerB)),
+              );
+            }
+            if (outcome == 'expired') {
+              sdk.client.auth.currentSession!.expiresAt = 1;
+            }
+            if (outcome == 'invalid-registry') {
+              await File(path).writeAsString('{}');
+            }
+            final resumed = auth.handleAppLifecycleState(
+              AppLifecycleState.resumed,
+            );
+            release.complete();
+            await Future.wait([
+              auth.initialization,
+              inactive,
+              hidden,
+              paused,
+              resumed,
+            ]);
+            if (outcome == 'loader' ||
+                outcome == 'store' ||
+                outcome == 'verify') {
+              expect(auth.currentUser?.id, sdk.owner);
+              expect(auth.isGuest, isFalse);
+              expect(verifications, outcome == 'verify' ? 2 : 1);
+              expect(
+                (await ctx.store.listSnapshots(handle: restarted.handle!))
+                    .single
+                    .tripId,
+                'startup-A',
+              );
+            } else {
+              expect(auth.currentUser, isNull);
+              expect(restarted.handle, isNull);
+            }
+            expect(await ctx.store.listGuestDrafts(), hasLength(1));
+            expect(sdk.calls.where((call) => call == 'password'), isEmpty);
+          } finally {
+            if (!release.isCompleted) release.complete();
+            await auth.close();
+            await restarted.close();
+            await sdk.client.dispose();
+          }
+        });
+      },
+    );
+  }
+  test('interrupted_startup_waits_for_access_verification', () async {
+    await local_fixtures.runWithStore((ctx) async {
+      final sdk = _SdkFixture();
+      await sdk.client.auth.setInitialSession(
+        jsonEncode(sdk.sessionData(sdk.owner)),
+      );
+      final path = '${ctx.tempDir.path}/account_cache_lifecycle_v1.json';
+      final first = LocalAccountLifecycleService(
+        storeLoader: () async => ctx.store,
+        sessionReader: () => sdk.client.auth.currentSession,
+        registryPath: path,
+      );
+      await first.establishAccount(freshAuthentication: true);
+      await ctx.store.saveDraftRevision(
+        draftId: 'Guest',
+        payload: local_fixtures.createValidPayload(),
+      );
+      await first.close();
+
+      var accessChecked = false;
+      var getUserChecked = false;
+
+      final restarted = LocalAccountLifecycleService(
+        storeLoader: () async => ctx.store,
+        sessionReader: () => sdk.client.auth.currentSession,
+        registryPath: path,
+        verifySubject: (token) async {
+          final user = (await sdk.client.auth.getUser(token)).user;
+          getUserChecked = true;
+          accessChecked = true;
+          return user!.id;
+        },
+      );
+
+      final auth = AuthProvider(
+        client: sdk.client,
+        lifecycleLoader: () async => restarted,
+        trustedRoleFetcher: (_) async => 'customer',
+      );
+
+      try {
+        await auth.initialization;
+        expect(getUserChecked, isTrue);
+        expect(accessChecked, isTrue);
+        expect(auth.currentUser?.id, sdk.owner);
+        expect(await ctx.store.listGuestDrafts(), hasLength(1));
+      } finally {
+        await auth.close();
+        await restarted.close();
+        await sdk.client.dispose();
+      }
+    });
+  });
+
   test('A01 matching sealed startup publishes only after local gate, no verifier call', () async {
     await _withAuthFixture((ctx, sdk, service, auth) async {
       expect(auth.isAuthenticated, isTrue);
@@ -1445,6 +1785,61 @@ void _b62AuthTests() {
       });
     },
   );
+  test(
+    'A04 returning hidden inactive while pause seal pending restores account',
+    () async {
+      final entered = Completer<void>();
+      final release = Completer<void>();
+      var blockSeal = false;
+      await _withAuthFixture(
+        (ctx, sdk, service, auth) async {
+          try {
+            await auth.handleAppLifecycleState(AppLifecycleState.inactive);
+            await auth.handleAppLifecycleState(AppLifecycleState.hidden);
+            blockSeal = true;
+            final paused = auth.handleAppLifecycleState(
+              AppLifecycleState.paused,
+            );
+            await entered.future.timeout(const Duration(seconds: 5));
+            final hidden = auth.handleAppLifecycleState(
+              AppLifecycleState.hidden,
+            );
+            final inactive = auth.handleAppLifecycleState(
+              AppLifecycleState.inactive,
+            );
+            final resumed = auth.handleAppLifecycleState(
+              AppLifecycleState.resumed,
+            );
+            release.complete();
+            await Future.wait([paused, hidden, inactive, resumed]);
+            expect(auth.currentUser?.id, sdk.owner);
+            expect(auth.isGuest, isFalse);
+            expect(service.handle, isNotNull);
+            expect(
+              (await ctx.store.listSnapshots(handle: service.handle!))
+                  .single
+                  .tripId,
+              'A-snapshot',
+            );
+            expect(await ctx.store.listGuestDrafts(), hasLength(1));
+            expect(sdk.calls.where((call) => call == 'password'), isEmpty);
+          } finally {
+            if (!release.isCompleted) release.complete();
+          }
+        },
+        registryFactory: (path) => LifecycleRegistryFile(
+          path,
+          onStep: (step) async {
+            if (blockSeal && step == 'write') {
+              blockSeal = false;
+              entered.complete();
+              await release.future;
+            }
+          },
+        ),
+      );
+    },
+  );
   test('A03 failed refresh restores only exact old credentials; revocation consumes permit', () async {
     await local_fixtures.runWithStore((ctx) async {
       var session = lifecycle_fixtures.sessionFor(lifecycle_fixtures.ownerA);
@@ -1505,7 +1900,12 @@ void _b62AuthTests() {
           auth.continueAsGuest();
           expect(auth.isGuest, isTrue);
           loader.complete(service);
-          await auth.initialization;
+          await Future.wait([
+            auth.initialization,
+            auth.handleAppLifecycleState(AppLifecycleState.inactive),
+            auth.handleAppLifecycleState(AppLifecycleState.paused),
+            auth.handleAppLifecycleState(AppLifecycleState.resumed),
+          ]);
           expect(auth.currentUser, isNull);
           await auth.close();
           await sdk.client.auth.setInitialSession(
@@ -1597,4 +1997,286 @@ void _b62LifecycleTests() {
       }
     });
   });
+}
+
+Widget _authUi(AuthProvider auth, Widget screen, {bool large = false}) =>
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider.value(value: auth),
+        ChangeNotifierProvider(create: (_) => TripProvider()),
+        ChangeNotifierProvider(create: (_) => FavoritesProvider()),
+        ChangeNotifierProvider(create: (_) => SavedTripsProvider()),
+        ChangeNotifierProvider(create: (_) => HomeCatalogProvider()),
+        ChangeNotifierProvider(create: (_) => DiscoveryProvider()),
+      ],
+      child: MaterialApp(
+        theme: AppTheme.lightTheme,
+        builder: large
+            ? (context, child) => MediaQuery(
+                data: MediaQuery.of(context).copyWith(
+                  textScaler: const TextScaler.linear(2),
+                  viewInsets: const EdgeInsets.only(bottom: 260),
+                ),
+                child: child!,
+              )
+            : null,
+        home: screen,
+      ),
+    );
+
+Future<void> _enterLogin(WidgetTester tester) async {
+  await tester.enterText(
+    find.byKey(const ValueKey('login-email')),
+    'fixture@example.invalid',
+  );
+  await tester.enterText(
+    find.byKey(const ValueKey('login-password')),
+    'fixture-password',
+  );
+  await tester.ensureVisible(find.byKey(const ValueKey('login-submit')));
+  await tester.tap(find.byKey(const ValueKey('login-submit')));
+}
+
+void _authRefreshUiTests() {
+  testWidgets('failed_login_guest_exit_clears_error_on_reopened_form', (
+    tester,
+  ) async {
+    await tester.runAsync(
+      () => _withAuthFixture((ctx, sdk, service, auth) async {
+        const failure = 'Không thể hoàn tất xác thực tài khoản.';
+        auth.continueAsGuest();
+        sdk.failPassword = true;
+        await tester.pumpWidget(_authUi(auth, const LoginScreen()));
+        await _enterLogin(tester);
+        await _waitAuthIdle(auth);
+        await tester.pumpAndSettle();
+        expect(auth.errorMessage, failure);
+        expect(find.text(failure), findsOneWidget);
+        expect(auth.isAuthenticated, isFalse);
+        await tester.tap(find.text('Tiếp tục với vai trò Khách'));
+        await tester.pumpAndSettle();
+        expect(auth.isGuest, isTrue);
+        expect(auth.errorMessage, isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pumpWidget(_authUi(auth, const LoginScreen()));
+        await tester.pumpAndSettle();
+        expect(find.text(failure), findsNothing);
+        sdk.failPassword = false;
+        await _enterLogin(tester);
+        await _waitAuthIdle(auth);
+        await tester.pumpAndSettle();
+        expect(auth.isAuthenticated, isTrue);
+        expect(auth.currentUser?.id, lifecycle_fixtures.ownerA);
+        await tester.pumpWidget(const SizedBox.shrink());
+        expect(tester.takeException(), isNull);
+      }),
+    );
+  });
+
+  testWidgets('login_loading_keeps_action_label_and_blocks_duplicate_submit', (
+    tester,
+  ) async {
+    await tester.runAsync(
+      () => _withAuthFixture((ctx, sdk, service, auth) async {
+        auth.continueAsGuest();
+        sdk.passwordEntered = Completer();
+        sdk.passwordRelease = Completer();
+        await tester.pumpWidget(_authUi(auth, const LoginScreen()));
+        await _enterLogin(tester);
+        await sdk.passwordEntered!.future;
+        await tester.pump();
+        final submit = tester.widget<FilledButton>(
+          find.byKey(const ValueKey('login-submit')),
+        );
+        expect(submit.onPressed, isNull);
+        expect(
+          find.descendant(
+            of: find.byKey(const ValueKey('login-submit')),
+            matching: find.text('Đăng nhập'),
+          ),
+          findsOneWidget,
+        );
+        // Even a second queued invocation from the prior frame is guarded locally.
+        await tester.testTextInput.receiveAction(TextInputAction.done);
+        expect(sdk.calls.where((c) => c == 'password'), hasLength(1));
+        await Future<void>.delayed(const Duration(milliseconds: 8100));
+        await tester.pump();
+        expect(find.textContaining('Đang chờ xác thực.'), findsOneWidget);
+        expect(sdk.calls.where((c) => c == 'password'), hasLength(1));
+        await tester.pumpWidget(const SizedBox.shrink());
+        sdk.passwordRelease!.complete();
+        await _waitAuthIdle(auth);
+        expect(tester.takeException(), isNull);
+      }),
+    );
+  });
+
+  testWidgets('late_login_after_guest_exit_cannot_navigate_to_account', (
+    tester,
+  ) async {
+    await tester.runAsync(
+      () => _withAuthFixture((ctx, sdk, service, auth) async {
+        auth.continueAsGuest();
+        sdk.passwordEntered = Completer();
+        sdk.passwordRelease = Completer();
+        await tester.pumpWidget(_authUi(auth, const LoginScreen()));
+        await _enterLogin(tester);
+        await sdk.passwordEntered!.future;
+        await tester.pump();
+        await tester.tap(find.text('Tiếp tục với vai trò Khách'));
+        await tester.pumpAndSettle();
+        expect(auth.isGuest, isTrue);
+        expect(find.byType(MainNavigationShell), findsOneWidget);
+        expect(
+          auth.isLoading,
+          isFalse,
+          reason: 'Guest cancels the visible loading of the old login',
+        );
+        final signedOut = sdk.client.auth.onAuthStateChange.firstWhere(
+          (event) => event.event == AuthChangeEvent.signedOut,
+        );
+        sdk.passwordRelease!.complete();
+        await signedOut.timeout(const Duration(seconds: 5));
+        await tester.pumpAndSettle();
+        expect(auth.isAuthenticated, isFalse);
+        expect(auth.currentUser, isNull);
+        expect(find.text('Xin chào, Quý khách'), findsOneWidget);
+        expect(find.byType(LoginScreen), findsNothing);
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pumpWidget(_authUi(auth, const LoginScreen()));
+        await tester.pumpAndSettle();
+        expect(
+          tester
+              .widget<TextFormField>(find.byKey(const ValueKey('login-email')))
+              .enabled,
+          isTrue,
+        );
+        expect(
+          tester
+              .widget<FilledButton>(find.byKey(const ValueKey('login-submit')))
+              .onPressed,
+          isNotNull,
+        );
+        expect(find.textContaining('null'), findsNothing);
+        await _enterLogin(tester);
+        await _waitAuthIdle(auth);
+        await tester.pumpAndSettle();
+        expect(auth.isAuthenticated, isTrue);
+        expect(auth.currentUser?.id, lifecycle_fixtures.ownerA);
+        expect(sdk.calls.where((call) => call == 'password'), hasLength(2));
+        await tester.pumpWidget(const SizedBox.shrink());
+        expect(tester.takeException(), isNull);
+      }),
+    );
+  });
+
+  testWidgets('auth_keyboard_large_text_keeps_submit_visible', (tester) async {
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final auth = AuthProvider();
+    addTearDown(auth.dispose);
+    await tester.pumpWidget(_authUi(auth, const LoginScreen(), large: true));
+    await tester.ensureVisible(find.byKey(const ValueKey('login-submit')));
+    expect(
+      find.byKey(const ValueKey('login-submit')).hitTestable(),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const ValueKey('login-submit')));
+    await tester.pump();
+    expect(find.text('Vui lòng nhập email hợp lệ'), findsOneWidget);
+    expect(find.text('Mật khẩu tối thiểu 6 ký tự'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('signup_confirmation_does_not_claim_signed_in', (tester) async {
+    await tester.runAsync(
+      () => _withAuthFixture((ctx, sdk, service, auth) async {
+        auth.continueAsGuest();
+        sdk.confirmOnly = true;
+        await tester.pumpWidget(_authUi(auth, const RegisterScreen()));
+        for (final entry in {
+          'register-name': 'Fixture',
+          'register-phone': '0901234567',
+          'register-email': 'fixture@example.invalid',
+          'register-password': 'fixture-password',
+          'register-confirm': 'fixture-password',
+        }.entries) {
+          await tester.ensureVisible(find.byKey(ValueKey(entry.key)));
+          await tester.enterText(find.byKey(ValueKey(entry.key)), entry.value);
+        }
+        FocusManager.instance.primaryFocus?.unfocus();
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(find.text('Đăng ký tài khoản'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Đăng ký tài khoản'));
+        await _waitAuthIdle(auth);
+        await tester.pumpAndSettle();
+        expect(find.text('Kiểm tra email xác nhận'), findsOneWidget);
+        expect(find.byType(CircularProgressIndicator), findsNothing);
+        expect(
+          find.textContaining('Bạn chưa đăng nhập vào tài khoản.'),
+          findsOneWidget,
+        );
+        expect(auth.isAuthenticated, isFalse);
+        expect(find.byType(MainNavigationShell), findsNothing);
+        expect(find.textContaining('Supabase Dashboard'), findsNothing);
+        await tester.tap(find.text('Đã hiểu'));
+        await tester.pumpAndSettle();
+        expect(find.byType(RegisterScreen), findsOneWidget);
+        await tester.pumpWidget(const SizedBox.shrink());
+        expect(tester.takeException(), isNull);
+      }),
+    );
+  });
+
+  testWidgets('recovery_and_otp_never_offer_fake_send_resend_or_demo_code', (
+    tester,
+  ) async {
+    final auth = AuthProvider();
+    addTearDown(auth.dispose);
+    await tester.pumpWidget(
+      _authUi(auth, const ForgotPasswordScreen(), large: true),
+    );
+    expect(find.text('Khôi phục mật khẩu chưa khả dụng'), findsOneWidget);
+    expect(find.byType(TextFormField), findsNothing);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(
+      _authUi(
+        auth,
+        const OtpVerificationScreen(email: 'fixture@example.invalid'),
+        large: true,
+      ),
+    );
+    await tester.ensureVisible(find.byKey(const ValueKey('otp-code')));
+    await tester.enterText(find.byKey(const ValueKey('otp-code')), '12a34567');
+    expect(
+      tester
+          .widget<TextFormField>(find.byKey(const ValueKey('otp-code')))
+          .controller!
+          .text,
+      '123456',
+    );
+    expect(
+      auth.isAuthenticated,
+      isFalse,
+    ); // Pasting six digits never auto-submits.
+    expect(find.textContaining('Mẹo kiểm thử'), findsNothing);
+    expect(find.textContaining('Gửi lại'), findsNothing);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+}
+
+Future<void> _waitAuthIdle(AuthProvider auth) async {
+  for (var attempt = 0; attempt < 300 && auth.isLoading; attempt++) {
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+  }
+  expect(
+    auth.isLoading,
+    isFalse,
+    reason: 'Fixture authentication must finish before asserting UI',
+  );
 }
