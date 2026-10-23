@@ -203,6 +203,18 @@ class EditableTripCodec {
     }
   }
 
+  static final _destinationIdRegex = RegExp(r'^[a-z0-9][a-z0-9/-]{0,119}$');
+
+  static void _destinationId(Object? value, {bool nullable = false}) {
+    if (value == null) {
+      if (nullable) return;
+      throw const EditableCodecException('invalid_input', r'$.input.destinationId');
+    }
+    if (value is! String || !_destinationIdRegex.hasMatch(value)) {
+      throw const EditableCodecException('invalid_input', r'$.input.destinationId');
+    }
+  }
+
   static void _validate(Map<String, Object?> m) {
     _keys(
       m,
@@ -218,8 +230,16 @@ class EditableTripCodec {
     );
     _text(input['title'], 200, blank: true);
     _text(input['origin'], 200, blank: true);
-    _enum(input['destinationId'], destinations, nullable: true);
-    _text(input['destinationName'], 200, nullable: true);
+    final destId = input['destinationId'];
+    if (destId != null) {
+      _destinationId(destId);
+      final destName = input['destinationName'];
+      if (destName == null || destName is! String || destName.trim().isEmpty || destName.length > 180) {
+        throw const EditableCodecException('invalid_input', r'$.input.destinationName');
+      }
+    } else {
+      _text(input['destinationName'], 180, nullable: true);
+    }
     _date(input['startDate'], nullable: true);
     _date(input['endDate'], nullable: true);
     _enum(input['timezone'], {'Asia/Ho_Chi_Minh'});

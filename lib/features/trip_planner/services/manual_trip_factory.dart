@@ -30,16 +30,16 @@ class ManualTripFactory {
         throw const EditableCodecException('invalid_input', 'dates');
       }
     }
-    final known = EditableTripCodec.destinations.contains(
-      metadata.destinationId,
-    );
-    final name = known ? metadata.destinationName : null;
+    final destId = metadata.destinationId;
+    final isValidId = destId != null &&
+        RegExp(r'^[a-z0-9][a-z0-9/-]{0,119}$').hasMatch(destId);
+    final name = isValidId ? metadata.destinationName : null;
     final document = EditableTripDocumentV2(
       input: TripInput(
         title:
             metadata.title ??
             (name == null ? 'Chuyến đi mới' : 'Chuyến đi $name'),
-        destinationId: known ? metadata.destinationId : null,
+        destinationId: isValidId ? destId : null,
         destinationName: name,
         startDate: metadata.startDate,
         endDate: metadata.endDate,
