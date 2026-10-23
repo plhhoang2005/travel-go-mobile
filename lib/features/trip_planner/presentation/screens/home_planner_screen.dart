@@ -173,16 +173,20 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
     );
 
     if (picked != null) {
-      final days = picked.end.difference(picked.start).inDays + 1;
       final start = DateFormat('yyyy-MM-dd').format(picked.start);
       final end = DateFormat('yyyy-MM-dd').format(picked.end);
-      provider.updateRequest(
-        req.copyWith(
-          numDays: days.clamp(1, 30),
-          startDate: start,
-          endDate: end,
-        ),
-      );
+      try {
+        provider.setCalendarRange(start, end);
+      } on FormatException catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(e.message),
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+          );
+        }
+      }
     }
   }
 
@@ -532,14 +536,24 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
                       onPressed: () => _pickDateRange(context, provider, req),
                     ),
                     Slider(
-                      value: req.numDays.toDouble().clamp(1, 14),
+                      value: req.numDays.toDouble().clamp(1, 30),
                       min: 1,
-                      max: 14,
-                      divisions: 13,
+                      max: 30,
+                      divisions: 29,
                       onChanged: (val) {
-                        provider.updateRequest(
-                          req.copyWith(numDays: val.toInt()),
-                        );
+                        try {
+                          provider.setDuration(val.toInt());
+                        } on FormatException catch (e) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(e.message),
+                                backgroundColor:
+                                    Theme.of(context).colorScheme.error,
+                              ),
+                            );
+                          }
+                        }
                       },
                     ),
 

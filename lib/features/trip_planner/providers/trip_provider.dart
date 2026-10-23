@@ -10,6 +10,7 @@ import '../../trips/services/local_trip_store.dart';
 import '../models/trip_request.dart';
 import '../models/trip_response.dart';
 import '../services/trip_api_service.dart';
+import '../services/trip_date_policy.dart';
 
 class _PlannerWorkspace {
   final PlanTripRequest request;
@@ -220,12 +221,66 @@ class TripProvider extends ChangeNotifier {
     }
   }
 
+  void setCalendarRange(String startDate, String endDate) {
+    if (_disposed) return;
+    final range = TripDatePolicy.validate(startDate, endDate, maxDays: 30);
+    if (range == null) return;
+    final updatedRequest = _currentRequest.copyWith(
+      startDate: range.startDate,
+      endDate: range.endDate,
+      numDays: range.numDays,
+    );
+    updateRequest(updatedRequest);
+    _metadata = _metadata.copyWith(
+      startDate: range.startDate,
+      endDate: range.endDate,
+    );
+    _notify();
+  }
+
+  void setDuration(int numDays) {
+    if (_disposed) return;
+    if (numDays < 1 || numDays > 30) {
+      throw FormatException('Số ngày phải từ 1 đến 30 ngày (nhận được $numDays)');
+    }
+    String? newEndDate;
+    if (_currentRequest.startDate != null) {
+      newEndDate = TripDatePolicy.calculateEndDate(
+        _currentRequest.startDate!,
+        numDays,
+      );
+    }
+    final updatedRequest = _currentRequest.copyWith(
+      numDays: numDays,
+      endDate: newEndDate,
+    );
+    updateRequest(updatedRequest);
+    if (newEndDate != null) {
+      _metadata = _metadata.copyWith(endDate: newEndDate);
+    }
+    _notify();
+  }
+
   void updateRequest(PlanTripRequest newRequest) {
     if (_disposed) return;
     final frozen = TripPayloadCodec.deepFreezeRequest(newRequest);
     if (_hasInput &&
         jsonEncode(frozen.toJson()) == jsonEncode(_currentRequest.toJson())) {
       return;
+    }
+    if (frozen.startDate != null || frozen.endDate != null) {
+      final range = TripDatePolicy.validate(
+        frozen.startDate,
+        frozen.endDate,
+        expectedDays: frozen.numDays,
+        maxDays: 30,
+      );
+      if (range != null) {
+        _metadata = _metadata.copyWith(
+          startDate: range.startDate,
+          endDate: range.endDate,
+        );
+      }
     }
     _invalidate();
     _currentRequest = frozen;
@@ -517,7 +572,10 @@ class TripProvider extends ChangeNotifier {
     );
     _invalidate();
     _currentRequest = request;
-    _metadata = metadata;
+    _metadata = metadata.copyWith(
+      startDate: request.startDate,
+      endDate: request.endDate,
+    );
     _currentResponse = null;
     _draftId = null;
     _draftRevision = null;

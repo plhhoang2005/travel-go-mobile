@@ -71,7 +71,7 @@ void main() {
     test('updateRequest preserves adaptive parameters', () {
       final req = PlanTripRequest(
         origin: 'Hà Nội',
-        numDays: 4,
+        numDays: 5,
         numPeople: 3,
         budgetVnd: 15000000,
         preferences: ['núi', 'ẩm thực', 'check-in'],
@@ -83,7 +83,7 @@ void main() {
 
       provider.updateRequest(req);
       expect(provider.currentRequest.origin, 'Hà Nội');
-      expect(provider.currentRequest.numDays, 4);
+      expect(provider.currentRequest.numDays, 5);
       expect(provider.currentRequest.numPeople, 3);
       expect(provider.currentRequest.startDate, '2026-11-20');
       expect(provider.currentRequest.endDate, '2026-11-24');

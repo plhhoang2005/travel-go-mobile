@@ -5,6 +5,7 @@ import '../../trips/models/trip_payload_codec.dart';
 import '../models/editable_trip_document.dart';
 import '../models/trip_request.dart';
 import 'editable_trip_validator.dart';
+import 'trip_date_policy.dart';
 
 /// Creates an empty manual workspace; no health check, engine or AI dependency.
 class ManualTripFactory {
@@ -18,18 +19,40 @@ class ManualTripFactory {
     if (request.numDays < 1 || request.numDays > 366) {
       throw const EditableCodecException('invalid_input', 'numDays');
     }
+
+    String? resolvedStart = metadata.startDate;
+    String? resolvedEnd = metadata.endDate;
+
+    if (request.startDate != null || request.endDate != null) {
+      if (resolvedStart != null || resolvedEnd != null) {
+        if (resolvedStart != request.startDate || resolvedEnd != request.endDate) {
+          throw const EditableCodecException('invalid_input', 'dates');
+        }
+      } else {
+        resolvedStart = request.startDate;
+        resolvedEnd = request.endDate;
+      }
+    }
+
     var count = request.numDays;
     DateTime? first;
-    if (metadata.startDate != null && metadata.endDate != null) {
-      TripPayloadCodec.validateCalendarDate(metadata.startDate!);
-      TripPayloadCodec.validateCalendarDate(metadata.endDate!);
-      first = DateTime.parse('${metadata.startDate}T00:00:00Z');
-      final last = DateTime.parse('${metadata.endDate}T00:00:00Z');
-      count = last.difference(first).inDays + 1;
-      if (count < 1 || count > 366) {
+    if (resolvedStart != null || resolvedEnd != null) {
+      try {
+        final range = TripDatePolicy.validate(
+          resolvedStart,
+          resolvedEnd,
+          expectedDays: request.numDays,
+          maxDays: 366,
+        );
+        if (range != null) {
+          count = range.numDays;
+          first = TripDatePolicy.parseCalendarDate(range.startDate);
+        }
+      } catch (_) {
         throw const EditableCodecException('invalid_input', 'dates');
       }
     }
+
     final destId = metadata.destinationId;
     final isValidId = destId != null &&
         RegExp(r'^[a-z0-9][a-z0-9/-]{0,119}$').hasMatch(destId);
@@ -41,8 +64,8 @@ class ManualTripFactory {
             (name == null ? 'Chuyến đi mới' : 'Chuyến đi $name'),
         destinationId: isValidId ? destId : null,
         destinationName: name,
-        startDate: metadata.startDate,
-        endDate: metadata.endDate,
+        startDate: resolvedStart,
+        endDate: resolvedEnd,
         timezone: 'Asia/Ho_Chi_Minh',
         origin: request.origin,
         travelerCount: request.numPeople,
@@ -55,10 +78,9 @@ class ManualTripFactory {
         (i) => TripDay(
           id: newId(),
           ordinal: i + 1,
-          date: first
-              ?.add(Duration(days: i))
-              .toIso8601String()
-              .substring(0, 10),
+          date: first == null
+              ? null
+              : TripDatePolicy.calculateEndDate(resolvedStart!, i + 1),
           notes: '',
         ),
       ),
