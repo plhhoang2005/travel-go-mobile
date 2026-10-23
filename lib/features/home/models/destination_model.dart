@@ -4,7 +4,7 @@ class DestinationModel {
   final String region;
   final String? description;
   final String? imageUrl;
-  final double weatherCachedTemp;
+  final double? weatherCachedTemp;
   final bool isPopular;
 
   const DestinationModel({
@@ -13,9 +13,11 @@ class DestinationModel {
     required this.region,
     this.description,
     this.imageUrl,
-    this.weatherCachedTemp = 26.0,
+    this.weatherCachedTemp,
     this.isPopular = true,
   });
+
+  bool get hasWeather => weatherCachedTemp != null;
 
   factory DestinationModel.fromJson(Map<String, dynamic> json) {
     return DestinationModel(
@@ -24,7 +26,7 @@ class DestinationModel {
       region: json['region'] as String? ?? 'Toàn quốc',
       description: json['description'] as String?,
       imageUrl: json['image_url'] as String?,
-      weatherCachedTemp: (json['weather_cached_temp'] as num?)?.toDouble() ?? 26.0,
+      weatherCachedTemp: (json['weather_cached_temp'] as num?)?.toDouble(),
       isPopular: json['is_popular'] as bool? ?? true,
     );
   }
