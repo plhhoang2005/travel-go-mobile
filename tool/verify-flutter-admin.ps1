@@ -19,6 +19,17 @@ $script:dataRoot = $null
 $script:runRoot = $null
 $script:logRoot = $null
 
+function Stop-PostgresInstance {
+    if ($script:dataRoot -and (Test-Path $script:dataRoot)) {
+        if ($script:pgCtl -and (Test-Path $script:pgCtl)) {
+            try {
+                & $script:pgCtl -D $script:dataRoot -m immediate stop *> $null
+            } catch {}
+        }
+    }
+    $script:pgStarted = $false
+}
+
 function Invoke-Check {
     param(
         [string]$Label,
@@ -33,6 +44,9 @@ function Invoke-Check {
             Arguments = $CommandArgs
         } | ConvertTo-Json -Compress
         return
+    }
+    if (-not (Test-Path $Executable) -and -not (Get-Command $Executable -ErrorAction SilentlyContinue)) {
+        throw "Executable not found for ${Label}: $Executable"
     }
     $logPath = Join-Path $script:logRoot "$Label.log"
     Write-Host "Running $Label; log: $logPath"
@@ -50,7 +64,8 @@ function Invoke-Sql {
         [string]$Sql,
         [string]$File,
         [string]$ExpectedError,
-        [string[]]$Connection
+        [string[]]$Connection,
+        [int]$TimeoutMs = 30000
     )
     if ($DryRun) {
         [pscustomobject]@{
@@ -72,34 +87,63 @@ function Invoke-Sql {
     }
 
     $arguments = $Connection + @('-q', '-f', $sqlFileToRun)
-    $outPath = Join-Path $script:runRoot 'temp_sql_out.log'
-    $errPath = Join-Path $script:runRoot 'temp_sql_err.log'
-    if (Test-Path $outPath) { Remove-Item $outPath -Force }
-    if (Test-Path $errPath) { Remove-Item $errPath -Force }
+    $cmdLine = [string]::Join(' ', ($arguments | ForEach-Object {
+        if ($_ -match '[\s"]') {
+            '"' + ($_ -replace '(\\*)(")', '$1$1\"' -replace '(\\+)$', '$1$1') + '"'
+        } else {
+            $_
+        }
+    }))
 
-    $p = Start-Process -FilePath $script:psql -ArgumentList $arguments -WindowStyle Hidden -PassThru `
-        -RedirectStandardOutput $outPath -RedirectStandardError $errPath
-    $null = $p.WaitForExit(30000)
-    $p.WaitForExit()
-    $code = if ($null -ne $p.ExitCode) { $p.ExitCode } else { 0 }
+    $psi = [System.Diagnostics.ProcessStartInfo]::new($script:psql, $cmdLine)
+    $psi.UseShellExecute = $false
+    $psi.CreateNoWindow = $true
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
+
+    $p = [System.Diagnostics.Process]::Start($psi)
+    $stdoutTask = $p.StandardOutput.ReadToEndAsync()
+    $stderrTask = $p.StandardError.ReadToEndAsync()
+
+    $hasExited = $p.WaitForExit($TimeoutMs)
+    if (-not $hasExited) {
+        try { $p.Kill() } catch {}
+        if ($isTempFile -and (Test-Path $sqlFileToRun)) { Remove-Item $sqlFileToRun -Force }
+        throw "Timeout ($TimeoutMs ms) exceeded waiting for psql process: $Label"
+    }
+
+    $null = [System.Threading.Tasks.Task]::WaitAll(@($stdoutTask, $stderrTask), 5000)
+    $code = $p.ExitCode
+    if ($null -eq $code) {
+        if ($isTempFile -and (Test-Path $sqlFileToRun)) { Remove-Item $sqlFileToRun -Force }
+        throw "Child process exit code unavailable for psql execution: $Label"
+    }
+
+    $stdout = $stdoutTask.Result
+    $stderr = $stderrTask.Result
+    $combined = "$stdout`n$stderr".Trim()
 
     if ($isTempFile -and (Test-Path $sqlFileToRun)) {
         Remove-Item $sqlFileToRun -Force
     }
 
-    $outText = if (Test-Path $outPath) { Get-Content -Path $outPath -Raw -Encoding utf8 } else { "" }
-    $errText = if (Test-Path $errPath) { Get-Content -Path $errPath -Raw -Encoding utf8 } else { "" }
-    $combined = "$outText`n$errText".Trim()
-
     $sqlLog = Join-Path $script:runRoot 'sql-verification.log'
     $combined | Out-File -LiteralPath $sqlLog -Append -Encoding utf8
 
     if ($ExpectedError) {
-        if ($code -eq 0 -or $combined -notmatch [regex]::Escape($ExpectedError)) {
-            throw "Expected denial failed: $Label. Code: $code. See $sqlLog"
+        if ($code -eq 0) {
+            throw "Expected denial failed: $Label. Process exited with code 0 (success) but expected error '$ExpectedError'. See $sqlLog"
         }
-    } elseif (($code -ne 0) -or ($combined -match '(?i)\bERROR:')) {
-        throw "SQL failed: $Label (exit $code): $combined. See $sqlLog"
+        if ($combined -notmatch [regex]::Escape($ExpectedError)) {
+            throw "Expected denial failed: $Label. Process exited with code $code but output did not match expected error '$ExpectedError'. Output: $combined. See $sqlLog"
+        }
+    } else {
+        if ($code -ne 0) {
+            throw "SQL execution failed: $Label (child exit code $code). Output: $combined. See $sqlLog"
+        }
+        if ($combined -match '(?i)\bERROR:') {
+            throw "SQL output contains unexpected ERROR: $Label (child exit code $code). Output: $combined. See $sqlLog"
+        }
     }
     Write-Host "PASS: $Label"
 }
@@ -153,11 +197,14 @@ try {
         $launcher = Start-Process -FilePath $script:pgCtl -ArgumentList $startArgs -WindowStyle Hidden -PassThru `
             -RedirectStandardOutput (Join-Path $script:runRoot 'start.log') -RedirectStandardError (Join-Path $script:runRoot 'start-error.log')
         
+        # Ensure cleanup flag is active as soon as process starts
+        $script:pgStarted = $true
+
         $null = $launcher.WaitForExit(20000)
 
         # Check connection readiness using psql directly
         $ready = $false
-        for ($i = 0; $i -lt 10; $i++) {
+        for ($i = 0; $i -lt 15; $i++) {
             & $script:psql -h 127.0.0.1 -p $port -U postgres -d postgres -c 'SELECT 1;' *> $null
             if ($LASTEXITCODE -eq 0) {
                 $ready = $true
@@ -166,55 +213,132 @@ try {
             Start-Sleep -Milliseconds 500
         }
         if (-not $ready) {
+            Stop-PostgresInstance
             throw "Isolated PostgreSQL failed to accept connections on loopback port $port"
         }
 
-        $script:pgStarted = $true
         return @('-X', '-h', '127.0.0.1', '-p', "$port", '-U', 'postgres', '-d', 'postgres', '-v', 'ON_ERROR_STOP=1')
     }
 
-    # 2. SelfTest: Pin regression harness_propagates_nonzero
+    # 2. SelfTest: Pin regression harness_propagates_nonzero and negative controls
     if ($SelfTest) {
         Write-Host "=== SelfTest: Verifying harness_propagates_nonzero ==="
+
+        # Verify Node runtime exists
+        if (-not (Test-Path $nodeExecutable) -and -not (Get-Command $nodeExecutable -ErrorAction SilentlyContinue)) {
+            throw "BLOCKED: Node.js executable not found at '$nodeExecutable'. SelfTest cannot proceed."
+        }
+
+        # Test 1A: Positive control for Node (must succeed with exit 0)
+        Invoke-Check 'selftest-node-positive-control' $nodeExecutable @('-e', 'process.exit(0)')
+
+        # Test 1B: Deliberate Node failure with specific assertion marker and nonzero exit
+        $tempNodeScript = Join-Path $env:TEMP ("deliberate_node_fail_" + [guid]::NewGuid().ToString('N') + ".mjs")
+        Set-Content -Path $tempNodeScript -Value "import assert from 'node:assert'; assert.strictEqual(1, 2, 'deliberate_node_failure');"
         
-        # Test 1: Node failure must propagate nonzero exit and be caught
-        $nodeCaught = $false
+        $psi = [System.Diagnostics.ProcessStartInfo]::new($nodeExecutable, "`"$tempNodeScript`"")
+        $psi.UseShellExecute = $false
+        $psi.CreateNoWindow = $true
+        $psi.RedirectStandardOutput = $true
+        $psi.RedirectStandardError = $true
+        $nodeProcess = [System.Diagnostics.Process]::Start($psi)
+        $stdoutTask = $nodeProcess.StandardOutput.ReadToEndAsync()
+        $stderrTask = $nodeProcess.StandardError.ReadToEndAsync()
+        $hasExited = $nodeProcess.WaitForExit(10000)
+        $null = [System.Threading.Tasks.Task]::WaitAll(@($stdoutTask, $stderrTask), 5000)
+        $nodeExit = $nodeProcess.ExitCode
+        $nodeOutput = ($stdoutTask.Result + "`n" + $stderrTask.Result).Trim()
+        if (Test-Path $tempNodeScript) { Remove-Item $tempNodeScript -Force }
+
+        if (-not $hasExited -or $nodeExit -eq 0 -or $nodeOutput -notmatch 'deliberate_node_failure') {
+            throw "Harness integrity violation: deliberate Node failure did not propagate expected marker with nonzero child exit! Code: $nodeExit, Output: $nodeOutput"
+        }
+        Write-Host "PASS: Node deliberate failure exited with code $nodeExit and contained expected marker 'deliberate_node_failure'"
+
+        # Test 1C: Negative control: ensure harness rejects missing executable or missing marker
+        $bogusScript = Join-Path $env:TEMP ("selftest_bogus_" + [guid]::NewGuid().ToString('N') + ".mjs")
+        Set-Content -Path $bogusScript -Value "process.exit(0);"
+        $bogusRejected = $false
         try {
-            $tempNodeScript = Join-Path $env:TEMP ("deliberate_node_fail_" + [guid]::NewGuid().ToString('N') + ".mjs")
-            Set-Content -Path $tempNodeScript -Value "import assert from 'node:assert'; assert.strictEqual(1, 2, 'deliberate_node_failure');"
-            Invoke-Check 'selftest-deliberate-node-failure' $nodeExecutable @($tempNodeScript)
+            $bp = Start-Process -FilePath $nodeExecutable -ArgumentList @($bogusScript) -WindowStyle Hidden -PassThru
+            $bp.WaitForExit()
+            if ($bp.ExitCode -eq 0) {
+                # Deliberate failure assertion expects nonzero; exit 0 must be rejected
+                throw "ASSERTION_FAILED: fake exit 0 cannot be counted as failure propagation"
+            }
         } catch {
-            $nodeCaught = $true
-            Write-Host "PASS: Node deliberate failure propagated nonzero and was caught: $($_.Exception.Message)"
+            if ($_.Exception.Message -match 'ASSERTION_FAILED') {
+                $bogusRejected = $true
+            }
         } finally {
-            if (Test-Path $tempNodeScript) { Remove-Item $tempNodeScript -Force }
+            if (Test-Path $bogusScript) { Remove-Item $bogusScript -Force }
         }
-        if (-not $nodeCaught) {
-            throw "Harness integrity violation: deliberate Node failure did not propagate nonzero!"
+        if (-not $bogusRejected) {
+            throw "Harness integrity violation: false-positive control failed, exit 0 was not rejected as failure!"
+        }
+        Write-Host "PASS: Node false-positive control rejected fake exit 0 correctly"
+
+        # Test 2: SQL controls
+        if (-not ((Test-Path $script:psql) -and (Test-Path $script:pgCtl) -and (Test-Path $initDb))) {
+            throw "BLOCKED: Required PostgreSQL binaries (psql, pg_ctl, initdb) not found at '$PostgresBin'. SelfTest cannot verify SQL assertion propagation without required runtime."
         }
 
-        # Test 2: SQL deliberate failure must propagate nonzero exit and be caught
-        if ((Test-Path $script:psql) -and (Test-Path $script:pgCtl) -and (Test-Path $initDb)) {
-            $conn = Start-IsolatedPostgres -Purpose 'admin-postgres-selftest'
+        $conn = Start-IsolatedPostgres -Purpose 'admin-postgres-selftest'
+        try {
+            # Test 2A: SQL positive control (must succeed with exit 0)
+            Invoke-Sql -Label 'selftest-sql-positive-control' -Sql 'SELECT 1;' -Connection $conn
 
-            $sqlCaught = $false
+            # Test 2B: SQL deliberate failure with ExpectedError (division by zero)
+            Invoke-Sql -Label 'selftest-sql-deliberate-failure' -Sql 'SELECT 1/0;' -ExpectedError 'division by zero' -Connection $conn
+
+            # Test 2C: Negative control: SQL unhandled failure without ExpectedError must throw
+            $unhandledCaught = $false
             try {
-                Invoke-Sql -Label 'selftest-deliberate-sql-failure' -Sql 'SELECT 1/0;' -Connection $conn
+                Invoke-Sql -Label 'selftest-sql-unhandled-negative' -Sql 'SELECT 1/0;' -Connection $conn
             } catch {
-                $sqlCaught = $true
-                Write-Host "PASS: SQL deliberate failure propagated nonzero and was caught: $($_.Exception.Message)"
+                if ($_.Exception.Message -match 'SQL execution failed') {
+                    $unhandledCaught = $true
+                }
             }
-            if (-not $sqlCaught) {
-                throw "Harness integrity violation: deliberate SQL failure did not propagate nonzero!"
+            if (-not $unhandledCaught) {
+                throw "Harness integrity violation: unhandled SQL failure did not throw!"
             }
+            Write-Host "PASS: SQL unhandled failure without ExpectedError threw expected exception"
 
-            # Stop SelfTest DB
-            & $script:pgCtl -D $script:dataRoot -m immediate stop *> (Join-Path $script:runRoot 'stop.log')
-            $script:pgStarted = $false
-        } else {
-            Write-Host "SKIP: Local PostgreSQL binary not found for SQL SelfTest; recorded as NOT RUN."
+            # Test 2D: Negative control: SQL with mismatched ExpectedError must throw
+            $mismatchedCaught = $false
+            try {
+                Invoke-Sql -Label 'selftest-sql-mismatched-negative' -Sql 'SELECT 1/0;' -ExpectedError 'completely_nonexistent_sentinel' -Connection $conn
+            } catch {
+                if ($_.Exception.Message -match 'Expected denial failed') {
+                    $mismatchedCaught = $true
+                }
+            }
+            if (-not $mismatchedCaught) {
+                throw "Harness integrity violation: SQL with mismatched ExpectedError did not throw!"
+            }
+            Write-Host "PASS: SQL mismatched ExpectedError threw expected exception"
+
+            # Test 2E: Negative control: Controlled timeout propagation
+            $timeoutCaught = $false
+            try {
+                # Force timeout by specifying 1ms timeout on a command
+                Invoke-Sql -Label 'selftest-sql-timeout-negative' -Sql 'SELECT pg_sleep(2);' -Connection $conn -TimeoutMs 200
+            } catch {
+                if ($_.Exception.Message -match 'Timeout .* exceeded') {
+                    $timeoutCaught = $true
+                }
+            }
+            if (-not $timeoutCaught) {
+                throw "Harness integrity violation: SQL query exceeding timeout did not trigger timeout exception!"
+            }
+            Write-Host "PASS: SQL timeout control aborted process and threw expected timeout exception"
+
+        } finally {
+            Stop-PostgresInstance
         }
-        Write-Host "=== SelfTest Complete: All assertions verified ===`n"
+
+        Write-Host "=== SelfTest Complete: All assertions and negative controls verified ===`n"
         return
     }
 
@@ -232,6 +356,13 @@ try {
     }
 
     # 4. Mode-specific command execution
+
+    # Helper to enforce PostgreSQL binary availability for SQL modes
+    function Assert-PostgresBinaries {
+        if (-not ((Test-Path $script:psql) -and (Test-Path $script:pgCtl) -and (Test-Path $initDb))) {
+            throw "BLOCKED: Required PostgreSQL binaries (psql, pg_ctl, initdb) not found at '$PostgresBin'. SQL verification cannot proceed."
+        }
+    }
 
     # Account Mode
     if ($Mode -in @('Account', 'All')) {
@@ -275,9 +406,11 @@ try {
             if (Test-Path (Join-Path $repoRoot 'supabase/tests/admin_account_control.sql')) {
                 Invoke-Sql -Label 'admin-account-control' -File 'supabase/tests/admin_account_control.sql'
             }
-        } elseif ((Test-Path $script:psql) -and (Test-Path $script:pgCtl)) {
+        } else {
+            Assert-PostgresBinaries
             $conn = Start-IsolatedPostgres -Purpose 'admin-postgres-account'
-            Invoke-Sql 'synthetic Supabase auth substrate' -Sql @'
+            try {
+                Invoke-Sql 'synthetic Supabase auth substrate' -Sql @'
 CREATE ROLE anon NOLOGIN;
 CREATE ROLE authenticated NOLOGIN;
 CREATE ROLE service_role NOLOGIN BYPASSRLS;
@@ -310,26 +443,35 @@ $$;
 GRANT USAGE ON SCHEMA public,auth TO anon,authenticated,service_role;
 GRANT ALL ON ALL TABLES IN SCHEMA auth TO anon,authenticated,service_role;
 '@ -Connection $conn
-            Invoke-Sql 'baseline.sql' -File (Join-Path $repoRoot 'supabase/staging/baseline.sql') -Connection $conn
-            Invoke-Sql 'profile_privacy.sql' -File (Join-Path $repoRoot 'supabase/migrations/202610080001_profile_privacy.sql') -Connection $conn
-            Invoke-Sql 'profile_preferences.sql' -File (Join-Path $repoRoot 'supabase/migrations/202610190001_profile_preferences.sql') -Connection $conn
-            Invoke-Sql 'two_role_foundation.sql' -File (Join-Path $repoRoot 'supabase/migrations/20261020145005_two_role_foundation.sql') -Connection $conn
-            Invoke-Sql 'profile_two_roles.sql' -File (Join-Path $repoRoot 'supabase/tests/profile_two_roles.sql') -Connection $conn
+                Invoke-Sql 'baseline.sql' -File (Join-Path $repoRoot 'supabase/staging/baseline.sql') -Connection $conn
+                Invoke-Sql 'profile_privacy.sql' -File (Join-Path $repoRoot 'supabase/migrations/202610080001_profile_privacy.sql') -Connection $conn
+                Invoke-Sql 'profile_preferences.sql' -File (Join-Path $repoRoot 'supabase/migrations/202610190001_profile_preferences.sql') -Connection $conn
+                Invoke-Sql 'two_role_foundation.sql' -File (Join-Path $repoRoot 'supabase/migrations/20261020145005_two_role_foundation.sql') -Connection $conn
+                Invoke-Sql 'profile_two_roles.sql' -File (Join-Path $repoRoot 'supabase/tests/profile_two_roles.sql') -Connection $conn
 
-            # Dynamic suites added by A1/A2
-            if (Test-Path (Join-Path $repoRoot 'supabase/tests/admin_account_control.sql')) {
-                Invoke-Sql 'admin_account_control.sql' -File (Join-Path $repoRoot 'supabase/tests/admin_account_control.sql') -Connection $conn
-            }
-            if (Test-Path (Join-Path $repoRoot 'supabase/tests/admin_account_concurrency.sql')) {
-                Invoke-Sql 'admin_account_concurrency.sql' -File (Join-Path $repoRoot 'supabase/tests/admin_account_concurrency.sql') -Connection $conn
-            }
-            if (Test-Path (Join-Path $repoRoot 'supabase/tests/admin_account_surface_guards.sql')) {
-                Invoke-Sql 'admin_account_surface_guards.sql' -File (Join-Path $repoRoot 'supabase/tests/admin_account_surface_guards.sql') -Connection $conn
-            }
+                # Dynamic suites added by A1/A2
+                # Look for M_CONTROL migration in supabase/migrations/
+                $controlMigration = Get-ChildItem -Path (Join-Path $repoRoot 'supabase/migrations') -Filter '*_admin_account_control.sql' -ErrorAction SilentlyContinue | Select-Object -First 1
+                if ($controlMigration) {
+                    Invoke-Sql 'admin_account_control migration' -File $controlMigration.FullName -Connection $conn
+                }
+                if (Test-Path (Join-Path $repoRoot 'supabase/tests/admin_account_control.sql')) {
+                    Invoke-Sql 'admin_account_control.sql' -File (Join-Path $repoRoot 'supabase/tests/admin_account_control.sql') -Connection $conn
+                }
+                if (Test-Path (Join-Path $repoRoot 'supabase/tests/admin_account_concurrency.sql')) {
+                    Invoke-Sql 'admin_account_concurrency.sql' -File (Join-Path $repoRoot 'supabase/tests/admin_account_concurrency.sql') -Connection $conn
+                }
 
-            # Stop server after mode
-            & $script:pgCtl -D $script:dataRoot -m immediate stop *> (Join-Path $script:runRoot 'stop.log')
-            $script:pgStarted = $false
+                $guardsMigration = Get-ChildItem -Path (Join-Path $repoRoot 'supabase/migrations') -Filter '*_admin_account_guards.sql' -ErrorAction SilentlyContinue | Select-Object -First 1
+                if ($guardsMigration) {
+                    Invoke-Sql 'admin_account_guards migration' -File $guardsMigration.FullName -Connection $conn
+                }
+                if (Test-Path (Join-Path $repoRoot 'supabase/tests/admin_account_surface_guards.sql')) {
+                    Invoke-Sql 'admin_account_surface_guards.sql' -File (Join-Path $repoRoot 'supabase/tests/admin_account_surface_guards.sql') -Connection $conn
+                }
+            } finally {
+                Stop-PostgresInstance
+            }
         }
     }
 
@@ -344,9 +486,11 @@ GRANT ALL ON ALL TABLES IN SCHEMA auth TO anon,authenticated,service_role;
 
         if ($DryRun) {
             Invoke-Sql -Label 'admin_discovery.sql' -File 'supabase/tests/admin_discovery.sql'
-        } elseif ((Test-Path $script:psql) -and (Test-Path $script:pgCtl)) {
+        } else {
+            Assert-PostgresBinaries
             $conn = Start-IsolatedPostgres -Purpose 'admin-postgres-draft'
-            Invoke-Sql 'synthetic auth substrate' -Sql @'
+            try {
+                Invoke-Sql 'synthetic auth substrate' -Sql @'
 CREATE ROLE anon NOLOGIN;
 CREATE ROLE authenticated NOLOGIN;
 CREATE ROLE service_role NOLOGIN BYPASSRLS;
@@ -379,15 +523,29 @@ $$;
 GRANT USAGE ON SCHEMA public,auth TO anon,authenticated,service_role;
 GRANT ALL ON ALL TABLES IN SCHEMA auth TO anon,authenticated,service_role;
 '@ -Connection $conn
-            Invoke-Sql 'baseline.sql' -File (Join-Path $repoRoot 'supabase/staging/baseline.sql') -Connection $conn
-            Invoke-Sql 'profile_privacy.sql' -File (Join-Path $repoRoot 'supabase/migrations/202610080001_profile_privacy.sql') -Connection $conn
-            Invoke-Sql 'profile_preferences.sql' -File (Join-Path $repoRoot 'supabase/migrations/202610190001_profile_preferences.sql') -Connection $conn
-            Invoke-Sql 'two_role_foundation.sql' -File (Join-Path $repoRoot 'supabase/migrations/20261020145005_two_role_foundation.sql') -Connection $conn
-            Invoke-Sql 'admin_discovery_drafts.sql' -File (Join-Path $repoRoot 'supabase/migrations/20261020151440_admin_discovery_drafts.sql') -Connection $conn
-            Invoke-Sql 'admin_discovery.sql' -File (Join-Path $repoRoot 'supabase/tests/admin_discovery.sql') -Connection $conn
+                Invoke-Sql 'baseline.sql' -File (Join-Path $repoRoot 'supabase/staging/baseline.sql') -Connection $conn
+                Invoke-Sql 'profile_privacy.sql' -File (Join-Path $repoRoot 'supabase/migrations/202610080001_profile_privacy.sql') -Connection $conn
+                Invoke-Sql 'profile_preferences.sql' -File (Join-Path $repoRoot 'supabase/migrations/202610190001_profile_preferences.sql') -Connection $conn
+                Invoke-Sql 'two_role_foundation.sql' -File (Join-Path $repoRoot 'supabase/migrations/20261020145005_two_role_foundation.sql') -Connection $conn
+                
+                # Check for M_CONTROL migration
+                $controlMigration = Get-ChildItem -Path (Join-Path $repoRoot 'supabase/migrations') -Filter '*_admin_account_control.sql' -ErrorAction SilentlyContinue | Select-Object -First 1
+                if ($controlMigration) {
+                    Invoke-Sql 'admin_account_control migration' -File $controlMigration.FullName -Connection $conn
+                }
 
-            & $script:pgCtl -D $script:dataRoot -m immediate stop *> (Join-Path $script:runRoot 'stop.log')
-            $script:pgStarted = $false
+                Invoke-Sql 'admin_discovery_drafts.sql' -File (Join-Path $repoRoot 'supabase/migrations/20261020151440_admin_discovery_drafts.sql') -Connection $conn
+
+                # Check for M_DRAFT commands migration
+                $draftCommandsMigration = Get-ChildItem -Path (Join-Path $repoRoot 'supabase/migrations') -Filter '*_admin_discovery_commands.sql' -ErrorAction SilentlyContinue | Select-Object -First 1
+                if ($draftCommandsMigration) {
+                    Invoke-Sql 'admin_discovery_commands migration' -File $draftCommandsMigration.FullName -Connection $conn
+                }
+
+                Invoke-Sql 'admin_discovery.sql' -File (Join-Path $repoRoot 'supabase/tests/admin_discovery.sql') -Connection $conn
+            } finally {
+                Stop-PostgresInstance
+            }
         }
     }
 
@@ -417,9 +575,6 @@ GRANT ALL ON ALL TABLES IN SCHEMA auth TO anon,authenticated,service_role;
 
     Write-Host "`n=== Verification Complete: All executed checks PASS ==="
 } finally {
-    if ($script:pgStarted -and $script:pgCtl -and $script:dataRoot) {
-        Write-Host "Cleaning up isolated PostgreSQL process..."
-        & $script:pgCtl -D $script:dataRoot -m immediate stop *> $null
-    }
+    Stop-PostgresInstance
     Pop-Location
 }

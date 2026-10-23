@@ -21,12 +21,16 @@
 
 ---
 
-## 2. Verification Harness Self-Test (`harness_propagates_nonzero`)
+## 2. Verification Harness Self-Test (`harness_propagates_nonzero`) & F1–F4 Remediation
 
-Harness [`tool/verify-flutter-admin.ps1`](file:///d:/Travel-Go-Android/travel-go/tool/verify-flutter-admin.ps1) được trang bị cờ `-SelfTest` nhằm kiểm tra tính toàn vẹn lan truyền mã lỗi:
-1. **Node deliberate failure:** Khởi chạy script tạm thời cố tình vi phạm `assert.strictEqual(1, 2)` $\rightarrow$ Node kết thúc với mã lỗi $\neq 0$, harness bắt được lỗi và ghi nhận PASS cho cơ chế chặn lỗi.
-2. **SQL deliberate failure:** Khởi chạy truy vấn cố tình lỗi `SELECT 1/0;` trên psql với `ON_ERROR_STOP=1` $\rightarrow$ psql kết thúc với mã lỗi $\neq 0$ và thông báo `ERROR: division by zero`, harness bắt được lỗi và ghi nhận PASS cho cơ chế chặn lỗi.
-3. **Kết luận:** Cơ chế chặn lỗi hoạt động chuẩn xác; tuyệt đối không có việc nuốt lỗi (swallow failure) hoặc chuyển lỗi thành PASS.
+Harness [`tool/verify-flutter-admin.ps1`](file:///d:/Travel-Go-Android/travel-go/tool/verify-flutter-admin.ps1) đã được khắc phục hoàn toàn 4 findings từ đợt review của Codex (`A0_CODEX_REVIEW_20261023.md`):
+
+| Finding | Vấn đề ban đầu | Giải pháp khắc phục & Bằng chứng thực nghiệm | Trạng thái |
+|---|---|---|---|
+| **F1** | `$p.ExitCode` null bị gán thành 0; lỗi SQL hiển thị `(exit 0)`. | Chuyển sang `System.Diagnostics.Process` qua .NET API với luồng đọc bất đồng bộ; exit code luôn là số nguyên thực tế; nếu unavailable thì throw lỗi. | **RESOLVED** (Pass) |
+| **F2** | SelfTest bắt mọi exception kể cả thiếu executable làm deliberate failure. | Tách riêng: (1) Positive control `process.exit(0)`, (2) Deliberate failure kiểm tra đồng thời cả exit code nonzero (= 1) VÀ sentinel marker `deliberate_node_failure`, (3) Negative test kiểm tra false-positive exit 0 bị loại bỏ. SQL cũng kiểm tra positive `SELECT 1;`, deliberate failure `SELECT 1/0;` kèm `division by zero`, unhandled failure, và mismatched error marker. | **RESOLVED** (Pass) |
+| **F3** | Thiếu PostgreSQL binaries làm skip SQL suites nhưng mode vẫn PASS exit 0. | Bổ sung `Assert-PostgresBinaries`: nếu thiếu `psql`, `pg_ctl`, `initdb` trong các chế độ yêu cầu SQL (Account, Draft, All, SelfTest), harness lập tức ném ngoại lệ `BLOCKED` và kết thúc với mã lỗi 1. Kiểm chứng thực tế: chỉ định `-PostgresBin` rác thoát ngay với mã 1. | **RESOLVED** (Pass) |
+| **F4** | Bỏ qua kết quả timeout `WaitForExit(30000)`, sau đó chờ vô hạn. | Kiểm tra `$p.WaitForExit($TimeoutMs)`: nếu quá thời gian timeout (mặc định 30s), tiến trình con bị `Kill()` ngay lập tức và ném ngoại lệ `Timeout exceeded`. Hàm `Stop-PostgresInstance` được gọi dọn dẹp sạch sẽ trong `finally`. Đã có kiểm chứng TimeoutMs=200ms trong SelfTest. | **RESOLVED** (Pass) |
 
 ---
 
