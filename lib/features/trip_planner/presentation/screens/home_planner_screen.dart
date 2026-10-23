@@ -116,6 +116,14 @@ class HomePlannerScreen extends StatefulWidget {
 }
 
 class _HomePlannerScreenState extends State<HomePlannerScreen> {
+  final List<String> popularOrigins = [
+    'TP. Hồ Chí Minh',
+    'Hà Nội',
+    'Đà Nẵng',
+    'Cần Thơ',
+    'Hải Phòng',
+  ];
+
   final List<String> availablePreferences = [
     'biển',
     'ẩm thực',
@@ -131,6 +139,124 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
     'fastest': 'Nhanh nhất',
     'comfortable': 'Thoải mái',
   };
+
+  final Map<String, String> companionLabels = {
+    'group': 'Nhóm bạn',
+    'couple': 'Cặp đôi',
+    'family': 'Gia đình',
+    'solo': 'Một mình',
+  };
+
+  Future<void> _pickDateRange(
+    BuildContext context,
+    TripProvider provider,
+    PlanTripRequest req,
+  ) async {
+    final now = DateTime.now();
+    final initialRange = req.startDate != null && req.endDate != null
+        ? DateTimeRange(
+            start: DateTime.tryParse(req.startDate!) ?? now,
+            end: DateTime.tryParse(req.endDate!) ?? now.add(const Duration(days: 3)),
+          )
+        : DateTimeRange(
+            start: now,
+            end: now.add(Duration(days: (req.numDays - 1).clamp(0, 365))),
+          );
+
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: now.subtract(const Duration(days: 30)),
+      lastDate: now.add(const Duration(days: 365)),
+      initialDateRange: initialRange,
+      helpText: 'Chọn khoảng ngày khởi hành',
+      saveText: 'Chọn',
+    );
+
+    if (picked != null) {
+      final days = picked.end.difference(picked.start).inDays + 1;
+      final start = DateFormat('yyyy-MM-dd').format(picked.start);
+      final end = DateFormat('yyyy-MM-dd').format(picked.end);
+      provider.updateRequest(
+        req.copyWith(
+          numDays: days.clamp(1, 30),
+          startDate: start,
+          endDate: end,
+        ),
+      );
+    }
+  }
+
+  Future<void> _showCustomOriginDialog(
+    BuildContext context,
+    TripProvider provider,
+    PlanTripRequest req,
+  ) async {
+    final controller = TextEditingController(text: req.origin);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: const Text('Nhập nơi xuất phát'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'Tỉnh / Thành phố khởi hành',
+            hintText: 'Ví dụ: Nha Trang, Vũng Tàu, Huế...',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialog),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialog, controller.text.trim()),
+            child: const Text('Xác nhận'),
+          ),
+        ],
+      ),
+    );
+    if (result != null && result.isNotEmpty) {
+      provider.updateRequest(req.copyWith(origin: result));
+    }
+  }
+
+  Future<void> _showAddCustomInterestDialog(
+    BuildContext context,
+    TripProvider provider,
+    PlanTripRequest req,
+  ) async {
+    final controller = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: const Text('Thêm sở thích mới'),
+        content: TextField(
+          key: const ValueKey('custom-interest-input'),
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'Sở thích của bạn',
+            hintText: 'Ví dụ: trekking, cà phê chill, tâm linh...',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialog),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialog, controller.text.trim()),
+            child: const Text('Thêm'),
+          ),
+        ],
+      ),
+    );
+    if (result != null && result.isNotEmpty && !req.preferences.contains(result)) {
+      final updated = List<String>.from(req.preferences)..add(result);
+      provider.updateRequest(req.copyWith(preferences: updated));
+    }
+  }
 
   @override
   void initState() {
@@ -191,47 +317,7 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('TravelGO Mobile', overflow: TextOverflow.ellipsis),
-        actions: [
-          if (!provider.hasSelectedDestination)
-            Container(
-              margin: const EdgeInsets.only(right: 16),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: provider.isBackendOnline
-                    ? const Color(0xFF10B981).withValues(alpha: 0.15)
-                    : const Color(0xFFF59E0B).withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.circle,
-                    size: 8,
-                    color: provider.isBackendOnline
-                        ? const Color(0xFF10B981)
-                        : const Color(0xFFF59E0B),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    provider.isBackendOnline
-                        ? 'API Sẵn Sàng'
-                        : 'Chế Độ Dự Phòng',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: provider.isBackendOnline
-                          ? const Color(0xFF047857)
-                          : const Color(0xFFB45309),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-        ],
-      ),
+      appBar: AppBar(title: const Text('Lập chuyến đi')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -240,26 +326,78 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
             SelectedDestinationControls(
               onManualPlanner: () => openManualPlanner(context),
             ),
-            if (provider.hasSelectedDestination) ...[
-              Text('Nơi xuất phát: ${req.origin}'),
-              const SizedBox(height: 8),
-            ],
+            // Origin Selector Card
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.location_on_outlined, size: 20),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Nơi xuất phát: ${req.origin}',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        ...popularOrigins.map((city) {
+                          final isSelected = req.origin == city;
+                          return ChoiceChip(
+                            label: Text(city),
+                            selected: isSelected,
+                            onSelected: (selected) {
+                              if (selected) {
+                                provider.updateRequest(req.copyWith(origin: city));
+                              }
+                            },
+                          );
+                        }),
+                        ActionChip(
+                          avatar: const Icon(Icons.edit_location_alt, size: 16),
+                          label: const Text('Nơi khác...'),
+                          onPressed: () => _showCustomOriginDialog(context, provider, req),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
             // Intro Header
             Text(
               provider.hasSelectedDestination
                   ? 'Thông tin chuyến đi'
-                  : 'Lập Kế Hoạch Chuyến Đi Thông Minh',
+                  : 'Gợi ý điểm đến tự động',
               style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 4),
             Text(
               provider.hasSelectedDestination
-                  ? 'Điều chỉnh ngân sách, số ngày và sở thích trước khi lưu bản nháp.'
-                  : 'Được tính toán bởi mô hình MCDA & Tối ưu hóa Pareto (Spring Boot Backend)',
-              style: const TextStyle(fontSize: 13, color: Colors.grey),
+                  ? 'Điều chỉnh ngân sách, số ngày và sở thích trước khi lấy gợi ý hoặc lưu bản nháp.'
+                  : 'Điều chỉnh ngân sách và sở thích để so sánh gợi ý. Muốn chọn nơi cụ thể, hãy dùng Tự lập lịch trình ở trên.',
+              style: Theme.of(context).textTheme.bodyMedium,
             ),
             const SizedBox(height: 16),
 
+            if (!provider.hasSelectedDestination)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: Text(
+                  provider.isBackendOnline
+                      ? 'Có kết nối để lấy gợi ý trực tuyến'
+                      : 'Chưa có kết nối gợi ý · kết quả dự phòng sẽ được ghi rõ',
+                ),
+              ),
             // Quick Presets
             if (!provider.hasSelectedDestination)
               Card(
@@ -269,7 +407,7 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'Gợi ý kịch bản mẫu:',
+                        'Điền nhanh thông số chuyến đi',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 13,
@@ -286,7 +424,7 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
                               size: 16,
                               color: Color(0xFF0284C7),
                             ),
-                            label: const Text('Persona Minh (4 triệu - 3N2Đ)'),
+                            label: const Text('3 ngày · 4 triệu'),
                             onPressed: () => provider.applyPreset(1),
                           ),
                           ActionChip(
@@ -295,7 +433,7 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
                               size: 16,
                               color: Color(0xFF10B981),
                             ),
-                            label: const Text('Phú Quốc (8 triệu - 4 ngày)'),
+                            label: const Text('4 ngày · 8 triệu'),
                             onPressed: () => provider.applyPreset(2),
                           ),
                           ActionChip(
@@ -304,7 +442,7 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
                               size: 16,
                               color: Color(0xFFF59E0B),
                             ),
-                            label: const Text('Vũng Tàu (1.5 triệu - 2 ngày)'),
+                            label: const Text('2 ngày · 1,5 triệu'),
                             onPressed: () => provider.applyPreset(3),
                           ),
                         ],
@@ -316,22 +454,23 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
 
             const SizedBox(height: 16),
 
-            // Sliders Section
+            // Parameters Section (Budget, Duration, Travelers)
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Budget Slider
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    // Budget Control
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      alignment: WrapAlignment.spaceBetween,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        const Expanded(
-                          child: Text(
-                            'Ngân sách tối đa:',
-                            style: TextStyle(fontWeight: FontWeight.w600),
-                          ),
+                        const Text(
+                          'Ngân sách tối đa:',
+                          style: TextStyle(fontWeight: FontWeight.w600),
                         ),
                         Text(
                           currencyFmt.format(req.budgetVnd),
@@ -344,10 +483,10 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
                       ],
                     ),
                     Slider(
-                      value: req.budgetVnd.toDouble().clamp(1000000, 15000000),
-                      min: 1000000,
-                      max: 15000000,
-                      divisions: 28,
+                      value: req.budgetVnd.toDouble().clamp(500000, 100000000),
+                      min: 500000,
+                      max: 100000000,
+                      divisions: 99,
                       onChanged: (val) {
                         provider.updateRequest(
                           req.copyWith(budgetVnd: val.toInt()),
@@ -357,18 +496,21 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
 
                     const SizedBox(height: 12),
 
-                    // Num Days Slider
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    // Num Days & Calendar Date Range
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      alignment: WrapAlignment.spaceBetween,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        const Expanded(
-                          child: Text(
-                            'Số ngày đi:',
-                            style: TextStyle(fontWeight: FontWeight.w600),
-                          ),
+                        const Text(
+                          'Thời gian chuyến đi:',
+                          style: TextStyle(fontWeight: FontWeight.w600),
                         ),
                         Text(
-                          '${req.numDays} ngày',
+                          req.startDate != null && req.endDate != null
+                              ? '${req.startDate} – ${req.endDate} (${req.numDays} ngày)'
+                              : '${req.numDays} ngày',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             color: primaryColor,
@@ -377,11 +519,21 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
                         ),
                       ],
                     ),
+                    const SizedBox(height: 6),
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.date_range, size: 18),
+                      label: Text(
+                        req.startDate != null && req.endDate != null
+                            ? 'Đổi khoảng ngày trên lịch'
+                            : 'Chọn khoảng ngày trên lịch',
+                      ),
+                      onPressed: () => _pickDateRange(context, provider, req),
+                    ),
                     Slider(
-                      value: req.numDays.toDouble().clamp(1, 7),
+                      value: req.numDays.toDouble().clamp(1, 14),
                       min: 1,
-                      max: 7,
-                      divisions: 6,
+                      max: 14,
+                      divisions: 13,
                       onChanged: (val) {
                         provider.updateRequest(
                           req.copyWith(numDays: val.toInt()),
@@ -392,14 +544,14 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
                     const SizedBox(height: 12),
 
                     // Num People Slider
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      alignment: WrapAlignment.spaceBetween,
                       children: [
-                        const Expanded(
-                          child: Text(
-                            'Số lượng người:',
-                            style: TextStyle(fontWeight: FontWeight.w600),
-                          ),
+                        const Text(
+                          'Số lượng người:',
+                          style: TextStyle(fontWeight: FontWeight.w600),
                         ),
                         Text(
                           '${req.numPeople} người',
@@ -412,15 +564,58 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
                       ],
                     ),
                     Slider(
-                      value: req.numPeople.toDouble().clamp(1, 8),
+                      value: req.numPeople.toDouble().clamp(1, 20),
                       min: 1,
-                      max: 8,
-                      divisions: 7,
+                      max: 20,
+                      divisions: 19,
                       onChanged: (val) {
                         provider.updateRequest(
                           req.copyWith(numPeople: val.toInt()),
                         );
                       },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // Companion Type
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Đối tượng đồng hành:',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: companionLabels.entries.map((entry) {
+                        final isSelected = req.companionType == entry.key;
+                        return ChoiceChip(
+                          label: Text(entry.value),
+                          selected: isSelected,
+                          onSelected: (selected) {
+                            if (selected) {
+                              int people = req.numPeople;
+                              if (entry.key == 'solo') people = 1;
+                              if (entry.key == 'couple' && people < 2) people = 2;
+                              provider.updateRequest(
+                                req.copyWith(
+                                  companionType: entry.key,
+                                  numPeople: people,
+                                ),
+                              );
+                            }
+                          },
+                        );
+                      }).toList(),
                     ),
                   ],
                 ),
@@ -444,26 +639,48 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
-                      children: availablePreferences.map((pref) {
-                        final isSelected = req.preferences.contains(pref);
-                        return FilterChip(
-                          label: Text(pref),
-                          selected: isSelected,
-                          onSelected: (selected) {
-                            final currentList = List<String>.from(
-                              req.preferences,
-                            );
-                            if (selected) {
-                              currentList.add(pref);
-                            } else {
-                              currentList.remove(pref);
-                            }
-                            provider.updateRequest(
-                              req.copyWith(preferences: currentList),
-                            );
-                          },
-                        );
-                      }).toList(),
+                      children: [
+                        ...availablePreferences.map((pref) {
+                          final isSelected = req.preferences.contains(pref);
+                          return FilterChip(
+                            label: Text(pref),
+                            selected: isSelected,
+                            onSelected: (selected) {
+                              final currentList = List<String>.from(
+                                req.preferences,
+                              );
+                              if (selected) {
+                                currentList.add(pref);
+                              } else {
+                                currentList.remove(pref);
+                              }
+                              provider.updateRequest(
+                                req.copyWith(preferences: currentList),
+                              );
+                            },
+                          );
+                        }),
+                        ...req.preferences
+                            .where((p) => !availablePreferences.contains(p))
+                            .map((customPref) {
+                          return FilterChip(
+                            label: Text(customPref),
+                            selected: true,
+                            onSelected: (selected) {
+                              final currentList = List<String>.from(req.preferences);
+                              currentList.remove(customPref);
+                              provider.updateRequest(
+                                req.copyWith(preferences: currentList),
+                              );
+                            },
+                          );
+                        }),
+                        ActionChip(
+                          avatar: const Icon(Icons.add, size: 16),
+                          label: const Text('+ Thêm sở thích'),
+                          onPressed: () => _showAddCustomInterestDialog(context, provider, req),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -509,13 +726,6 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
 
             const SizedBox(height: 24),
 
-            if (req.budgetVnd < 1000000 ||
-                req.budgetVnd > 15000000 ||
-                req.numDays > 7 ||
-                req.numPeople > 8)
-              const Text(
-                'Giá trị đã lưu nằm ngoài khoảng thanh trượt; chỉ thay đổi khi bạn điều chỉnh.',
-              ),
             if (provider.canPersistGuestDraft) ...[
               Wrap(
                 spacing: 8,
@@ -566,9 +776,8 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
             // Submit Button
             SizedBox(
               width: double.infinity,
-              height: 52,
               child: ElevatedButton.icon(
-                onPressed: provider.isLoading || provider.hasSelectedDestination
+                onPressed: provider.isLoading
                     ? null
                     : () async {
                         final navigator = Navigator.of(context);
@@ -594,8 +803,10 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
                     : const Icon(Icons.bolt),
                 label: Text(
                   provider.isLoading
-                      ? 'Đang phân tích tối ưu...'
-                      : 'Tối Ưu Hóa & Lập Kế Hoạch',
+                      ? 'Đang lấy gợi ý…'
+                      : (provider.hasSelectedDestination
+                          ? 'Xem gợi ý cho ${provider.currentMetadata.destinationName ?? "điểm đến"}'
+                          : 'Xem gợi ý chuyến đi'),
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,

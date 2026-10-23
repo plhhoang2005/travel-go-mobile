@@ -55,7 +55,7 @@ class SelectedDestinationControls extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               trip.supportsSelectedDestinationAi
-                  ? 'Tính năng tự động chưa hỗ trợ điểm đến đã chọn. Bạn có thể tự lập lịch trình.'
+                  ? 'Hệ thống sẽ gợi ý lịch trình và phương tiện tối ưu riêng cho ${metadata.destinationName ?? "điểm đến này"}.'
                   : 'Tính năng tự động và AI chưa hỗ trợ điểm đến này. Bạn có thể tự lập lịch trình.',
             ),
             const SizedBox(height: 8),
