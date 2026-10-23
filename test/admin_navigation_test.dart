@@ -185,5 +185,34 @@ void main() {
         expect(find.text('Open Admin'), findsOneWidget);
       }
     });
+
+    testWidgets('verified_admin_navigates_across_all_four_shell_sections', (tester) async {
+      fakeService.allowAccess = true;
+
+      await tester.pumpWidget(_wrapWithAuth(
+        child: AdminShellScreen(provider: adminProvider),
+        auth: authProvider,
+        adminProvider: adminProvider,
+      ));
+      await tester.pumpAndSettle();
+
+      // Tab 0: Tổng quan
+      expect(find.text('Tổng quan hệ thống'), findsOneWidget);
+
+      // Tab 1: Người dùng
+      await tester.tap(find.text('Người dùng'));
+      await tester.pumpAndSettle();
+      expect(find.text('Quản lý người dùng'), findsOneWidget);
+
+      // Tab 2: Danh mục
+      await tester.tap(find.text('Danh mục'));
+      await tester.pumpAndSettle();
+      expect(find.text('Biên tập danh mục'), findsOneWidget);
+
+      // Tab 3: Lịch sử
+      await tester.tap(find.text('Lịch sử'));
+      await tester.pumpAndSettle();
+      expect(find.text('Lịch sử phiên bản'), findsOneWidget);
+    });
   });
 }

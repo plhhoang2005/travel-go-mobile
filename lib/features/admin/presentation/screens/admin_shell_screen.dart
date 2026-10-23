@@ -4,17 +4,26 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:travelgo_mobile/core/constants/supabase_constants.dart';
+import 'package:travelgo_mobile/features/admin/presentation/screens/admin_catalogue_screen.dart';
 import 'package:travelgo_mobile/features/admin/presentation/screens/admin_dashboard_screen.dart';
+import 'package:travelgo_mobile/features/admin/presentation/screens/admin_draft_history_screen.dart';
 import 'package:travelgo_mobile/features/admin/presentation/screens/admin_users_screen.dart';
 import 'package:travelgo_mobile/features/admin/providers/admin_account_provider.dart';
+import 'package:travelgo_mobile/features/admin/providers/admin_catalogue_provider.dart';
 import 'package:travelgo_mobile/features/admin/services/admin_account_service.dart';
+import 'package:travelgo_mobile/features/admin/services/admin_catalogue_service.dart';
 import 'package:travelgo_mobile/features/auth/providers/auth_provider.dart';
 import 'package:travelgo_mobile/features/trips/services/local_account_lifecycle_service.dart';
 
 class AdminShellScreen extends StatefulWidget {
   final AdminAccountProvider? provider;
+  final AdminCatalogueProvider? catalogueProvider;
 
-  const AdminShellScreen({super.key, this.provider});
+  const AdminShellScreen({
+    super.key,
+    this.provider,
+    this.catalogueProvider,
+  });
 
   @override
   State<AdminShellScreen> createState() => _AdminShellScreenState();
@@ -22,6 +31,7 @@ class AdminShellScreen extends StatefulWidget {
 
 class _AdminShellScreenState extends State<AdminShellScreen> {
   AdminAccountProvider? _ownedProvider;
+  AdminCatalogueProvider? _ownedCatalogueProvider;
   int _selectedIndex = 0;
   bool _isCheckingAccess = true;
 
@@ -66,18 +76,49 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
     return _ownedProvider!;
   }
 
+  AdminCatalogueProvider _getEffectiveCatalogueProvider() {
+    if (widget.catalogueProvider != null) return widget.catalogueProvider!;
+    if (_ownedCatalogueProvider != null) return _ownedCatalogueProvider!;
+
+    final auth = context.read<AuthProvider>();
+    Future<LocalAccountLifecycleService> Function()? lifecycleLoader;
+    try {
+      lifecycleLoader = context.read<Future<LocalAccountLifecycleService> Function()>();
+    } catch (_) {
+      lifecycleLoader = () => Future.error(StateError('Lifecycle loader not found in context.'));
+    }
+
+    final service = AdminCatalogueService(
+      dio: Dio(),
+      projectOrigin: Uri.parse(SupabaseConstants.projectUrl),
+      publicKey: SupabaseConstants.publishableKey,
+      lifecycleLoader: lifecycleLoader,
+    );
+
+    _ownedCatalogueProvider = AdminCatalogueProvider(
+      service: service,
+      authProvider: auth,
+    );
+    return _ownedCatalogueProvider!;
+  }
+
   @override
   void dispose() {
     _ownedProvider?.dispose();
+    _ownedCatalogueProvider?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final effectiveProvider = _getEffectiveProvider();
+    final effectiveCatalogueProvider = _getEffectiveCatalogueProvider();
 
-    return ChangeNotifierProvider<AdminAccountProvider>.value(
-      value: effectiveProvider,
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider<AdminAccountProvider>.value(value: effectiveProvider),
+        ChangeNotifierProvider<AdminCatalogueProvider>.value(value: effectiveCatalogueProvider),
+      ],
       child: Consumer<AdminAccountProvider>(
         builder: (context, provider, _) {
           if (_isCheckingAccess) {
@@ -148,6 +189,8 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
           final screens = const [
             AdminDashboardScreen(),
             AdminUsersScreen(),
+            AdminCatalogueScreen(),
+            AdminDraftHistoryScreen(),
           ];
 
           if (isWide) {
@@ -177,6 +220,16 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
                         selectedIcon: Icon(Icons.people_alt),
                         label: Text('Người dùng'),
                       ),
+                      NavigationRailDestination(
+                        icon: Icon(Icons.edit_note_outlined),
+                        selectedIcon: Icon(Icons.edit_note),
+                        label: Text('Danh mục'),
+                      ),
+                      NavigationRailDestination(
+                        icon: Icon(Icons.history_outlined),
+                        selectedIcon: Icon(Icons.history),
+                        label: Text('Lịch sử'),
+                      ),
                     ],
                   ),
                   const VerticalDivider(thickness: 1, width: 1),
@@ -201,6 +254,16 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
                   icon: Icon(Icons.people_alt_outlined),
                   selectedIcon: Icon(Icons.people_alt),
                   label: 'Người dùng',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.edit_note_outlined),
+                  selectedIcon: Icon(Icons.edit_note),
+                  label: 'Danh mục',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.history_outlined),
+                  selectedIcon: Icon(Icons.history),
+                  label: 'Lịch sử',
                 ),
               ],
             ),
