@@ -424,7 +424,6 @@ class TripApiService {
     double accommodationRatio;
     double foodRatio;
     double attractionsRatio;
-    double safetyRatio;
 
     switch (type) {
       case 'family':
@@ -432,21 +431,18 @@ class TripApiService {
         accommodationRatio = 0.35;
         foodRatio = 0.20;
         attractionsRatio = 0.10;
-        safetyRatio = 0.10; // Extra safety buffer for kids/elders
         break;
       case 'couple':
         transportRatio = 0.25;
         accommodationRatio = 0.35;
         foodRatio = 0.22;
         attractionsRatio = 0.11;
-        safetyRatio = 0.07;
         break;
       case 'solo':
         transportRatio = 0.30;
         accommodationRatio = 0.25;
         foodRatio = 0.25;
         attractionsRatio = 0.15;
-        safetyRatio = 0.05;
         break;
       case 'group':
       default:
@@ -454,7 +450,6 @@ class TripApiService {
         accommodationRatio = 0.30;
         foodRatio = 0.18;
         attractionsRatio = 0.12;
-        safetyRatio = 0.05;
         break;
     }
 

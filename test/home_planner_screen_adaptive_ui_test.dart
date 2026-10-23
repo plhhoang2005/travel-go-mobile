@@ -2,10 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:travelgo_mobile/core/theme/app_theme.dart';
-import 'package:travelgo_mobile/features/trip_planner/models/trip_request.dart';
 import 'package:travelgo_mobile/features/trip_planner/presentation/screens/home_planner_screen.dart';
 import 'package:travelgo_mobile/features/trip_planner/providers/trip_provider.dart';
-import 'package:travelgo_mobile/features/trip_planner/services/trip_api_service.dart';
 
 void main() {
   Widget buildTestScreen(TripProvider provider) {
