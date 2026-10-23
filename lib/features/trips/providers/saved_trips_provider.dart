@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../models/local_trip_records.dart';
 import '../models/saved_trip_model.dart';
+import '../models/trip_payload_codec.dart';
 import '../services/local_account_lifecycle_service.dart';
 import '../services/local_trip_store.dart';
 import '../services/trip_snapshot_service.dart';
@@ -667,25 +668,27 @@ class SavedTripsProvider extends ChangeNotifier {
     final metadata = snapshot.payload.metadata;
     final request = snapshot.payload.request;
     final headers = snapshot.headers;
+    final startStr = headers.startDate ?? metadata.startDate ?? request?.startDate;
+    final endStr = headers.endDate ?? metadata.endDate ?? request?.endDate;
+    final numDays = headers.numDays is int
+        ? headers.numDays as int
+        : (request?.numDays ??
+            (startStr != null && endStr != null
+                ? (DateTime.parse(endStr).difference(DateTime.parse(startStr)).inDays + 1)
+                : null));
     return SavedTrip(
       id: snapshot.tripId,
       userId: snapshot.ownerId,
       title: headers.title ?? metadata.title ?? 'Chuyến đi',
       destinationName:
           headers.destinationName ?? metadata.destinationName ?? 'Điểm đến',
-      numDays: headers.numDays is int
-          ? headers.numDays as int
-          : request?.numDays,
+      numDays: numDays,
       budgetTotal:
           headers.budgetTotal?.toDouble() ?? request?.budgetVnd.toDouble(),
-      startDate: headers.startDate == null
-          ? null
-          : DateTime.tryParse(headers.startDate!),
-      endDate: headers.endDate == null
-          ? null
-          : DateTime.tryParse(headers.endDate!),
+      startDate: startStr == null ? null : DateTime.tryParse(startStr),
+      endDate: endStr == null ? null : DateTime.tryParse(endStr),
       status: headers.status ?? 'planning',
-      tripPlanData: snapshot.payload.plan?.toJson() ?? {},
+      tripPlanData: TripPayloadCodec.encodeToMap(snapshot.payload),
       createdAt: headers.createdAt == null
           ? null
           : DateTime.tryParse(headers.createdAt!),
@@ -694,14 +697,24 @@ class SavedTripsProvider extends ChangeNotifier {
 
   static SavedTrip _fromCached(AccountTripSnapshotRecord snapshot) {
     final payload = snapshot.cachedPayload;
+    final metadata = payload.metadata;
+    final request = payload.request;
+    final startStr = metadata.startDate ?? request?.startDate;
+    final endStr = metadata.endDate ?? request?.endDate;
+    final numDays = request?.numDays ??
+        (startStr != null && endStr != null
+            ? (DateTime.parse(endStr).difference(DateTime.parse(startStr)).inDays + 1)
+            : null);
     return SavedTrip(
       id: snapshot.tripId,
       userId: snapshot.ownerId,
       title: snapshot.title,
       destinationName: snapshot.destinationName,
-      numDays: payload.request?.numDays,
-      budgetTotal: payload.request?.budgetVnd.toDouble(),
-      tripPlanData: payload.plan?.toJson() ?? {},
+      numDays: numDays,
+      budgetTotal: request?.budgetVnd.toDouble(),
+      startDate: startStr == null ? null : DateTime.tryParse(startStr),
+      endDate: endStr == null ? null : DateTime.tryParse(endStr),
+      tripPlanData: TripPayloadCodec.encodeToMap(payload),
       createdAt: null,
     );
   }

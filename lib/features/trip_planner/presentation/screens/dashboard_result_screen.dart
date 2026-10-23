@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../providers/trip_provider.dart';
+import '../../models/planner_result_snapshot.dart';
 import '../../models/trip_response.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../widgets/pareto_chart_widget.dart';
@@ -15,6 +16,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../../../auth/providers/auth_provider.dart';
 import '../../../map/presentation/screens/trip_map_screen.dart';
+import '../../../trips/models/trip_payload_codec.dart';
 import '../../../trips/providers/saved_trips_provider.dart';
 import 'home_planner_screen.dart' show showGuestDraftSaveDialog;
 
@@ -413,6 +415,21 @@ class _DashboardResultScreenState extends State<DashboardResultScreen>
       await showGuestDraftSaveDialog(context);
       return;
     }
+    final provider = context.read<TripProvider>();
+    final snapshot = provider.captureResult();
+    if (snapshot == null || !provider.isCurrentResult(snapshot)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Không thể lưu: Ngữ cảnh kế hoạch đã thay đổi.'),
+        ),
+      );
+      return;
+    }
+
+    if (provider.canPersistGuestDraft) {
+      await showGuestDraftSaveDialog(context);
+      return;
+    }
     final auth = context.read<AuthProvider>();
     if (auth.isGuest || auth.currentUser == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -425,15 +442,18 @@ class _DashboardResultScreenState extends State<DashboardResultScreen>
       return;
     }
 
-    final defaultTitle = res.topDestinations.isNotEmpty
-        ? 'Chuyến đi ${res.topDestinations.first.name}'
-        : 'Kế hoạch du lịch';
+    final winnerName = snapshot.winner?.name ??
+        snapshot.metadata.destinationName ??
+        (snapshot.plan.topDestinations.isNotEmpty
+            ? snapshot.plan.topDestinations.first.name
+            : 'Kế hoạch du lịch');
+    final defaultTitle = 'Chuyến đi $winnerName';
 
     final result = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (dialogCtx) =>
-          _SaveTripDialog(res: res, defaultTitle: defaultTitle),
+          _SaveTripDialog(snapshot: snapshot, defaultTitle: defaultTitle),
     );
     if (!context.mounted) return;
     if (result == true) {
@@ -444,18 +464,16 @@ class _DashboardResultScreenState extends State<DashboardResultScreen>
       );
     }
   }
-
-  static Map<String, dynamic> _serializeTripResponse(dynamic res) {
-    if (res is! PlanTripResponse) return {};
-    return {...res.toJson(), 'isFallback': res.isFallback};
-  }
 }
 
 class _SaveTripDialog extends StatefulWidget {
-  final PlanTripResponse res;
+  final PlannerResultSnapshot snapshot;
   final String defaultTitle;
 
-  const _SaveTripDialog({required this.res, required this.defaultTitle});
+  const _SaveTripDialog({
+    required this.snapshot,
+    required this.defaultTitle,
+  });
 
   @override
   State<_SaveTripDialog> createState() => _SaveTripDialogState();
@@ -479,6 +497,13 @@ class _SaveTripDialogState extends State<_SaveTripDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final winnerName = widget.snapshot.winner?.name ??
+        widget.snapshot.metadata.destinationName ??
+        (widget.snapshot.plan.topDestinations.isNotEmpty
+            ? widget.snapshot.plan.topDestinations.first.name
+            : 'Điểm đến');
+    final numDays = widget.snapshot.request.numDays;
+
     return PopScope(
       canPop: !_isSaving,
       child: AlertDialog(
@@ -512,7 +537,7 @@ class _SaveTripDialogState extends State<_SaveTripDialog> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Điểm đến: ${widget.res.topDestinations.isNotEmpty ? widget.res.topDestinations.first.name : "Điểm đến"} · ${widget.res.itineraryDays.isNotEmpty ? widget.res.itineraryDays.length : 3} ngày',
+              'Điểm đến: $winnerName · $numDays ngày',
               style: const TextStyle(fontSize: 12, color: AppTheme.slate500),
             ),
           ],
@@ -526,6 +551,19 @@ class _SaveTripDialogState extends State<_SaveTripDialog> {
             onPressed: _isSaving
                 ? null
                 : () async {
+                    final tripProvider = context.read<TripProvider>();
+                    if (!tripProvider.isCurrentResult(widget.snapshot)) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Không thể lưu: Ngữ cảnh kế hoạch đã thay đổi.',
+                          ),
+                        ),
+                      );
+                      Navigator.pop(context, false);
+                      return;
+                    }
+
                     final title = _titleController.text.trim().isNotEmpty
                         ? _titleController.text.trim()
                         : widget.defaultTitle;
@@ -535,25 +573,35 @@ class _SaveTripDialogState extends State<_SaveTripDialog> {
                     });
 
                     final tripsProvider = context.read<SavedTripsProvider>();
+                    final payload = widget.snapshot.toPayload(title: title);
+                    final encodedPayload = TripPayloadCodec.encodeToMap(payload);
+
+                    final startDt = widget.snapshot.request.startDate != null
+                        ? DateTime.tryParse(widget.snapshot.request.startDate!)
+                        : null;
+                    final endDt = widget.snapshot.request.endDate != null
+                        ? DateTime.tryParse(widget.snapshot.request.endDate!)
+                        : null;
+
                     final success = await tripsProvider.saveTrip(
                       title: title,
-                      destinationName: widget.res.topDestinations.isNotEmpty
-                          ? widget.res.topDestinations.first.name
-                          : 'Điểm đến',
-                      numDays: widget.res.itineraryDays.isNotEmpty
-                          ? widget.res.itineraryDays.length
-                          : 3,
+                      destinationName: winnerName,
+                      numDays: widget.snapshot.request.numDays,
                       budgetTotal:
-                          (widget.res.budgetBreakdown?.totalAllocated ??
-                                  4000000)
-                              .toDouble(),
-                      tripPlanData:
-                          _DashboardResultScreenState._serializeTripResponse(
-                            widget.res,
-                          ),
+                          widget.snapshot.request.budgetVnd.toDouble(),
+                      startDate: startDt,
+                      endDate: endDt,
+                      tripPlanData: encodedPayload,
                     );
 
                     if (!context.mounted) return;
+
+                    if (!tripProvider.isCurrentResult(widget.snapshot)) {
+                      setState(() {
+                        _isSaving = false;
+                      });
+                      return;
+                    }
 
                     if (success) {
                       Navigator.pop(context, true);

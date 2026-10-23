@@ -167,6 +167,8 @@ class CanonicalTripPayloadV1 {
       TripPayloadCodec.validatePlan(this.plan!);
     }
   }
+
+  Map<String, dynamic> toJson() => TripPayloadCodec.encodeToMap(this);
 }
 
 /// Original raw headers preserved from a legacy database row.
@@ -347,13 +349,18 @@ class TripPayloadCodec {
   /// Keys are sorted recursively by UTF-16 code-unit ordinal (String.compareTo).
   /// Original Unicode code points are preserved without NFC normalization.
   static String encode(CanonicalTripPayloadV1 payload) {
-    final map = <String, dynamic>{
+    final map = encodeToMap(payload);
+    return _canonicalize(map);
+  }
+
+  /// Encodes a [CanonicalTripPayloadV1] into a raw JSON map representation.
+  static Map<String, dynamic> encodeToMap(CanonicalTripPayloadV1 payload) {
+    return <String, dynamic>{
       'schemaVersion': payload.schemaVersion,
       'metadata': payload.metadata.toJson(),
       'request': payload.request?.toJson(),
       'plan': payload.plan?.toJson(),
     };
-    return _canonicalize(map);
   }
 
   /// Computes SHA-256 hex digest over the UTF-8 bytes of the canonical JSON string.

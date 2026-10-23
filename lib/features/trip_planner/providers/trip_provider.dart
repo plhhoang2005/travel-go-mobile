@@ -7,6 +7,7 @@ import 'package:uuid/uuid.dart';
 import '../../trips/models/local_trip_records.dart';
 import '../../trips/models/trip_payload_codec.dart';
 import '../../trips/services/local_trip_store.dart';
+import '../models/planner_result_snapshot.dart';
 import '../models/trip_request.dart';
 import '../models/trip_response.dart';
 import '../services/trip_api_service.dart';
@@ -68,6 +69,31 @@ class TripProvider extends ChangeNotifier {
   PlanTripResponse? get currentResponse => _currentResponse;
   TripMetadataV1 get currentMetadata => _metadata;
   bool get hasSelectedDestination => _metadata.destinationId != null;
+
+  PlannerResultSnapshot? captureResult() {
+    if (_disposed || _currentResponse == null) return null;
+    final effectiveRequest = hasSelectedDestination
+        ? _currentRequest.copyWith(
+            destinationId: _metadata.destinationId,
+            destinationName: _metadata.destinationName,
+            startDate: _metadata.startDate ?? _currentRequest.startDate,
+            endDate: _metadata.endDate ?? _currentRequest.endDate,
+          )
+        : _currentRequest;
+    return PlannerResultSnapshot(
+      request: TripPayloadCodec.deepFreezeRequest(effectiveRequest),
+      metadata: _metadata,
+      plan: _currentResponse!,
+      workspaceGeneration: _generation,
+    );
+  }
+
+  bool isCurrentResult(PlannerResultSnapshot snapshot) {
+    if (_disposed) return false;
+    return _generation == snapshot.workspaceGeneration &&
+        _currentResponse != null &&
+        _currentResponse!.winnerId == snapshot.plan.winnerId;
+  }
 
   static const supportedAiDestinationIds = <String>{
     'ha-noi',
