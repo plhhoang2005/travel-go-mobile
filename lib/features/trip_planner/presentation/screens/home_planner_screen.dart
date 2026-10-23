@@ -337,9 +337,11 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
                       children: [
                         const Icon(Icons.location_on_outlined, size: 20),
                         const SizedBox(width: 8),
-                        Text(
-                          'Nơi xuất phát: ${req.origin}',
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                        Expanded(
+                          child: Text(
+                            'Nơi xuất phát: ${req.origin}',
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                          ),
                         ),
                       ],
                     ),
