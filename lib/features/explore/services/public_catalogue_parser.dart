@@ -147,6 +147,7 @@ class PublicCatalogueParser {
       catalogue: catalogue,
       visits: visits,
       fetchedAt: now,
+      payloadText: payloadText,
     );
   }
 }

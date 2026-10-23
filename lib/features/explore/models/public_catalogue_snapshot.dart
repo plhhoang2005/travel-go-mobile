@@ -89,6 +89,7 @@ class PublicCatalogueSnapshot {
   final CatalogueReference catalogue;
   final VisitCatalogue visits;
   final DateTime fetchedAt;
+  final String? payloadText;
 
   const PublicCatalogueSnapshot({
     required this.version,
@@ -98,5 +99,6 @@ class PublicCatalogueSnapshot {
     required this.catalogue,
     required this.visits,
     required this.fetchedAt,
+    this.payloadText,
   });
 }
