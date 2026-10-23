@@ -15,13 +15,21 @@ import '../widgets/trip_comparison_matrix_widget.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../../auth/providers/auth_provider.dart';
+import '../../../explore/models/public_catalogue_snapshot.dart';
+import '../../../explore/providers/public_catalogue_provider.dart';
+import '../../../map/models/itinerary_map_context.dart';
+import '../../../map/services/itinerary_map_builder.dart';
 import '../../../map/presentation/screens/trip_map_screen.dart';
 import '../../../trips/models/trip_payload_codec.dart';
 import '../../../trips/providers/saved_trips_provider.dart';
 import 'home_planner_screen.dart' show showGuestDraftSaveDialog;
 
 class DashboardResultScreen extends StatefulWidget {
-  const DashboardResultScreen({super.key});
+  final bool enableMapNetworkTiles;
+  const DashboardResultScreen({
+    super.key,
+    this.enableMapNetworkTiles = true,
+  });
 
   @override
   State<DashboardResultScreen> createState() => _DashboardResultScreenState();
@@ -81,22 +89,7 @@ class _DashboardResultScreenState extends State<DashboardResultScreen>
           IconButton(
             icon: const Icon(Icons.map_outlined),
             tooltip: 'Xem Bản Đồ & Radar Nhóm',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => TripMapScreen(
-                    initialDestination:
-                        (winner != null &&
-                            winner.latitude != null &&
-                            winner.longitude != null)
-                        ? LatLng(winner.latitude!, winner.longitude!)
-                        : null,
-                    initialDestinationName: winner?.name,
-                  ),
-                ),
-              );
-            },
+            onPressed: () => _openMapWithItinerary(context, winner),
           ),
         ],
         bottom: TabBar(
@@ -254,24 +247,7 @@ class _DashboardResultScreenState extends State<DashboardResultScreen>
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton.icon(
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => TripMapScreen(
-                                  initialDestination:
-                                      (winner.latitude != null &&
-                                          winner.longitude != null)
-                                      ? LatLng(
-                                          winner.latitude!,
-                                          winner.longitude!,
-                                        )
-                                      : null,
-                                  initialDestinationName: winner.name,
-                                ),
-                              ),
-                            );
-                          },
+                          onPressed: () => _openMapWithItinerary(context, winner),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.white,
                             foregroundColor: primaryColor,
@@ -407,6 +383,45 @@ class _DashboardResultScreenState extends State<DashboardResultScreen>
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openMapWithItinerary(BuildContext context, dynamic winner) async {
+    final provider = context.read<TripProvider>();
+    final resultSnapshot = provider.captureResult();
+
+    PublicCatalogueSnapshot? publicSnapshot;
+    try {
+      final pub = Provider.of<PublicCatalogueProvider>(context, listen: false);
+      if (pub.snapshot == null) await pub.load();
+      publicSnapshot = pub.snapshot;
+    } catch (_) {}
+
+    ItineraryMapContext? itineraryContext;
+    if (resultSnapshot != null && publicSnapshot != null) {
+      itineraryContext = ItineraryMapBuilder.build(
+        result: resultSnapshot,
+        snapshot: publicSnapshot,
+      );
+    }
+
+    if (!context.mounted) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TripMapScreen(
+          itinerary: itineraryContext,
+          enableNetworkTiles: widget.enableMapNetworkTiles,
+          initialDestination:
+              (winner != null &&
+                  winner.latitude != null &&
+                  winner.longitude != null)
+              ? LatLng(winner.latitude!, winner.longitude!)
+              : null,
+          initialDestinationName: winner?.name,
         ),
       ),
     );

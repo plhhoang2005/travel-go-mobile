@@ -15,6 +15,9 @@ import '../widgets/location_detail_sheet.dart';
 import '../widgets/pulsing_ring_marker.dart';
 import '../widgets/route_builder_sheet.dart';
 import '../widgets/vietnamese_sovereignty_layer.dart';
+import '../../models/itinerary_map_context.dart';
+import '../../services/itinerary_map_builder.dart';
+import '../widgets/itinerary_map_panel.dart';
 
 class TripMapScreen extends StatefulWidget {
   final LatLng? initialDestination;
@@ -22,6 +25,7 @@ class TripMapScreen extends StatefulWidget {
   final List<RouteWaypoint>? initialWaypoints;
   final MapMode initialMode;
   final bool enableNetworkTiles;
+  final ItineraryMapContext? itinerary;
 
   const TripMapScreen({
     super.key,
@@ -30,6 +34,7 @@ class TripMapScreen extends StatefulWidget {
     this.initialWaypoints,
     this.initialMode = MapMode.routing,
     this.enableNetworkTiles = true,
+    this.itinerary,
   });
 
   @override
@@ -45,6 +50,11 @@ class _TripMapScreenState extends State<TripMapScreen> with WidgetsBindingObserv
 
   // Tile degraded / fallback flag (Law 3: Zero Silent Fallbacks)
   bool _isTileDegraded = false;
+  int? _routeContextToken;
+  ItineraryMapContext? _currentItinerary;
+  int _selectedItineraryDay = 1;
+  final Map<String, String> _userPlaceBindings = {};
+
   @override
   void initState() {
     super.initState();
@@ -53,22 +63,87 @@ class _TripMapScreenState extends State<TripMapScreen> with WidgetsBindingObserv
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final provider = context.read<MapProvider>();
-      provider
-          .init(
-        targetDestination: widget.initialDestination,
-        targetName: widget.initialDestinationName,
-        waypoints: widget.initialWaypoints,
-      )
-          .then((_) {
+      _routeContextToken = provider.beginRouteContext();
+
+      if (widget.itinerary != null) {
+        _currentItinerary = widget.itinerary;
+        final days = _currentItinerary!.dayNumbers;
+        if (days.isNotEmpty) {
+          _selectedItineraryDay = days.first;
+        }
+        _buildRouteFromItinerary(provider, _routeContextToken!);
+      } else {
+        provider
+            .init(
+          targetDestination: widget.initialDestination,
+          targetName: widget.initialDestinationName,
+          waypoints: widget.initialWaypoints,
+          contextGeneration: _routeContextToken,
+        )
+            .then((_) {
+          if (mounted && _isMapReady) {
+            if (provider.hasRoute) {
+              _fitCameraToBounds(provider);
+            } else {
+              _mapController.move(provider.origin, 15.0);
+            }
+          }
+        });
+      }
+    });
+  }
+
+  void _buildRouteFromItinerary(MapProvider provider, int token) {
+    if (_currentItinerary == null) return;
+    final activities = _currentItinerary!.activitiesForDay(_selectedItineraryDay);
+    final located = activities.where((a) => a.isLocated).toList();
+
+    if (located.length >= 2) {
+      final origin = located.first.positionOnMap!;
+      final destination = located.last.positionOnMap!;
+      final intermediate = located.sublist(1, located.length - 1).map((a) {
+        return RouteWaypoint(
+          id: a.key,
+          title: a.title,
+          position: a.positionOnMap!,
+          type: 'stop',
+          dayNumber: a.dayNumber,
+        );
+      }).toList();
+
+      provider.init(
+        targetDestination: destination,
+        targetName: located.last.title,
+        waypoints: intermediate,
+        contextGeneration: token,
+      ).then((_) {
         if (mounted && _isMapReady) {
           if (provider.hasRoute) {
             _fitCameraToBounds(provider);
           } else {
-            _mapController.move(provider.origin, 15.0);
+            _mapController.move(origin, 14.0);
           }
         }
       });
-    });
+    } else if (located.length == 1) {
+      provider.init(
+        targetDestination: null,
+        targetName: null,
+        waypoints: [],
+        contextGeneration: token,
+      ).then((_) {
+        if (mounted && _isMapReady) {
+          _mapController.move(located.first.positionOnMap!, 15.0);
+        }
+      });
+    } else {
+      provider.init(
+        targetDestination: null,
+        targetName: null,
+        waypoints: [],
+        contextGeneration: token,
+      );
+    }
   }
 
   @override
@@ -89,6 +164,11 @@ class _TripMapScreenState extends State<TripMapScreen> with WidgetsBindingObserv
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    if (_routeContextToken != null) {
+      try {
+        context.read<MapProvider>().endRouteContext(_routeContextToken!);
+      } catch (_) {}
+    }
     _mapController.dispose();
     super.dispose();
   }
@@ -346,10 +426,44 @@ class _TripMapScreenState extends State<TripMapScreen> with WidgetsBindingObserv
               // Markers Layer: 1 marker in STATE A, Diamond Milestones in STATE B, plus Group Radar Markers
               MarkerLayer(
                 markers: [
-                  ...(hasRoute
-                      ? _buildDiamondMilestoneMarkers(
-                          provider, allStops, activeIndex)
-                      : _buildLocateOnlyMarkers(provider)),
+                  if (_currentItinerary != null) ...[
+                    for (final act in _currentItinerary!.activitiesForDay(_selectedItineraryDay))
+                      if (act.isLocated)
+                        Marker(
+                          point: act.positionOnMap!,
+                          width: 48,
+                          height: 48,
+                          child: Semantics(
+                            label: 'Vị trí ${act.position + 1}: ${act.title}',
+                            child: Tooltip(
+                              message: act.title,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF0284C7),
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: Colors.white, width: 2),
+                                  boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    '${act.position + 1}',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                  ] else ...[
+                    ...(hasRoute
+                        ? _buildDiamondMilestoneMarkers(
+                            provider, allStops, activeIndex)
+                        : _buildLocateOnlyMarkers(provider)),
+                  ],
                   if (provider.isGroupRadarEnabled)
                     ..._buildGroupMemberMarkers(provider),
                 ],
@@ -627,8 +741,8 @@ class _TripMapScreenState extends State<TripMapScreen> with WidgetsBindingObserv
               ),
             ),
 
-          // 8. STATE B: Bottom Floating View Switch
-          if (hasRoute && !provider.isLoading) ...[
+          // 8. STATE B: Bottom Floating View Switch (Only for non-itinerary mode)
+          if (_currentItinerary == null && hasRoute && !provider.isLoading) ...[
             Positioned(
               bottom: 24,
               left: 0,
@@ -654,6 +768,35 @@ class _TripMapScreenState extends State<TripMapScreen> with WidgetsBindingObserv
               ),
             ),
           ],
+
+          // 9. Itinerary Map Panel (When opened from planner result)
+          if (_currentItinerary != null)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: ItineraryMapPanel(
+                itinerary: _currentItinerary!,
+                selectedDay: _selectedItineraryDay,
+                onDaySelected: (day) {
+                  setState(() => _selectedItineraryDay = day);
+                  final p = context.read<MapProvider>();
+                  _buildRouteFromItinerary(p, _routeContextToken!);
+                },
+                onPlaceBound: (key, placeId) {
+                  _userPlaceBindings[key] = placeId;
+                  setState(() {
+                    _currentItinerary = ItineraryMapBuilder.build(
+                      result: widget.itinerary!.result,
+                      snapshot: widget.itinerary!.snapshot,
+                      userPlaceBindings: _userPlaceBindings,
+                    );
+                  });
+                  final p = context.read<MapProvider>();
+                  _buildRouteFromItinerary(p, _routeContextToken!);
+                },
+              ),
+            ),
 
           // 9. STATE A Primary FAB
           if (!hasRoute && !provider.isLoading)
