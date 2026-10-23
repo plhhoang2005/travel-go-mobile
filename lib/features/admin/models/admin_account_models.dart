@@ -228,6 +228,11 @@ class UserDetail {
   DateTime? get lastSignInAt => summary.lastSignInAt;
   bool get authSynced => summary.authSynced;
 
+  bool get isAdmin => summary.isAdmin;
+  bool get isLocked => summary.isLocked;
+  bool get isEnabled => summary.isEnabled;
+  bool get isUnlocking => summary.isUnlocking;
+
   factory UserDetail.fromJson(Map<String, dynamic> json) {
     final summary = UserSummary.fromJson(json);
     final auditRaw = json['audit'];
