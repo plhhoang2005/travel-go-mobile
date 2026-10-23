@@ -67,6 +67,27 @@ class TripProvider extends ChangeNotifier {
   PlanTripResponse? get currentResponse => _currentResponse;
   TripMetadataV1 get currentMetadata => _metadata;
   bool get hasSelectedDestination => _metadata.destinationId != null;
+
+  static const supportedAiDestinationIds = <String>{
+    'ha-noi',
+    'ha-long',
+    'sa-pa',
+    'ninh-binh',
+    'hue',
+    'da-nang',
+    'hoi-an',
+    'nha-trang',
+    'da-lat',
+    'ho-chi-minh',
+    'phu-quoc',
+    'can-tho',
+  };
+
+  bool get supportsSelectedDestinationAi {
+    final id = _metadata.destinationId;
+    if (id == null) return true;
+    return supportedAiDestinationIds.contains(id);
+  }
   bool get isAccountWorkspace => !_guest && !_demo && _owner != null;
   bool get canReplaceWorkspace =>
       !_disposed &&
@@ -445,7 +466,7 @@ class TripProvider extends ChangeNotifier {
     required int expectedWorkspaceGeneration,
     bool replaceDirty = false,
   }) {
-    if (!RegExp(r'^[a-z0-9]+(?:-[a-z0-9]+)*$').hasMatch(destinationId) ||
+    if (!RegExp(r'^[a-z0-9][a-z0-9/-]{0,119}$').hasMatch(destinationId) ||
         destinationName.trim().isEmpty) {
       return false;
     }

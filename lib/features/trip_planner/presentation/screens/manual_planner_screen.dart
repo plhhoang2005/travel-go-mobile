@@ -1,12 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart' show Uuid;
+import 'package:provider/provider.dart';
 
+import '../../../map/presentation/screens/manual_day_map_screen.dart';
+import '../../../auth/providers/auth_provider.dart';
+import '../../../explore/models/public_catalogue_snapshot.dart';
 import '../../../explore/models/catalogue_reference.dart' as catalogue;
 import '../../../trips/models/editable_trip_codec.dart';
 import '../../models/editable_trip_command.dart';
 import '../../models/editable_trip_document.dart';
 import '../../providers/manual_planner_provider.dart';
+import '../../providers/trip_provider.dart';
 import '../../services/editable_trip_validator.dart';
+import '../../services/ai_generation_service.dart';
+import '../../services/ai_assistant_service.dart';
+import '../widgets/ai_generation_preview.dart';
+import '../widgets/ai_assistant_preview.dart';
 import '../widgets/manual_activity_form.dart';
 import '../widgets/manual_budget_panel.dart';
 import '../widgets/manual_expense_form.dart';
@@ -17,19 +26,28 @@ import '../widgets/manual_trip_input_form.dart';
 class ManualPlannerScreen extends StatefulWidget {
   final ManualPlannerProvider planner;
   final List<catalogue.DestinationReference> destinations;
+  final PublicCatalogueSnapshot? snapshot;
   final String Function()? newId;
   final bool enableBudget;
+  final bool enableMapNetworkTiles;
   final Widget Function(BuildContext, ManualPlannerProvider)? budgetBuilder;
   final Future<void> Function(BuildContext, ManualPlannerProvider)?
   onReviewSave;
+  final Future<AiPreparedProposal> Function(EditableTripDocumentV2, String)?
+  generateAi;
+  final AiAssistantGenerator? assistantGenerate;
   const ManualPlannerScreen({
     super.key,
     required this.planner,
     required this.destinations,
+    this.snapshot,
     this.newId,
     this.enableBudget = false,
+    this.enableMapNetworkTiles = true,
     this.budgetBuilder,
     this.onReviewSave,
+    this.generateAi,
+    this.assistantGenerate,
   });
   @override
   State<ManualPlannerScreen> createState() => _ManualPlannerScreenState();
@@ -59,6 +77,24 @@ class _ManualStamp {
 
 class _ManualPlannerScreenState extends State<ManualPlannerScreen> {
   String? _dayId;
+
+  bool get supportsAi {
+    final destId = planner.document?.input.destinationId;
+    if (destId == null) return false;
+    return TripProvider.supportedAiDestinationIds.contains(destId);
+  }
+
+  bool get showUnavailableWarning {
+    final doc = planner.document;
+    if (doc == null) return false;
+    final currentDestId = doc.input.destinationId;
+    if (currentDestId == null) return false;
+    final activeDestinations = widget.snapshot?.catalogue.destinations ?? widget.destinations;
+    if (activeDestinations.isEmpty) return false;
+    final isDestActive = activeDestinations.any((d) => d.id == currentDestId);
+    final isNewTrip = doc.source.kind == 'new';
+    return !isDestActive && isNewTrip;
+  }
   bool _budget = false, _askingLeave = false;
   ManualPlannerProvider get planner => widget.planner;
   void _selectDay(int ordinal) =>
@@ -72,7 +108,11 @@ class _ManualPlannerScreenState extends State<ManualPlannerScreen> {
   }
 
   Future<T?> _route<T>(Widget child, {bool dialog = false}) async {
-    if (!planner.isEditable && child is! _DayPicker) return null;
+    if (!planner.isEditable &&
+        child is! _DayPicker &&
+        child is! ManualDayMapScreen) {
+      return null;
+    }
     if (planner.document == null) return null;
     final stamp = _ManualStamp(planner);
     Widget guarded(BuildContext context) =>
@@ -102,13 +142,215 @@ class _ManualPlannerScreenState extends State<ManualPlannerScreen> {
     }
   }
 
+  Future<void> _map() async {
+    final doc = planner.document;
+    if (doc == null) return;
+    final day = doc.days.firstWhere((d) => d.ordinal == _ordinal);
+    await _route<void>(
+      ManualDayMapScreen(
+        document: doc,
+        dayId: day.id,
+        enableNetworkTiles: widget.enableMapNetworkTiles,
+        snapshot: widget.snapshot,
+      ),
+    );
+  }
+
+  Future<void> _aiHelp() async {
+    if (!supportsAi) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Tính năng AI chưa khả dụng cho điểm đến này. Bạn có thể tự chỉnh hoạt động và xem vị trí tham khảo.',
+          ),
+        ),
+      );
+      return;
+    }
+    if (!planner.isEditable ||
+        planner.isSaving ||
+        planner.hasPendingSave ||
+        planner.state == ManualPlannerState.conflict) {
+      return;
+    }
+    final AuthProvider auth;
+    try {
+      auth = context.read<AuthProvider>();
+    } on ProviderNotFoundException {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'AI chưa khả dụng. Bạn có thể tự chỉnh hoạt động và xem vị trí tham khảo theo ngày.',
+          ),
+        ),
+      );
+      return;
+    }
+    final snapshot = planner.document!,
+        stamp = _ManualStamp(planner),
+        epoch = auth.authEpoch,
+        authOwner = auth.currentUser?.id,
+        authGuest = auth.isGuest,
+        authDemo = auth.isDemoSession;
+    final AiGenerationContext input;
+    try {
+      input = AiGenerationContext.fromDocument(snapshot);
+    } on Object {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Chọn điểm đến và kiểm tra sở thích trước khi gửi AI. Không đưa thông tin liên hệ vào sở thích.',
+          ),
+        ),
+      );
+      return;
+    }
+    bool current() =>
+        mounted &&
+        auth.authEpoch == epoch &&
+        auth.currentUser?.id == authOwner &&
+        auth.isGuest == authGuest &&
+        auth.isDemoSession == authDemo &&
+        stamp.current(planner);
+    final result = await _route<AiPreparedProposal>(
+      AiGenerationPreview(
+        input: input,
+        authority: Listenable.merge([planner, auth]),
+        isCurrent: current,
+        generate: (requestId) =>
+            widget.generateAi?.call(snapshot, requestId) ??
+            generateAiForDraft(
+              auth: auth,
+              document: snapshot,
+              requestId: requestId,
+              newId: _newId,
+              workspaceCurrent: current,
+            ),
+      ),
+      dialog: true,
+    );
+    if (result == null || !current() || !result.canApply) {
+      return;
+    }
+    try {
+      planner.dispatchAll(result.commands);
+    } on Object {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Chưa áp dụng đề xuất AI. Hãy kiểm tra lại bản nháp hiện tại.',
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _aiAssistant() async {
+    if (!supportsAi) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Tính năng AI chưa khả dụng cho điểm đến này. Bạn có thể tự chỉnh hoạt động và xem vị trí tham khảo.',
+          ),
+        ),
+      );
+      return;
+    }
+    if (!planner.isEditable ||
+        planner.isSaving ||
+        planner.hasPendingSave ||
+        planner.state == ManualPlannerState.conflict) {
+      return;
+    }
+    final AuthProvider auth;
+    try {
+      auth = context.read<AuthProvider>();
+    } on ProviderNotFoundException {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('AI chưa khả dụng. Bạn vẫn có thể tự chỉnh lịch.'),
+        ),
+      );
+      return;
+    }
+    final snapshot = planner.document!,
+        stamp = _ManualStamp(planner),
+        epoch = auth.authEpoch,
+        owner = auth.currentUser?.id,
+        guest = auth.isGuest,
+        demo = auth.isDemoSession;
+    bool current() =>
+        mounted &&
+        stamp.current(planner) &&
+        auth.authEpoch == epoch &&
+        auth.currentUser?.id == owner &&
+        auth.isGuest == guest &&
+        auth.isDemoSession == demo;
+    final AiAssistantContext input;
+    try {
+      input = AiAssistantContext.fromDocument(
+        snapshot,
+        selectedDay: _ordinal,
+        places: _places,
+      );
+    } on Object {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Chưa thể gửi ngữ cảnh ngày này. Kiểm tra điểm đến, số hoạt động và bỏ thông tin liên hệ khỏi tiêu đề/sở thích.',
+          ),
+        ),
+      );
+      return;
+    }
+    final result = await _route<AiModificationPreview>(
+      AiAssistantPreview(
+        input: input,
+        authority: Listenable.merge([planner, auth]),
+        isCurrent: current,
+        generate:
+            widget.assistantGenerate ??
+            (intent, prompt, history, requestId) => askAiForDraft(
+              auth: auth,
+              document: snapshot,
+              context: input,
+              intent: intent,
+              prompt: prompt,
+              history: history,
+              requestId: requestId,
+              newId: _newId,
+              workspaceCurrent: current,
+            ),
+      ),
+      dialog: true,
+    );
+    if (result == null || !current() || !result.canApply) {
+      return;
+    }
+    try {
+      planner.dispatchAll(result.commands);
+    } on Object {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Chưa áp dụng thay đổi AI. Hãy kiểm tra lại bản nháp hiện tại.',
+            ),
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _input() async {
     final doc = planner.document;
     if (doc == null) return;
     final result = await _route<ManualTripInputResult>(
       ManualTripInputForm(
         initialDocument: doc,
-        destinations: widget.destinations,
+        destinations: widget.snapshot?.catalogue.destinations ?? widget.destinations,
         newId: _newId,
       ),
     );
@@ -132,7 +374,7 @@ class _ManualPlannerScreenState extends State<ManualPlannerScreen> {
   }
 
   List<catalogue.PlaceReference> get _places =>
-      widget.destinations
+      (widget.snapshot?.catalogue.destinations ?? widget.destinations)
           .where((d) => d.id == planner.document?.input.destinationId)
           .firstOrNull
           ?.places ??
@@ -261,21 +503,24 @@ class _ManualPlannerScreenState extends State<ManualPlannerScreen> {
 
   Future<void> _delete(TripItem item) async {
     final confirmed = await _route<bool>(
-      AlertDialog(
-        title: const Text('Xóa hoạt động?'),
-        content: Text(
-          '${item.title}\n\nKhoản dự kiến liên quan sẽ ngừng tính. Các khoản đã chi vẫn được giữ.',
+      Builder(
+        // showDialog uses the root navigator; the editor may live below it.
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Xóa hoạt động?'),
+          content: Text(
+            '${item.title}\n\nKhoản dự kiến liên quan sẽ ngừng tính. Các khoản đã chi vẫn được giữ.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Hủy'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Xác nhận xóa'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Hủy'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Xác nhận xóa'),
-          ),
-        ],
       ),
       dialog: true,
     );
@@ -326,6 +571,15 @@ class _ManualPlannerScreenState extends State<ManualPlannerScreen> {
           appBar: AppBar(
             leading: BackButton(onPressed: _leave),
             title: const Text('Chỉnh lịch trình'),
+            actions: [
+              if (doc != null && planner.isEditable)
+                IconButton(
+                  key: const ValueKey('ai-assistant-open'),
+                  tooltip: 'Chat, gợi ý và chỉnh lịch AI',
+                  onPressed: supportsAi ? _aiAssistant : null,
+                  icon: const Icon(Icons.chat_bubble_outline),
+                ),
+            ],
           ),
           body: doc == null
               ? const _ManualUnavailable()
@@ -356,6 +610,33 @@ class _EditorSections extends StatelessWidget {
       children: [
         if (settings.enableBudget || settings.budgetBuilder != null)
           _EditorModes(screen: screen),
+        if (screen.showUnavailableWarning)
+          Container(
+            key: const ValueKey('destination-unavailable-warning'),
+            padding: const EdgeInsets.all(12),
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.amber.shade100,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.amber.shade700),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.warning_amber_rounded, color: Colors.orange),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Điểm đến này không còn trong danh mục hiện tại. Hãy chọn điểm đến mới để lưu.',
+                    style: TextStyle(color: Colors.brown.shade900, fontSize: 13),
+                  ),
+                ),
+                TextButton(
+                  onPressed: screen._input,
+                  child: const Text('Đổi điểm đến'),
+                ),
+              ],
+            ),
+          ),
         Expanded(
           child: screen._budget
               ? settings.budgetBuilder != null
@@ -364,6 +645,9 @@ class _EditorSections extends StatelessWidget {
                           _EditorHeader(
                             planner: planner,
                             onInput: screen._input,
+                            onMap: () => run(screen._map),
+                            onAiHelp: screen._aiHelp,
+                            supportsAi: screen.supportsAi,
                           ),
                           Expanded(
                             child: settings.budgetBuilder!(context, planner),
@@ -375,6 +659,9 @@ class _EditorSections extends StatelessWidget {
                         header: _EditorHeader(
                           planner: planner,
                           onInput: screen._input,
+                          onMap: () => run(screen._map),
+                          onAiHelp: screen._aiHelp,
+                          supportsAi: screen.supportsAi,
                         ),
                         onEditExpense: (kind, id) =>
                             run(() => screen._expense(kind, id)),
@@ -383,6 +670,9 @@ class _EditorSections extends StatelessWidget {
                   header: _EditorHeader(
                     planner: planner,
                     onInput: screen._input,
+                    onMap: () => run(screen._map),
+                    onAiHelp: screen._aiHelp,
+                    supportsAi: screen.supportsAi,
                   ),
                   planner: planner,
                   selectedDayOrdinal: screen._ordinal,
@@ -452,7 +742,16 @@ class _EditorModes extends StatelessWidget {
 class _EditorHeader extends StatelessWidget {
   final ManualPlannerProvider planner;
   final VoidCallback onInput;
-  const _EditorHeader({required this.planner, required this.onInput});
+  final VoidCallback? onMap;
+  final VoidCallback? onAiHelp;
+  final bool supportsAi;
+  const _EditorHeader({
+    required this.planner,
+    required this.onInput,
+    this.onMap,
+    this.onAiHelp,
+    this.supportsAi = false,
+  });
   String get _status {
     if (planner.state == ManualPlannerState.readOnly) {
       return 'Bản lưu ngoại tuyến · Chỉ xem';
@@ -512,12 +811,26 @@ class _EditorHeader extends StatelessWidget {
                 child: const Text('Thử lại lần lưu trước'),
               ),
             ),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton(
-              onPressed: planner.isEditable ? onInput : null,
-              child: const Text('Sửa thông tin'),
-            ),
+          Wrap(
+            spacing: 8,
+            children: [
+              TextButton(
+                onPressed: planner.isEditable ? onInput : null,
+                child: const Text('Sửa thông tin'),
+              ),
+              if (onMap != null)
+                TextButton.icon(
+                  onPressed: onMap,
+                  icon: const Icon(Icons.map_outlined),
+                  label: const Text('Bản đồ ngày này'),
+                ),
+              if (onAiHelp != null)
+                TextButton.icon(
+                  onPressed: supportsAi ? onAiHelp : null,
+                  icon: const Icon(Icons.help_outline),
+                  label: const Text('Trợ giúp AI'),
+                ),
+            ],
           ),
         ],
       ),
