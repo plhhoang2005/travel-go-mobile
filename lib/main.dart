@@ -11,6 +11,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/constants/supabase_constants.dart';
 import 'core/testing/p32_drop_committed_reply_adapter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'core/constants/api_constants.dart';
+import 'core/services/backend_api_config.dart';
 import 'core/theme/app_theme.dart';
 import 'features/trip_planner/providers/trip_provider.dart';
 import 'features/trip_planner/providers/manual_planner_provider.dart';
@@ -169,6 +173,15 @@ class ManualPlannerRuntime {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  SharedPreferences? prefs;
+  try {
+    prefs = await SharedPreferences.getInstance();
+  } catch (e) {
+    debugPrint('SharedPreferences could not be loaded: $e');
+  }
+  final backendConfig = await BackendApiConfig.load(prefs);
+  ApiConstants.configure(backendConfig);
+
   try {
     await Supabase.initialize(
       url: SupabaseConstants.projectUrl,
@@ -182,7 +195,7 @@ Future<void> main() async {
   } catch (e) {
     debugPrint('Supabase initialization did not complete.');
   }
-  runApp(const TravelGoApp());
+  runApp(TravelGoApp(backendConfig: backendConfig));
 }
 
 SavedTripsProvider updateSavedTripsFromAuth(
@@ -213,12 +226,14 @@ class TravelGoApp extends StatefulWidget {
   final SupabaseClient? authClient;
   final Stream<Uri>? authCallbackLinks;
   final Future<Uri?> Function()? initialAuthLinkLoader;
+  final BackendApiConfig? backendConfig;
   const TravelGoApp({
     super.key,
     this.localStoreRuntime,
     this.authClient,
     this.authCallbackLinks,
     this.initialAuthLinkLoader,
+    this.backendConfig,
   });
 
   @override
@@ -229,6 +244,7 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
   late final LocalTripStoreRuntime _runtime;
   late final ManualPlannerRuntime _manualRuntime;
   late final AuthProvider _auth;
+  late final BackendApiConfig _backendConfig;
   SupabaseClient? _client;
   Future<LocalAccountLifecycleService>? _loadingLifecycle;
   StreamSubscription<Uri>? _links;
@@ -246,6 +262,8 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    _backendConfig = widget.backendConfig ?? BackendApiConfig.unpersisted();
+    ApiConstants.configure(_backendConfig);
     _client = widget.authClient;
     if (_client == null) {
       try {
@@ -557,6 +575,7 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        ChangeNotifierProvider.value(value: _backendConfig),
         ChangeNotifierProvider.value(value: _auth),
         Provider<Future<LocalAccountLifecycleService> Function()>.value(value: _getLifecycle),
         Provider<LocalTripStoreRuntime>.value(value: _runtime),

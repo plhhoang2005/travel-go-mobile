@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:provider/provider.dart';
 
 import '../../../../core/constants/api_constants.dart';
+import '../../../../core/services/backend_api_config.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../auth/models/user_model.dart';
 import '../../../auth/providers/auth_provider.dart';
@@ -136,16 +136,28 @@ class CustomerProfileScreen extends StatelessWidget {
               title: Text('Tiếng Việt · VND'),
               subtitle: Text('Ngôn ngữ và đơn vị tiền đang hiển thị'),
             ),
-            if (kDebugMode) ...[
-              const Divider(height: 24),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.developer_mode),
-                title: const Text('Máy chủ Backend (API)'),
-                subtitle: Text(ApiConstants.baseUrl.split('/api')[0]),
-                onTap: () => _showBackendConfigDialog(context),
-              ),
-            ],
+            const Divider(height: 24),
+            Builder(
+              builder: (context) {
+                BackendApiConfig? config;
+                try {
+                  config = context.watch<BackendApiConfig>();
+                } catch (_) {}
+                final currentUrl = config?.effectiveBaseUrl ?? ApiConstants.baseUrl;
+                final displayUrl = currentUrl.split('/api')[0];
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.developer_mode),
+                  title: const Text('Máy chủ Backend (API)'),
+                  subtitle: Text(
+                    config?.persistenceError != null
+                        ? '$displayUrl · Chưa lưu bền vững'
+                        : displayUrl,
+                  ),
+                  onTap: () => _showBackendConfigDialog(context),
+                );
+              },
+            ),
             const SizedBox(height: 24),
             if (auth.isLoggingOut || auth.logoutNeedsRetry)
               OutlinedButton.icon(
@@ -180,73 +192,154 @@ class CustomerProfileScreen extends StatelessWidget {
   }
 
   void _showBackendConfigDialog(BuildContext context) {
+    BackendApiConfig? config;
+    try {
+      config = context.read<BackendApiConfig>();
+    } catch (_) {}
+
     final controller = TextEditingController(
-      text: ApiConstants.overrideBaseUrl ?? ApiConstants.baseUrl,
+      text: config?.effectiveBaseUrl ?? ApiConstants.baseUrl,
     );
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text(
-          'Cấu hình Máy chủ Backend',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Nhập URL Backend API (Hữu ích khi test trên thiết bị thật qua mạng Wi-Fi LAN hoặc máy chủ từ xa):',
-              style: TextStyle(
-                fontSize: 13,
-                color: AppTheme.slate600,
-                height: 1.4,
+      builder: (ctx) {
+        String? errorMessage;
+        bool isSubmitting = false;
+
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) => AlertDialog(
+            title: const Text(
+              'Cấu hình Máy chủ Backend',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Nhập URL Backend API (Hữu ích khi test trên thiết bị thật qua mạng Wi-Fi LAN hoặc máy chủ từ xa):',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: AppTheme.slate600,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    key: const ValueKey('backend-url-input'),
+                    controller: controller,
+                    enabled: !isSubmitting,
+                    decoration: InputDecoration(
+                      hintText: 'http://192.168.1.x:8080/api/v1',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                    ),
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  if (config?.persistenceError != null || errorMessage != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      errorMessage ?? config!.persistenceError!,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: controller,
-              decoration: InputDecoration(
-                hintText: 'http://192.168.1.x:8080/api/v1',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
-                ),
+            actions: [
+              TextButton(
+                onPressed: isSubmitting
+                    ? null
+                    : () async {
+                        setDialogState(() {
+                          isSubmitting = true;
+                          errorMessage = null;
+                        });
+                        try {
+                          if (config != null) {
+                            await config.reset();
+                          } else {
+                            ApiConstants.overrideBaseUrl = null;
+                          }
+                          if (!ctx.mounted) return;
+                          Navigator.pop(ctx);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Đã khôi phục URL API mặc định'),
+                            ),
+                          );
+                        } catch (e) {
+                          setDialogState(() {
+                            isSubmitting = false;
+                            errorMessage = e is FormatException
+                                ? e.message
+                                : (e is StateError ? e.message : e.toString());
+                          });
+                        }
+                      },
+                child: const Text('Mặc định'),
               ),
-              style: const TextStyle(fontSize: 13),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              ApiConstants.overrideBaseUrl = null;
-              Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Đã khôi phục URL API mặc định')),
-              );
-            },
-            child: const Text('Mặc định'),
-          ),
-          FilledButton(
-            onPressed: () {
-              ApiConstants.overrideBaseUrl = controller.text.trim();
-              Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Đã lưu URL API: ${ApiConstants.baseUrl}'),
+              FilledButton(
+                key: const ValueKey('backend-url-save'),
+                onPressed: isSubmitting
+                    ? null
+                    : () async {
+                        final raw = controller.text.trim();
+                        setDialogState(() {
+                          isSubmitting = true;
+                          errorMessage = null;
+                        });
+                        try {
+                          if (config != null) {
+                            await config.setBaseUrl(raw);
+                          } else {
+                            ApiConstants.overrideBaseUrl =
+                                BackendApiConfig.normalizeAndValidateUrl(raw);
+                          }
+                          if (!ctx.mounted) return;
+                          Navigator.pop(ctx);
+                          final currentUrl = config?.effectiveBaseUrl ?? ApiConstants.baseUrl;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Đã lưu URL API: $currentUrl'),
+                            ),
+                          );
+                        } catch (e) {
+                          setDialogState(() {
+                            isSubmitting = false;
+                            errorMessage = e is FormatException
+                                ? e.message
+                                : (e is StateError ? e.message : e.toString());
+                          });
+                        }
+                      },
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF086C61),
                 ),
-              );
-            },
-            style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF086C61),
-            ),
-            child: const Text('Lưu'),
+                child: isSubmitting
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text('Lưu'),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 

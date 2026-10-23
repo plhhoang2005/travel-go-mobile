@@ -48,6 +48,7 @@ dependencies:
   crypto: 3.0.7
   uuid: 4.6.0
   path: 1.9.1
+  shared_preferences: 2.5.5
 
 dev_dependencies:
   flutter_test:
@@ -73,6 +74,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/catalogue/catalogue_readiness_v1.json
+    - assets/catalogue/place_visit_details_v1.json
 
   # To add assets to your application, add an assets section, like this:
   # assets:

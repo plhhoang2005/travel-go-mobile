@@ -1,17 +1,25 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import '../../../core/constants/api_constants.dart';
+import '../../../core/services/backend_api_config.dart';
 import '../models/trip_request.dart';
 import '../models/trip_response.dart';
 
 class TripApiService {
   late final Dio _dio;
+  final String Function()? baseUrlReader;
+  final int Function()? configRevisionReader;
 
-  TripApiService({Dio? dio}) {
+  TripApiService({
+    Dio? dio,
+    this.baseUrlReader,
+    this.configRevisionReader,
+  }) {
+    final effectiveUrl = baseUrlReader?.call() ?? ApiConstants.baseUrl;
     _dio = dio ??
         Dio(
           BaseOptions(
-            baseUrl: ApiConstants.baseUrl,
+            baseUrl: effectiveUrl,
             connectTimeout: ApiConstants.connectTimeout,
             receiveTimeout: ApiConstants.receiveTimeout,
             headers: {
@@ -32,36 +40,64 @@ class TripApiService {
     }
   }
 
+  String get _currentBaseUrl => baseUrlReader?.call() ?? ApiConstants.baseUrl;
+  int get _currentRevision =>
+      configRevisionReader?.call() ?? ApiConstants.configRevision;
+
   Future<PlanTripResponse> planTrip(PlanTripRequest request) async {
-    // Ensure Dio uses the latest runtime baseUrl (supporting runtime override / reset)
-    _dio.options.baseUrl = ApiConstants.baseUrl;
+    final opBaseUrl = _currentBaseUrl;
+    final opRevision = _currentRevision;
+    _dio.options.baseUrl = opBaseUrl;
+
     try {
       final response = await _dio.post(
         ApiConstants.planTrip,
         data: request.toJson(),
       );
 
+      if (_currentRevision != opRevision) {
+        throw const BackendConfigChangedException();
+      }
+
       if (response.statusCode == 200 && response.data != null) {
         return PlanTripResponse.fromJson(response.data as Map<String, dynamic>);
       } else {
         throw Exception('Server returned status code: ${response.statusCode}');
       }
+    } on BackendConfigChangedException {
+      rethrow;
     } on DioException catch (e) {
+      if (_currentRevision != opRevision) {
+        throw const BackendConfigChangedException();
+      }
       debugPrint('[TripApiService] DioException: ${e.message}');
       // Fallback demo data with explicit FALLBACK marker (Law 3: Zero Silent Fallbacks)
       return _generateOfflineFallbackResponse(request, _formatDioErrorMessage(e));
     } catch (e) {
+      if (_currentRevision != opRevision) {
+        throw const BackendConfigChangedException();
+      }
       debugPrint('[TripApiService] Exception: $e');
       return _generateOfflineFallbackResponse(request, 'Lỗi kết nối máy chủ không xác định: $e');
     }
   }
 
   Future<bool> checkHealth() async {
-    _dio.options.baseUrl = ApiConstants.baseUrl;
+    final opBaseUrl = _currentBaseUrl;
+    final opRevision = _currentRevision;
+    _dio.options.baseUrl = opBaseUrl;
     try {
       final response = await _dio.get(ApiConstants.health);
+      if (_currentRevision != opRevision) {
+        throw const BackendConfigChangedException();
+      }
       return response.statusCode == 200;
+    } on BackendConfigChangedException {
+      rethrow;
     } catch (_) {
+      if (_currentRevision != opRevision) {
+        throw const BackendConfigChangedException();
+      }
       return false;
     }
   }

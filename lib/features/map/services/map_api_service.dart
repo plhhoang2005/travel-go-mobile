@@ -5,6 +5,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../models/map_models.dart';
 import '../../../core/constants/api_constants.dart';
+import '../../../core/services/backend_api_config.dart';
 
 class RoutingException implements Exception {
   final String message;
@@ -23,13 +24,19 @@ class RoutingException implements Exception {
 
 class MapApiService {
   final Dio _dio;
+  final String Function()? baseUrlReader;
+  final int Function()? configRevisionReader;
 
-  MapApiService({Dio? dio}) : _dio = dio ?? _createDefaultDio();
+  MapApiService({
+    Dio? dio,
+    this.baseUrlReader,
+    this.configRevisionReader,
+  })  : _dio = dio ?? _createDefaultDio(baseUrlReader?.call() ?? ApiConstants.baseUrl);
 
-  static Dio _createDefaultDio() {
+  static Dio _createDefaultDio([String? baseUrl]) {
     final dio = Dio(
       BaseOptions(
-        baseUrl: ApiConstants.baseUrl,
+        baseUrl: baseUrl ?? ApiConstants.baseUrl,
         connectTimeout: const Duration(seconds: 10),
         receiveTimeout: const Duration(seconds: 15),
         headers: {'Accept': 'application/json'},
@@ -76,12 +83,20 @@ class MapApiService {
       {'lat': destination.latitude, 'lng': destination.longitude},
     ];
 
+    final opBaseUrl = baseUrlReader?.call() ?? ApiConstants.baseUrl;
+    final opRevision = configRevisionReader?.call() ?? ApiConstants.configRevision;
+    _dio.options.baseUrl = opBaseUrl;
+
     try {
       final response = await _dio.post(
         ApiConstants.mapsRoutes,
         data: {'waypoints': allWaypoints},
         options: Options(extra: {'retries': 2}),
       );
+
+      if ((configRevisionReader?.call() ?? ApiConstants.configRevision) != opRevision) {
+        throw const BackendConfigChangedException();
+      }
 
       if (response.statusCode == 200) {
         final data = response.data as Map<String, dynamic>;
@@ -106,7 +121,12 @@ class MapApiService {
           backendUnreachable: response.statusCode == 503,
         );
       }
+    } on BackendConfigChangedException {
+      rethrow;
     } on DioException catch (e) {
+      if ((configRevisionReader?.call() ?? ApiConstants.configRevision) != opRevision) {
+        throw const BackendConfigChangedException();
+      }
       if (e.type == DioExceptionType.connectionError ||
           e.type == DioExceptionType.connectionTimeout ||
           e.type == DioExceptionType.receiveTimeout) {
@@ -122,6 +142,7 @@ class MapApiService {
         backendUnreachable: false,
       );
     } catch (e) {
+      if (e is BackendConfigChangedException) rethrow;
       if (e is RoutingException) {
         if (e.backendUnreachable) {
           return _fetchDirectOsrmRoute(origin, destination, waypoints);
