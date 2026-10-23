@@ -3,6 +3,7 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:travelgo_mobile/core/theme/app_theme.dart';
+import 'package:travelgo_mobile/features/auth/providers/auth_provider.dart';
 import 'package:travelgo_mobile/features/explore/models/public_catalogue_snapshot.dart';
 import 'package:travelgo_mobile/features/explore/services/public_catalogue_parser.dart';
 import 'package:travelgo_mobile/features/trip_planner/models/editable_trip_command.dart';
@@ -104,7 +105,7 @@ void main() {
       }
     ];
 
-    testWidgets('unsupported_destination_never_consumes_ai_quota', (tester) async {
+    testWidgets('valid dynamic active destination opens assistant without premature calls', (tester) async {
       int aiRequestCalls = 0;
       final ids = _idGenerator();
       final factory = ManualTripFactory(newId: ids);
@@ -126,35 +127,48 @@ void main() {
         newId: ids,
       );
       planner.openNew(doc);
+      final auth = AuthProvider()..continueAsGuest();
       addTearDown(planner.dispose);
+      addTearDown(auth.dispose);
 
       await tester.pumpWidget(
-        MaterialApp(
-          theme: AppTheme.lightTheme,
-          home: ManualPlannerScreen(
-            planner: planner,
-            destinations: snapshot.catalogue.destinations,
-            snapshot: snapshot,
-            generateAi: (doc, reqId) async {
-              aiRequestCalls++;
-              throw StateError('AI must never be invoked for unsupported dynamic destination');
-            },
-            assistantGenerate: (intent, prompt, history, reqId) async {
-              aiRequestCalls++;
-              throw StateError('AI must never be invoked for unsupported dynamic destination');
-            },
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<AuthProvider>.value(value: auth),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.lightTheme,
+            home: ManualPlannerScreen(
+              planner: planner,
+              destinations: snapshot.catalogue.destinations,
+              snapshot: snapshot,
+              generateAi: (doc, reqId) async {
+                aiRequestCalls++;
+                throw StateError('AI should not be called without consent');
+              },
+              assistantGenerate: (intent, prompt, history, reqId) async {
+                aiRequestCalls++;
+                throw StateError('AI should not be called without consent');
+              },
+            ),
           ),
         ),
       );
       await tester.pumpAndSettle();
 
-      // Verify AI actions are disabled or blocked
+      // Verify AI action is active
       final aiAssistantButton = find.byKey(const ValueKey('ai-assistant-open'));
       expect(aiAssistantButton, findsOneWidget);
-      // Tap on AI assistant button should not execute or consume quota
       await tester.tap(aiAssistantButton);
       await tester.pumpAndSettle();
+
+      // Composer opens, but no network request made without explicit submit
+      expect(find.text('AI cho ngày 1'), findsOneWidget);
       expect(aiRequestCalls, 0);
+
+      // Close composer
+      await tester.tap(find.byKey(const ValueKey('ai-assistant-cancel')));
+      await tester.pumpAndSettle();
 
       // Verify manual editing remains completely functional
       final addBtn = find.text('Thêm nơi muốn ghé hoặc một hoạt động của riêng bạn.');
@@ -186,6 +200,66 @@ void main() {
       expect(planner.document!.items.length, initialItemsCount + 1);
       expect(planner.document!.items.first.title, 'Tham quan Eo Gió');
       expect(aiRequestCalls, 0);
+    });
+
+    testWidgets('unsupported or hidden destination never consumes AI quota', (tester) async {
+      int aiRequestCalls = 0;
+      final ids = _idGenerator();
+      final factory = ManualTripFactory(newId: ids);
+
+      final doc = factory.fromInput(
+        PlanTripRequest.presetMinh(),
+        TripMetadataV1(
+          title: 'Điểm đến ẩn',
+          destinationId: 'dest-hidden-999',
+          destinationName: 'Ẩn danh',
+          startDate: '2026-11-01',
+          endDate: '2026-11-03',
+        ),
+      );
+
+      final snapshot = createSyntheticSnapshot(destinations: testDestinations);
+      final planner = ManualPlannerProvider(
+        repositoryLoader: () async => throw StateError('Unexpected store call'),
+        newId: ids,
+      );
+      planner.openNew(doc);
+      final auth = AuthProvider()..continueAsGuest();
+      addTearDown(planner.dispose);
+      addTearDown(auth.dispose);
+
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<AuthProvider>.value(value: auth),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.lightTheme,
+            home: ManualPlannerScreen(
+              planner: planner,
+              destinations: snapshot.catalogue.destinations,
+              snapshot: snapshot,
+              generateAi: (doc, reqId) async {
+                aiRequestCalls++;
+                throw StateError('AI must never be invoked for hidden destination');
+              },
+              assistantGenerate: (intent, prompt, history, reqId) async {
+                aiRequestCalls++;
+                throw StateError('AI must never be invoked for hidden destination');
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final aiAssistantButton = find.byKey(const ValueKey('ai-assistant-open'));
+      expect(aiAssistantButton, findsOneWidget);
+      await tester.tap(aiAssistantButton);
+      await tester.pumpAndSettle();
+
+      expect(aiRequestCalls, 0);
+      expect(find.text('Trợ lý lịch trình'), findsNothing);
     });
 
     testWidgets('dynamic destination selected controls displays non-AI disclaimer', (tester) async {

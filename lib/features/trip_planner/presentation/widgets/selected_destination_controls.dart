@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../explore/providers/public_catalogue_provider.dart';
 import '../../providers/trip_provider.dart';
 import '../../models/editable_trip_document.dart';
 import 'planner_workspace_actions.dart';
@@ -53,10 +54,23 @@ class SelectedDestinationControls extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             const SizedBox(height: 8),
-            Text(
-              trip.supportsSelectedDestinationAi
-                  ? 'Hệ thống sẽ gợi ý lịch trình và phương tiện tối ưu riêng cho ${metadata.destinationName ?? "điểm đến này"}.'
-                  : 'Tính năng tự động và AI chưa hỗ trợ điểm đến này. Bạn có thể tự lập lịch trình.',
+            Builder(
+              builder: (context) {
+                PublicCatalogueProvider? pub;
+                try {
+                  pub = context.watch<PublicCatalogueProvider>();
+                } catch (_) {}
+                final snapshot = pub?.snapshot;
+                final isSupported = metadata.destinationId == null ||
+                    (snapshot != null
+                        ? TripProvider.isAiEligibleDestination(metadata.destinationId, snapshot)
+                        : trip.supportsSelectedDestinationAi);
+                return Text(
+                  isSupported
+                      ? 'Hệ thống sẽ gợi ý lịch trình và phương tiện tối ưu riêng cho ${metadata.destinationName ?? "điểm đến này"}.'
+                      : 'Tính năng tự động và AI chưa hỗ trợ điểm đến này. Bạn có thể tự lập lịch trình.',
+                );
+              },
             ),
             const SizedBox(height: 8),
             OutlinedButton(

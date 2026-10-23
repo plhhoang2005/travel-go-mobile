@@ -17,11 +17,13 @@ export function sanitizeContext(value){
  if(value?.contract===ASSISTANT)return sanitizeAssistantRequest(value);
  object(value,['contract','intent','requestId','consent','context']);
  ensure(value.contract===CONTRACT&&value.intent==='generate'&&value.consent===true&&UUID.test(value.requestId));
- const c=value.context;object(c,['destinationId','originRegion','numDays','numPeople','budgetVnd','interests']);
+ const c=value.context;object(c,['destinationId','originRegion','numDays','numPeople','budgetVnd','interests'],['destinationName']);
  ensure(isValidDestinationId(c.destinationId)&&['north','central','south','unknown'].includes(c.originRegion));
+ let destinationName;
+ if(c.destinationName!==undefined){destinationName=humanText(c.destinationName,200);}
  ensure(Array.isArray(c.interests)&&c.interests.length<=20&&new Set(c.interests).size===c.interests.length);
  const interests=c.interests.map(i=>{text(i,80);ensure(!/@|https?:|www\.|\+?\d[\d .()-]{7,}\d/i.test(i));return i;});
- return {contract:CONTRACT,intent:'generate',requestId:value.requestId.toLowerCase(),consent:true,context:{destinationId:c.destinationId,originRegion:c.originRegion,numDays:integer(c.numDays,1,366),numPeople:integer(c.numPeople,1,2147483647),budgetVnd:integer(c.budgetVnd,0,MAX_MONEY),interests}};
+ return {contract:CONTRACT,intent:'generate',requestId:value.requestId.toLowerCase(),consent:true,context:{destinationId:c.destinationId,...(destinationName!==undefined?{destinationName}:{}),originRegion:c.originRegion,numDays:integer(c.numDays,1,366),numPeople:integer(c.numPeople,1,2147483647),budgetVnd:integer(c.budgetVnd,0,MAX_MONEY),interests}};
 }
 export function validateProposal(value,c,stored=false){
  object(value,stored?['contract','destinationId','numDays','summary','activities','warnings','model','verification']:['summary','activities','warnings']);
@@ -183,8 +185,10 @@ function maybeTime(value,max){return value===null?null:integer(value,0,max);}
 export function sanitizeAssistantRequest(value){
  object(value,['contract','intent','requestId','consent','context','prompt','history']);
  ensure(value.contract===ASSISTANT&&['advice','recommendations','modify'].includes(value.intent)&&value.consent===true);
- const c=value.context;object(c,['destinationId','originRegion','numDays','numPeople','budgetVnd','interests','selectedDay','date','priority','activities','places','constraints','weather']);
- const base=sanitizeContext({contract:CONTRACT,intent:'generate',requestId:value.requestId,consent:true,context:Object.fromEntries(['destinationId','originRegion','numDays','numPeople','budgetVnd','interests'].map(k=>[k,c[k]]))});
+ const c=value.context;object(c,['destinationId','originRegion','numDays','numPeople','budgetVnd','interests','selectedDay','date','priority','activities','places','constraints','weather'],['destinationName']);
+ const baseKeys=['destinationId','originRegion','numDays','numPeople','budgetVnd','interests'];
+ if(c.destinationName!==undefined)baseKeys.push('destinationName');
+ const base=sanitizeContext({contract:CONTRACT,intent:'generate',requestId:value.requestId,consent:true,context:Object.fromEntries(baseKeys.map(k=>[k,c[k]]))});
  integer(c.selectedDay,1,c.numDays);if(c.date!==null)day(c.date);ensure(['cheapest','fastest','balanced','comfortable'].includes(c.priority)&&c.weather==='unknown');
  ensure(Array.isArray(c.places)&&c.places.length<=12);
  const places=c.places.map(p=>{object(p,['id','name','sourceId']);ensure(typeof p.id==='string'&&p.id.startsWith(c.destinationId+'/'));text(p.id,128);humanText(p.name,200);text(p.sourceId,80);return {...p};});

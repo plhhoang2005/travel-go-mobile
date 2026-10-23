@@ -248,3 +248,28 @@ test('sanitizeContext accepts dynamic slug destination IDs beyond the initial 12
  const invalidPayload={...payload(),context:{...context(),destinationId:'INVALID UPPERCASE'}};
  assert.throws(()=>sanitizeContext(invalidPayload));
 });
+test('gateway sanitizes public destinationName and passes it to provider as data',async()=>{
+ const dynamicWithPublicName={...payload(),context:{...context(),destinationId:'dest-quy-nhon-123',destinationName:'Quy Nhơn'}};
+ const clean=sanitizeContext(dynamicWithPublicName);
+ assert.equal(clean.context.destinationId,'dest-quy-nhon-123');
+ assert.equal(clean.context.destinationName,'Quy Nhơn');
+
+ // Rejects phone, email, URL in destinationName
+ assert.throws(()=>sanitizeContext({...payload(),context:{...context(),destinationName:'0901234567'}}));
+ assert.throws(()=>sanitizeContext({...payload(),context:{...context(),destinationName:'test@example.com'}}));
+ assert.throws(()=>sanitizeContext({...payload(),context:{...context(),destinationName:'https://evil.com'}}));
+ assert.throws(()=>sanitizeContext({...payload(),context:{...context(),destinationName:'   '}}));
+
+ // Rejects unknown keys
+ assert.throws(()=>sanitizeContext({...payload(),context:{...context(),unknownKey:'value'}}));
+
+ // Verified provider body includes destinationName in context as data
+ const f=fixture({output:generated()});
+ const reply=await f.handler(request(dynamicWithPublicName));
+ assert.equal(reply.status,200);
+ const providerCall=f.calls.find(c=>c.url.includes('generativelanguage'));
+ assert.ok(providerCall);
+ const userContent=JSON.parse(providerCall.body.contents[0].parts[0].text);
+ assert.equal(userContent.context.destinationName,'Quy Nhơn');
+ assert.equal(userContent.context.destinationId,'dest-quy-nhon-123');
+});

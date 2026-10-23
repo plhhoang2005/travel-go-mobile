@@ -36,6 +36,7 @@ class ManualPlannerScreen extends StatefulWidget {
   final Future<AiPreparedProposal> Function(EditableTripDocumentV2, String)?
   generateAi;
   final AiAssistantGenerator? assistantGenerate;
+  final bool openAssistantOnReady;
   const ManualPlannerScreen({
     super.key,
     required this.planner,
@@ -48,6 +49,7 @@ class ManualPlannerScreen extends StatefulWidget {
     this.onReviewSave,
     this.generateAi,
     this.assistantGenerate,
+    this.openAssistantOnReady = false,
   });
   @override
   State<ManualPlannerScreen> createState() => _ManualPlannerScreenState();
@@ -77,11 +79,53 @@ class _ManualStamp {
 
 class _ManualPlannerScreenState extends State<ManualPlannerScreen> {
   String? _dayId;
+  bool _assistantOpenedOnReady = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.openAssistantOnReady) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !_assistantOpenedOnReady) {
+          _assistantOpenedOnReady = true;
+          _aiAssistant();
+        }
+      });
+    }
+  }
 
   bool get supportsAi {
     final destId = planner.document?.input.destinationId;
     if (destId == null) return false;
+    if (widget.snapshot != null) {
+      return TripProvider.isAiEligibleDestination(destId, widget.snapshot!);
+    }
+    if (widget.destinations.isNotEmpty) {
+      return TripProvider.destinationIdRegex.hasMatch(destId) &&
+          widget.destinations.any((d) => d.id == destId);
+    }
     return TripProvider.supportedAiDestinationIds.contains(destId);
+  }
+
+  catalogue.DestinationReference? get _currentDestination {
+    final doc = planner.document;
+    if (doc == null) return null;
+    final destId = doc.input.destinationId;
+    if (destId == null) return null;
+    final list = widget.snapshot?.catalogue.destinations ?? widget.destinations;
+    final found = list.where((d) => d.id == destId).firstOrNull;
+    if (found != null) return found;
+    final inputName = doc.input.destinationName;
+    if (TripProvider.supportedAiDestinationIds.contains(destId)) {
+      return catalogue.DestinationReference(
+        id: destId,
+        name: inputName?.isNotEmpty == true ? inputName! : destId,
+        region: 'unknown',
+        places: const [],
+        sample: catalogue.SampleReference.unavailable(id: destId),
+      );
+    }
+    return null;
   }
 
   bool get showUnavailableWarning {
@@ -192,9 +236,10 @@ class _ManualPlannerScreenState extends State<ManualPlannerScreen> {
         authOwner = auth.currentUser?.id,
         authGuest = auth.isGuest,
         authDemo = auth.isDemoSession;
+    final dest = _currentDestination;
     final AiGenerationContext input;
     try {
-      input = AiGenerationContext.fromDocument(snapshot);
+      input = AiGenerationContext.fromDocument(snapshot, destination: dest);
     } on Object {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -225,6 +270,7 @@ class _ManualPlannerScreenState extends State<ManualPlannerScreen> {
               requestId: requestId,
               newId: _newId,
               workspaceCurrent: current,
+              destination: dest,
             ),
       ),
       dialog: true,
@@ -288,10 +334,12 @@ class _ManualPlannerScreenState extends State<ManualPlannerScreen> {
         auth.currentUser?.id == owner &&
         auth.isGuest == guest &&
         auth.isDemoSession == demo;
+    final dest = _currentDestination;
     final AiAssistantContext input;
     try {
       input = AiAssistantContext.fromDocument(
         snapshot,
+        destination: dest,
         selectedDay: _ordinal,
         places: _places,
       );

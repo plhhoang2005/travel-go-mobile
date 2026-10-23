@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../explore/models/public_catalogue_snapshot.dart';
 import '../../trips/models/local_trip_records.dart';
 import '../../trips/models/trip_payload_codec.dart';
 import '../../trips/services/local_trip_store.dart';
@@ -109,6 +110,17 @@ class TripProvider extends ChangeNotifier {
     'phu-quoc',
     'can-tho',
   };
+
+  static final RegExp destinationIdRegex =
+      RegExp(r'^[a-z0-9][a-z0-9/-]{0,119}$');
+
+  static bool isAiEligibleDestination(
+    String? id,
+    PublicCatalogueSnapshot snapshot,
+  ) {
+    if (id == null || !destinationIdRegex.hasMatch(id)) return false;
+    return snapshot.catalogue.destinations.any((d) => d.id == id);
+  }
 
   bool get supportsSelectedDestinationAi {
     final id = _metadata.destinationId;

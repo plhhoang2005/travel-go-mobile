@@ -10,7 +10,9 @@ import '../../providers/place_visit_details_provider.dart';
 import '../widgets/place_visit_details_widget.dart';
 import '../../../trip_planner/providers/trip_provider.dart';
 import '../../../trip_planner/presentation/screens/home_planner_screen.dart';
+import '../../../trip_planner/presentation/screens/manual_planner_entry_screen.dart';
 import '../../../trip_planner/presentation/widgets/planner_workspace_actions.dart';
+import '../../providers/public_catalogue_provider.dart';
 
 class DestinationDetailScreen extends StatefulWidget {
   final CatalogueReference catalogue;
@@ -83,6 +85,15 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final trip = context.watch<TripProvider>();
+    PublicCatalogueProvider? pubProvider;
+    try {
+      pubProvider = context.watch<PublicCatalogueProvider>();
+    } catch (_) {}
+    final snapshot = pubProvider?.snapshot;
+    final isAiEligible = snapshot != null
+        ? TripProvider.isAiEligibleDestination(destination.id, snapshot)
+        : (TripProvider.destinationIdRegex.hasMatch(destination.id) &&
+            catalogue.destinations.any((d) => d.id == destination.id));
     return Scaffold(
       appBar: AppBar(title: Text(destination.name)),
       body: SingleChildScrollView(
@@ -132,13 +143,23 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
             ],
             const SizedBox(height: 16),
             OutlinedButton.icon(
-              onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text(
-                    'AI chưa khả dụng. Bạn có thể xem nguồn địa điểm và tự chuẩn bị chuyến đi.',
-                  ),
-                ),
-              ),
+              onPressed: trip.canReplaceWorkspace && isAiEligible
+                  ? () async {
+                      final accepted = await replacePlannerWorkspace(
+                        context,
+                        destinationId: destination.id,
+                        destinationName: destination.name,
+                      );
+                      if (!accepted || !context.mounted) return;
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const ManualPlannerEntryScreen(
+                            intent: ManualPlannerEntryIntent.aiAssistant,
+                          ),
+                        ),
+                      );
+                    }
+                  : null,
               icon: const Icon(Icons.help_outline),
               label: const Text('Trợ giúp AI'),
             ),

@@ -203,6 +203,8 @@ class _ManualPlannerEntryScreenState extends State<ManualPlannerEntryScreen> {
               destinations: destinations,
               snapshot: _snapshot,
               enableBudget: true,
+              openAssistantOnReady:
+                  widget.intent == ManualPlannerEntryIntent.aiAssistant,
             );
           }
           return Scaffold(
