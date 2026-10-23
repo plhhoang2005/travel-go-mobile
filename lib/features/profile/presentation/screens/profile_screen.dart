@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:provider/provider.dart';
 
 import '../../../../core/constants/api_constants.dart';
@@ -6,397 +7,175 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../auth/models/user_model.dart';
 import '../../../auth/providers/auth_provider.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
+import '../../../admin/presentation/screens/admin_shell_screen.dart';
 
 class CustomerProfileScreen extends StatelessWidget {
   const CustomerProfileScreen({super.key});
+
+  Future<void> _logout(BuildContext context, AuthProvider auth) async {
+    final success = await auth.logout();
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          success
+              ? 'Đã đăng xuất khỏi thiết bị này.'
+              : auth.logoutErrorMessage ?? 'Chưa hoàn tất đăng xuất.',
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final user = auth.currentUser;
-    final isGuest = auth.isGuest || user == null;
-
-    final displayName = isGuest ? 'Khách Vãng Lai' : user.fullName;
-    final email = isGuest ? 'Chưa đăng nhập tài khoản' : user.email;
-    final roleName = isGuest ? 'GUEST' : user.role.badgeName;
-    final roleColor = isGuest
-        ? AppTheme.slate500
-        : (user.role == UserRole.admin
-              ? const Color(0xFFEF4444)
-              : (user.role == UserRole.partner
-                    ? const Color(0xFF0D9488)
-                    : const Color(0xFF0284C7)));
-
+    final guest = auth.isGuest || user == null;
+    final name = guest ? 'Khách Vãng Lai' : user.fullName;
+    final theme = Theme.of(context);
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        title: const Text(
-          'Tài Khoản',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: Colors.white,
-        elevation: 0,
-      ),
-      body: SingleChildScrollView(
-        child: Column(
+      appBar: AppBar(title: const Text('Tài Khoản')),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(16),
           children: [
-            // User Header Card
-            Container(
-              color: Colors.white,
-              padding: const EdgeInsets.all(20),
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    radius: 30,
-                    backgroundColor: const Color(0xFF0F172A),
-                    child: Text(
-                      displayName.isNotEmpty
-                          ? displayName[0].toUpperCase()
-                          : 'G',
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CircleAvatar(
+                  radius: 28,
+                  backgroundColor: theme.colorScheme.primaryContainer,
+                  foregroundColor: theme.colorScheme.onPrimaryContainer,
+                  child: Text(
+                    name.isEmpty ? 'G' : name.characters.first.toUpperCase(),
+                    style: theme.textTheme.headlineSmall,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(name, style: theme.textTheme.titleLarge),
+                      Text(guest ? 'Chưa đăng nhập tài khoản' : user.email),
+                      const SizedBox(height: 8),
+                      Text(
+                        guest ? 'GUEST' : user.role.badgeName,
+                        style: theme.textTheme.labelLarge,
                       ),
-                    ),
+                      if (auth.isDemoSession) const Text('Tài khoản minh họa'),
+                    ],
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Flexible(
-                              child: Text(
-                                displayName,
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppTheme.slate900,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: roleColor.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                roleName,
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                  color: roleColor,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          email,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: AppTheme.slate500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-
-            // Guest Login Promotion Banner
-            if (isGuest)
-              Container(
-                margin: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFFE8F5F3), Color(0xFFE0F2FE)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFFCCECE6)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.account_circle_outlined,
-                      size: 36,
-                      color: Color(0xFF086C61),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: const [
-                          Text(
-                            'Bạn đang dùng tài khoản Khách',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
-                              color: Color(0xFF0F172A),
-                            ),
-                          ),
-                          SizedBox(height: 2),
-                          Text(
-                            'Đăng nhập tài khoản thật để đồng bộ lịch trình',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Color(0xFF475569),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF086C61),
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 8,
-                        ),
-                      ),
-                      onPressed: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const LoginScreen(),
-                          ),
-                        );
-                      },
-                      child: const Text(
-                        'Đăng nhập',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-            // Menu Section
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Material(
-                color: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  side: const BorderSide(color: Color(0xFFE2E8F0)),
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: Column(
-                  children: [
-                    _buildMenuItem(
-                      Icons.person_outline,
-                      'Thông tin cá nhân',
-                      () {
-                        if (isGuest) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Vui lòng đăng nhập để cập nhật thông tin cá nhân',
-                              ),
-                            ),
-                          );
-                        } else {
-                          _showEditProfileDialog(context, auth, user);
-                        }
-                      },
-                    ),
-                    _buildDivider(),
-                    _buildMenuItem(
-                      Icons.people_outline,
-                      'Danh bạ người đi cùng (Travelers)',
-                      () {},
-                    ),
-                    _buildDivider(),
-                    _buildMenuItem(
-                      Icons.confirmation_number_outlined,
-                      'Kho mã giảm giá & Voucher',
-                      () {},
-                    ),
-                    _buildDivider(),
-                    _buildMenuItem(
-                      Icons.currency_exchange,
-                      'Tiền tệ & Ngôn ngữ',
-                      () {},
-                      trailing: 'VND · Tiếng Việt',
-                    ),
-                    _buildDivider(),
-                    _buildMenuItem(
-                      Icons.dns_outlined,
-                      'Máy chủ Backend (API)',
-                      () => _showBackendConfigDialog(context),
-                      trailing: ApiConstants.baseUrl.split('/api')[0],
-                    ),
-                    _buildDivider(),
-                    _buildMenuItem(
-                      Icons.security_outlined,
-                      'Bảo mật & Điều khoản',
-                      () {},
-                    ),
-                    _buildDivider(),
-                    _buildMenuItem(
-                      Icons.help_outline,
-                      'Trợ giúp & Liên hệ hỗ trợ',
-                      () {},
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
             const SizedBox(height: 24),
-
-            // Logout / Login Button
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: auth.isLoggingOut || auth.logoutNeedsRetry
-                    ? OutlinedButton.icon(
-                        onPressed: auth.isLoggingOut
-                            ? null
-                            : () async {
-                                final success = await auth.logout();
-                                if (!context.mounted) return;
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      success
-                                          ? 'Đã đăng xuất khỏi thiết bị này.'
-                                          : auth.logoutErrorMessage ??
-                                                'Chưa hoàn tất đăng xuất.',
-                                    ),
-                                  ),
-                                );
-                              },
-                        icon: const Icon(Icons.logout),
-                        label: Text(
-                          auth.isLoggingOut
-                              ? 'Đang đăng xuất…'
-                              : 'Thử hoàn tất đăng xuất',
-                        ),
-                      )
-                    : isGuest
-                    ? FilledButton.icon(
-                        onPressed: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const LoginScreen(),
-                            ),
-                          );
-                        },
-                        icon: const Icon(Icons.login, size: 18),
-                        label: const Text('Đăng nhập / Đăng ký ngay'),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFF0F172A),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      )
-                    : OutlinedButton.icon(
-                        onPressed: () async {
-                          final success = await auth.logout();
-                          if (!context.mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                success
-                                    ? 'Đã đăng xuất khỏi thiết bị này.'
-                                    : auth.logoutErrorMessage ??
-                                          'Chưa hoàn tất đăng xuất.',
-                              ),
-                            ),
-                          );
-                        },
-                        icon: const Icon(
-                          Icons.logout,
-                          size: 18,
-                          color: Color(0xFFEF4444),
-                        ),
-                        label: const Text(
-                          'Đăng xuất',
-                          style: TextStyle(
-                            color: Color(0xFFEF4444),
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: Color(0xFFFCA5A5)),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      ),
+            if (guest) ...[
+              const Text(
+                'Bạn đang khám phá ở chế độ Khách. Đăng nhập để mở các chuyến đi của tài khoản.',
               ),
+              const SizedBox(height: 16),
+            ],
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.person_outline),
+              title: const Text('Thông tin cá nhân'),
+              subtitle: Text(
+                guest
+                    ? 'Cần đăng nhập để cập nhật hồ sơ'
+                    : 'Họ tên, số điện thoại và địa chỉ',
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {
+                if (guest) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Vui lòng đăng nhập để cập nhật thông tin cá nhân',
+                      ),
+                    ),
+                  );
+                } else {
+                  _showEditProfileDialog(context, auth, user);
+                }
+              },
             ),
-
-            const SizedBox(height: 36),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.tune),
+              title: const Text('Sở thích du lịch'),
+              subtitle: Text(
+                guest
+                    ? 'Đăng nhập để lưu hồ sơ du lịch'
+                    : 'Sở thích, ngân sách thường dùng và phong cách',
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: guest
+                  ? null
+                  : () => _showTravelPreferences(context, auth, user.id),
+            ),
+            if (!guest && !auth.isDemoSession && user.role == UserRole.admin) ...[
+              const Divider(height: 24),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.admin_panel_settings_outlined),
+                title: const Text('Quản trị'),
+                subtitle: const Text('Bảng điều khiển và quản lý hệ thống'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const AdminShellScreen()),
+                  );
+                },
+              ),
+            ],
+            const Divider(height: 24),
+            const ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.language),
+              title: Text('Tiếng Việt · VND'),
+              subtitle: Text('Ngôn ngữ và đơn vị tiền đang hiển thị'),
+            ),
+            if (kDebugMode) ...[
+              const Divider(height: 24),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.developer_mode),
+                title: const Text('Máy chủ Backend (API)'),
+                subtitle: Text(ApiConstants.baseUrl.split('/api')[0]),
+                onTap: () => _showBackendConfigDialog(context),
+              ),
+            ],
+            const SizedBox(height: 24),
+            if (auth.isLoggingOut || auth.logoutNeedsRetry)
+              OutlinedButton.icon(
+                onPressed: auth.isLoggingOut
+                    ? null
+                    : () => _logout(context, auth),
+                icon: const Icon(Icons.logout),
+                label: Text(
+                  auth.isLoggingOut
+                      ? 'Đang đăng xuất…'
+                      : 'Thử hoàn tất đăng xuất',
+                ),
+              )
+            else if (guest)
+              FilledButton.icon(
+                onPressed: () => Navigator.of(
+                  context,
+                ).push(MaterialPageRoute(builder: (_) => const LoginScreen())),
+                icon: const Icon(Icons.login),
+                label: const Text('Đăng nhập / Đăng ký ngay'),
+              )
+            else
+              OutlinedButton.icon(
+                onPressed: () => _logout(context, auth),
+                icon: const Icon(Icons.logout),
+                label: const Text('Đăng xuất'),
+              ),
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildMenuItem(
-    IconData icon,
-    String title,
-    VoidCallback onTap, {
-    String? trailing,
-  }) {
-    return ListTile(
-      leading: Icon(icon, size: 20, color: AppTheme.slate700),
-      title: Text(
-        title,
-        style: const TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w500,
-          color: AppTheme.slate800,
-        ),
-      ),
-      trailing: trailing != null
-          ? Text(
-              trailing,
-              style: const TextStyle(fontSize: 12, color: AppTheme.slate500),
-            )
-          : const Icon(
-              Icons.arrow_forward_ios,
-              size: 14,
-              color: AppTheme.slate400,
-            ),
-      onTap: onTap,
-    );
-  }
-
-  Widget _buildDivider() {
-    return const Divider(
-      height: 1,
-      indent: 56,
-      endIndent: 16,
-      color: Color(0xFFF1F5F9),
     );
   }
 
@@ -471,6 +250,29 @@ class CustomerProfileScreen extends StatelessWidget {
     );
   }
 
+  Future<void> _showTravelPreferences(
+    BuildContext context,
+    AuthProvider auth,
+    String owner,
+  ) async {
+    final epoch = auth.authEpoch;
+    final saved = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) =>
+          _TravelPreferencesDialog(auth: auth, owner: owner, epoch: epoch),
+    );
+    if (!context.mounted ||
+        saved != true ||
+        auth.currentUser?.id != owner ||
+        auth.authEpoch != epoch ||
+        auth.isGuest) {
+      return;
+    }
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('Đã lưu sở thích du lịch')));
+  }
+
   Future<void> _showEditProfileDialog(
     BuildContext context,
     AuthProvider auth,
@@ -488,6 +290,234 @@ class CustomerProfileScreen extends StatelessWidget {
       );
     }
   }
+}
+
+class _TravelPreferencesDialog extends StatefulWidget {
+  final AuthProvider auth;
+  final String owner;
+  final int epoch;
+  const _TravelPreferencesDialog({
+    required this.auth,
+    required this.owner,
+    required this.epoch,
+  });
+  @override
+  State<_TravelPreferencesDialog> createState() =>
+      _TravelPreferencesDialogState();
+}
+
+class _TravelPreferencesDialogState extends State<_TravelPreferencesDialog> {
+  final _form = GlobalKey<FormState>();
+  final _interests = TextEditingController(),
+      _budget = TextEditingController(),
+      _style = TextEditingController();
+  bool _ready = false, _saving = false, _closing = false;
+  bool get _current =>
+      widget.auth.currentUser?.id == widget.owner &&
+      widget.auth.authEpoch == widget.epoch &&
+      !widget.auth.isGuest;
+  List<String> get _interestValues => _interests.text
+      .split('\n')
+      .map((s) => s.trim())
+      .where((s) => s.isNotEmpty)
+      .toList();
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+  }
+
+  @override
+  void dispose() {
+    _interests.dispose();
+    _budget.dispose();
+    _style.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    if (!mounted || !_current) return;
+    setState(() => _ready = false);
+    final loaded = await widget.auth.loadTravelPreferences();
+    if (!mounted || !_current) return;
+    setState(() {
+      _ready = loaded;
+      if (loaded) {
+        final value = widget.auth.currentUser!.travelPreferences!;
+        _interests.text = value.interests.join('\n');
+        _budget.text = value.typicalBudgetVnd?.toString() ?? '';
+        _style.text = value.travelStyle ?? '';
+      }
+    });
+  }
+
+  Future<void> _save() async {
+    if (!_current || _saving || !_ready || !_form.currentState!.validate()) {
+      return;
+    }
+    final preferences = TravelPreferences.fromInput(
+      interests: _interestValues,
+      typicalBudgetVnd: _budget.text.trim().isEmpty
+          ? null
+          : int.parse(_budget.text.trim()),
+      travelStyle: _style.text,
+    );
+    FocusScope.of(context).unfocus();
+    setState(() => _saving = true);
+    final saved = await widget.auth.updateTravelPreferences(preferences);
+    if (!mounted || !_current) return;
+    if (saved) {
+      Navigator.of(context).pop(true);
+    } else {
+      setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: widget.auth,
+    builder: (context, _) {
+      if (!_current) {
+        if (!_closing) {
+          _closing = true;
+          final route = ModalRoute.of(context);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && route != null && route.isActive) {
+              Navigator.of(context).removeRoute(route);
+            }
+          });
+        }
+        return const SizedBox.shrink();
+      }
+      final loading = widget.auth.travelPreferencesLoading;
+      final error = widget.auth.travelPreferencesError;
+      return PopScope(
+        canPop: !_saving,
+        child: AlertDialog(
+          title: const Text('Sở thích du lịch'),
+          scrollable: true,
+          content: SizedBox(
+            width: double.maxFinite,
+            child: Form(
+              key: _form,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Lưu cho hồ sơ của bạn. Chuyến đi hiện có không thay đổi.',
+                  ),
+                  if (loading && !_ready) ...[
+                    const SizedBox(height: 16),
+                    const Center(child: CircularProgressIndicator()),
+                    const Text('Đang tải hồ sơ…'),
+                  ],
+                  if (error != null) ...[
+                    const SizedBox(height: 12),
+                    Semantics(
+                      liveRegion: true,
+                      child: Text(
+                        error,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      ),
+                    ),
+                  ],
+                  if (!_ready && !loading)
+                    TextButton.icon(
+                      onPressed: _load,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Thử tải lại'),
+                    ),
+                  if (_ready) ...[
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      key: const ValueKey('profile-interests'),
+                      controller: _interests,
+                      enabled: !_saving,
+                      minLines: 2,
+                      maxLines: 4,
+                      decoration: const InputDecoration(
+                        labelText: 'Sở thích (mỗi dòng một mục)',
+                        helperText:
+                            'Tối đa 20 mục khác nhau, mỗi mục 80 ký tự.',
+                      ),
+                      validator: (_) {
+                        try {
+                          TravelPreferences.fromInput(
+                            interests: _interestValues,
+                          );
+                          return null;
+                        } on FormatException {
+                          return 'Kiểm tra mục trùng, độ dài và số sở thích.';
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      key: const ValueKey('profile-budget'),
+                      controller: _budget,
+                      enabled: !_saving,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Ngân sách thường dùng (VND)',
+                        helperText: 'Để trống nếu chưa đặt. Chấp nhận 0 VND.',
+                      ),
+                      validator: (text) {
+                        final raw = text!.trim();
+                        if (raw.isEmpty) return null;
+                        final value = int.tryParse(raw);
+                        return value == null ||
+                                value < 0 ||
+                                value > TravelPreferences.maxBudgetVnd
+                            ? 'Nhập số tiền nguyên không âm trong giới hạn cho phép.'
+                            : null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      key: const ValueKey('profile-style'),
+                      controller: _style,
+                      enabled: !_saving,
+                      maxLength: TravelPreferences.maxTextLength,
+                      decoration: const InputDecoration(
+                        labelText: 'Phong cách du lịch',
+                        helperText:
+                            'Ví dụ: thư thái, khám phá. Có thể để trống.',
+                      ),
+                      validator: (value) {
+                        try {
+                          TravelPreferences.fromInput(travelStyle: value);
+                          return null;
+                        } on FormatException {
+                          return 'Phong cách tối đa 80 ký tự, không xuống dòng.';
+                        }
+                      },
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              key: const ValueKey('profile-preferences-cancel'),
+              onPressed: _saving
+                  ? null
+                  : () => Navigator.of(context).pop(false),
+              child: const Text('Hủy'),
+            ),
+            FilledButton(
+              key: const ValueKey('profile-preferences-save'),
+              onPressed: !_ready || _saving || loading ? null : _save,
+              child: Text(_saving ? 'Đang lưu…' : 'Lưu sở thích'),
+            ),
+          ],
+        ),
+      );
+    },
+  );
 }
 
 class _EditProfileDialog extends StatefulWidget {

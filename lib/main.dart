@@ -499,6 +499,7 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider.value(value: _auth),
+        Provider<Future<LocalAccountLifecycleService> Function()>.value(value: _getLifecycle),
         Provider<LocalTripStoreRuntime>.value(value: _runtime),
         Provider<ManualPlannerRuntime>.value(value: _manualRuntime),
         ChangeNotifierProxyProvider<AuthProvider, TripProvider>(
