@@ -27,27 +27,55 @@ class DestinationReference {
   final String id, name, region;
   final List<PlaceReference> places;
   final SampleReference sample;
+  final String? description;
+  final String? imageUrl;
+  final Map<String, dynamic>? imageRights;
+  final List<String> sourceRefs;
+
   DestinationReference({
     required this.id,
     required this.name,
     required this.region,
     required List<PlaceReference> places,
     required this.sample,
+    this.description,
+    this.imageUrl,
+    this.imageRights,
+    this.sourceRefs = const [],
   }) : places = List.unmodifiable(places);
+
   PlaceReference place(String id) => places.firstWhere((p) => p.id == id);
 }
 
 class PlaceReference {
   final String id, name, sourceId;
+  final String? destinationId;
+  final String? slug;
+  final String? description;
+  final String? imageUrl;
+  final Map<String, dynamic>? imageRights;
+  final double? latitude;
+  final double? longitude;
+  final List<String> sourceRefs;
+
   // P3.1 intentionally does not turn unknown operational facts into estimates.
   final int? priceVnd = null, durationMinutes = null;
   final String? openingHours = null;
   final Object? coordinates = null;
   final String operationalStatus = 'unknown';
+
   const PlaceReference({
     required this.id,
     required this.name,
     required this.sourceId,
+    this.destinationId,
+    this.slug,
+    this.description,
+    this.imageUrl,
+    this.imageRights,
+    this.latitude,
+    this.longitude,
+    this.sourceRefs = const [],
   });
 }
 
@@ -57,6 +85,7 @@ class SampleReference {
   final EditorialReview editorialReview;
   final List<SampleDay> days;
   final List<String> warnings;
+
   SampleReference({
     required this.id,
     required this.editorialReview,
@@ -64,6 +93,18 @@ class SampleReference {
     required List<String> warnings,
   }) : days = List.unmodifiable(days),
        warnings = List.unmodifiable(warnings);
+
+  SampleReference.unavailable({this.id = 'unavailable'})
+      : editorialReview = EditorialReview(
+          status: 'unverified',
+          reviewedAt: null,
+          sourceIds: const [],
+          conditions: const [],
+          reviewNotes: const ['Hành trình mẫu không khả dụng'],
+        ),
+        days = const [],
+        warnings = const ['Chưa có hành trình mẫu'];
+
   bool get canPreview => editorialReview.status == 'reviewed_with_conditions';
 }
 
