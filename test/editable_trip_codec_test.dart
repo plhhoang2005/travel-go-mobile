@@ -101,4 +101,16 @@ void main() {
       throwsA(isA<EditableCodecException>()),
     );
   });
+
+  test('dynamic destination support accepts arbitrary valid slug IDs beyond initial 12 seed', () {
+    expect(EditableTripCodec.destinations.contains('quy-nhon'), isTrue);
+    expect(EditableTripCodec.destinations.contains('vung-tau'), isTrue);
+    expect(EditableTripCodec.destinations.contains('phan-thiet'), isTrue);
+    expect(EditableTripCodec.destinations.contains('con-dao'), isTrue);
+    expect(EditableTripCodec.destinations.contains('ha-noi'), isTrue);
+    expect(EditableTripCodec.isValidDestinationId('quy-nhon'), isTrue);
+    expect(EditableTripCodec.isValidDestinationId('INVALID UPPERCASE'), isFalse);
+    expect(EditableTripCodec.isValidDestinationId('has space'), isFalse);
+    expect(EditableTripCodec.isValidDestinationId(''), isFalse);
+  });
 }

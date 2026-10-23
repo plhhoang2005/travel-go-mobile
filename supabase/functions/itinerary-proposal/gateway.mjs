@@ -3,7 +3,9 @@ export const MODEL = 'gemini-3.5-flash-lite';
 const CONTRACT='travelgo.itinerary.v1';
 const ASSISTANT='travelgo.assistant.v1';
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const DESTINATION_SLUG=/^[a-z0-9][a-z0-9/-]{0,119}$/;
 const DESTINATIONS=new Set(['ha-noi','ha-long','sa-pa','ninh-binh','hue','da-nang','hoi-an','nha-trang','da-lat','ho-chi-minh','phu-quoc','can-tho']);
+export function isValidDestinationId(id){return typeof id==='string'&&(DESTINATIONS.has(id)||DESTINATION_SLUG.test(id));}
 const CATEGORIES=['transport','accommodation','food','attractions','shopping','other'];
 const MAX_MONEY=9007199254740991, encoder=new TextEncoder();
 function ensure(value){if(!value)throw new Error('invalid_contract');}
@@ -16,7 +18,7 @@ export function sanitizeContext(value){
  object(value,['contract','intent','requestId','consent','context']);
  ensure(value.contract===CONTRACT&&value.intent==='generate'&&value.consent===true&&UUID.test(value.requestId));
  const c=value.context;object(c,['destinationId','originRegion','numDays','numPeople','budgetVnd','interests']);
- ensure(DESTINATIONS.has(c.destinationId)&&['north','central','south','unknown'].includes(c.originRegion));
+ ensure(isValidDestinationId(c.destinationId)&&['north','central','south','unknown'].includes(c.originRegion));
  ensure(Array.isArray(c.interests)&&c.interests.length<=20&&new Set(c.interests).size===c.interests.length);
  const interests=c.interests.map(i=>{text(i,80);ensure(!/@|https?:|www\.|\+?\d[\d .()-]{7,}\d/i.test(i));return i;});
  return {contract:CONTRACT,intent:'generate',requestId:value.requestId.toLowerCase(),consent:true,context:{destinationId:c.destinationId,originRegion:c.originRegion,numDays:integer(c.numDays,1,366),numPeople:integer(c.numPeople,1,2147483647),budgetVnd:integer(c.budgetVnd,0,MAX_MONEY),interests}};
