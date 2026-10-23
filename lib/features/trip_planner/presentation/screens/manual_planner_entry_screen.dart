@@ -134,15 +134,24 @@ class _ManualPlannerEntryScreenState extends State<ManualPlannerEntryScreen> {
       }
 
       if (destinations == null || destinations.isEmpty) {
+        if (!mounted) return;
+        DiscoveryProvider? discovery;
         try {
-          final discovery = Provider.of<DiscoveryProvider>(context, listen: false);
+          discovery = Provider.of<DiscoveryProvider>(context, listen: false);
+        } catch (_) {}
+        if (discovery != null) {
           if (discovery.state != DiscoveryLoadState.ready) {
             await discovery.load(force: retry || discovery.state == DiscoveryLoadState.error);
           }
           if (discovery.catalogue != null) {
             destinations = discovery.catalogue!.destinations;
           }
-        } catch (_) {}
+          if (discovery.state != DiscoveryLoadState.ready || destinations == null || destinations.isEmpty) {
+            if (!_current) return;
+            setState(() => _error = 'Không tải được danh mục địa điểm. Hãy thử lại.');
+            return;
+          }
+        }
       }
 
       if (destinations == null || destinations.isEmpty) {

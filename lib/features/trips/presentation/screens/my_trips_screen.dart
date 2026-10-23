@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
-import '../../../../core/presentation/travel_image.dart';
-import '../../../../core/presentation/travel_media.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
 import '../../../auth/providers/auth_provider.dart';
@@ -29,12 +27,18 @@ class _MyTripsScreenState extends State<MyTripsScreen>
     with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late TabController _tabController;
   DateTime _nowUtc = DateTime.now().toUtc();
+  bool _userSelectedTab = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _tabController = TabController(length: 3, vsync: this);
+    _tabController.addListener(() {
+      if (_tabController.indexIsChanging) {
+        _userSelectedTab = true;
+      }
+    });
   }
 
   @override
@@ -88,6 +92,15 @@ class _MyTripsScreenState extends State<MyTripsScreen>
     final hasMore = owned && tripsProvider.hasMoreTrips;
     final totalLoaded = visible.length;
     final ownerId = owned ? auth.currentUser?.id : null;
+
+    final defaultIndex = upcomingTrips.isNotEmpty
+        ? 0
+        : (pastTrips.isNotEmpty
+            ? 1
+            : (insufficientTrips.isNotEmpty ? 2 : 0));
+    if (!_userSelectedTab && _tabController.index != defaultIndex) {
+      _tabController.index = defaultIndex;
+    }
 
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,

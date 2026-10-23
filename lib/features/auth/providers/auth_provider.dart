@@ -40,6 +40,7 @@ class AuthProvider extends ChangeNotifier {
   VoidCallback? _removeLifecycleConsumer;
   UserEntity? _currentUser;
   bool _isGuest = false;
+  bool _userChoseGuest = false;
   bool _travelPreferencesLoading = false;
   bool _travelPreferencesLoaded = false;
   String? _travelPreferencesError;
@@ -287,10 +288,12 @@ class AuthProvider extends ChangeNotifier {
   }
 
   void continueAsGuest() {
+    _userChoseGuest = true;
     _travelPreferencesLoaded = false;
     _travelPreferencesLoading = false;
     _travelPreferencesError = null;
     _errorMessage = null;
+    _isLoading = false;
     if (_lifecycleLoader != null) {
       _requestGeneration++;
       _isGuest = true;
@@ -310,6 +313,7 @@ class AuthProvider extends ChangeNotifier {
 
   /// Real Supabase Email & Password Login without any mock bypasses
   Future<bool> login(String email, String password) async {
+    _userChoseGuest = false;
     if (_lifecycleLoader != null) {
       return _guardedMutation(
         (client) => client.auth.signInWithPassword(
@@ -366,6 +370,7 @@ class AuthProvider extends ChangeNotifier {
 
   /// Real Supabase OAuth Sign-In (Google & Facebook)
   Future<bool> signInWithOAuth(OAuthProvider provider) async {
+    _userChoseGuest = false;
     if (_lifecycleLoader != null) return _guardedOAuth(provider);
     _isLoading = true;
     _errorMessage = null;
@@ -477,6 +482,7 @@ class AuthProvider extends ChangeNotifier {
     required String phone,
     required String password,
   }) async {
+    _userChoseGuest = false;
     if (_lifecycleLoader != null) {
       return _guardedMutation(
         (client) => client.auth.signUp(
@@ -1101,7 +1107,10 @@ class AuthProvider extends ChangeNotifier {
         await service.prepareAuthenticationMutation();
         if (_disposed || generation != _requestGeneration) return false;
         dispatched = true;
+        final sdkWatch = Stopwatch()..start();
         final response = await sdk(client);
+        sdkWatch.stop();
+        debugPrint('[TravelGO auth] authentication_sdk ${sdkWatch.elapsedMilliseconds}ms');
         if (_disposed || generation != _requestGeneration) {
           await client.auth.signOut(scope: SignOutScope.local);
           return false;
@@ -1126,7 +1135,10 @@ class AuthProvider extends ChangeNotifier {
           await client.auth.signOut(scope: SignOutScope.local);
           return false;
         }
+        final authWatch = Stopwatch()..start();
         await service.establishAccount(freshAuthentication: true);
+        authWatch.stop();
+        debugPrint('[TravelGO auth] account_authorize ${authWatch.elapsedMilliseconds}ms');
         return _publish(generation);
       } catch (_) {
         if (!_disposed && generation == _requestGeneration) {
@@ -1272,6 +1284,7 @@ class AuthProvider extends ChangeNotifier {
           await service.sealForPause();
         } else if (state == AppLifecycleState.resumed &&
             _foreground &&
+            !_userChoseGuest &&
             !_credentialBusy &&
             !_loggingOut &&
             !_initializing) {

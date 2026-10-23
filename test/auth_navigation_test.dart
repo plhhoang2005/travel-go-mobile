@@ -5,6 +5,9 @@ import 'package:travelgo_mobile/features/auth/presentation/screens/login_screen.
 import 'package:travelgo_mobile/features/auth/presentation/screens/register_screen.dart';
 import 'package:travelgo_mobile/features/auth/presentation/screens/forgot_password_screen.dart';
 import 'package:travelgo_mobile/features/auth/presentation/screens/otp_verification_screen.dart';
+import 'package:travelgo_mobile/features/auth/providers/password_recovery_provider.dart';
+import 'package:travelgo_mobile/features/auth/services/password_recovery_service.dart';
+import 'package:travelgo_mobile/features/auth/services/recovery_intent_store.dart';
 
 import 'dart:io';
 import 'dart:convert';
@@ -2009,6 +2012,13 @@ Widget _authUi(AuthProvider auth, Widget screen, {bool large = false}) =>
         ChangeNotifierProvider(create: (_) => SavedTripsProvider()),
         ChangeNotifierProvider(create: (_) => HomeCatalogProvider()),
         ChangeNotifierProvider(create: (_) => DiscoveryProvider()),
+        ChangeNotifierProvider(
+          create: (_) => PasswordRecoveryProvider(
+            service: PasswordRecoveryService(),
+            store: RecoveryIntentStore(null, projectNamespace: 'test'),
+            auth: auth,
+          ),
+        ),
       ],
       child: MaterialApp(
         theme: AppTheme.lightTheme,
@@ -2241,8 +2251,10 @@ void _authRefreshUiTests() {
     await tester.pumpWidget(
       _authUi(auth, const ForgotPasswordScreen(), large: true),
     );
-    expect(find.text('Khôi phục mật khẩu chưa khả dụng'), findsOneWidget);
-    expect(find.byType(TextFormField), findsNothing);
+    expect(find.text('Khôi phục mật khẩu'), findsOneWidget);
+    expect(find.byType(TextFormField), findsOneWidget);
+    expect(find.textContaining('Mẹo kiểm thử'), findsNothing);
+    expect(find.textContaining('123456'), findsNothing);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(
       _authUi(
