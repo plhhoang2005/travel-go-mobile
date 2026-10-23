@@ -1,6 +1,6 @@
 # TravelGO — Thiết kế khu quản trị Flutter và xuất bản danh mục
 
-Ngày: 23/10/2026, Asia/Saigon. Trạng thái: **SPEC APPROVED FOR PLANNING — owner đã duyệt bản viết; implementation plans và cách thực thi còn chờ review.**
+Ngày: 23/10/2026, Asia/Saigon. Trạng thái: **SPEC APPROVED FOR PLANNING — owner đã duyệt bản viết và chọn Codex lập kế hoạch/review, Antigravity code; phạm vi/budget implementation còn chờ review.**
 
 ## 1. Yêu cầu đã chốt và kết quả cần đạt
 
@@ -21,7 +21,8 @@ Checklist Superpowers cho lượt thiết kế:
 - [x] Tự review nội dung, nhất quán contract và các trường hợp lỗi.
 - [x] Owner review và duyệt bản spec này.
 - [x] Sau duyệt spec: dùng writing-plans viết ba implementation plan theo file, API, constraint và test.
-- [ ] Owner review kế hoạch, duyệt budget/file exception và chọn cách thực thi trước code.
+- [x] Owner chọn phân công: Codex lập kế hoạch/review, Antigravity code và sửa findings.
+- [ ] Owner review kế hoạch và duyệt budget/file exception hoặc giao task cụ thể trước code.
 
 ## 2. Baseline đã đọc và giới hạn bằng chứng
 
@@ -225,7 +226,7 @@ Ba implementation plan phụ thuộc nhau sẽ được viết sau owner duyệt
 2. **Khu quản trị Flutter:** entry/guard, user list/detail/actions, dashboard và editor nháp/history. Dùng hợp đồng của phần 1 và draft API; không gọi UI-only là backend live.
 3. **Publication V2 và consumer:** validator/bundle/activation, Flutter preview/publish, public cache/repository và tích hợp Home/Khám phá/manual planner; rồi nghiệm thu xuyên suốt.
 
-Các phần dùng chung contract nhưng review được độc lập; không lập ba lịch triển khai đồng thời khi chưa ổn định interfaces. Không tự spawn subagents chỉ vì owner yêu cầu Superpowers; chọn execution method ở handoff implementation plan.
+Các phần dùng chung contract nhưng review được độc lập; không lập ba lịch triển khai đồng thời khi chưa ổn định interfaces. Phân công đã chốt: Codex lập kế hoạch/review, Antigravity code; không tự spawn subagents hoặc tự chuyển người sửa code vì owner yêu cầu Superpowers.
 
 Scope toàn feature chắc chắn vượt 5 files. Trước implementation cần owner duyệt exception tổng số file và tổng tool budget dựa trên file map cụ thể trong kế hoạch; không tự chia gói để reset guard. Mỗi gói có allowlist, used/max tool calls và repair rounds; không mượn hoặc reset G2/G3/G4 của công việc cũ. Lượt này chỉ thêm tài liệu spec, nằm trong giới hạn hiện tại.
 
@@ -279,7 +280,7 @@ Rủi ro chính đã có phương án: stale JWT → server access/session guard
 
 Owner đã duyệt spec này, bao gồm các quyết định: admin được quản lý tài khoản khác nhưng không tự thay quyền; unlock cần fresh login; dashboard không đo online; V2 metadata có thể publish với operational unknown; điểm mới manual được nhưng AI/engine không tự mở rộng. Không hỏi lại approval thiết kế; kế hoạch cụ thể/cách thực thi là gate kế tiếp.
 
-Đã dùng **superpowers:writing-plans** lập ba kế hoạch: [Account control](../plans/2026-10-23-admin-account-control.md), [Flutter admin UI](../plans/2026-10-23-flutter-admin-ui.md), [Publication V2 và app khách](../plans/2026-10-23-discovery-publication-v2.md). Các file chứa contracts, constraint matrices, TDD, verification, dependency order, file/tool budgets và rollout gates. Owner review kế hoạch và chọn native hoặc subagent-driven trước implementation; không coi lựa chọn Superpowers hiện tại là yêu cầu tự chạy nhiều agent.
+Đã dùng **superpowers:writing-plans** lập ba kế hoạch: [Account control](../plans/2026-10-23-admin-account-control.md), [Flutter admin UI](../plans/2026-10-23-flutter-admin-ui.md), [Publication V2 và app khách](../plans/2026-10-23-discovery-publication-v2.md). Các file chứa contracts, constraint matrices, TDD, verification, dependency order, file/tool budgets và rollout gates. Owner đã chọn Codex review/plan và Antigravity code; xem [handoff](../plans/2026-10-23-admin-antigravity-handoff.md). Không hỏi lại người thực thi hoặc tự mở scope/budget từ lựa chọn này.
 
 Nguồn nội bộ đã đối chiếu: `AGENTS.md`; `.agent/rules.md`; `.agent/workflow.md`; `docs/phase-3/ADMIN_DISCOVERY_IMPLEMENTATION_PLAN_20261020.md`; `docs/phase-3/DISCOVERY_PUBLISH_RUNBOOK.md`; source Auth/Profile/Discovery/Home/Trips/AI và helper verification nêu trong mục 2/8.
 

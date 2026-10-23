@@ -1,6 +1,6 @@
 # Admin Account Control Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Execution method has not been selected; do not dispatch agents or implement before owner review.
+> **Owner-selected execution, 23/10/2026:** Codex lập kế hoạch và review; Antigravity viết code, chạy kiểm thử và sửa findings. Đây là phân công do owner chọn, thay thế đề xuất Codex-native/subagent trước đó. Steps use checkbox (`- [ ]`) syntax for tracking. Không tự dispatch agents hoặc coi lựa chọn người code là duyệt toàn bộ scope/budget/deployment. Xem [handoff](2026-10-23-admin-antigravity-handoff.md).
 
 **Goal:** Cung cấp API quản trị tài khoản và dashboard thật, bảo vệ cả các đường account cũ khi khóa hoặc thu hồi quyền.
 
@@ -19,6 +19,7 @@
 - UI không báo thành công trước acknowledgement; retry giữ request ID; current server role/session quyết định quyền, không user_metadata.
 - Ngày dashboard theo `Asia/Ho_Chi_Minh`; reason 1–500 Unicode code points; user page size 25; 7/30 ngày gồm hôm nay.
 - Mỗi task dùng tối đa 5 authored files, 20 tool calls, 3 repair rounds theo trần đề xuất ở plan 3; mọi used counters phải cộng dồn. Không reset ngân sách cũ G2/G3/G4.
+- Antigravity là người duy nhất sửa source implementation. Codex kiểm diff, constraints và tests, báo findings kèm bằng chứng rồi Antigravity sửa; không tự chuyển sang Codex repair nếu owner chưa đổi phân công.
 - Mọi migration mới được tạo khi execution bằng `supabase migration new <suffix>`; bind đúng filename CLI trả về vào evidence trước edit. Không invent timestamp. Các alias `M_*` dưới đây đại diện duy nhất file có suffix được chỉ định, không phải chỗ cho implementer tùy chọn thiết kế.
 
 ## Review Focus

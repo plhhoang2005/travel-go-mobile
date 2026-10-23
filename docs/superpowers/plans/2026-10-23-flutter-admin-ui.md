@@ -1,6 +1,6 @@
 # Flutter Administration UI Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Execution method has not been selected; do not dispatch agents or implement before owner review.
+> **Owner-selected execution, 23/10/2026:** Codex lập kế hoạch và review; Antigravity viết code, chạy kiểm thử và sửa findings. Đây là phân công do owner chọn, thay thế đề xuất Codex-native/subagent trước đó. Steps use checkbox (`- [ ]`) syntax for tracking. Không tự dispatch agents hoặc coi lựa chọn người code là duyệt toàn bộ scope/budget/deployment. Xem [handoff](2026-10-23-admin-antigravity-handoff.md).
 
 **Goal:** Admin thật quản lý tài khoản, xem dashboard và chỉnh danh mục nháp trong ứng dụng Flutter hiện tại.
 

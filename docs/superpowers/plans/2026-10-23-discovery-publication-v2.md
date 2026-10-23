@@ -1,6 +1,6 @@
 # Discovery Publication V2 and Flutter Consumer Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Execution method has not been selected; do not dispatch agents or implement before owner review.
+> **Owner-selected execution, 23/10/2026:** Codex lập kế hoạch và review; Antigravity viết code, chạy kiểm thử và sửa findings. Đây là phân công do owner chọn, thay thế đề xuất Codex-native/subagent trước đó. Steps use checkbox (`- [ ]`) syntax for tracking. Không tự dispatch agents hoặc coi lựa chọn người code là duyệt toàn bộ scope/budget/deployment. Xem [handoff](2026-10-23-admin-antigravity-handoff.md).
 
 **Goal:** Admin xuất bản đúng bản nháp đã xem trước; cùng APK tải/cache danh mục mới, sử dụng điểm đến mới trong manual planner và giữ nguyên chuyến đi cũ.
 
@@ -223,12 +223,11 @@ Critical path: A0→A1→A2→A3→A4, A1→A5→F4; F1→F2→F3 and F4→F5→
 
 Budget proposal: **20 calls/task, 3 repair rounds/task, 500 calls aggregate ceiling**. This is a ceiling for review, not expected consumption or a time estimate. Task usage is deducted from the same aggregate, no reset between tracks; stop at either task or aggregate threshold. Shared reports/harness count as touched files in their owning tasks. Live rollout/readback/native calls also consume the remaining aggregate and still require their exact approved packet. Old G2/G3/G4 used counters remain unchanged. Any repair outside the task's five-file allowlist requires a scoped revision before editing, not an automatic sixth file.
 
-Execution options after owner reviews this plan set:
+Execution method đã được owner chọn ngày 23/10/2026: **Codex lập kế hoạch/review, Antigravity code và sửa findings**. Không hỏi lại Native/Subagent-driven. Tuân theo [hướng dẫn bàn giao và prompt Antigravity](2026-10-23-admin-antigravity-handoff.md); không tự tạo chat hoặc gửi message sang Antigravity.
 
-- **Native:** same implementer follows tasks in this session; one independent final reviewer checks whole diff. Recommended here because Auth, draft, publication and consumers share contracts and the checkout contains extensive dirty dependencies; minimizing simultaneous edits reduces integration risk.
-- **Subagent-driven:** separate implementer/reviewer per task, plus final whole-feature review; more fresh contexts, larger overhead. Do not dispatch until selected and task allowlists/contracts are stable.
+Antigravity bàn giao từng task với exact diff/commit, lệnh kiểm thử và kết quả thật; Codex review đúng baseline/source hiện tại, phân biệt author-reported với kết quả mình xác minh. Findings trả về cho Antigravity, Codex không tự sửa implementation. Chỉ một agent ghi code tại một thời điểm; thay contract/phạm vi phải cập nhật kế hoạch trước.
 
-Neither option changes deployment gates or grants permission to use real users as test fixtures. Before first product edit, owner must approve the file/tool-budget exception for this whole feature and select an execution method. No code, DB or native action is implied by approval of planning alone.
+Phân công mới không thay deployment gates hoặc cấp quyền dùng user thật làm fixture. Tổng 98 file/500 calls vẫn là đề xuất; chọn người code không phê duyệt exception tổng. Review calls của Codex và implementation calls của Antigravity cùng phải được ghi trong ledger tổng của feature, không tạo hai budget độc lập hoặc reset used. Có thể giao riêng A0 trong giới hạn hiện hữu; không tự suy A0 cho phép triển khai toàn bộ 25 task.
 
 ## Planning self-review and handover
 
@@ -238,5 +237,5 @@ Neither option changes deployment gates or grants permission to use real users a
 - **Changed:** three implementation plans and spec approval/status links only. Planning baseline HEAD `6385e3d`; preserve all pre-existing modified/untracked source. No product code, schema, environment, device or live account changed.
 - **Why:** executable task boundaries, explicit invariants and test evidence prevent UI-only administration, stale-token bypasses and partially updated public data.
 - **Testing:** documentation validation checks plan/spec links, task/file counts, placeholders and whitespace; Flutter/Node/SQL/native feature suites are NOT RUN in this documentation task. Their commands and expected behaviors are specified, not claimed as observed results.
-- **Problems:** execution method/budget review pending, cached Supabase CLI discovery required, historical Flutter failures still require fresh classification in A0, staging/native permissions remain packet-specific.
+- **Problems:** execution method đã chốt Codex review/plan + Antigravity code; scope/budget exception còn chờ duyệt, cached Supabase CLI discovery required, historical Flutter failures still require fresh classification in A0, staging/native permissions remain packet-specific.
 - **Lesson Candidate:** an integrity requirement needs a named enforcement point and a rejection/race test; UI validation alone does not establish server integrity.
