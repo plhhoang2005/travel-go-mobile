@@ -66,7 +66,13 @@ class SavedTripsProvider extends ChangeNotifier {
     );
   }
 
-  static OwnedTripSummary _legacySummary(SavedTrip trip) => OwnedTripSummary(
+  static OwnedTripSummary _legacySummary(
+    SavedTrip trip, {
+    bool statusKnown = false,
+    String? rawStatus,
+    String? startDateStr,
+    String? endDateStr,
+  }) => OwnedTripSummary(
     kind: OwnedTripKind.legacyV1,
     tripId: trip.id,
     ownerId: trip.userId,
@@ -75,21 +81,39 @@ class SavedTripsProvider extends ChangeNotifier {
     createdAt:
         trip.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
     version: null,
+    startDate: startDateStr ??
+        (trip.startDate != null
+            ? '${trip.startDate!.year.toString().padLeft(4, '0')}-${trip.startDate!.month.toString().padLeft(2, '0')}-${trip.startDate!.day.toString().padLeft(2, '0')}'
+            : null),
+    endDate: endDateStr ??
+        (trip.endDate != null
+            ? '${trip.endDate!.year.toString().padLeft(4, '0')}-${trip.endDate!.month.toString().padLeft(2, '0')}-${trip.endDate!.day.toString().padLeft(2, '0')}'
+            : null),
+    rawStatus: rawStatus ?? trip.status,
+    statusKnown: statusKnown,
   );
   static OwnedTripSummary _editableSummary(
     EditableHead head, {
     DateTime? createdAt,
-  }) => OwnedTripSummary(
-    kind: OwnedTripKind.editableV2,
-    tripId: head.tripId,
-    ownerId: head.ownerId,
-    title: head.document.input.title,
-    destinationName:
-        head.document.input.destinationName ?? 'Chưa chọn điểm đến',
-    // Epoch is an unknown-sort placeholder for cached entries, never a claimed creation date.
-    createdAt: createdAt ?? DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
-    version: head.version,
-  );
+  }) {
+    final input = head.document.input;
+    return OwnedTripSummary(
+      kind: OwnedTripKind.editableV2,
+      tripId: head.tripId,
+      ownerId: head.ownerId,
+      title: input.title,
+      destinationName:
+          input.destinationName ?? 'Chưa chọn điểm đến',
+      // Epoch is an unknown-sort placeholder for cached entries, never a claimed creation date.
+      createdAt:
+          createdAt ?? DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+      version: head.version,
+      startDate: input.startDate,
+      endDate: input.endDate,
+      rawStatus: 'planning',
+      statusKnown: true,
+    );
+  }
   void bindEditableRepository(EditableTripRepository repository) {
     if (_isDisposed || !requiresLifecycle) return;
     if (!identical(repository.lifecycle, _lifecycle) ||
@@ -410,9 +434,22 @@ class SavedTripsProvider extends ChangeNotifier {
           remoteVersion: row.remoteVersion,
           fetchedAt: row.fetchedAt,
         );
-        summaries.putIfAbsent(
-          row.tripId,
-          () => _legacySummary(_fromRemote(row)),
+        final savedTrip = _fromRemote(row);
+        final existingSummary = summaries[row.tripId];
+        final startStr = row.headers.startDate ??
+            row.payload.metadata.startDate ??
+            row.payload.request?.startDate;
+        final endStr = row.headers.endDate ??
+            row.payload.metadata.endDate ??
+            row.payload.request?.endDate;
+        summaries[row.tripId] = _legacySummary(
+          savedTrip,
+          statusKnown: row.headers.status != null,
+          rawStatus: row.headers.status,
+          startDateStr: startStr,
+          endDateStr: endStr,
+        ).copyWith(
+          createdAt: existingSummary?.createdAt ?? savedTrip.createdAt,
         );
       }
       for (final id in removed) {
@@ -812,7 +849,20 @@ class SavedTripsProvider extends ChangeNotifier {
         _trips.insert(0, saved);
         if (_editableRepository != null) {
           _visibleTrips.removeWhere((t) => t.tripId == saved.id);
-          _visibleTrips.insert(0, _legacySummary(saved));
+          _visibleTrips.insert(
+            0,
+            _legacySummary(
+              saved,
+              statusKnown: true,
+              rawStatus: saved.status,
+              startDateStr: saved.startDate != null
+                  ? '${saved.startDate!.year.toString().padLeft(4, '0')}-${saved.startDate!.month.toString().padLeft(2, '0')}-${saved.startDate!.day.toString().padLeft(2, '0')}'
+                  : null,
+              endDateStr: saved.endDate != null
+                  ? '${saved.endDate!.year.toString().padLeft(4, '0')}-${saved.endDate!.month.toString().padLeft(2, '0')}-${saved.endDate!.day.toString().padLeft(2, '0')}'
+                  : null,
+            ),
+          );
           _sortVisible();
         }
         if (proof != null) {

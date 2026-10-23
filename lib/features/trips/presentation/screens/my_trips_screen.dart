@@ -2,17 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../../../../core/presentation/travel_image.dart';
+import '../../../../core/presentation/travel_media.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
 import '../../../auth/providers/auth_provider.dart';
 import '../../../trip_planner/presentation/screens/home_planner_screen.dart';
-import '../../models/saved_trip_model.dart';
 import '../../models/editable_remote_records.dart';
-import 'editable_trip_detail_screen.dart';
+import '../../models/saved_trip_model.dart';
 import '../../providers/guest_drafts_provider.dart';
 import '../../providers/saved_trips_provider.dart';
-import '../widgets/guest_draft_import_sheet.dart';
+import '../../services/trip_list_classifier.dart';
 import '../widgets/editable_draft_import_selection.dart';
+import '../widgets/guest_draft_import_sheet.dart';
+import 'editable_trip_detail_screen.dart';
 import 'saved_trip_snapshot_screen.dart';
 
 class MyTripsScreen extends StatefulWidget {
@@ -23,46 +26,77 @@ class MyTripsScreen extends StatefulWidget {
 }
 
 class _MyTripsScreenState extends State<MyTripsScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late TabController _tabController;
+  DateTime _nowUtc = DateTime.now().toUtc();
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _tabController = TabController(length: 3, vsync: this);
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _tabController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      setState(() {
+        _nowUtc = DateTime.now().toUtc();
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final tripsProvider = context.watch<SavedTripsProvider>();
-    final isCustomer =
-        auth.isDemoSession &&
-        (auth.currentUser?.email.contains('minh') ?? false);
 
-    final owned =
-        auth.isAuthenticated &&
+    final isGuest = !auth.isAuthenticated &&
+        !auth.isDemoSession &&
+        auth.currentUser == null;
+    final owned = auth.isAuthenticated &&
         !auth.isDemoSession &&
         auth.currentUser?.id == tripsProvider.currentUserId;
     final visible = owned ? tripsProvider.visibleTrips : <OwnedTripSummary>[];
-    final upcomingCount = visible.isNotEmpty
-        ? visible.length
-        : (isCustomer ? 1 : 0);
+
+    final upcomingTrips = <OwnedTripSummary>[];
+    final pastTrips = <OwnedTripSummary>[];
+    final insufficientTrips = <OwnedTripSummary>[];
+
+    for (final trip in visible) {
+      final bucket = TripListClassifier.classify(trip, nowUtc: _nowUtc);
+      switch (bucket) {
+        case TripListBucket.upcomingOrOngoing:
+          upcomingTrips.add(trip);
+          break;
+        case TripListBucket.past:
+          pastTrips.add(trip);
+          break;
+        case TripListBucket.insufficient:
+          insufficientTrips.add(trip);
+          break;
+      }
+    }
+
+    final hasMore = owned && tripsProvider.hasMoreTrips;
+    final totalLoaded = visible.length;
+    final ownerId = owned ? auth.currentUser?.id : null;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: AppBar(
         title: const Text(
           'Chuyến Đi Của Tôi',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
-        backgroundColor: Colors.white,
+        backgroundColor: Theme.of(context).colorScheme.surface,
         elevation: 0,
         actions: [
           if (auth.isAuthenticated && !auth.isDemoSession)
@@ -74,66 +108,173 @@ class _MyTripsScreenState extends State<MyTripsScreen>
         ],
         bottom: TabBar(
           controller: _tabController,
-          labelColor: const Color(0xFF0F172A),
-          unselectedLabelColor: AppTheme.slate500,
-          indicatorColor: const Color(0xFF0F172A),
+          labelColor: Theme.of(context).colorScheme.primary,
+          unselectedLabelColor: Theme.of(context).colorScheme.onSurfaceVariant,
+          indicatorColor: Theme.of(context).colorScheme.primary,
+          isScrollable: MediaQuery.textScalerOf(context).scale(16) > 24,
           tabs: [
-            Tab(text: 'Sắp đi ($upcomingCount)'),
-            const Tab(text: 'Đã đi (0)'),
-            const Tab(text: 'Đã hủy (0)'),
+            Tab(text: 'Sắp/đang đi (${upcomingTrips.length})'),
+            Tab(text: 'Đã qua ngày (${pastTrips.length})'),
+            Tab(text: 'Chưa đủ thông tin (${insufficientTrips.length})'),
           ],
         ),
       ),
       body: TabBarView(
         controller: _tabController,
         children: [
-          // Upcoming Tab
-          !auth.isAuthenticated &&
-                  !auth.isDemoSession &&
-                  auth.currentUser == null
-              ? EditableGuestDraftList(
-                  fallback: _buildEmptyState(
-                    context,
-                    'Chưa có chuyến đi sắp tới',
-                  ),
-                )
-              : visible.isNotEmpty || (owned && tripsProvider.hasMoreTrips)
-              ? _buildSavedTripsList(context, visible)
-              : owned &&
-                    (tripsProvider.isLoading ||
-                        tripsProvider.cacheErrorMessage != null)
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          tripsProvider.isLoading
-                              ? 'Đang tải chuyến đi…'
-                              : tripsProvider.cacheErrorMessage!,
-                        ),
-                        TextButton(
-                          onPressed: tripsProvider.isLoading
-                              ? null
-                              : () => tripsProvider.loadTrips(
-                                  auth.currentUser?.id,
-                                ),
-                          child: const Text('Thử lại'),
-                        ),
-                      ],
+          // Tab 1: Sắp/đang đi
+          _withAccountRefresh(
+            isGuest
+                ? EditableGuestDraftList(
+                    fallback: _buildEmptyState(
+                      context,
+                      'Chưa có chuyến đi sắp tới',
                     ),
+                  )
+                : _buildTabContent(
+                    context,
+                    trips: upcomingTrips,
+                    totalLoaded: totalLoaded,
+                    emptyTitle: 'Chưa có chuyến đi sắp tới',
+                    hasMore: hasMore,
+                    provider: tripsProvider,
+                    owned: owned,
                   ),
-                )
-              : (isCustomer
-                    ? _buildUpcomingDemoCard(context)
-                    : _buildEmptyState(context, 'Chưa có chuyến đi sắp tới')),
-          // Completed Tab
-          _buildEmptyState(context, 'Chưa có chuyến đi đã hoàn thành'),
-          // Cancelled Tab
-          _buildEmptyState(context, 'Chưa có chuyến đi bị hủy'),
+            ownerId: ownerId,
+            provider: tripsProvider,
+          ),
+          // Tab 2: Đã qua ngày
+          _withAccountRefresh(
+            isGuest
+                ? _buildEmptyState(context, 'Chưa có chuyến đi đã qua ngày')
+                : _buildTabContent(
+                    context,
+                    trips: pastTrips,
+                    totalLoaded: totalLoaded,
+                    emptyTitle: 'Chưa có chuyến đi đã qua ngày',
+                    hasMore: hasMore,
+                    provider: tripsProvider,
+                    owned: owned,
+                  ),
+            ownerId: ownerId,
+            provider: tripsProvider,
+          ),
+          // Tab 3: Chưa đủ thông tin
+          _withAccountRefresh(
+            isGuest
+                ? _buildEmptyState(context, 'Không có chuyến đi thiếu thông tin')
+                : _buildTabContent(
+                    context,
+                    trips: insufficientTrips,
+                    totalLoaded: totalLoaded,
+                    emptyTitle: 'Không có chuyến đi thiếu thông tin',
+                    hasMore: hasMore,
+                    provider: tripsProvider,
+                    owned: owned,
+                  ),
+            ownerId: ownerId,
+            provider: tripsProvider,
+          ),
         ],
       ),
+    );
+  }
+
+  Widget _buildTabContent(
+    BuildContext context, {
+    required List<OwnedTripSummary> trips,
+    required int totalLoaded,
+    required String emptyTitle,
+    required bool hasMore,
+    required SavedTripsProvider provider,
+    required bool owned,
+  }) {
+    if (owned && provider.isLoading && totalLoaded == 0) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    if (owned && provider.cacheErrorMessage != null && totalLoaded == 0) {
+      final auth = context.read<AuthProvider>();
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                provider.cacheErrorMessage!,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: provider.isLoading
+                    ? null
+                    : () => provider.loadTrips(auth.currentUser?.id),
+                child: const Text('Thử lại'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (trips.isEmpty) {
+      if (hasMore) {
+        return ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(24),
+          children: [
+            const SizedBox(height: 32),
+            Icon(
+              Icons.luggage_outlined,
+              size: 48,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              emptyTitle,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 24),
+            Center(
+              child: Text('Đã tải $totalLoaded chuyến · còn chuyến chưa tải'),
+            ),
+            const SizedBox(height: 12),
+            Center(
+              child: TextButton(
+                onPressed: provider.isLoading ? null : provider.loadMoreTrips,
+                child: Text(provider.isLoading ? 'Đang tải…' : 'Xem thêm chuyến đi'),
+              ),
+            ),
+          ],
+        );
+      }
+      return _buildEmptyState(context, emptyTitle);
+    }
+
+    return _buildSavedTripsList(context, trips, totalLoaded: totalLoaded);
+  }
+
+  Widget _withAccountRefresh(
+    Widget child, {
+    required String? ownerId,
+    required SavedTripsProvider provider,
+  }) {
+    if (ownerId == null) return child;
+    return RefreshIndicator(
+      onRefresh: () async {
+        setState(() {
+          _nowUtc = DateTime.now().toUtc();
+        });
+        await provider.loadTrips(ownerId);
+      },
+      child: child,
     );
   }
 
@@ -161,8 +302,9 @@ class _MyTripsScreenState extends State<MyTripsScreen>
 
   Widget _buildSavedTripsList(
     BuildContext context,
-    List<OwnedTripSummary> trips,
-  ) {
+    List<OwnedTripSummary> trips, {
+    required int totalLoaded,
+  }) {
     final provider = context.watch<SavedTripsProvider>();
     final canDelete =
         !provider.requiresLifecycle ||
@@ -180,6 +322,7 @@ class _MyTripsScreenState extends State<MyTripsScreen>
     );
 
     return ListView.separated(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(16),
       itemCount: trips.length + 1,
       separatorBuilder: (context, index) => const SizedBox(height: 12),
@@ -188,7 +331,7 @@ class _MyTripsScreenState extends State<MyTripsScreen>
           return Column(
             children: [
               Text(
-                'Đã tải ${trips.length} chuyến${provider.hasMoreTrips ? ' · còn chuyến chưa tải' : ''}',
+                'Đã tải $totalLoaded chuyến${provider.hasMoreTrips ? ' · còn chuyến chưa tải' : ''}',
               ),
               if (provider.cacheErrorMessage != null)
                 Text(provider.cacheErrorMessage!),
@@ -349,188 +492,48 @@ class _MyTripsScreenState extends State<MyTripsScreen>
     );
   }
 
-  Widget _buildUpcomingDemoCard(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Card(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          color: Colors.white,
-          elevation: 0,
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF10B981).withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: const Text(
-                        'ĐÃ XÁC NHẬN',
-                        style: TextStyle(
-                          color: Color(0xFF047857),
-                          fontWeight: FontWeight.bold,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ),
-                    const Text(
-                      'Mã đơn: #TG-2026-001',
-                      style: TextStyle(fontSize: 12, color: AppTheme.slate500),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'Chuyến đi Đà Nẵng 3N2Đ (Persona Minh)',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.slate900,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  'Khởi hành: 20/10/2026 - 23/10/2026 · 2 Người lớn',
-                  style: TextStyle(fontSize: 12, color: AppTheme.slate600),
-                ),
-                const Divider(height: 24, color: AppTheme.slate100),
-                Row(
-                  children: const [
-                    Icon(
-                      Icons.flight_takeoff,
-                      size: 16,
-                      color: Color(0xFF0284C7),
-                    ),
-                    SizedBox(width: 6),
-                    Text(
-                      'Vé máy bay khứ hồi VietJet Air',
-                      style: TextStyle(fontSize: 12),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Row(
-                  children: const [
-                    Icon(Icons.hotel, size: 16, color: Color(0xFF0D9488)),
-                    SizedBox(width: 6),
-                    Text(
-                      'Furama Resort Đà Nẵng (2 đêm)',
-                      style: TextStyle(fontSize: 12),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: const [
-                    Text(
-                      'Tổng thanh toán:',
-                      style: TextStyle(fontSize: 13, color: AppTheme.slate600),
-                    ),
-                    Text(
-                      '4.200.000đ',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF0F172A),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildEmptyState(BuildContext context, String title) {
     final auth = context.watch<AuthProvider>();
     return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32.0),
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(24),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 80,
-              height: 80,
-              decoration: const BoxDecoration(
-                color: Color(0xFFF1F5F9),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.luggage_outlined,
-                size: 40,
-                color: AppTheme.slate400,
-              ),
+            Icon(
+              Icons.luggage_outlined,
+              size: 48,
+              color: Theme.of(context).colorScheme.primary,
             ),
             const SizedBox(height: 16),
             Text(
               title,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: AppTheme.slate800,
-              ),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'Để AI gợi ý hành trình tối ưu chi phí & thời gian cho chuyến đi sắp tới của bạn.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 13,
-                color: AppTheme.slate500,
-                height: 1.4,
-              ),
+              style: Theme.of(context).textTheme.titleLarge,
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 8),
+            const Text(
+              'Chọn điểm đến và tạo lịch trình riêng, thêm hoạt động rồi theo dõi ngân sách.',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
             if (auth.isGuest || auth.currentUser == null) ...[
               FilledButton.icon(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const LoginScreen()),
-                  );
-                },
-                icon: const Icon(Icons.login_rounded, size: 18),
-                label: const Text('Đăng nhập để xem chuyến đi'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF086C61),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
+                onPressed: () => Navigator.of(
+                  context,
+                ).push(MaterialPageRoute(builder: (_) => const LoginScreen())),
+                icon: const Icon(Icons.login),
+                label: const Text('Đăng nhập để lưu chuyến đi'),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
             ],
             OutlinedButton.icon(
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const HomePlannerScreen()),
-                );
-              },
-              icon: const Icon(Icons.auto_awesome, size: 18),
-              label: const Text('Lập kế hoạch với AI ngay'),
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Color(0xFF0F172A)),
-                foregroundColor: const Color(0xFF0F172A),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const HomePlannerScreen()),
               ),
+              icon: const Icon(Icons.edit_calendar_outlined),
+              label: const Text('Lập chuyến đi'),
             ),
           ],
         ),
@@ -570,7 +573,6 @@ class _MyTripsScreenState extends State<MyTripsScreen>
               final success = await tripsProvider.deleteTrip(trip.id);
               if (context.mounted) {
                 if (success) {
-                  // Reload to verify server state
                   await tripsProvider.loadTrips(auth.currentUser?.id);
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(

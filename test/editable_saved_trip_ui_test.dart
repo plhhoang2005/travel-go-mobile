@@ -1,3 +1,9 @@
+import 'dart:async';
+
+import 'package:travelgo_mobile/core/presentation/travel_image.dart';
+import 'package:travelgo_mobile/core/presentation/travel_media.dart';
+import 'package:travelgo_mobile/features/trip_planner/models/editable_trip_document.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
@@ -18,12 +24,14 @@ import 'package:travelgo_mobile/features/trips/presentation/screens/my_trips_scr
 import 'package:travelgo_mobile/features/trips/presentation/screens/saved_trip_snapshot_screen.dart';
 import 'package:travelgo_mobile/features/trips/presentation/screens/editable_trip_detail_screen.dart';
 import 'package:travelgo_mobile/features/trip_planner/presentation/screens/manual_planner_screen.dart';
+import 'package:travelgo_mobile/features/trip_planner/presentation/widgets/manual_save_preview.dart';
+import 'package:travelgo_mobile/features/trip_planner/providers/manual_planner_provider.dart';
 
 import 'editable_trip_repository_test.dart' as repository;
 import 'editable_local_store_test.dart' as records;
 import 'local_trip_store_test.dart' as legacy;
 import 'manual_discovery_flow_test.dart' show resources;
-import 'manual_budget_ui_test.dart' show tapText;
+import 'manual_budget_ui_test.dart' show tapText, finishSave;
 import 'manual_planner_screen_test.dart' show documentWithLinkedActivity;
 
 class UiTrips extends SavedTripsProvider {
@@ -44,8 +52,13 @@ class UiTrips extends SavedTripsProvider {
       .toList();
   bool more = false;
   int loads = 0;
+  String owner = records.ownerA;
+  final requestedOwners = <String?>[];
+  Completer<void>? loadRelease;
+  bool failLoads = false;
+  VoidCallback? onLoad;
   @override
-  String? get currentUserId => records.ownerA;
+  String? get currentUserId => owner;
   @override
   AccountCacheState get cacheState => AccountCacheState.online;
   @override
@@ -59,6 +72,10 @@ class UiTrips extends SavedTripsProvider {
   @override
   Future<void> loadTrips(String? owner) async {
     loads++;
+    requestedOwners.add(owner);
+    await loadRelease?.future;
+    if (failLoads) throw StateError('Controlled list failure');
+    onLoad?.call();
     notifyListeners();
   }
 
@@ -100,6 +117,10 @@ OwnedTripSummary summary(String id, OwnedTripKind kind) => OwnedTripSummary(
   destinationName: 'Huế',
   createdAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
   version: kind == OwnedTripKind.editableV2 ? 1 : null,
+  startDate: '2028-11-01',
+  endDate: '2028-11-03',
+  rawStatus: 'planning',
+  statusKnown: true,
 );
 User user(String id) => User(
   id: id,
@@ -176,7 +197,254 @@ const detail = EditableTripDetailScreen(
   tripId: records.tripId,
   expectedOwnerId: records.ownerA,
 );
+
+Future<ManualPlannerProvider> openNewPreview(
+  WidgetTester tester,
+  ManualPlannerRuntime runtime,
+) async {
+  final planner = (await runtime.getResources()).planner;
+  planner.openNew(records.doc());
+  final preview = planner.previewSave();
+  expect(preview.canConfirm, isTrue);
+  tester
+      .state<NavigatorState>(find.byType(Navigator).first)
+      .push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => ManualSavePreview(
+            planner: planner,
+            preview: preview,
+            onResolveIssue: (_) {},
+          ),
+        ),
+      );
+  await tester.pumpAndSettle();
+  await tester.scrollUntilVisible(
+    find.text('Lưu vào tài khoản'),
+    400,
+    scrollable: find
+        .descendant(
+          of: find.byKey(const ValueKey('manual.preview')),
+          matching: find.byType(Scrollable),
+        )
+        .first,
+  );
+  await tester.ensureVisible(find.text('Lưu vào tài khoản'));
+  await tester.tap(find.text('Lưu vào tài khoản'));
+  await tester.pump();
+  return planner;
+}
+
 void main() {
+  testWidgets(
+    'Guest acknowledged save refreshes mounted list from real local store',
+    (tester) async {
+      await tester.runAsync(
+        () => repository.run((ctx) async {
+          final auth = AuthProvider(
+            trustedRoleFetcher: (_) async => 'customer',
+          );
+          await auth.initialization;
+          auth.continueAsGuest();
+          final trips = UiTrips();
+          final bundle = resources(ctx);
+          final runtime = ManualPlannerRuntime(factory: () async => bundle);
+          try {
+            await pumpUi(tester, const MyTripsScreen(), auth, trips, runtime);
+            expect(find.text('Mở bản nháp tự lập'), findsNothing);
+            final document = records.doc();
+            bundle.planner.openNew(document);
+            final draftId = bundle.planner.draftId!;
+            final preview = bundle.planner.previewSave();
+            expect(preview.canConfirm, isTrue);
+            tester
+                .state<NavigatorState>(find.byType(Navigator).first)
+                .push<void>(
+                  MaterialPageRoute<void>(
+                    builder: (_) => ManualSavePreview(
+                      planner: bundle.planner,
+                      preview: preview,
+                      onResolveIssue: (_) {},
+                    ),
+                  ),
+                );
+            await tester.pumpAndSettle();
+            await tapText(
+              tester,
+              'Lưu bản nháp trên máy',
+              scroll: 'manual.preview',
+            );
+            await finishSave(bundle.planner);
+            await Future<void>.delayed(const Duration(milliseconds: 100));
+            await tester.pumpAndSettle();
+            final stored = await ctx.disk.store.readEditableDraft(
+              deviceScope: 'default',
+              draftId: draftId,
+            );
+            expect(stored!.revision, 1);
+            expect(stored.document.actualExpenses.single.amountVnd, 250000);
+            expect(stored.document.actualExpenses.single.paidOn, '2026-10-15');
+            expect(find.byType(ManualSavePreview), findsNothing);
+            expect(find.text('Mở bản nháp tự lập'), findsOneWidget);
+            expect(bundle.drafts.drafts.single.draftId, draftId);
+            expect(bundle.drafts.drafts.single.revision, 1);
+            expect(ctx.server.creates, 0);
+            expect(trips.requestedOwners, isEmpty);
+            expect(tester.takeException(), isNull);
+          } finally {
+            await tester.pumpWidget(const SizedBox.shrink());
+            await runtime.close();
+            trips.dispose();
+            auth.dispose();
+          }
+        }),
+      );
+    },
+  );
+
+  testWidgets(
+    'saved detail photos use stable ids and large text preserves read-only ledgers',
+    (tester) async {
+      tester.view.physicalSize = const Size(360, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final dispatcher = tester.platformDispatcher;
+      dispatcher.textScaleFactorTestValue = 2;
+      addTearDown(dispatcher.clearTextScaleFactorTestValue);
+      await withUi(tester, (ctx, auth, trips, runtime, repo) async {
+        final old = documentWithLinkedActivity();
+        final doc = old.copyWith(
+          input: TripInput.fromJson({
+            ...old.input.toJson(),
+            'destinationId': 'ha-noi',
+            'destinationName': 'Tên tự nhập khác',
+          }),
+        );
+        ctx.server.latest = records.head(document: doc);
+        final digest = ctx.server.latest!.contentDigest;
+        await pumpUi(tester, detail, auth, trips, runtime);
+        final image = tester.widget<TravelImage>(
+          find.byType(TravelImage).first,
+        );
+        expect(image.media, same(TravelMediaCatalog.forDestination('ha-noi')));
+        await tester.scrollUntilVisible(
+          find.text('Chi thực tế'),
+          250,
+          scrollable: find.byType(Scrollable).first,
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(ChoiceChip, 'Chi thực tế'));
+        await tester.pumpAndSettle();
+        expect(
+          tester
+              .widget<ChoiceChip>(
+                find.widgetWithText(ChoiceChip, 'Chi thực tế'),
+              )
+              .selected,
+          isTrue,
+        );
+        await tester.scrollUntilVisible(
+          find.textContaining(doc.actualExpenses.first.description),
+          180,
+          scrollable: find.byType(Scrollable).first,
+        );
+        expect(tester.takeException(), isNull);
+        expect(ctx.server.latest!.contentDigest, digest);
+        expect((await runtime.getResources()).planner.document, isNull);
+        auth.simulateSupabaseUser(user(records.ownerB));
+        await tester.pumpAndSettle();
+        expect(find.byType(TravelImage), findsNothing);
+        expect(find.textContaining('Phiên đã thay đổi'), findsOneWidget);
+      });
+    },
+  );
+
+  testWidgets(
+    'acknowledged save refreshes empty list without waiting for list network',
+    (tester) async {
+      await withUi(tester, (ctx, auth, trips, runtime, repo) async {
+        final release = trips.loadRelease = Completer<void>();
+        trips.onLoad = () =>
+            trips.rows = [summary(records.tripId, OwnedTripKind.editableV2)];
+        try {
+          await pumpUi(tester, const MyTripsScreen(), auth, trips, runtime);
+          final planner = await openNewPreview(tester, runtime);
+          await finishSave(planner);
+          await tester.pumpAndSettle();
+          expect(ctx.server.creates, 1);
+          expect(find.byType(ManualSavePreview), findsNothing);
+          expect(trips.requestedOwners, [records.ownerA]);
+          expect(find.text('Xem lịch trình tự lập'), findsNothing);
+          release.complete();
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+          await tester.pumpAndSettle();
+          expect(find.text('Xem lịch trình tự lập'), findsOneWidget);
+          expect(ctx.server.creates, 1);
+        } finally {
+          if (!release.isCompleted) release.complete();
+        }
+      });
+    },
+  );
+
+  testWidgets('empty Account trip list supports pull to refresh', (
+    tester,
+  ) async {
+    await withUi(tester, (ctx, auth, trips, runtime, repo) async {
+      await pumpUi(tester, const MyTripsScreen(), auth, trips, runtime);
+      await tester.drag(
+        find.text('Chưa có chuyến đi sắp tới'),
+        const Offset(0, 400),
+      );
+      await tester.pumpAndSettle();
+      expect(trips.requestedOwners, [records.ownerA]);
+      expect(ctx.server.creates, 0);
+    });
+  });
+
+  testWidgets(
+    'list refresh failure never retries committed save or keeps preview open',
+    (tester) async {
+      await withUi(tester, (ctx, auth, trips, runtime, repo) async {
+        trips.failLoads = true;
+        await pumpUi(tester, const MyTripsScreen(), auth, trips, runtime);
+        final planner = await openNewPreview(tester, runtime);
+        await finishSave(planner);
+        await tester.pumpAndSettle();
+        expect(find.byType(ManualSavePreview), findsNothing);
+        expect(trips.requestedOwners, [records.ownerA]);
+        expect(ctx.server.creates, 1);
+        expect(planner.dirty, isFalse);
+        expect(planner.hasPendingSave, isFalse);
+        expect(tester.takeException(), isNull);
+      });
+    },
+  );
+
+  testWidgets(
+    'save completion cannot refresh old owner after list binding changes',
+    (tester) async {
+      await withUi(tester, (ctx, auth, trips, runtime, repo) async {
+        final entered = ctx.server.entered = Completer<void>();
+        final release = ctx.server.release = Completer<void>();
+        try {
+          await pumpUi(tester, const MyTripsScreen(), auth, trips, runtime);
+          final planner = await openNewPreview(tester, runtime);
+          await entered.future;
+          trips.owner = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+          release.complete();
+          await finishSave(planner);
+          await tester.pumpAndSettle();
+          expect(trips.requestedOwners, isEmpty);
+          expect(ctx.server.creates, 1);
+          expect(tester.takeException(), isNull);
+        } finally {
+          if (!release.isCompleted) release.complete();
+        }
+      });
+    },
+  );
+
   testWidgets(
     'mixed list routes V2 to real detail and opens matching editable base',
     (tester) async {
@@ -372,6 +640,10 @@ void main() {
           auth,
           trips,
           runtime,
+        );
+        expect(
+          tester.widget<TravelImage>(find.byType(TravelImage).first).media,
+          same(TravelMediaCatalog.forDestination('hue')),
         );
         await tapText(tester, 'Tạo bản sao để chỉnh sửa', scroll: 'saved.v1');
         await Future<void>.delayed(const Duration(milliseconds: 100));

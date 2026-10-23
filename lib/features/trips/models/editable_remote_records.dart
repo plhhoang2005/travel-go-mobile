@@ -110,6 +110,11 @@ class OwnedTripSummary {
   final String tripId, ownerId, title, destinationName;
   final DateTime createdAt;
   final int? version;
+  final String? startDate;
+  final String? endDate;
+  final String? rawStatus;
+  final bool statusKnown;
+
   const OwnedTripSummary({
     required this.kind,
     required this.tripId,
@@ -118,7 +123,39 @@ class OwnedTripSummary {
     required this.destinationName,
     required this.createdAt,
     required this.version,
+    this.startDate,
+    this.endDate,
+    this.rawStatus,
+    this.statusKnown = false,
   });
+
+  OwnedTripSummary copyWith({
+    OwnedTripKind? kind,
+    String? tripId,
+    String? ownerId,
+    String? title,
+    String? destinationName,
+    DateTime? createdAt,
+    int? version,
+    String? startDate,
+    String? endDate,
+    String? rawStatus,
+    bool? statusKnown,
+  }) {
+    return OwnedTripSummary(
+      kind: kind ?? this.kind,
+      tripId: tripId ?? this.tripId,
+      ownerId: ownerId ?? this.ownerId,
+      title: title ?? this.title,
+      destinationName: destinationName ?? this.destinationName,
+      createdAt: createdAt ?? this.createdAt,
+      version: version ?? this.version,
+      startDate: startDate ?? this.startDate,
+      endDate: endDate ?? this.endDate,
+      rawStatus: rawStatus ?? this.rawStatus,
+      statusKnown: statusKnown ?? this.statusKnown,
+    );
+  }
 }
 
 class OwnedTripPage {
