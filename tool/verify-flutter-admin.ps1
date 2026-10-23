@@ -440,6 +440,10 @@ $$;
 CREATE FUNCTION auth.jwt() RETURNS jsonb LANGUAGE sql STABLE AS $$
   SELECT coalesce(nullif(current_setting('request.jwt.claims',true),'')::jsonb,'{}'::jsonb);
 $$;
+CREATE FUNCTION auth.role() RETURNS text LANGUAGE sql STABLE AS $$
+  SELECT coalesce(nullif(current_setting('request.jwt.claim.role',true),''),'authenticated');
+$$;
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
 GRANT USAGE ON SCHEMA public,auth TO anon,authenticated,service_role;
 GRANT ALL ON ALL TABLES IN SCHEMA auth TO anon,authenticated,service_role;
 '@ -Connection $conn
@@ -520,6 +524,10 @@ $$;
 CREATE FUNCTION auth.jwt() RETURNS jsonb LANGUAGE sql STABLE AS $$
   SELECT coalesce(nullif(current_setting('request.jwt.claims',true),'')::jsonb,'{}'::jsonb);
 $$;
+CREATE FUNCTION auth.role() RETURNS text LANGUAGE sql STABLE AS $$
+  SELECT coalesce(nullif(current_setting('request.jwt.claim.role',true),''),'authenticated');
+$$;
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
 GRANT USAGE ON SCHEMA public,auth TO anon,authenticated,service_role;
 GRANT ALL ON ALL TABLES IN SCHEMA auth TO anon,authenticated,service_role;
 '@ -Connection $conn
@@ -599,6 +607,10 @@ $$;
 CREATE FUNCTION auth.jwt() RETURNS jsonb LANGUAGE sql STABLE AS $$
   SELECT coalesce(nullif(current_setting('request.jwt.claims',true),'')::jsonb,'{}'::jsonb);
 $$;
+CREATE FUNCTION auth.role() RETURNS text LANGUAGE sql STABLE AS $$
+  SELECT coalesce(nullif(current_setting('request.jwt.claim.role',true),''),'authenticated');
+$$;
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
 GRANT USAGE ON SCHEMA public,auth TO anon,authenticated,service_role;
 GRANT ALL ON ALL TABLES IN SCHEMA auth TO anon,authenticated,service_role;
 '@ -Connection $conn
@@ -606,7 +618,6 @@ GRANT ALL ON ALL TABLES IN SCHEMA auth TO anon,authenticated,service_role;
                 Invoke-Sql 'profile_privacy.sql' -File (Join-Path $repoRoot 'supabase/migrations/202610080001_profile_privacy.sql') -Connection $conn
                 Invoke-Sql 'profile_preferences.sql' -File (Join-Path $repoRoot 'supabase/migrations/202610190001_profile_preferences.sql') -Connection $conn
                 Invoke-Sql 'two_role_foundation.sql' -File (Join-Path $repoRoot 'supabase/migrations/20261020145005_two_role_foundation.sql') -Connection $conn
-
                 # Draft migrations
                 Invoke-Sql 'admin_discovery_drafts.sql' -File (Join-Path $repoRoot 'supabase/migrations/20261020151440_admin_discovery_drafts.sql') -Connection $conn
                 $draftCommandsMigration = Get-ChildItem -Path (Join-Path $repoRoot 'supabase/migrations') -Filter '*_admin_discovery_commands.sql' -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -620,8 +631,17 @@ GRANT ALL ON ALL TABLES IN SCHEMA auth TO anon,authenticated,service_role;
                     Invoke-Sql 'discovery_publication_v2 migration' -File $pubMigration.FullName -Connection $conn
                 }
 
+                $tripIdsMigration = Get-ChildItem -Path (Join-Path $repoRoot 'supabase/migrations') -Filter '*_manual_dynamic_destination_ids.sql' -ErrorAction SilentlyContinue | Select-Object -First 1
+                if ($tripIdsMigration) {
+                    Invoke-Sql 'manual_dynamic_destination_ids migration' -File $tripIdsMigration.FullName -Connection $conn
+                }
+
                 if (Test-Path (Join-Path $repoRoot 'supabase/tests/discovery_publication.sql')) {
                     Invoke-Sql 'discovery_publication.sql' -File (Join-Path $repoRoot 'supabase/tests/discovery_publication.sql') -Connection $conn
+                }
+
+                if (Test-Path (Join-Path $repoRoot 'supabase/tests/manual_dynamic_destination.sql')) {
+                    Invoke-Sql 'manual_dynamic_destination.sql' -File (Join-Path $repoRoot 'supabase/tests/manual_dynamic_destination.sql') -Connection $conn
                 }
             } finally {
                 Stop-PostgresInstance
