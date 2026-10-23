@@ -1,19 +1,85 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../../core/presentation/travel_image.dart';
+import '../../../../core/presentation/travel_media.dart';
 import '../../models/catalogue_reference.dart';
+import '../../providers/place_visit_details_provider.dart';
+import '../widgets/place_visit_details_widget.dart';
 import '../../../trip_planner/providers/trip_provider.dart';
 import '../../../trip_planner/presentation/screens/home_planner_screen.dart';
 import '../../../trip_planner/presentation/widgets/planner_workspace_actions.dart';
 
-class DestinationDetailScreen extends StatelessWidget {
+class DestinationDetailScreen extends StatefulWidget {
   final CatalogueReference catalogue;
   final DestinationReference destination;
+  final PlaceVisitDetailsProvider? visitProvider;
   const DestinationDetailScreen({
     super.key,
     required this.catalogue,
     required this.destination,
+    this.visitProvider,
   });
+  @override
+  State<DestinationDetailScreen> createState() =>
+      _DestinationDetailScreenState();
+}
+
+class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
+  CatalogueReference get catalogue => widget.catalogue;
+  DestinationReference get destination => widget.destination;
+  PlaceVisitDetailsProvider? get visitProvider => widget.visitProvider;
+
+  @override
+  void initState() {
+    super.initState();
+    visitProvider?.addListener(_visitChanged);
+    _scheduleVisitLoad();
+  }
+
+  void _scheduleVisitLoad() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && visitProvider != null) {
+        unawaited(visitProvider!.load(catalogue));
+      }
+    });
+  }
+
+  void _visitChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void didUpdateWidget(DestinationDetailScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.visitProvider != visitProvider) {
+      oldWidget.visitProvider?.removeListener(_visitChanged);
+      visitProvider?.addListener(_visitChanged);
+    }
+    if (oldWidget.visitProvider != visitProvider ||
+        oldWidget.catalogue != catalogue) {
+      _scheduleVisitLoad();
+    }
+  }
+
+  @override
+  void dispose() {
+    visitProvider?.removeListener(_visitChanged);
+    super.dispose();
+  }
+
+  void _refreshVisit() {
+    final visits = visitProvider;
+    if (visits == null) return;
+    unawaited(
+      visits.snapshot == null
+          ? visits.load(catalogue)
+          : visits.refresh(force: true),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final trip = context.watch<TripProvider>();
@@ -24,15 +90,58 @@ class DestinationDetailScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            TravelImage(
+              media: TravelMediaCatalog.fromPublished(
+                    imageUrl: destination.imageUrl,
+                    rights: destination.imageRights,
+                    caption: destination.name,
+                  ) ??
+                  TravelMediaCatalog.forDestination(destination.id),
+              semanticLabel: 'Ảnh ${destination.name}',
+              height: 200,
+            ),
+            const SizedBox(height: 16),
+            if (destination.description != null && destination.description!.isNotEmpty) ...[
+              Text(
+                destination.description!,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 8),
+            ],
             Text(
               '${destination.region} · Danh mục tham khảo',
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 8),
-            const Text(
-              'Tên và nguồn địa điểm để bạn tìm hiểu. Giá, giờ mở cửa, thời lượng và vị trí chính xác: Chưa xác minh.',
-            ),
+            if (visitProvider == null)
+              const Text(
+                'Tên và nguồn địa điểm để bạn tìm hiểu. Giá, giờ mở cửa, thời lượng và vị trí chính xác: Chưa xác minh.',
+              )
+            else ...[
+              const Text(
+                'Giá, giờ và điều kiện được ghi theo nguồn của từng địa điểm. Thời lượng và vị trí chính xác: Chưa xác minh.',
+              ),
+              const SizedBox(height: 8),
+              VisitCatalogueStatus(
+                snapshot: visitProvider!.snapshot,
+                isRefreshing:
+                    visitProvider!.isLoading || visitProvider!.isRefreshing,
+                errorCode: visitProvider!.errorCode,
+                onRefresh: _refreshVisit,
+              ),
+            ],
             const SizedBox(height: 16),
+            OutlinedButton.icon(
+              onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'AI chưa khả dụng. Bạn có thể xem nguồn địa điểm và tự chuẩn bị chuyến đi.',
+                  ),
+                ),
+              ),
+              icon: const Icon(Icons.help_outline),
+              label: const Text('Trợ giúp AI'),
+            ),
             if (!destination.sample.canPreview)
               const Text(
                 'Ví dụ đang được rà soát',
@@ -45,10 +154,20 @@ class DestinationDetailScreen extends StatelessWidget {
               ),
             const SizedBox(height: 16),
             for (final place in destination.places)
-              _PlaceSource(
-                place: place,
-                source: catalogue.source(place.sourceId),
-              ),
+              if (visitProvider == null)
+                _PlaceSource(
+                  place: place,
+                  source: catalogue.source(place.sourceId),
+                )
+              else
+                PlaceVisitDetailsWidget(
+                  key: ValueKey('visit-place-${place.id}'),
+                  place: place,
+                  referenceSource: catalogue.source(place.sourceId),
+                  details: visitProvider!.snapshot?.catalogue.places[place.id],
+                  snapshot: visitProvider!.snapshot,
+                  showReleaseInfo: false,
+                ),
           ],
         ),
       ),

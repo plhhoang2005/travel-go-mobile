@@ -1,191 +1,188 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import '../../../../core/theme/app_theme.dart';
+
 import '../../../auth/presentation/screens/login_screen.dart';
 import '../../../auth/providers/auth_provider.dart';
+import '../../../explore/providers/discovery_provider.dart';
 import '../../providers/favorites_provider.dart';
 
 class FavoritesScreen extends StatelessWidget {
   const FavoritesScreen({super.key});
-
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final favorites = context.watch<FavoritesProvider>();
-    final isGuest = auth.isGuest || auth.currentUser == null;
-    final currencyFmt = NumberFormat.currency(locale: 'vi_VN', symbol: '₫', decimalDigits: 0);
-
+    final discovery = context.watch<DiscoveryProvider?>();
+    final catalogue = discovery?.catalogue;
+    final guest = auth.isGuest || auth.currentUser == null;
+    // A stale provider response must not render another account's items.
+    final owner = guest ? null : auth.currentUser!.id;
+    final items = favorites.items
+        .where(
+          (item) => owner == null
+              ? item.userId.isEmpty || item.userId == 'guest'
+              : item.userId == owner,
+        )
+        .toList();
+    final theme = Theme.of(context);
+    final money = NumberFormat.currency(
+      locale: 'vi_VN',
+      symbol: '₫',
+      decimalDigits: 0,
+    );
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        title: const Text(
-          'Danh Sách Yêu Thích',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: Colors.white,
-        elevation: 0,
-      ),
-      body: favorites.items.isEmpty
-          ? Center(
-              child: Padding(
-                padding: const EdgeInsets.all(32.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      width: 80,
-                      height: 80,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFFFEE2E2),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(Icons.favorite_border_rounded, size: 40, color: Color(0xFFEF4444)),
-                    ),
-                    const SizedBox(height: 18),
-                    const Text(
-                      'Chưa có mục yêu thích nào',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppTheme.slate800),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Lưu lại các khách sạn, tour du lịch hoặc điểm đến bạn quan tâm để dễ dàng so sánh và đặt chỗ sau này.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 13, color: AppTheme.slate500, height: 1.5),
-                    ),
-                    const SizedBox(height: 24),
-                    if (isGuest) ...[
-                      FilledButton.icon(
-                        onPressed: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(builder: (_) => const LoginScreen()),
-                          );
-                        },
-                        icon: const Icon(Icons.login_rounded, size: 18),
-                        label: const Text('Đăng nhập để đồng bộ mục yêu thích'),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFF086C61),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                    ],
-                    OutlinedButton.icon(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Hãy khám phá các khách sạn và tour trên Trang chủ để lưu yêu thích!'),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
-                      },
-                      icon: const Icon(Icons.explore_rounded, size: 18),
-                      label: const Text('Khám phá ngay'),
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Color(0xFF0F172A)),
-                        foregroundColor: const Color(0xFF0F172A),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
-                    ),
-                  ],
+      appBar: AppBar(title: const Text('Danh Sách Yêu Thích')),
+      body: SafeArea(
+        child: favorites.isLoading
+            ? const Center(
+                child: CircularProgressIndicator(
+                  semanticsLabel: 'Đang tải mục yêu thích',
                 ),
-              ),
-            )
-          : ListView.separated(
-              padding: const EdgeInsets.all(16),
-              itemCount: favorites.items.length,
-              separatorBuilder: (context, index) => const SizedBox(height: 12),
-              itemBuilder: (context, index) {
-                final item = favorites.items[index];
-                return Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.04),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
+              )
+            : items.isEmpty
+            ? Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.favorite_border,
+                        size: 48,
+                        color: theme.colorScheme.primary,
                       ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Chưa có mục yêu thích nào',
+                        style: theme.textTheme.titleLarge,
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Các mục bạn lưu sẽ xuất hiện ở đây để dễ xem lại.',
+                        textAlign: TextAlign.center,
+                      ),
+                      if (guest) ...[
+                        const SizedBox(height: 24),
+                        FilledButton.icon(
+                          onPressed: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const LoginScreen(),
+                            ),
+                          ),
+                          icon: const Icon(Icons.login),
+                          label: const Text('Đăng nhập'),
+                        ),
+                      ],
                     ],
                   ),
-                  child: Row(
+                ),
+              )
+            : ListView.separated(
+                padding: const EdgeInsets.all(16),
+                itemCount: items.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 24),
+                itemBuilder: (context, index) {
+                  final item = items[index];
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      ClipRRect(
-                        borderRadius: const BorderRadius.horizontal(left: Radius.circular(16)),
-                        child: Container(
-                          width: 100,
-                          height: 100,
-                          color: const Color(0xFFE2E8F0),
-                          child: item.imageUrl != null && item.imageUrl!.isNotEmpty
-                              ? Image.network(
-                                  item.imageUrl!,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) =>
-                                      const Icon(Icons.hotel_rounded, size: 36, color: Color(0xFF94A3B8)),
-                                )
-                              : const Icon(Icons.hotel_rounded, size: 36, color: Color(0xFF94A3B8)),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                item.title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF0F172A)),
-                              ),
-                              const SizedBox(height: 4),
-                              Row(
-                                children: [
-                                  const Icon(Icons.location_on_rounded, size: 14, color: Color(0xFF64748B)),
-                                  const SizedBox(width: 4),
-                                  Expanded(
-                                    child: Text(
-                                      item.location ?? 'Việt Nam',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                      if (item.imageUrl?.isNotEmpty == true) ...[
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: Semantics(
+                            image: true,
+                            label: 'Ảnh đã lưu: ${item.title}',
+                            child: ExcludeSemantics(
+                              child: Image.network(
+                                item.imageUrl!,
+                                height: 160,
+                                width: double.infinity,
+                                fit: BoxFit.cover,
+                                loadingBuilder: (_, child, progress) =>
+                                    progress == null
+                                    ? child
+                                    : const SizedBox(
+                                        height: 160,
+                                        child: Center(
+                                          child: Text('Đang tải ảnh'),
+                                        ),
+                                      ),
+                                errorBuilder: (_, _, _) => ColoredBox(
+                                  color:
+                                      theme.colorScheme.surfaceContainerHighest,
+                                  child: const SizedBox(
+                                    height: 160,
+                                    child: Center(
+                                      child: Text('Ảnh chưa tải được'),
                                     ),
                                   ),
-                                ],
+                                ),
                               ),
-                              const SizedBox(height: 6),
-                              Row(
-                                children: [
-                                  const Icon(Icons.star_rounded, size: 15, color: Color(0xFFF59E0B)),
-                                  const SizedBox(width: 2),
-                                  Text(
-                                    item.rating.toStringAsFixed(1),
-                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
-                                  ),
-                                  const Spacer(),
-                                  if (item.price > 0)
-                                    Text(
-                                      currencyFmt.format(item.price),
-                                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF086C61)),
-                                    ),
-                                ],
-                              ),
-                            ],
+                            ),
                           ),
                         ),
+                        const SizedBox(height: 12),
+                      ],
+                      Text(item.title, style: theme.textTheme.titleLarge),
+                      if ((item.itemType == 'destination' || item.itemType == 'place') &&
+                          catalogue != null &&
+                          !(item.itemType == 'destination'
+                              ? catalogue.destinations.any((d) => d.id == item.itemId)
+                              : catalogue.destinations.any((d) => d.places.any((p) => p.id == item.itemId)))) ...[
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.errorContainer,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            'Mục không còn trong danh mục phát hành',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: theme.colorScheme.onErrorContainer,
+                            ),
+                          ),
+                        ),
+                      ],
+                      if (item.location?.isNotEmpty == true)
+                        Text(item.location!),
+                      // Existing records have a default rating without review provenance.
+                      // Do not turn that default into a published customer score.
+                      if (item.price > 0)
+                        Text('Giá đã lưu: ${money.format(item.price)}'),
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton.icon(
+                          onPressed: () async {
+                            final epoch = auth.authEpoch;
+                            final ok = await favorites.toggleFavorite(item);
+                            if (!context.mounted ||
+                                epoch != auth.authEpoch ||
+                                auth.currentUser?.id != owner) {
+                              return;
+                            }
+                            if (!ok) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Chưa bỏ được mục yêu thích. Vui lòng thử lại.',
+                                  ),
+                                ),
+                              );
+                            }
+                          },
+                          icon: const Icon(Icons.favorite),
+                          label: const Text('Bỏ yêu thích'),
+                        ),
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.favorite_rounded, color: Color(0xFFEF4444)),
-                        onPressed: () => favorites.toggleFavorite(item),
-                      ),
-                      const SizedBox(width: 4),
                     ],
-                  ),
-                );
-              },
-            ),
+                  );
+                },
+              ),
+      ),
     );
   }
 }
