@@ -1,6 +1,6 @@
 # TravelGO — Thiết kế khu quản trị Flutter và xuất bản danh mục
 
-Ngày: 23/10/2026, Asia/Saigon. Trạng thái: **SPEC PROPOSED — chờ owner review bản viết; chưa phải kế hoạch thực thi đã duyệt.**
+Ngày: 23/10/2026, Asia/Saigon. Trạng thái: **SPEC APPROVED FOR PLANNING — owner đã duyệt bản viết; implementation plans và cách thực thi còn chờ review.**
 
 ## 1. Yêu cầu đã chốt và kết quả cần đạt
 
@@ -10,7 +10,7 @@ Owner yêu cầu quản lý người dùng, khóa/mở tài khoản, cấp quy�
 
 Giữ hai role `customer`/`admin`. Guest là trạng thái chưa đăng nhập. Giữ Flutter, Provider, Dio, Material/AppTheme, SQLite, Supabase; chưa đề xuất dependency hay native permission mới. Không thêm booking/payment, social, quota AI hoặc thuật toán quyết định.
 
-Các quyết định dưới đây là đề xuất cụ thể để owner review, không được coi đã triển khai hoặc đã được cấp quyền deploy. Không hỏi lại phương án A hay thứ tự nghiệp vụ đã thống nhất.
+Các quyết định dưới đây đã được owner duyệt làm cơ sở lập kế hoạch, không được coi đã triển khai hoặc đã được cấp quyền deploy. Không hỏi lại phương án A hay thứ tự nghiệp vụ đã thống nhất. Approval ngày 23/10/2026: “duyệt bản thiết kế này để mình viết kế hoạch triển khai cụ thể theo file, API và test”.
 
 Checklist Superpowers cho lượt thiết kế:
 
@@ -19,8 +19,9 @@ Checklist Superpowers cho lượt thiết kế:
 - [x] So sánh hướng kỹ thuật, chọn đề xuất phù hợp code hiện tại.
 - [x] Viết thiết kế toàn hệ thống và ranh giới các phần có thể lập kế hoạch riêng.
 - [x] Tự review nội dung, nhất quán contract và các trường hợp lỗi.
-- [ ] Owner review và duyệt bản spec này.
-- [ ] Sau duyệt spec: dùng writing-plans viết các implementation plan; owner chọn cách thực thi và duyệt trước code.
+- [x] Owner review và duyệt bản spec này.
+- [x] Sau duyệt spec: dùng writing-plans viết ba implementation plan theo file, API, constraint và test.
+- [ ] Owner review kế hoạch, duyệt budget/file exception và chọn cách thực thi trước code.
 
 ## 2. Baseline đã đọc và giới hạn bằng chứng
 
@@ -276,15 +277,15 @@ Rủi ro chính đã có phương án: stale JWT → server access/session guard
 
 ## 11. Review và bước tiếp theo
 
-Owner review spec này, đặc biệt: admin được quản lý tài khoản khác nhưng không tự thay quyền; unlock cần fresh login; dashboard không đo online; V2 metadata có thể publish với operational unknown; điểm mới manual được nhưng AI/engine không tự mở rộng.
+Owner đã duyệt spec này, bao gồm các quyết định: admin được quản lý tài khoản khác nhưng không tự thay quyền; unlock cần fresh login; dashboard không đo online; V2 metadata có thể publish với operational unknown; điểm mới manual được nhưng AI/engine không tự mở rộng. Không hỏi lại approval thiết kế; kế hoạch cụ thể/cách thực thi là gate kế tiếp.
 
-Sau owner duyệt bản viết, dùng **superpowers:writing-plans** để lập kế hoạch cụ thể theo ba phần ở mục 8: tên file exact, contract/signatures, regression tests, bước TDD, lệnh verification, dependency order, file/tool budget và deployment packets. Owner review kế hoạch và chọn native hoặc subagent-driven trước implementation; không coi lựa chọn Superpowers hiện tại là yêu cầu tự chạy nhiều agent.
+Đã dùng **superpowers:writing-plans** lập ba kế hoạch: [Account control](../plans/2026-10-23-admin-account-control.md), [Flutter admin UI](../plans/2026-10-23-flutter-admin-ui.md), [Publication V2 và app khách](../plans/2026-10-23-discovery-publication-v2.md). Các file chứa contracts, constraint matrices, TDD, verification, dependency order, file/tool budgets và rollout gates. Owner review kế hoạch và chọn native hoặc subagent-driven trước implementation; không coi lựa chọn Superpowers hiện tại là yêu cầu tự chạy nhiều agent.
 
 Nguồn nội bộ đã đối chiếu: `AGENTS.md`; `.agent/rules.md`; `.agent/workflow.md`; `docs/phase-3/ADMIN_DISCOVERY_IMPLEMENTATION_PLAN_20261020.md`; `docs/phase-3/DISCOVERY_PUBLISH_RUNBOOK.md`; source Auth/Profile/Discovery/Home/Trips/AI và helper verification nêu trong mục 2/8.
 
 Tài liệu Supabase đã đọc khi thiết kế: [Admin updateUserById](https://supabase.com/docs/reference/javascript/auth-admin-updateuserbyid), [Admin listUsers](https://supabase.com/docs/reference/javascript/auth-admin-listusers), [Admin signOut](https://supabase.com/docs/reference/javascript/auth-admin-signout), [sessions](https://supabase.com/docs/guides/auth/sessions), [Storage standard uploads](https://supabase.com/docs/guides/storage/uploads/standard-uploads), [changelog](https://supabase.com/changelog). Changelog markdown bị công cụ từ chối content-type ở lượt trước; HTML fallback đã đọc, không coi fetch markdown lỗi là đã scan markdown thành công.
 
-### Handover của lượt thiết kế
+### Handover của lượt thiết kế (lịch sử trước approval)
 
 - **Changed:** thêm một spec; chưa sửa code/config/schema/live data.
 - **Why:** chuyển scope A thành thiết kế có server authority và public snapshot nhất quán; tránh UI có nút nhưng không có hiệu lực backend/app khách.
