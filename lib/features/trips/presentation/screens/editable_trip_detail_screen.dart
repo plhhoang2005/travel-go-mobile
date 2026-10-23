@@ -1,9 +1,15 @@
 import 'package:flutter/material.dart';
+
+import '../../../../core/presentation/travel_image.dart';
+import '../../../../core/presentation/travel_media.dart';
+
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../main.dart';
 import '../../../auth/providers/auth_provider.dart';
+import '../../../explore/models/public_catalogue_snapshot.dart';
+import '../../../explore/providers/public_catalogue_provider.dart';
 import '../../../explore/models/catalogue_reference.dart' as catalogue;
 import '../../../explore/services/catalogue_repository.dart';
 import '../../../trip_planner/models/editable_trip_document.dart';
@@ -170,7 +176,15 @@ class _EditableTripDetailScreenState extends State<EditableTripDetailScreen> {
     }
     setState(() => _busy = true);
     try {
-      final catalogue = await CatalogueRepository().load();
+      PublicCatalogueSnapshot? snapshot;
+      try {
+        final pub = Provider.of<PublicCatalogueProvider>(context, listen: false);
+        if (pub.snapshot == null) await pub.load();
+        snapshot = pub.snapshot;
+      } catch (_) {}
+      final catalogue = snapshot != null
+          ? snapshot.catalogue
+          : await CatalogueRepository().load();
       if (!mounted ||
           !_current ||
           !await confirmManualReplacement(
@@ -188,6 +202,7 @@ class _EditableTripDetailScreenState extends State<EditableTripDetailScreen> {
           builder: (_) => ManualPlannerScreen(
             planner: bundle.planner,
             destinations: catalogue.destinations,
+            snapshot: snapshot,
             enableBudget: true,
           ),
         ),
@@ -412,10 +427,30 @@ class _SavedDocumentState extends State<_SavedDocument> {
         }
         for (final item in items) {
           rows.add(
-            () => ListTile(
-              title: Text(item.title),
-              subtitle: Text(
-                '${_time(item.startMinute)} – ${_time(item.endMinute)}\n${item.notes}',
+            () => Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (TravelMediaCatalog.forPlace(item.placeId)
+                      case final media?) ...[
+                    TravelImage(
+                      media: media,
+                      semanticLabel: media.caption,
+                      height: 160,
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                  Text(
+                    '${_time(item.startMinute)} – ${_time(item.endMinute)}',
+                    style: Theme.of(context).textTheme.labelLarge,
+                  ),
+                  Text(
+                    item.title,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  if (item.notes.isNotEmpty) Text(item.notes),
+                ],
               ),
             ),
           );
@@ -431,12 +466,7 @@ class _SavedDocumentState extends State<_SavedDocument> {
                   : e.description,
             ),
             subtitle: Text(
-              '${manualExpenseCategories[e.category]} · ${manualExpenseBases[e.basis]} · ${BudgetCalculator.multiplier(e, doc)} đơn vị\n${e.active ? 'Đang tính' : 'Ngừng tính'}',
-            ),
-            trailing: Text(
-              e.unitAmountVnd == null
-                  ? 'Chưa biết giá'
-                  : manualMoney(e.unitAmountVnd!),
+              '${manualExpenseCategories[e.category]} · ${manualExpenseBases[e.basis]} · ${BudgetCalculator.multiplier(e, doc)} đơn vị\n${e.active ? 'Đang tính' : 'Ngừng tính'}\n${e.unitAmountVnd == null ? 'Chưa biết giá' : manualMoney(e.unitAmountVnd!)}',
             ),
           ),
         );
@@ -451,9 +481,8 @@ class _SavedDocumentState extends State<_SavedDocument> {
                   : e.description,
             ),
             subtitle: Text(
-              '${e.paidOn} · ${manualExpenseCategories[e.category]}\n${e.itemId == null ? 'Không gắn hoạt động' : e.sourceItemSnapshot?.title ?? 'Có hoạt động liên quan'}',
+              '${e.paidOn} · ${manualExpenseCategories[e.category]}\n${e.itemId == null ? 'Không gắn hoạt động' : e.sourceItemSnapshot?.title ?? 'Có hoạt động liên quan'}\n${manualMoney(e.amountVnd)}',
             ),
-            trailing: Text(manualMoney(e.amountVnd)),
           ),
         );
       }
@@ -474,6 +503,15 @@ class _SavedDocumentState extends State<_SavedDocument> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                if (TravelMediaCatalog.forDestination(doc.input.destinationId)
+                    case final media?) ...[
+                  TravelImage(
+                    media: media,
+                    semanticLabel: media.caption,
+                    height: 180,
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 Text(
                   doc.input.title,
                   style: Theme.of(context).textTheme.headlineSmall,
@@ -555,6 +593,7 @@ class _LegacyTripCopyScreenState extends State<LegacyTripCopyScreen> {
   ManualPlannerResources? _resources;
   AccountSessionProof? _proof;
   catalogue.CatalogueReference? _catalogue;
+  PublicCatalogueSnapshot? _snapshot;
   LegacyCopyPreview? _preview;
   String? _destination, _error;
   final _inputFields = <String, TextEditingController>{
@@ -632,13 +671,22 @@ class _LegacyTripCopyScreenState extends State<LegacyTripCopyScreen> {
       if (!_current) return;
       final proof = bundle.repository.lifecycle.captureProof();
       if (proof.ownerId != widget.snapshot.ownerId) return;
-      final catalog = await CatalogueRepository().load();
+      PublicCatalogueSnapshot? snapshot;
+      try {
+        final pub = Provider.of<PublicCatalogueProvider>(context, listen: false);
+        if (pub.snapshot == null) await pub.load();
+        snapshot = pub.snapshot;
+      } catch (_) {}
+      final catalog = snapshot != null
+          ? snapshot.catalogue
+          : await CatalogueRepository().load();
       if (!_current || !bundle.repository.lifecycle.isCurrentProof(proof)) {
         return;
       }
       setState(() {
         _resources = bundle;
         _proof = proof;
+        _snapshot = snapshot;
         _catalogue = catalog;
         _makePreview();
       });
@@ -707,6 +755,7 @@ class _LegacyTripCopyScreenState extends State<LegacyTripCopyScreen> {
           builder: (_) => ManualPlannerScreen(
             planner: bundle.planner,
             destinations: _catalogue!.destinations,
+            snapshot: _snapshot,
             enableBudget: true,
           ),
         ),

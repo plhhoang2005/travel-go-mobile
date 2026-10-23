@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 
 import '../../../../main.dart';
 import '../../../auth/providers/auth_provider.dart';
+import '../../../explore/models/public_catalogue_snapshot.dart';
+import '../../../explore/providers/public_catalogue_provider.dart';
 import '../../../explore/services/catalogue_repository.dart';
 import '../../../trip_planner/presentation/screens/manual_planner_screen.dart';
 import '../../../trip_planner/presentation/widgets/manual_expense_form.dart';
@@ -503,7 +505,15 @@ class _EditableGuestDraftListState extends State<EditableGuestDraftList> {
           latest?.contentDigest != source.contentDigest) {
         throw StateError('Draft changed');
       }
-      final catalogue = await CatalogueRepository().load();
+      PublicCatalogueSnapshot? snapshot;
+      try {
+        final pub = Provider.of<PublicCatalogueProvider>(context, listen: false);
+        if (pub.snapshot == null) await pub.load();
+        snapshot = pub.snapshot;
+      } catch (_) {}
+      final catalogue = snapshot != null
+          ? snapshot.catalogue
+          : await CatalogueRepository().load();
       if (!mounted ||
           !_current ||
           !await confirmManualReplacement(
@@ -523,6 +533,7 @@ class _EditableGuestDraftListState extends State<EditableGuestDraftList> {
           builder: (_) => ManualPlannerScreen(
             planner: bundle.planner,
             destinations: catalogue.destinations,
+            snapshot: snapshot,
             enableBudget: true,
           ),
         ),

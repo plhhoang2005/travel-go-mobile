@@ -43,18 +43,34 @@ class ManualPlaceLocations {
     if (snapshot != null) {
       for (final destination in snapshot.catalogue.destinations) {
         for (final place in destination.places) {
-          if (place.id == id && place.latitude != null && place.longitude != null) {
-            final sourceUrl = place.sourceRefs.isNotEmpty
-                ? (snapshot.catalogue.source(place.sourceRefs.first).url)
-                : '';
-            final checkedAt = snapshot.manifest.publishedAt.toIso8601String().substring(0, 10);
-            return ManualPlaceLocation(
-              placeId: place.id,
-              position: LatLng(place.latitude!, place.longitude!),
-              sourceUrl: sourceUrl,
-              checkedAt: checkedAt,
-              note: 'Tọa độ tham khảo từ danh mục phát hành; chưa xác minh lối tiếp cận.',
-            );
+          if (place.id == id) {
+            final lat = place.latitude;
+            final lng = place.longitude;
+            if (lat != null &&
+                lng != null &&
+                lat.isFinite &&
+                lng.isFinite &&
+                lat >= -90.0 &&
+                lat <= 90.0 &&
+                lng >= -180.0 &&
+                lng <= 180.0) {
+              String sourceUrl = '';
+              if (place.sourceRefs.isNotEmpty) {
+                try {
+                  sourceUrl = snapshot.catalogue.source(place.sourceRefs.first).url;
+                } catch (_) {}
+              }
+              final checkedAt = snapshot.manifest.publishedAt.toIso8601String().substring(0, 10);
+              return ManualPlaceLocation(
+                placeId: place.id,
+                position: LatLng(lat, lng),
+                sourceUrl: sourceUrl,
+                checkedAt: checkedAt,
+                note: 'Tọa độ tham khảo từ danh mục phát hành; chưa xác minh lối tiếp cận.',
+              );
+            }
+            // Found in snapshot, but coords missing or invalid: do NOT fallback to static reference
+            return null;
           }
         }
       }
