@@ -65,6 +65,7 @@ function Invoke-Sql {
         [string]$File,
         [string]$ExpectedError,
         [string[]]$Connection,
+        [string]$OutputJsonPath,
         [int]$TimeoutMs = 30000
     )
     if ($DryRun) {
@@ -74,6 +75,7 @@ function Invoke-Sql {
             File = $File
             InlineSql = if ($Sql) { $Sql.Trim() } else { $null }
             ExpectedError = $ExpectedError
+            OutputJsonPath = $OutputJsonPath
         } | ConvertTo-Json -Compress
         return
     }
@@ -86,7 +88,11 @@ function Invoke-Sql {
         $isTempFile = $true
     }
 
-    $arguments = $Connection + @('-q', '-f', $sqlFileToRun)
+    $extraFlags = @('-q')
+    if ($OutputJsonPath) {
+        $extraFlags += @('-A', '-t')
+    }
+    $arguments = $Connection + $extraFlags + @('-f', $sqlFileToRun)
     $cmdLine = [string]::Join(' ', ($arguments | ForEach-Object {
         if ($_ -match '[\s"]') {
             '"' + ($_ -replace '(\\*)(")', '$1$1\"' -replace '(\\+)$', '$1$1') + '"'
@@ -143,6 +149,21 @@ function Invoke-Sql {
         }
         if ($combined -match '(?i)\bERROR:') {
             throw "SQL output contains unexpected ERROR: $Label (child exit code $code). Output: $combined. See $sqlLog"
+        }
+        if ($OutputJsonPath) {
+            $trimmed = $stdout.Trim()
+            $jsonCandidate = $trimmed
+            $firstBrace = $trimmed.IndexOf('{')
+            $lastBrace = $trimmed.LastIndexOf('}')
+            if ($firstBrace -ge 0 -and $lastBrace -gt $firstBrace) {
+                $jsonCandidate = $trimmed.Substring($firstBrace, $lastBrace - $firstBrace + 1)
+            }
+            try {
+                $null = $jsonCandidate | ConvertFrom-Json
+                [System.IO.File]::WriteAllText($OutputJsonPath, $jsonCandidate, [System.Text.Encoding]::UTF8)
+            } catch {
+                throw "Invoke-Sql: $Label did not produce valid JSON for $OutputJsonPath. Output: $trimmed"
+            }
         }
     }
     Write-Host "PASS: $Label"
@@ -651,6 +672,31 @@ GRANT ALL ON ALL TABLES IN SCHEMA auth TO anon,authenticated,service_role;
 
                 if (Test-Path (Join-Path $repoRoot 'supabase/tests/manual_dynamic_destination.sql')) {
                     Invoke-Sql 'manual_dynamic_destination.sql' -File (Join-Path $repoRoot 'supabase/tests/manual_dynamic_destination.sql') -Connection $conn
+                }
+
+                $visSql = Join-Path $repoRoot 'supabase/tests/admin_catalogue_visibility.sql'
+                if (Test-Path $visSql) {
+                    $visCasesJson = Join-Path $script:runRoot 'visibility_cases.json'
+                    Invoke-Sql 'admin_catalogue_visibility.sql' -File $visSql -Connection $conn -OutputJsonPath $visCasesJson
+
+                    $visFixtureDir = Join-Path $script:runRoot 'visibility-fixtures'
+                    Invoke-Check 'build_catalogue_visibility_fixtures' $nodeExecutable @(
+                        (Join-Path $repoRoot 'tool/build_catalogue_visibility_fixtures.mjs'),
+                        $visCasesJson,
+                        $visFixtureDir
+                    )
+
+                    $summaryFixtureFile = Join-Path $visFixtureDir 'flow_fixtures.json'
+                    if (-not (Test-Path $summaryFixtureFile)) {
+                        throw "Publication flow summary fixture missing at $summaryFixtureFile"
+                    }
+
+                    Invoke-Check 'admin_catalogue_publish_flow_test' $dartExecutable @(
+                        $flutterSnapshot, '--suppress-analytics', 'test', '--no-pub',
+                        "--dart-define=RUN_CATALOGUE_FLOW_SQL=true",
+                        "--dart-define=TRAVELGO_CATALOGUE_FLOW_FIXTURE=$summaryFixtureFile",
+                        'test/admin_catalogue_publish_flow_test.dart'
+                    )
                 }
             } finally {
                 Stop-PostgresInstance

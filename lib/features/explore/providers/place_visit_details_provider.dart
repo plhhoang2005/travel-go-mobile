@@ -34,7 +34,7 @@ class PlaceVisitDetailsProvider extends ChangeNotifier {
 
   void bindPublicSnapshot(PublicCatalogueSnapshot snapshot) {
     if (_disposed) return;
-    if (_boundToV2 && _snapshot?.catalogue.version == snapshot.version) return;
+    if (_boundToV2 && _snapshot?.catalogue.version == snapshot.version && _snapshot?.sha256 == snapshot.sha256) return;
 
     _boundToV2 = true;
     _boundIds = Set.unmodifiable(

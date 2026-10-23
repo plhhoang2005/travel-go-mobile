@@ -9,6 +9,7 @@ class AdminPlaceForm extends StatefulWidget {
   final List<AdminDestinationDraft> destinations;
   final Future<bool> Function(AdminPlaceDraft draft, String reason) onSubmit;
   final VoidCallback? onCancel;
+  final String? Function()? errorMessageProvider;
 
   const AdminPlaceForm({
     super.key,
@@ -16,6 +17,7 @@ class AdminPlaceForm extends StatefulWidget {
     required this.destinations,
     required this.onSubmit,
     this.onCancel,
+    this.errorMessageProvider,
   });
 
   @override
@@ -124,8 +126,9 @@ class _AdminPlaceFormState extends State<AdminPlaceForm> {
       final success = await widget.onSubmit(draft, reason);
       if (!mounted) return;
       if (!success) {
+        final err = widget.errorMessageProvider?.call();
         setState(() {
-          _serverError = 'Không thể lưu địa điểm. Vui lòng thử lại.';
+          _serverError = err ?? 'Không thể lưu và xuất bản địa điểm. Vui lòng thử lại.';
         });
       }
     } catch (e) {

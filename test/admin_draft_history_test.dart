@@ -8,6 +8,7 @@ import 'package:travelgo_mobile/features/admin/models/admin_catalogue_models.dar
 import 'package:travelgo_mobile/features/admin/presentation/screens/admin_draft_history_screen.dart';
 import 'package:travelgo_mobile/features/admin/providers/admin_catalogue_provider.dart';
 import 'package:travelgo_mobile/features/admin/services/admin_catalogue_service.dart';
+import 'package:travelgo_mobile/features/admin/services/admin_publication_service.dart';
 import 'package:travelgo_mobile/features/auth/models/user_model.dart';
 import 'package:travelgo_mobile/features/auth/providers/auth_provider.dart';
 
@@ -94,19 +95,59 @@ class FakeCatalogueServiceForHistory implements AdminCatalogueService {
   }
 }
 
+class FakePublicationServiceForHistory implements AdminPublicationService {
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+
+  @override
+  Future<PublicationPreview> preview({
+    required String requestId,
+    required int draftRevision,
+  }) async {
+    return PublicationPreview(
+      previewId: 'prev-hist',
+      sourceRevision: draftRevision,
+      expectedActiveVersion: 1,
+      previewDigest: 'digest-hist',
+      summary: const PublicationSummary(added: 0, changed: 0, hidden: 0),
+      warnings: const [],
+      blockers: const [],
+      expiresAt: DateTime.now().add(const Duration(minutes: 10)),
+    );
+  }
+
+  @override
+  Future<PublicationOperation> publish({
+    required String requestId,
+    required PublicationPreview preview,
+    required int expectedDraftRevision,
+    required int expectedActiveVersion,
+  }) async {
+    return PublicationOperation(
+      id: 'op-hist',
+      state: 'completed',
+      version: expectedActiveVersion + 1,
+      sourceRevision: expectedDraftRevision,
+    );
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late FakeCatalogueServiceForHistory fakeService;
+  late FakePublicationServiceForHistory fakePubService;
   late AuthProvider authProvider;
   late AdminCatalogueProvider provider;
 
   setUp(() async {
     fakeService = FakeCatalogueServiceForHistory();
+    fakePubService = FakePublicationServiceForHistory();
     authProvider = AuthProvider();
     await authProvider.quickDemoLogin(UserRole.admin);
     provider = AdminCatalogueProvider(
       service: fakeService,
+      publicationService: fakePubService,
       authProvider: authProvider,
     );
     await provider.load();

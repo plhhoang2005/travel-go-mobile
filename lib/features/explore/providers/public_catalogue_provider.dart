@@ -73,7 +73,12 @@ class PublicCatalogueProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> onResume() => refresh(force: false);
+  Future<void> initialize() async {
+    await load();
+    await refresh(force: true);
+  }
+
+  Future<void> onResume() => refresh(force: true);
 
   @override
   void dispose() {

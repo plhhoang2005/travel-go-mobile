@@ -46,6 +46,7 @@ class _AdminCatalogueScreenState extends State<AdminCatalogueScreen>
       MaterialPageRoute(
         builder: (routeCtx) => AdminDestinationForm(
           initial: initial,
+          errorMessageProvider: () => provider.lastErrorMessage,
           onSubmit: (draft, reason) async {
             final ok = await provider.submitDestination(draft, reason);
             if (ok && routeCtx.mounted) {
@@ -66,6 +67,7 @@ class _AdminCatalogueScreenState extends State<AdminCatalogueScreen>
         builder: (routeCtx) => AdminPlaceForm(
           initial: initial,
           destinations: destinations,
+          errorMessageProvider: () => provider.lastErrorMessage,
           onSubmit: (draft, reason) async {
             final ok = await provider.submitPlace(draft, reason);
             if (ok && routeCtx.mounted) {
@@ -130,7 +132,17 @@ class _AdminCatalogueScreenState extends State<AdminCatalogueScreen>
     );
 
     if (confirmed == true && destination.id != null) {
-      await provider.archiveDestination(destination.id!, reasonController.text.trim());
+      final ok = await provider.archiveDestination(destination.id!, reasonController.text.trim());
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(ok
+                ? 'Đã ẩn và xuất bản thành công.'
+                : (provider.lastErrorMessage ?? 'Lỗi khi ẩn điểm đến.')),
+            backgroundColor: ok ? Colors.green : Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -180,7 +192,17 @@ class _AdminCatalogueScreenState extends State<AdminCatalogueScreen>
     );
 
     if (confirmed == true && place.id != null) {
-      await provider.archivePlace(place.id!, reasonController.text.trim());
+      final ok = await provider.archivePlace(place.id!, reasonController.text.trim());
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(ok
+                ? 'Đã ẩn và xuất bản thành công.'
+                : (provider.lastErrorMessage ?? 'Lỗi khi ẩn địa điểm.')),
+            backgroundColor: ok ? Colors.green : Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -258,7 +280,9 @@ class _AdminCatalogueScreenState extends State<AdminCatalogueScreen>
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Lưu nháp không cập nhật danh mục của khách hàng cho đến khi xuất bản.',
+                      provider.isSaving
+                          ? 'Đang lưu và xuất bản danh mục...'
+                          : 'Lưu nháp không cập nhật danh mục của khách hàng cho đến khi xuất bản.',
                       style: theme.textTheme.bodySmall?.copyWith(color: AppTheme.primaryDark),
                       overflow: TextOverflow.ellipsis,
                       maxLines: 2,

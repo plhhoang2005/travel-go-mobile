@@ -138,18 +138,66 @@ export function validateAndProjectPublicBundle({ frozenDraft, version, preparedA
   for (const vp of rawVisitPlaces) {
     const pid = vp.placeId || vp.id;
     if (activePlaceIds.has(pid)) {
-      projectedVisitPlaces.push(vp);
-      if (Array.isArray(vp.sourceRefs)) {
-        for (const s of vp.sourceRefs) referencedSourceIds.add(String(s));
+      // Create copy and normalize unverified defaults without mutating frozenDraft
+      const projectedPlace = { ...vp };
+
+      if (projectedPlace.price) {
+        const pStatus = projectedPlace.price.status;
+        const pEvidence = projectedPlace.price.evidence;
+        if (pStatus === 'unverified' && pEvidence && pEvidence.reviewState === 'unverified') {
+          if (!Array.isArray(pEvidence.conditions)) {
+            projectedPlace.price = {
+              ...projectedPlace.price,
+              evidence: {
+                ...pEvidence,
+                conditions: [],
+              },
+            };
+          }
+        }
       }
-      if (Array.isArray(vp.price?.evidence?.sourceIds)) {
-        for (const s of vp.price.evidence.sourceIds) referencedSourceIds.add(String(s));
+
+      if (projectedPlace.hours) {
+        const hStatus = projectedPlace.hours.status;
+        const hEvidence = projectedPlace.hours.evidence;
+        let newHours = projectedPlace.hours;
+        let hoursChanged = false;
+
+        if (hStatus === 'unverified' && !Array.isArray(newHours.notes)) {
+          newHours = { ...newHours, notes: [] };
+          hoursChanged = true;
+        }
+
+        if (hStatus === 'unverified' && hEvidence && hEvidence.reviewState === 'unverified') {
+          if (!Array.isArray(hEvidence.conditions)) {
+            newHours = {
+              ...newHours,
+              evidence: {
+                ...hEvidence,
+                conditions: [],
+              },
+            };
+            hoursChanged = true;
+          }
+        }
+
+        if (hoursChanged) {
+          projectedPlace.hours = newHours;
+        }
       }
-      if (Array.isArray(vp.hours?.evidence?.sourceIds)) {
-        for (const s of vp.hours.evidence.sourceIds) referencedSourceIds.add(String(s));
+
+      projectedVisitPlaces.push(projectedPlace);
+      if (Array.isArray(projectedPlace.sourceRefs)) {
+        for (const s of projectedPlace.sourceRefs) referencedSourceIds.add(String(s));
       }
-      if (Array.isArray(vp.evidence?.sourceIds)) {
-        for (const s of vp.evidence.sourceIds) referencedSourceIds.add(String(s));
+      if (Array.isArray(projectedPlace.price?.evidence?.sourceIds)) {
+        for (const s of projectedPlace.price.evidence.sourceIds) referencedSourceIds.add(String(s));
+      }
+      if (Array.isArray(projectedPlace.hours?.evidence?.sourceIds)) {
+        for (const s of projectedPlace.hours.evidence.sourceIds) referencedSourceIds.add(String(s));
+      }
+      if (Array.isArray(projectedPlace.evidence?.sourceIds)) {
+        for (const s of projectedPlace.evidence.sourceIds) referencedSourceIds.add(String(s));
       }
     }
   }

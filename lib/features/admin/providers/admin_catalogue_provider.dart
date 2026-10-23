@@ -1,16 +1,28 @@
 // State management for TravelGO catalogue administration and draft editing.
 // Strict RAM-only draft state; validated against A5 command contracts.
+// Auto-chains save draft -> preview -> publish for customer catalogue visibility (D4).
 
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:travelgo_mobile/features/admin/models/admin_account_models.dart';
 import 'package:travelgo_mobile/features/admin/models/admin_catalogue_models.dart';
 import 'package:travelgo_mobile/features/admin/services/admin_catalogue_service.dart';
+import 'package:travelgo_mobile/features/admin/services/admin_publication_service.dart';
 import 'package:travelgo_mobile/features/auth/providers/auth_provider.dart';
+
+enum AdminCatalogueSavePhase {
+  idle,
+  savingDraft,
+  publishing,
+  published,
+  savedNotPublished,
+}
 
 class AdminCatalogueProvider extends ChangeNotifier {
   final AdminCatalogueService service;
+  final AdminPublicationService publicationService;
   final AuthProvider authProvider;
+  final Future<void> Function(PublicationOperation operation)? onPublished;
 
   String? _currentOwnerId;
   String? _currentRole;
@@ -20,13 +32,19 @@ class AdminCatalogueProvider extends ChangeNotifier {
   bool _isLoading = false;
   bool _isSaving = false;
   AdminFailure? _error;
+  String? _lastErrorMessage;
+  AdminCatalogueSavePhase _savePhase = AdminCatalogueSavePhase.idle;
+  int? _savedRevision;
 
   int _loadGeneration = 0;
+  int _mutationGeneration = 0;
   Map<String, dynamic>? _pendingCommandArgs;
 
   AdminCatalogueProvider({
     required this.service,
+    required this.publicationService,
     required this.authProvider,
+    this.onPublished,
   }) {
     _currentOwnerId = authProvider.currentUser?.id;
     _currentRole = authProvider.currentUser?.role.name;
@@ -42,6 +60,9 @@ class AdminCatalogueProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   bool get isSaving => _isSaving;
   AdminFailure? get error => _error;
+  String? get lastErrorMessage => _lastErrorMessage;
+  AdminCatalogueSavePhase get savePhase => _savePhase;
+  int? get savedRevision => _savedRevision;
 
   void _handleAuthChange() {
     final newOwnerId = authProvider.currentUser?.id;
@@ -56,9 +77,13 @@ class AdminCatalogueProvider extends ChangeNotifier {
 
   void invalidate() {
     _loadGeneration++;
+    _mutationGeneration++;
     _snapshot = null;
     _pendingCommandArgs = null;
+    _savedRevision = null;
+    _savePhase = AdminCatalogueSavePhase.idle;
     _error = null;
+    _lastErrorMessage = null;
     _isLoading = false;
     _isSaving = false;
     if (!_disposed) notifyListeners();
@@ -139,49 +164,143 @@ class AdminCatalogueProvider extends ChangeNotifier {
       'command': command,
       'reason': reason,
     };
+    _savedRevision = null;
     return _executePendingCommand();
   }
 
   Future<bool> retrySave() {
-    if (_pendingCommandArgs == null) return Future.value(false);
+    if (_pendingCommandArgs == null && _savedRevision == null) return Future.value(false);
     return _executePendingCommand();
   }
 
   Future<bool> _executePendingCommand() async {
     if (_isSaving) return false;
     final args = _pendingCommandArgs;
-    if (args == null) return false;
+    if (args == null && _savedRevision == null) return false;
 
     _isSaving = true;
     _error = null;
-    notifyListeners();
+    _lastErrorMessage = null;
+    final int gen = ++_mutationGeneration;
 
     try {
-      final updatedSnap = await service.command(
-        requestId: args['requestId'] as String,
-        expectedRevision: args['expectedRevision'] as int,
-        command: args['command'] as Map<String, Object?>,
-        reason: args['reason'] as String,
+      // Step 1: Save draft command (if not already acknowledged in a previous attempt)
+      int targetRevision;
+      if (_savedRevision != null) {
+        targetRevision = _savedRevision!;
+      } else {
+        _savePhase = AdminCatalogueSavePhase.savingDraft;
+        notifyListeners();
+
+        final updatedSnap = await service.command(
+          requestId: args!['requestId'] as String,
+          expectedRevision: args['expectedRevision'] as int,
+          command: args['command'] as Map<String, Object?>,
+          reason: args['reason'] as String,
+        );
+
+        if (gen != _mutationGeneration || _disposed) return false;
+        _snapshot = updatedSnap;
+        _savedRevision = updatedSnap.revision;
+        targetRevision = updatedSnap.revision;
+        // Draft acknowledged by server; clear pending command so retry won't duplicate command
+        _pendingCommandArgs = null;
+      }
+
+      // Step 2: Create Preview for targetRevision
+      _savePhase = AdminCatalogueSavePhase.publishing;
+      notifyListeners();
+
+      final previewReqId = _mintRequestId();
+      final preview = await publicationService.preview(
+        requestId: previewReqId,
+        draftRevision: targetRevision,
       );
 
-      _snapshot = updatedSnap;
-      _pendingCommandArgs = null; // Cleared on successful acknowledgement
-      return true;
+      if (gen != _mutationGeneration || _disposed) return false;
+
+      if (preview.hasBlockers) {
+        _savePhase = AdminCatalogueSavePhase.savedNotPublished;
+        final blockerMsgs = preview.blockers.map((b) => b.message).join('; ');
+        _lastErrorMessage = 'Đã lưu, chưa xuất bản: $blockerMsgs';
+        _error = AdminFailure(code: 'preview_blockers', message: _lastErrorMessage!);
+        return false;
+      }
+
+      if (preview.sourceRevision != targetRevision) {
+        _savePhase = AdminCatalogueSavePhase.savedNotPublished;
+        _lastErrorMessage = 'Đã lưu, chưa xuất bản: revision không khớp';
+        _error = AdminFailure(code: 'revision_mismatch', message: _lastErrorMessage!);
+        return false;
+      }
+
+      // Step 3: Publish
+      final publishReqId = _mintRequestId();
+      final operation = await publicationService.publish(
+        requestId: publishReqId,
+        preview: preview,
+        expectedDraftRevision: targetRevision,
+        expectedActiveVersion: preview.expectedActiveVersion,
+      );
+
+      if (gen != _mutationGeneration || _disposed) return false;
+
+      if (operation.isCompleted && operation.sourceRevision == targetRevision && operation.version != null) {
+        _savePhase = AdminCatalogueSavePhase.published;
+        _savedRevision = null; // Successfully published; clear saved revision
+        _lastErrorMessage = null;
+
+        try {
+          if (onPublished != null) {
+            await onPublished!(operation);
+          }
+        } catch (e) {
+          // Local refresh error must not fail publication that already completed on server
+          _lastErrorMessage = 'Đã lưu và xuất bản, nhưng đồng bộ nội bộ gặp lỗi: $e';
+        }
+        return true;
+      } else {
+        _savePhase = AdminCatalogueSavePhase.savedNotPublished;
+        _lastErrorMessage = 'Đã lưu, xuất bản chưa hoàn tất (${operation.state})';
+        _error = AdminFailure(code: 'publish_not_completed', message: _lastErrorMessage!);
+        return false;
+      }
     } on AdminFailure catch (f) {
+      if (gen != _mutationGeneration || _disposed) return false;
       _error = f;
+      if (_savedRevision != null) {
+        _savePhase = AdminCatalogueSavePhase.savedNotPublished;
+        _lastErrorMessage = 'Đã lưu, chưa xuất bản: ${f.message}';
+      } else {
+        _savePhase = AdminCatalogueSavePhase.idle;
+        _lastErrorMessage = f.message;
+      }
       return false;
     } catch (e) {
-      _error = AdminFailure(code: 'unknown', message: e.toString());
+      if (gen != _mutationGeneration || _disposed) return false;
+      final f = AdminFailure(code: 'unknown', message: e.toString());
+      _error = f;
+      if (_savedRevision != null) {
+        _savePhase = AdminCatalogueSavePhase.savedNotPublished;
+        _lastErrorMessage = 'Đã lưu, chưa xuất bản: ${f.message}';
+      } else {
+        _savePhase = AdminCatalogueSavePhase.idle;
+        _lastErrorMessage = f.message;
+      }
       return false;
     } finally {
-      _isSaving = false;
-      if (!_disposed) notifyListeners();
+      if (gen == _mutationGeneration && !_disposed) {
+        _isSaving = false;
+        notifyListeners();
+      }
     }
   }
 
   @override
   void dispose() {
     _disposed = true;
+    _mutationGeneration++;
+    _loadGeneration++;
     authProvider.removeListener(_handleAuthChange);
     super.dispose();
   }

@@ -8,12 +8,14 @@ class AdminDestinationForm extends StatefulWidget {
   final AdminDestinationDraft? initial;
   final Future<bool> Function(AdminDestinationDraft draft, String reason) onSubmit;
   final VoidCallback? onCancel;
+  final String? Function()? errorMessageProvider;
 
   const AdminDestinationForm({
     super.key,
     this.initial,
     required this.onSubmit,
     this.onCancel,
+    this.errorMessageProvider,
   });
 
   @override
@@ -108,8 +110,9 @@ class _AdminDestinationFormState extends State<AdminDestinationForm> {
       final success = await widget.onSubmit(draft, reason);
       if (!mounted) return;
       if (!success) {
+        final err = widget.errorMessageProvider?.call();
         setState(() {
-          _serverError = 'Không thể lưu điểm đến. Vui lòng thử lại.';
+          _serverError = err ?? 'Không thể lưu và xuất bản điểm đến. Vui lòng thử lại.';
         });
       }
     } catch (e) {

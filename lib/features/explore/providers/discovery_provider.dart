@@ -9,8 +9,13 @@ enum DiscoveryLoadState { loading, ready, error }
 
 class DiscoveryProvider extends ChangeNotifier {
   final CatalogueRepository _repository;
-  DiscoveryProvider({CatalogueRepository? repository})
-    : _repository = repository ?? CatalogueRepository();
+  final Future<PublicCatalogueSnapshot> Function(bool force)? publicSnapshotLoader;
+
+  DiscoveryProvider({
+    CatalogueRepository? repository,
+    this.publicSnapshotLoader,
+  }) : _repository = repository ?? CatalogueRepository();
+
   CatalogueReference? _catalogue;
   DiscoveryLoadState _state = DiscoveryLoadState.loading;
   String _query = '';
@@ -18,17 +23,20 @@ class DiscoveryProvider extends ChangeNotifier {
   int _loadGeneration = 0;
   bool _disposed = false, _started = false;
   int? _version;
+  String? _sha256;
 
   CatalogueReference? get catalogue => _catalogue;
   DiscoveryLoadState get state => _state;
   String get query => _query;
   String? get region => _region;
   int? get version => _version;
+  String? get sha256 => _sha256;
 
   void bindPublicSnapshot(PublicCatalogueSnapshot snapshot) {
     if (_disposed) return;
-    if (_version == snapshot.version && _catalogue != null) return;
+    if (_version == snapshot.version && _sha256 == snapshot.sha256 && _catalogue != null) return;
     _version = snapshot.version;
+    _sha256 = snapshot.sha256;
     _catalogue = snapshot.catalogue;
     _state = DiscoveryLoadState.ready;
     _started = true;
@@ -70,17 +78,37 @@ class DiscoveryProvider extends ChangeNotifier {
     if (_disposed || (_started && !force)) return;
     _started = true;
     final generation = ++_loadGeneration;
-    _state = DiscoveryLoadState.loading;
-    _catalogue = null;
-    notifyListeners();
-    try {
-      final result = await _repository.load();
-      if (_disposed || generation != _loadGeneration) return;
-      _catalogue = result;
-      _state = DiscoveryLoadState.ready;
-    } catch (_) {
-      if (_disposed || generation != _loadGeneration) return;
-      _state = DiscoveryLoadState.error;
+    if (_catalogue == null) {
+      _state = DiscoveryLoadState.loading;
+      notifyListeners();
+    }
+
+    if (publicSnapshotLoader != null) {
+      try {
+        final snapshot = await publicSnapshotLoader!(force);
+        if (_disposed || generation != _loadGeneration) return;
+        _version = snapshot.version;
+        _sha256 = snapshot.sha256;
+        _catalogue = snapshot.catalogue;
+        _state = DiscoveryLoadState.ready;
+      } catch (_) {
+        if (_disposed || generation != _loadGeneration) return;
+        if (_catalogue == null) {
+          _state = DiscoveryLoadState.error;
+        }
+      }
+    } else {
+      try {
+        final result = await _repository.load();
+        if (_disposed || generation != _loadGeneration) return;
+        _catalogue = result;
+        _state = DiscoveryLoadState.ready;
+      } catch (_) {
+        if (_disposed || generation != _loadGeneration) return;
+        if (_catalogue == null) {
+          _state = DiscoveryLoadState.error;
+        }
+      }
     }
     if (!_disposed && generation == _loadGeneration) notifyListeners();
   }

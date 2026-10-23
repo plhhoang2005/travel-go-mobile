@@ -66,6 +66,8 @@ void main() {
       await tester.enterText(find.byKey(const Key('destination_name_field')), 'Đà Nẵng');
       await tester.enterText(find.byKey(const Key('destination_region_field')), 'Miền Trung');
       await tester.enterText(find.byKey(const Key('destination_desc_field')), 'Thành phố biển');
+      await tester.enterText(find.byKey(const Key('destination_region_field')), 'Miền Trung');
+      await tester.enterText(find.byKey(const Key('destination_desc_field')), 'Thành phố biển');
       await tester.enterText(find.byKey(const Key('destination_image_field')), 'not-a-valid-url');
       await tester.ensureVisible(submitBtn);
       await tester.tap(submitBtn);
@@ -183,6 +185,33 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(submitCalls, 1);
+    });
+
+    testWidgets('form displays accurate error message from errorMessageProvider when submit fails', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(400, 1000));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      const errorMessage = 'Đã lưu nháp, chưa xuất bản: validation blocker';
+
+      await tester.pumpWidget(
+        buildApp(
+          AdminDestinationForm(
+            errorMessageProvider: () => errorMessage,
+            onSubmit: (draft, reason) async => false, // Fails publication
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byKey(const Key('destination_name_field')), 'Đà Nẵng');
+      await tester.enterText(find.byKey(const Key('destination_region_field')), 'Miền Trung');
+      await tester.enterText(find.byKey(const Key('destination_desc_field')), 'Thành phố biển');
+      final submitBtn = find.byKey(const Key('destination_submit_button'));
+      await tester.ensureVisible(submitBtn);
+      await tester.tap(submitBtn);
+      await tester.pumpAndSettle();
+
+      expect(find.text(errorMessage), findsOneWidget);
     });
   });
 }

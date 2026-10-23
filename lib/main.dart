@@ -479,7 +479,11 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
               version: 1,
               publishedAt: manifest.publishedAt,
               releaseSha256: manifest.sha256,
-              data: const {},
+              data: const {
+                'sources': <Map<String, Object?>>[],
+                'packages': <Map<String, Object?>>[],
+                'places': <Map<String, Object?>>[],
+              },
               expectedPlaceIds: catalogue.destinations.expand((d) => d.places).map((p) => p.id).toSet(),
               now: DateTime.now(),
             ),
@@ -494,7 +498,7 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
         projectOrigin: SupabaseConstants.projectUrl,
         publishableKey: SupabaseConstants.publishableKey,
       ),
-    )..load();
+    )..initialize();
   }
 
   @override
@@ -612,14 +616,35 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
           initialData: null,
           lazy: false,
         ),
-        ChangeNotifierProvider(create: (_) => HomeCatalogProvider()),
         ChangeNotifierProvider<PublicCatalogueProvider>.value(
           value: _getPublicCatalogueProvider(),
         ),
+        ChangeNotifierProxyProvider<PublicCatalogueProvider, HomeCatalogProvider>(
+          create: (_) => HomeCatalogProvider(),
+          update: (_, publicCat, home) {
+            final h = home ?? HomeCatalogProvider();
+            final snapshot = publicCat.snapshot;
+            if (snapshot != null) {
+              h.bindPublicSnapshot(snapshot);
+            }
+            return h;
+          },
+        ),
         ChangeNotifierProxyProvider<PublicCatalogueProvider, DiscoveryProvider>(
-          create: (_) => DiscoveryProvider(),
+          create: (_) => DiscoveryProvider(
+            publicSnapshotLoader: (force) async {
+              final pub = _getPublicCatalogueProvider();
+              await pub.refresh(force: force);
+              return pub.snapshot ?? await pub.repository.load();
+            },
+          ),
           update: (_, publicCat, discovery) {
-            final d = discovery ?? DiscoveryProvider();
+            final d = discovery ?? DiscoveryProvider(
+              publicSnapshotLoader: (force) async {
+                await publicCat.refresh(force: force);
+                return publicCat.snapshot ?? await publicCat.repository.load();
+              },
+            );
             final snapshot = publicCat.snapshot;
             if (snapshot != null) {
               d.bindPublicSnapshot(snapshot);

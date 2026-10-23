@@ -355,4 +355,126 @@ void main() {
     await visitDetails.refresh(force: true);
     expect(visitDetails.version, 1);
   });
+
+  test('seed_v1_to_remote_v1_different_hash_rebinds_catalogue_and_facts', () async {
+    final discovery = DiscoveryProvider();
+    final visitDetails = PlaceVisitDetailsProvider(
+      now: DateTime.now,
+      repositoryFactory: (_) => throw UnimplementedError(),
+    );
+
+    final seedSnapshot = createSnapshot(
+      version: 1,
+      destinations: [
+        {
+          'id': 'dest-seed',
+          'name': 'Seed Destination',
+          'slug': 'dest-seed',
+          'region': 'Miền Trung',
+          'places': [
+            {
+              'id': 'dest-seed/place-seed',
+              'destinationId': 'dest-seed',
+              'name': 'Seed Place',
+              'slug': 'place-seed',
+              'sourceRefs': ['src-01'],
+            }
+          ],
+        }
+      ],
+      visitPlaces: [
+        {
+          'placeId': 'dest-seed/place-seed',
+          'price': {
+            'status': 'unverified',
+            'options': [],
+            'evidence': {
+              'checkedAt': '2026-10-20',
+              'sourceIds': ['src-01'],
+              'reviewState': 'unverified',
+              'conditions': <String>[],
+              'unresolvedIssues': <String>[],
+            }
+          },
+          'hours': {
+            'status': 'unverified',
+            'rules': [],
+            'notes': <String>[],
+            'evidence': {
+              'checkedAt': '2026-10-20',
+              'sourceIds': ['src-01'],
+              'reviewState': 'unverified',
+              'conditions': <String>[],
+              'unresolvedIssues': <String>[],
+            }
+          },
+        }
+      ],
+    );
+
+    discovery.bindPublicSnapshot(seedSnapshot);
+    visitDetails.bindPublicSnapshot(seedSnapshot);
+
+    expect(discovery.catalogue?.destinations.first.id, 'dest-seed');
+    expect(visitDetails.snapshot?.catalogue.places['dest-seed/place-seed']?.placeId, 'dest-seed/place-seed');
+
+    final remoteSnapshot = createSnapshot(
+      version: 1, // Same version 1, but different content and hash
+      destinations: [
+        {
+          'id': 'dest-remote',
+          'name': 'Remote Destination',
+          'slug': 'dest-remote',
+          'region': 'Miền Bắc',
+          'places': [
+            {
+              'id': 'dest-remote/place-remote',
+              'destinationId': 'dest-remote',
+              'name': 'Remote Place',
+              'slug': 'place-remote',
+              'sourceRefs': ['src-01'],
+            }
+          ],
+        }
+      ],
+      visitPlaces: [
+        {
+          'placeId': 'dest-remote/place-remote',
+          'price': {
+            'status': 'unverified',
+            'options': [],
+            'evidence': {
+              'checkedAt': '2026-10-20',
+              'sourceIds': ['src-01'],
+              'reviewState': 'unverified',
+              'conditions': <String>[],
+              'unresolvedIssues': <String>[],
+            }
+          },
+          'hours': {
+            'status': 'unverified',
+            'rules': [],
+            'notes': <String>[],
+            'evidence': {
+              'checkedAt': '2026-10-20',
+              'sourceIds': ['src-01'],
+              'reviewState': 'unverified',
+              'conditions': <String>[],
+              'unresolvedIssues': <String>[],
+            }
+          },
+        }
+      ],
+    );
+
+    // Hashes must be different
+    expect(seedSnapshot.manifest.sha256 != remoteSnapshot.manifest.sha256, isTrue);
+
+    discovery.bindPublicSnapshot(remoteSnapshot);
+    visitDetails.bindPublicSnapshot(remoteSnapshot);
+
+    // Invariant: Both rebind to new catalogue and facts because sha256 changed
+    expect(discovery.catalogue?.destinations.first.id, 'dest-remote');
+    expect(visitDetails.snapshot?.catalogue.places['dest-remote/place-remote']?.placeId, 'dest-remote/place-remote');
+  });
 }

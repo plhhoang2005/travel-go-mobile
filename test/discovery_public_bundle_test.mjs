@@ -162,3 +162,78 @@ test('hex mapping with padStart(2, "0") produces exact 64-char hash without drop
   assert.equal(hashHex.length, 64, 'Must be exactly 64 hex characters');
   assert.equal(hashHex.slice(0, 8), '00070fff', 'Must preserve leading zeros for bytes < 16');
 });
+
+test('unverified defaults projection normalizes missing lists without mutating frozenDraft (D3)', () => {
+  const originalDraft = {
+    inventory: {
+      destinations: [
+        { id: 'dest-new', name: 'Điểm đến mới', slug: 'dest-new', region: 'Miền Trung', isActive: true }
+      ],
+      places: [
+        {
+          id: 'dest-new/place-new',
+          destinationId: 'dest-new',
+          name: 'Địa điểm mới',
+          latitude: 16.05,
+          longitude: 108.2,
+          isActive: true
+        }
+      ]
+    },
+    sources: [],
+    packages: [],
+    places: [
+      {
+        placeId: 'dest-new/place-new',
+        price: {
+          status: 'unverified',
+          options: [],
+          evidence: {
+            checkedAt: '2026-10-23',
+            sourceIds: [],
+            reviewState: 'unverified',
+            unresolvedIssues: []
+            // missing conditions
+          }
+        },
+        hours: {
+          status: 'unverified',
+          rules: [],
+          // missing notes
+          evidence: {
+            checkedAt: '2026-10-23',
+            sourceIds: [],
+            reviewState: 'unverified',
+            unresolvedIssues: []
+            // missing conditions
+          }
+        }
+      }
+    ]
+  };
+
+  const draftCopy = JSON.parse(JSON.stringify(originalDraft));
+
+  const { bundle, blockers } = validateAndProjectPublicBundle({
+    frozenDraft: draftCopy,
+    version: 1,
+    preparedAt: new Date().toISOString(),
+  });
+
+  assert.equal(blockers.length, 0);
+  assert.equal(bundle.visitDetails.places.length, 1);
+  const projectedPlace = bundle.visitDetails.places[0];
+
+  // Verified default lists added to public DTO
+  assert.ok(Array.isArray(projectedPlace.price.evidence.conditions), 'price.evidence.conditions must be array');
+  assert.equal(projectedPlace.price.evidence.conditions.length, 0);
+  assert.ok(Array.isArray(projectedPlace.hours.notes), 'hours.notes must be array');
+  assert.equal(projectedPlace.hours.notes.length, 0);
+  assert.ok(Array.isArray(projectedPlace.hours.evidence.conditions), 'hours.evidence.conditions must be array');
+  assert.equal(projectedPlace.hours.evidence.conditions.length, 0);
+
+  // Original frozenDraft must NOT be mutated
+  assert.equal(draftCopy.places[0].price.evidence.conditions, undefined, 'frozenDraft price conditions must not be mutated');
+  assert.equal(draftCopy.places[0].hours.notes, undefined, 'frozenDraft hours notes must not be mutated');
+  assert.equal(draftCopy.places[0].hours.evidence.conditions, undefined, 'frozenDraft hours conditions must not be mutated');
+});

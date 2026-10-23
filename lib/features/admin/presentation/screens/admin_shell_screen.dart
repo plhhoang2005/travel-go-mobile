@@ -15,6 +15,7 @@ import 'package:travelgo_mobile/features/admin/services/admin_account_service.da
 import 'package:travelgo_mobile/features/admin/services/admin_catalogue_service.dart';
 import 'package:travelgo_mobile/features/admin/services/admin_publication_service.dart';
 import 'package:travelgo_mobile/features/auth/providers/auth_provider.dart';
+import 'package:travelgo_mobile/features/explore/providers/public_catalogue_provider.dart';
 import 'package:travelgo_mobile/features/trips/services/local_account_lifecycle_service.dart';
 
 class AdminShellScreen extends StatefulWidget {
@@ -100,9 +101,29 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
       lifecycleLoader: lifecycleLoader,
     );
 
+    final pubProvider = _getEffectivePublicationProvider();
     _ownedCatalogueProvider = AdminCatalogueProvider(
       service: service,
+      publicationService: pubProvider.service,
       authProvider: auth,
+      onPublished: (operation) async {
+        try {
+          if (mounted) {
+            final publicProvider = context.read<PublicCatalogueProvider>();
+            await publicProvider.refresh(force: true);
+          }
+        } catch (e) {
+          debugPrint('Local public catalogue refresh error: $e');
+        }
+        try {
+          if (mounted) {
+            final accountProvider = _getEffectiveProvider();
+            await accountProvider.loadDashboard(7);
+          }
+        } catch (e) {
+          debugPrint('Dashboard refresh error: $e');
+        }
+      },
     );
     return _ownedCatalogueProvider!;
   }
