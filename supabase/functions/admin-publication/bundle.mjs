@@ -151,11 +151,12 @@ export function validateAndProjectPublicBundle({ frozenDraft, version, preparedA
   // Visit details places projection: only active places
   const projectedVisitPlaces = [];
   for (const vp of rawVisitPlaces) {
-    if (activePlaceIds.has(vp.id)) {
+    const pid = vp.placeId || vp.id;
+    if (activePlaceIds.has(pid)) {
       projectedVisitPlaces.push(vp);
     }
   }
-  projectedVisitPlaces.sort((a, b) => (a.id || '').localeCompare(b.id || ''));
+  projectedVisitPlaces.sort((a, b) => ((a.placeId || a.id) || '').localeCompare((b.placeId || b.id) || ''));
 
   const bundle = {
     contract: 'travelgo.discovery.release.v2',

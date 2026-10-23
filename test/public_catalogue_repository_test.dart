@@ -349,6 +349,74 @@ void main() {
     expect(diskSnapshot!.version, 2);
   });
 
+  test('refresh() bootstraps remote version 1 publication when current is local seed version 1', () async {
+    final v1RemoteBundle = buildValidBundle(version: 1);
+    (v1RemoteBundle['catalogue']['destinations'] as List).add({
+      'id': 'hue',
+      'name': 'Huế',
+      'slug': 'hue',
+      'region': 'Miền Trung',
+      'places': [],
+    });
+    final v1Text = jsonEncode(v1RemoteBundle);
+    final v1Bytes = utf8.encode(v1Text);
+    final v1RemoteSha = sha256.convert(v1Bytes).toString();
+
+    final manifestJson = jsonEncode([
+      {
+        'contract': 'travelgo.discovery.manifest.v2',
+        'schema_version': 2,
+        'version': 1,
+        'object_key': 'releases/v2/1.json',
+        'sha256': v1RemoteSha,
+        'byte_length': v1Bytes.length,
+        'published_at': '2026-10-23T12:00:00Z',
+      }
+    ]);
+
+    adapter.onFetch = (options) async {
+      final uri = options.uri.toString();
+      if (uri.contains('discovery_release_manifest')) {
+        return ResponseBody.fromString(
+          manifestJson,
+          200,
+          headers: {
+            Headers.contentTypeHeader: ['application/json'],
+          },
+        );
+      }
+      if (uri.contains('releases/v2/1.json')) {
+        return ResponseBody.fromString(
+          v1Text,
+          200,
+          headers: {
+            Headers.contentTypeHeader: ['application/json'],
+          },
+        );
+      }
+      return ResponseBody.fromString('Not Found', 404);
+    };
+
+    final repo = PublicCatalogueRepository(
+      seedLoader: () async => seedSnapshot,
+      cache: cache,
+      client: dio,
+      projectOrigin: 'https://bkocylxbuyvdgxccpixx.supabase.co',
+      clock: () => DateTime.parse('2026-10-23T12:00:00Z'),
+    );
+
+    await repo.load();
+    expect(repo.currentSnapshot!.version, 1);
+    expect(repo.currentSnapshot!.origin, 'seed');
+
+    final refreshResult = await repo.refresh(force: true);
+    expect(refreshResult.updated, isTrue);
+    expect(refreshResult.snapshot.version, 1);
+    expect(refreshResult.snapshot.sha256, v1RemoteSha);
+    expect(refreshResult.snapshot.origin, 'storage');
+    expect(repo.currentSnapshot!.sha256, v1RemoteSha);
+  });
+
   test('network failure or invalid manifest preserves RAM and disk snapshot', () async {
     await cache.write(seedSnapshot);
 

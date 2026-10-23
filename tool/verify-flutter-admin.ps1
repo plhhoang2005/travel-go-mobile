@@ -435,7 +435,10 @@ CREATE TABLE auth.sessions(
   updated_at timestamptz DEFAULT now()
 );
 CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$
-  SELECT nullif(current_setting('request.jwt.claim.sub',true),'')::uuid;
+  SELECT coalesce(
+    nullif(current_setting('request.jwt.claim.sub',true),'')::uuid,
+    nullif((coalesce(nullif(current_setting('request.jwt.claims',true),'')::jsonb,'{}'::jsonb))->>'sub','')::uuid
+  );
 $$;
 CREATE FUNCTION auth.jwt() RETURNS jsonb LANGUAGE sql STABLE AS $$
   SELECT coalesce(nullif(current_setting('request.jwt.claims',true),'')::jsonb,'{}'::jsonb);
@@ -519,7 +522,10 @@ CREATE TABLE auth.sessions(
   updated_at timestamptz DEFAULT now()
 );
 CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$
-  SELECT nullif(current_setting('request.jwt.claim.sub',true),'')::uuid;
+  SELECT coalesce(
+    nullif(current_setting('request.jwt.claim.sub',true),'')::uuid,
+    nullif((coalesce(nullif(current_setting('request.jwt.claims',true),'')::jsonb,'{}'::jsonb))->>'sub','')::uuid
+  );
 $$;
 CREATE FUNCTION auth.jwt() RETURNS jsonb LANGUAGE sql STABLE AS $$
   SELECT coalesce(nullif(current_setting('request.jwt.claims',true),'')::jsonb,'{}'::jsonb);
@@ -602,7 +608,10 @@ CREATE TABLE auth.sessions(
   updated_at timestamptz DEFAULT now()
 );
 CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$
-  SELECT nullif(current_setting('request.jwt.claim.sub',true),'')::uuid;
+  SELECT coalesce(
+    nullif(current_setting('request.jwt.claim.sub',true),'')::uuid,
+    nullif((coalesce(nullif(current_setting('request.jwt.claims',true),'')::jsonb,'{}'::jsonb))->>'sub','')::uuid
+  );
 $$;
 CREATE FUNCTION auth.jwt() RETURNS jsonb LANGUAGE sql STABLE AS $$
   SELECT coalesce(nullif(current_setting('request.jwt.claims',true),'')::jsonb,'{}'::jsonb);

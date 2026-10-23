@@ -109,3 +109,54 @@ test('vietnamese_combining_characters preserved with exact UTF-8 byte length', (
   assert.ok(encoded.byteLength > encoded.payloadText.length, 'UTF-8 multi-byte characters expand byte count');
   assert.match(encoded.sha256, /^[0-9a-f]{64}$/);
 });
+
+test('validateAndProjectPublicBundle preserves visit places with placeId and keeps facts (R6)', () => {
+  const rawSeed = JSON.parse(fs.readFileSync(path.join(__dirname, '../assets/catalogue/place_visit_details_v1.json'), 'utf8'));
+  const base = JSON.parse(fs.readFileSync(path.join(__dirname, '../assets/catalogue/catalogue_readiness_v1.json'), 'utf8'));
+
+  const draft = JSON.parse(JSON.stringify(rawSeed));
+  draft.inventory = {
+    destinations: base.destinations.map(d => ({
+      id: d.id,
+      name: d.name,
+      slug: d.id,
+      region: 'VN',
+      isActive: true,
+    })),
+    places: base.destinations.flatMap(d => d.places.map(p => ({
+      id: p.id,
+      destinationId: d.id,
+      name: p.name,
+      slug: p.id.split('/')[1] || p.id,
+      isActive: true,
+      latitude: p.coordinates?.latitude || 16.0,
+      longitude: p.coordinates?.longitude || 107.0,
+    }))),
+  };
+
+  const { bundle, blockers } = validateAndProjectPublicBundle({
+    frozenDraft: draft,
+    version: 1,
+    preparedAt: new Date().toISOString(),
+  });
+
+  assert.equal(blockers.length, 0, 'Must have zero blockers');
+  assert.equal(bundle.visitDetails.places.length, 72, 'All 72 visit details places must be preserved');
+  assert.ok(bundle.visitDetails.places.every(p => p.placeId && p.price && p.hours), 'Every place must retain placeId, price, and hours facts');
+});
+
+test('hex mapping with padStart(2, "0") produces exact 64-char hash without dropping leading zeros (R7)', () => {
+  // Bytes including < 16 values (e.g. 0x00, 0x05, 0x0e)
+  const bytesWithLeadingZeros = new Uint8Array(32);
+  bytesWithLeadingZeros[0] = 0x00;
+  bytesWithLeadingZeros[1] = 0x07;
+  bytesWithLeadingZeros[2] = 0x0f;
+  bytesWithLeadingZeros[3] = 0xff;
+
+  const hashHex = Array.from(bytesWithLeadingZeros)
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+
+  assert.equal(hashHex.length, 64, 'Must be exactly 64 hex characters');
+  assert.equal(hashHex.slice(0, 8), '00070fff', 'Must preserve leading zeros for bytes < 16');
+});

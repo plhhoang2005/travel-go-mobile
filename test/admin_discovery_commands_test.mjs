@@ -158,3 +158,45 @@ test('server-authored commands: restoreVersion retains newly added IDs as hidden
   assert.ok(place);
   assert.equal(place.isActive, false);
 });
+
+test('server-authored commands: updateDestination and updatePlace preserve and update imageUrl', () => {
+  const withPhuYen = C.editEntity(seed, 'destination', {
+    id: 'phu-yen',
+    name: 'Phú Yên',
+    slug: 'phu-yen',
+    region: 'Nam Trung Bộ',
+    description: '',
+    imageUrl: 'https://images.example.com/phu-yen-original.jpg',
+    isActive: true
+  }, { create: true });
+
+  const updatedDest = C.editEntity(withPhuYen, 'destination', {
+    ...withPhuYen.inventory.destinations.find(d => d.id === 'phu-yen'),
+    imageUrl: 'https://images.example.com/phu-yen-updated.jpg'
+  });
+  assert.equal(
+    updatedDest.inventory.destinations.find(d => d.id === 'phu-yen').imageUrl,
+    'https://images.example.com/phu-yen-updated.jpg'
+  );
+
+  const withPlace = C.editEntity(updatedDest, 'place', {
+    id: 'phu-yen/ghenh-da-dia',
+    destinationId: 'phu-yen',
+    name: 'Ghềnh Đá Đĩa',
+    slug: 'ghenh-da-dia',
+    description: 'Thắng cảnh',
+    latitude: 13.35,
+    longitude: 109.29,
+    imageUrl: 'https://images.example.com/ghenh-da-dia-original.jpg',
+    isActive: true
+  }, { create: true });
+
+  const updatedPlace = C.editEntity(withPlace, 'place', {
+    ...withPlace.inventory.places.find(p => p.id === 'phu-yen/ghenh-da-dia'),
+    imageUrl: 'https://images.example.com/ghenh-da-dia-updated.jpg'
+  });
+  assert.equal(
+    updatedPlace.inventory.places.find(p => p.id === 'phu-yen/ghenh-da-dia').imageUrl,
+    'https://images.example.com/ghenh-da-dia-updated.jpg'
+  );
+});

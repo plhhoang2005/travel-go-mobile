@@ -182,6 +182,9 @@ class PublicCatalogueRepository {
         if (manifest.sha256 == current.sha256) {
           _lastSuccessfulRefresh = clock();
           return PublicRefreshResult(snapshot: current, updated: false);
+        } else if (current.origin == 'seed') {
+          // First remote publication has version 1, superseding the local bundled seed asset.
+          // Proceed to download and apply remote publication rather than raising manifest_conflict.
         } else {
           return PublicRefreshResult(
             snapshot: current,

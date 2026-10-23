@@ -225,7 +225,8 @@ BEGIN
         entry || jsonb_build_object(
           'name', coalesce(nullif(btrim(p_command->>'name'), ''), entry->>'name'),
           'region', coalesce(nullif(btrim(p_command->>'region'), ''), entry->>'region'),
-          'description', coalesce(p_command->>'description', entry->>'description')
+          'description', coalesce(p_command->>'description', entry->>'description'),
+          'imageUrl', coalesce(nullif(btrim(p_command->>'imageUrl'), ''), entry->>'imageUrl')
         )
       ELSE entry END
     ) INTO dest_arr FROM jsonb_array_elements(dest_arr) entry;
@@ -242,6 +243,7 @@ BEGIN
         entry || jsonb_build_object(
           'name', coalesce(nullif(btrim(p_command->>'name'), ''), entry->>'name'),
           'description', coalesce(p_command->>'description', entry->>'description'),
+          'imageUrl', coalesce(nullif(btrim(p_command->>'imageUrl'), ''), entry->>'imageUrl'),
           'latitude', coalesce((p_command->>'latitude')::numeric, (entry->>'latitude')::numeric),
           'longitude', coalesce((p_command->>'longitude')::numeric, (entry->>'longitude')::numeric)
         )

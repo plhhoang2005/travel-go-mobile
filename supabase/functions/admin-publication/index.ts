@@ -77,7 +77,7 @@ const storage = {
     const bytes = new Uint8Array(buf);
     const hashBuf = await crypto.subtle.digest('SHA-256', bytes);
     const hashHex = Array.from(new Uint8Array(hashBuf))
-      .map((b) => b.toString(16).padLeft ? b.toString(16).padStart(2, '0') : b.toString(16))
+      .map((b) => b.toString(16).padStart(2, '0'))
       .join('');
     return { bytes, sha256: hashHex, byteLength: bytes.byteLength };
   },

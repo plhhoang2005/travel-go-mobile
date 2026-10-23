@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS private_admin.account_operations (
   actor_id uuid NOT NULL,
   action text NOT NULL CHECK (action IN ('lock', 'unlock', 'promote', 'demote', 'reconcile')),
   state text NOT NULL CHECK (state IN ('pending', 'completed', 'needs_retry')),
+  worker_token uuid DEFAULT gen_random_uuid(),
   base_revision bigint NOT NULL CHECK (base_revision >= 1),
   result_revision bigint CHECK (result_revision IS NULL OR result_revision >= base_revision),
   reason text NOT NULL CHECK (char_length(reason) BETWEEN 1 AND 500),
@@ -128,20 +129,26 @@ DECLARE
   v_is_anon boolean;
 BEGIN
   BEGIN
-    v_sub := nullif(current_setting('request.jwt.claim.sub', true), '')::uuid;
-  EXCEPTION WHEN OTHERS THEN
-    RETURN false;
-  END;
-  IF v_sub IS NULL THEN
-    RETURN false;
-  END IF;
-
-  BEGIN
     v_jwt := coalesce(nullif(current_setting('request.jwt.claims', true), '')::jsonb, '{}'::jsonb);
     v_session_id := nullif(v_jwt->>'session_id', '')::uuid;
   EXCEPTION WHEN OTHERS THEN
+    v_jwt := '{}'::jsonb;
     v_session_id := NULL;
   END;
+
+  BEGIN
+    v_sub := coalesce(
+      auth.uid(),
+      nullif(current_setting('request.jwt.claim.sub', true), '')::uuid,
+      nullif(v_jwt->>'sub', '')::uuid
+    );
+  EXCEPTION WHEN OTHERS THEN
+    RETURN false;
+  END;
+
+  IF v_sub IS NULL THEN
+    RETURN false;
+  END IF;
 
   SELECT is_anonymous, deleted_at, banned_until
   INTO v_is_anon, v_deleted_at, v_banned_until
@@ -259,7 +266,19 @@ DECLARE
   v_role text;
 BEGIN
   BEGIN
-    v_sub := nullif(current_setting('request.jwt.claim.sub', true), '')::uuid;
+    v_jwt := coalesce(nullif(current_setting('request.jwt.claims', true), '')::jsonb, '{}'::jsonb);
+    v_session_id := nullif(v_jwt->>'session_id', '')::uuid;
+  EXCEPTION WHEN OTHERS THEN
+    v_jwt := '{}'::jsonb;
+    v_session_id := NULL;
+  END;
+
+  BEGIN
+    v_sub := coalesce(
+      auth.uid(),
+      nullif(current_setting('request.jwt.claim.sub', true), '')::uuid,
+      nullif(v_jwt->>'sub', '')::uuid
+    );
   EXCEPTION WHEN OTHERS THEN
     v_sub := NULL;
   END;
@@ -267,13 +286,6 @@ BEGIN
   IF v_sub IS NULL THEN
     RAISE EXCEPTION 'unauthorized: missing sub claim' USING ERRCODE = '42501';
   END IF;
-
-  BEGIN
-    v_jwt := coalesce(nullif(current_setting('request.jwt.claims', true), '')::jsonb, '{}'::jsonb);
-    v_session_id := nullif(v_jwt->>'session_id', '')::uuid;
-  EXCEPTION WHEN OTHERS THEN
-    v_session_id := NULL;
-  END;
 
   IF v_session_id IS NULL THEN
     RAISE EXCEPTION 'unauthorized: missing session_id' USING ERRCODE = '42501';
@@ -355,13 +367,13 @@ BEGIN
   LEFT JOIN counts ON counts.d = dates.d;
 
   -- Draft overview (safe if discovery tables are absent or present)
-  IF to_regclass('private_admin.discovery_drafts') IS NOT NULL THEN
+  IF to_regclass('private_discovery_admin.draft') IS NOT NULL AND to_regclass('private_discovery_admin.destinations') IS NOT NULL THEN
     SELECT jsonb_build_object(
-      'revision', coalesce((SELECT revision FROM private_admin.discovery_drafts WHERE id = 1), 0),
-      'activeDestinations', coalesce((SELECT count(*) FROM public.destinations WHERE is_active = true), 0),
-      'hiddenDestinations', coalesce((SELECT count(*) FROM public.destinations WHERE is_active = false), 0),
-      'activePlaces', coalesce((SELECT count(*) FROM public.places WHERE is_active = true), 0),
-      'hiddenPlaces', coalesce((SELECT count(*) FROM public.places WHERE is_active = false), 0)
+      'revision', coalesce((SELECT revision FROM private_discovery_admin.draft WHERE singleton = true LIMIT 1), 0),
+      'activeDestinations', coalesce((SELECT count(*) FROM private_discovery_admin.destinations WHERE is_active = true), 0),
+      'hiddenDestinations', coalesce((SELECT count(*) FROM private_discovery_admin.destinations WHERE is_active = false), 0),
+      'activePlaces', coalesce((SELECT count(*) FROM private_discovery_admin.places WHERE is_active = true), 0),
+      'hiddenPlaces', coalesce((SELECT count(*) FROM private_discovery_admin.places WHERE is_active = false), 0)
     ) INTO v_draft;
   ELSE
     v_draft := jsonb_build_object(
@@ -371,6 +383,19 @@ BEGIN
       'activePlaces', 0,
       'hiddenPlaces', 0
     );
+  END IF;
+
+  -- Published overview from public.discovery_release_manifest
+  IF to_regclass('public.discovery_release_manifest') IS NOT NULL THEN
+    SELECT jsonb_build_object(
+      'version', version,
+      'objectKey', object_key,
+      'sha256', sha256,
+      'byteLength', byte_length,
+      'publishedAt', to_char(published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+    ) INTO v_published
+    FROM public.discovery_release_manifest
+    WHERE id = 'current';
   END IF;
 
   RETURN jsonb_build_object(
@@ -409,7 +434,19 @@ DECLARE
   v_session_not_after timestamptz;
 BEGIN
   BEGIN
-    v_sub := nullif(current_setting('request.jwt.claim.sub', true), '')::uuid;
+    v_jwt := coalesce(nullif(current_setting('request.jwt.claims', true), '')::jsonb, '{}'::jsonb);
+    v_session_id := nullif(v_jwt->>'session_id', '')::uuid;
+  EXCEPTION WHEN OTHERS THEN
+    v_jwt := '{}'::jsonb;
+    v_session_id := NULL;
+  END;
+
+  BEGIN
+    v_sub := coalesce(
+      auth.uid(),
+      nullif(current_setting('request.jwt.claim.sub', true), '')::uuid,
+      nullif(v_jwt->>'sub', '')::uuid
+    );
   EXCEPTION WHEN OTHERS THEN
     v_sub := NULL;
   END;
@@ -417,13 +454,6 @@ BEGIN
   IF v_sub IS NULL THEN
     RAISE EXCEPTION 'unauthorized: missing claim sub' USING ERRCODE = '42501';
   END IF;
-
-  BEGIN
-    v_jwt := coalesce(nullif(current_setting('request.jwt.claims', true), '')::jsonb, '{}'::jsonb);
-    v_session_id := nullif(v_jwt->>'session_id', '')::uuid;
-  EXCEPTION WHEN OTHERS THEN
-    v_session_id := NULL;
-  END;
 
   SELECT p.role, a.state, a.revision, a.session_valid_after
   INTO v_role, v_state, v_revision, v_valid_after
@@ -467,6 +497,7 @@ SET search_path = ''
 AS $$
 DECLARE
   v_actor_id uuid;
+  v_worker_token uuid;
   v_req_id uuid;
   v_target_id uuid;
   v_expected_rev bigint;
@@ -656,6 +687,7 @@ BEGIN
           'action', v_existing.action,
           'state', v_existing.state,
           'targetRevision', coalesce(v_existing.result_revision, v_existing.base_revision + 1),
+          'workerToken', v_existing.worker_token,
           'authSynced', (v_existing.state = 'completed')
         );
       ELSE
@@ -720,11 +752,13 @@ BEGIN
       v_op_state := 'completed';
     END IF;
 
+    v_worker_token := gen_random_uuid();
+
     -- Record operation
     INSERT INTO private_admin.account_operations (
-      id, target_id, actor_id, action, state, base_revision, result_revision, reason, payload_hash
+      id, target_id, actor_id, action, state, worker_token, base_revision, result_revision, reason, payload_hash
     ) VALUES (
-      v_req_id, v_target_id, v_actor_id, v_action, v_op_state, v_expected_rev,
+      v_req_id, v_target_id, v_actor_id, v_action, v_op_state, v_worker_token, v_expected_rev,
       CASE WHEN v_op_state = 'completed' THEN v_new_rev ELSE NULL END,
       v_reason, v_payload_hash
     );
@@ -744,6 +778,7 @@ BEGIN
       'action', v_action,
       'state', v_op_state,
       'targetRevision', v_new_rev,
+      'workerToken', v_worker_token,
       'authSynced', (v_op_state = 'completed')
     );
 
@@ -763,6 +798,7 @@ BEGIN
       'action', v_existing.action,
       'state', v_existing.state,
       'targetRevision', coalesce(v_existing.result_revision, v_existing.base_revision + 1),
+      'workerToken', v_existing.worker_token,
       'authSynced', (v_existing.state = 'completed')
     );
 
@@ -807,6 +843,10 @@ BEGIN
     RAISE EXCEPTION 'operation_not_found' USING ERRCODE = '40401';
   END IF;
 
+  IF p_worker_token IS NULL THEN
+    RAISE EXCEPTION 'invalid_worker_token' USING ERRCODE = '40301';
+  END IF;
+
   SELECT * INTO v_access
   FROM private_admin.account_access
   WHERE subject_id = v_op.target_id
@@ -820,28 +860,47 @@ BEGIN
     RAISE EXCEPTION 'revision_mismatch' USING ERRCODE = '40900';
   END IF;
 
-  IF v_op.action = 'unlock' AND p_auth_synced THEN
-    UPDATE private_admin.account_access
-    SET state = 'enabled', session_valid_after = now(), updated_at = now()
-    WHERE subject_id = v_op.target_id;
+  IF p_auth_synced THEN
+    IF v_op.action = 'unlock' THEN
+      UPDATE private_admin.account_access
+      SET state = 'enabled', session_valid_after = now(), updated_at = now()
+      WHERE subject_id = v_op.target_id;
+    END IF;
+
+    UPDATE private_admin.account_operations
+    SET state = 'completed', result_revision = v_access.revision, updated_at = now()
+    WHERE id = p_operation_id;
+
+    INSERT INTO private_admin.audit_events (operation_id, actor_id, target_id, event_kind, reason)
+    VALUES (p_operation_id, v_op.actor_id, v_op.target_id, 'completed', v_op.reason)
+    ON CONFLICT (operation_id, event_kind) DO NOTHING;
+
+    RETURN jsonb_build_object(
+      'id', v_op.id,
+      'targetId', v_op.target_id,
+      'action', v_op.action,
+      'state', 'completed',
+      'targetRevision', v_access.revision,
+      'authSynced', true
+    );
+  ELSE
+    UPDATE private_admin.account_operations
+    SET state = 'needs_retry', result_revision = v_access.revision, updated_at = now()
+    WHERE id = p_operation_id;
+
+    INSERT INTO private_admin.audit_events (operation_id, actor_id, target_id, event_kind, reason)
+    VALUES (p_operation_id, v_op.actor_id, v_op.target_id, 'retry_required', v_op.reason)
+    ON CONFLICT (operation_id, event_kind) DO NOTHING;
+
+    RETURN jsonb_build_object(
+      'id', v_op.id,
+      'targetId', v_op.target_id,
+      'action', v_op.action,
+      'state', 'needs_retry',
+      'targetRevision', v_access.revision,
+      'authSynced', false
+    );
   END IF;
-
-  UPDATE private_admin.account_operations
-  SET state = 'completed', result_revision = v_access.revision, updated_at = now()
-  WHERE id = p_operation_id;
-
-  INSERT INTO private_admin.audit_events (operation_id, actor_id, target_id, event_kind, reason)
-  VALUES (p_operation_id, v_op.actor_id, v_op.target_id, 'completed', v_op.reason)
-  ON CONFLICT (operation_id, event_kind) DO NOTHING;
-
-  RETURN jsonb_build_object(
-    'id', v_op.id,
-    'targetId', v_op.target_id,
-    'action', v_op.action,
-    'state', 'completed',
-    'targetRevision', v_access.revision,
-    'authSynced', p_auth_synced
-  );
 END;
 $$;
 
