@@ -95,11 +95,12 @@ void main() {
       expect(auth.currentUser?.role, UserRole.admin);
     });
 
-    test('verifyOtp succeeds with 6-digit code', () async {
+    test('verifyOtp without backend or session rejects arbitrary code', () async {
       final auth = AuthProvider();
-      final result = await auth.verifyOtp('123456');
-      expect(result, isTrue);
-      expect(auth.isAuthenticated, isTrue);
+      final result = await auth.verifyOtp('123456', email: 'test@travelgo.vn');
+      expect(result, isFalse);
+      expect(auth.isAuthenticated, isFalse);
+      expect(auth.currentUser, isNull);
     });
 
     test('verifyOtp fails with code shorter than 6 digits', () async {

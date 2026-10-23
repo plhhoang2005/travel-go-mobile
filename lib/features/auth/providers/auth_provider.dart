@@ -40,6 +40,9 @@ class AuthProvider extends ChangeNotifier {
   VoidCallback? _removeLifecycleConsumer;
   UserEntity? _currentUser;
   bool _isGuest = false;
+  bool _travelPreferencesLoading = false;
+  bool _travelPreferencesLoaded = false;
+  String? _travelPreferencesError;
   bool _isLoading = false;
   bool _isDemoSession = false;
   String? _errorMessage;
@@ -48,6 +51,9 @@ class AuthProvider extends ChangeNotifier {
 
   UserEntity? get currentUser => _currentUser;
   bool get isGuest => _isGuest;
+  bool get travelPreferencesLoading => _travelPreferencesLoading;
+  bool get travelPreferencesLoaded => _travelPreferencesLoaded;
+  String? get travelPreferencesError => _travelPreferencesError;
   bool get isLoading => _isLoading;
   bool get isDemoSession => _isDemoSession;
   String? get errorMessage => _errorMessage;
@@ -165,8 +171,6 @@ class AuthProvider extends ChangeNotifier {
         if (roleStr != null) {
           final newRole = roleStr == 'admin'
               ? UserRole.admin
-              : roleStr == 'partner'
-              ? UserRole.partner
               : UserRole.customer;
 
           if (_currentUser != null && _currentUser!.role != newRole) {
@@ -201,8 +205,6 @@ class AuthProvider extends ChangeNotifier {
               final newRole = roleStr != null
                   ? (roleStr == 'admin'
                         ? UserRole.admin
-                        : roleStr == 'partner'
-                        ? UserRole.partner
                         : UserRole.customer)
                   : current.role;
 
@@ -231,12 +233,18 @@ class AuthProvider extends ChangeNotifier {
   }
 
   void continueAsGuest() {
+    _travelPreferencesLoaded = false;
+    _travelPreferencesLoading = false;
+    _travelPreferencesError = null;
+    _errorMessage = null;
     if (_lifecycleLoader != null) {
       _requestGeneration++;
       _isGuest = true;
+      _currentUser = null;
       _cancelOAuth();
       _lifecycle?.invalidateAccountContext();
       onLocalAccountInvalidated();
+      notifyListeners();
       return;
     }
     _currentUser = null;
@@ -374,9 +382,6 @@ class AuthProvider extends ChangeNotifier {
       case UserRole.customer:
         _currentUser = UserEntity.demoMinh();
         break;
-      case UserRole.partner:
-        _currentUser = UserEntity.demoPartner();
-        break;
       case UserRole.admin:
         _currentUser = UserEntity.demoAdmin();
         break;
@@ -492,12 +497,27 @@ class AuthProvider extends ChangeNotifier {
 
   /// OTP verification via Supabase verifyOTP
   Future<bool> verifyOtp(String code, {String? email}) async {
+    final trimmedCode = code.trim();
+    if (!RegExp(r'^\d{6}$').hasMatch(trimmedCode)) {
+      _errorMessage = 'Mã xác thực phải gồm đúng 6 chữ số.';
+      notifyListeners();
+      return false;
+    }
+
+    final targetEmail = (email != null && email.trim().isNotEmpty)
+        ? email.trim()
+        : _currentUser?.email.trim();
+    if (targetEmail == null || targetEmail.isEmpty || !targetEmail.contains('@')) {
+      _errorMessage = 'Thiếu thông tin email để xác thực OTP.';
+      notifyListeners();
+      return false;
+    }
+
     if (_lifecycleLoader != null) {
-      if (email == null || email.trim().isEmpty) return false;
       return _guardedMutation(
         (client) => client.auth.verifyOTP(
-          email: email.trim(),
-          token: code.trim(),
+          email: targetEmail,
+          token: trimmedCode,
           type: OtpType.signup,
         ),
       );
@@ -507,55 +527,163 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     final client = _supabaseClient;
-    if (client != null && email != null && email.isNotEmpty) {
-      try {
-        final res = await client.auth.verifyOTP(
-          email: email.trim(),
-          token: code.trim(),
-          type: OtpType.signup,
-        );
-        if (res.user != null) {
-          _authEpoch++;
-          _currentUser = _mapSupabaseUser(res.user!);
-          _isGuest = false;
-          _isDemoSession = false;
-          _isLoading = false;
-          notifyListeners();
-          _fetchTrustedRole(res.user!.id, _authEpoch);
-          return true;
-        }
-      } on AuthException catch (e) {
-        _errorMessage = _translateAuthError(e.message);
+    if (client == null) {
+      _errorMessage = 'Chưa thể kết nối tới cơ sở dữ liệu Supabase. Vui lòng kiểm tra kết nối mạng.';
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+
+    try {
+      final res = await client.auth.verifyOTP(
+        email: targetEmail,
+        token: trimmedCode,
+        type: OtpType.signup,
+      );
+
+      final currentSession = _sdkSession() ?? client.auth.currentSession;
+      if (res.user != null &&
+          res.session != null &&
+          !res.session!.isExpired &&
+          currentSession != null &&
+          !currentSession.isExpired &&
+          currentSession.user.id == res.user!.id &&
+          res.session!.user.id == res.user!.id) {
+        _authEpoch++;
+        _currentUser = _mapSupabaseUser(res.user!);
+        _isGuest = false;
+        _isDemoSession = false;
         _isLoading = false;
         notifyListeners();
-        return false;
-      } catch (e) {
-        _errorMessage = 'Lỗi xác thực mã OTP: ${e.toString()}';
+        _fetchTrustedRole(res.user!.id, _authEpoch);
+        return true;
+      } else {
+        _errorMessage = 'Xác thực OTP không thành công hoặc phiên đăng nhập không khả dụng.';
         _isLoading = false;
         notifyListeners();
         return false;
       }
+    } on AuthException catch (e) {
+      _errorMessage = _translateAuthError(e.message);
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    } catch (_) {
+      _errorMessage = 'Lỗi xác thực mã OTP: Không thể hoàn tất yêu cầu.';
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> loadTravelPreferences({bool force = false}) async {
+    final user = _currentUser;
+    if (user == null || _isGuest) {
+      _travelPreferencesLoading = false;
+      _travelPreferencesLoaded = false;
+      return false;
+    }
+    if (_travelPreferencesLoaded && !force) return true;
+
+    final client = _supabaseClient;
+    if (client == null) {
+      _travelPreferencesError = 'Chưa thể kết nối tới máy chủ.';
+      notifyListeners();
+      return false;
     }
 
-    // Validation for unit test suite without live backend
-    await Future.delayed(const Duration(milliseconds: 300));
-    _isLoading = false;
-    if (code.length == 6) {
-      _authEpoch++;
-      _currentUser ??= UserEntity(
-        id: 'usr-verified',
-        fullName: 'Người dùng Đã Xác Thực',
-        email: email ?? 'verified@travelgo.vn',
-        phone: '0900000000',
-        role: UserRole.customer,
-      );
-      _isGuest = false;
-      _isDemoSession = false;
+    final requestEpoch = _authEpoch;
+    final requestUserId = user.id;
+    bool isCurrentSession() =>
+        _authEpoch == requestEpoch && _currentUser?.id == requestUserId;
+
+    _travelPreferencesLoading = true;
+    _travelPreferencesError = null;
+    notifyListeners();
+
+    try {
+      final res = await client
+          .from('profiles')
+          .select('id, interests, typical_budget_vnd, travel_style')
+          .eq('id', user.id);
+
+      if (!isCurrentSession()) return false;
+
+      if (res.isNotEmpty) {
+        final first = res.first;
+        if (first['id'] == user.id) {
+          final prefs = TravelPreferences.fromJson(first);
+          _currentUser = _currentUser?.copyWith(travelPreferences: prefs);
+          _travelPreferencesLoaded = true;
+          _travelPreferencesLoading = false;
+          notifyListeners();
+          return true;
+        }
+      }
+      _travelPreferencesLoaded = false;
+      _travelPreferencesLoading = false;
+      notifyListeners();
+      return false;
+    } catch (_) {
+      if (isCurrentSession()) {
+        _travelPreferencesError = 'Không thể tải sở thích du lịch.';
+        _travelPreferencesLoading = false;
+        _travelPreferencesLoaded = false;
+        notifyListeners();
+      }
+      return false;
+    }
+  }
+
+  Future<bool> updateTravelPreferences(TravelPreferences preferences) async {
+    final user = _currentUser;
+    if (user == null || _isGuest || !_travelPreferencesLoaded) return false;
+
+    final client = _supabaseClient;
+    if (client == null) {
+      _travelPreferencesError = 'Chưa thể kết nối tới máy chủ.';
+      notifyListeners();
+      return false;
+    }
+
+    final requestEpoch = _authEpoch;
+    final requestUserId = user.id;
+    bool isCurrentSession() =>
+        _authEpoch == requestEpoch && _currentUser?.id == requestUserId;
+
+    _travelPreferencesLoading = true;
+    _travelPreferencesError = null;
+    notifyListeners();
+
+    try {
+      final res = await client
+          .from('profiles')
+          .update(preferences.toJson())
+          .eq('id', user.id)
+          .select('id, interests, typical_budget_vnd, travel_style')
+          .maybeSingle();
+
+      if (!isCurrentSession()) return false;
+
+      if (res == null || res['id'] != user.id) {
+        _travelPreferencesError = 'Không thể cập nhật sở thích du lịch.';
+        _travelPreferencesLoading = false;
+        notifyListeners();
+        return false;
+      }
+
+      final updated = TravelPreferences.fromJson(res);
+      _currentUser = _currentUser?.copyWith(travelPreferences: updated);
+      _travelPreferencesLoading = false;
+      _travelPreferencesLoaded = true;
       notifyListeners();
       return true;
-    } else {
-      _errorMessage = 'Mã xác thực phải gồm 6 chữ số';
-      notifyListeners();
+    } catch (_) {
+      if (isCurrentSession()) {
+        _travelPreferencesError = 'Lỗi cập nhật sở thích: không thể hoàn tất.';
+        _travelPreferencesLoading = false;
+        notifyListeners();
+      }
       return false;
     }
   }
@@ -932,8 +1060,10 @@ class AuthProvider extends ChangeNotifier {
         }
         _isEmailConfirmationPending = false;
         if (response.session == null ||
+            response.session!.isExpired ||
             response.user == null ||
-            _sdkSession()?.user.id != response.user!.id) {
+            _sdkSession()?.user.id != response.user!.id ||
+            _sdkSession()?.isExpired == true) {
           return false;
         }
         await _awaitForeground();
