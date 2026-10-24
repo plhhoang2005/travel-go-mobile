@@ -5,7 +5,9 @@ import 'package:provider/provider.dart';
 import '../../../map/presentation/screens/manual_day_map_screen.dart';
 import '../../../auth/providers/auth_provider.dart';
 import '../../../explore/models/public_catalogue_snapshot.dart';
+import '../../../explore/models/place_visit_details.dart';
 import '../../../explore/models/catalogue_reference.dart' as catalogue;
+import '../../../explore/providers/place_visit_details_provider.dart';
 import '../../../trips/models/editable_trip_codec.dart';
 import '../../models/editable_trip_command.dart';
 import '../../models/editable_trip_document.dart';
@@ -335,6 +337,13 @@ class _ManualPlannerScreenState extends State<ManualPlannerScreen> {
         auth.isGuest == guest &&
         auth.isDemoSession == demo;
     final dest = _currentDestination;
+    final visitsCatalogue = widget.snapshot?.visits ??
+        context.read<PlaceVisitDetailsProvider?>()?.snapshot?.catalogue;
+    final visitDetails =
+        visitsCatalogue?.places ?? const <String, PlaceVisitDetails>{};
+    final packages =
+        visitsCatalogue?.packages ?? const <String, VisitPackage>{};
+
     final AiAssistantContext input;
     try {
       input = AiAssistantContext.fromDocument(
@@ -342,6 +351,8 @@ class _ManualPlannerScreenState extends State<ManualPlannerScreen> {
         destination: dest,
         selectedDay: _ordinal,
         places: _places,
+        visitDetails: visitDetails,
+        packages: packages,
       );
     } on Object {
       ScaffoldMessenger.of(context).showSnackBar(

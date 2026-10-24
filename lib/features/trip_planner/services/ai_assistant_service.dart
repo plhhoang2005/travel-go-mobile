@@ -2,7 +2,9 @@ import 'dart:convert';
 
 import '../../auth/providers/auth_provider.dart';
 import '../../explore/models/catalogue_reference.dart' as catalogue;
+import '../../explore/models/place_visit_details.dart';
 import '../../trips/models/editable_trip_codec.dart';
+import '../models/ai_context_grounding.dart';
 import '../models/editable_trip_command.dart';
 import '../models/editable_trip_document.dart';
 import 'ai_generation_service.dart';
@@ -73,8 +75,16 @@ Object? _freeze(Object? value) {
 class AiAssistantContext {
   final Map<String, Object?> _body;
   final String baseDigest;
-  AiAssistantContext._(Map<String, Object?> body, this.baseDigest)
-    : _body = _freeze(body) as Map<String, Object?>;
+  final GroundingResolution? grounding;
+  final String? destinationName;
+
+  AiAssistantContext._(
+    Map<String, Object?> body,
+    this.baseDigest, {
+    this.grounding,
+    this.destinationName,
+  }) : _body = _freeze(body) as Map<String, Object?>;
+
   int get selectedDay => _body['selectedDay'] as int;
   String get destinationId => _body['destinationId'] as String;
   List<Map<String, Object?>> get activities =>
@@ -82,6 +92,7 @@ class AiAssistantContext {
   List<Map<String, Object?>> get places =>
       (_body['places'] as List).cast<Map<String, Object?>>();
   Map<String, Object?> toJson() => _body;
+
   factory AiAssistantContext.fromDocument(
     EditableTripDocumentV2 doc, {
     catalogue.DestinationReference? destination,
@@ -89,6 +100,8 @@ class AiAssistantContext {
     List<catalogue.PlaceReference> places = const [],
     List<Map<String, Object?>> openingWindows = const [],
     List<Map<String, Object?>> routes = const [],
+    Map<String, PlaceVisitDetails> visitDetails = const {},
+    Map<String, VisitPackage> packages = const {},
   }) {
     final base = AiGenerationContext.fromDocument(
       doc,
@@ -121,6 +134,21 @@ class AiAssistantContext {
         )
         .toList();
     _check(activities.length <= 48);
+
+    GroundingResolution? grounding;
+    var effectiveWindows = openingWindows;
+    if (openingWindows.isEmpty && visitDetails.isNotEmpty) {
+      final selectedDate =
+          day.date != null ? DateTime.tryParse(day.date!) : null;
+      grounding = resolveGrounding(
+        placeIds: places.map((p) => p.id).toList(),
+        visitDetails: visitDetails,
+        packages: packages,
+        date: selectedDate,
+      );
+      effectiveWindows = grounding.openingWindows.take(48).toList();
+    }
+
     final body = <String, Object?>{
       ...base,
       'selectedDay': selectedDay,
@@ -128,11 +156,16 @@ class AiAssistantContext {
       'priority': doc.input.priority,
       'activities': activities,
       'places': references,
-      'constraints': {'openingWindows': openingWindows, 'routes': routes},
+      'constraints': {'openingWindows': effectiveWindows, 'routes': routes},
       'weather': 'unknown',
     };
     _validateFacts(body);
-    return AiAssistantContext._(body, EditableTripCodec.digest(doc));
+    return AiAssistantContext._(
+      body,
+      EditableTripCodec.digest(doc),
+      grounding: grounding,
+      destinationName: destination?.name,
+    );
   }
 }
 
@@ -227,6 +260,27 @@ class AiAssistantResult {
   ) : recommendations = List.unmodifiable(recommendations),
       operations = List.unmodifiable(operations),
       warnings = List.unmodifiable(warnings);
+
+  factory AiAssistantResult.outOfDomainPivot(
+    AiAssistantContext context,
+    String prompt,
+  ) {
+    final summary = formatSmartPivotSummary(
+      prompt: prompt,
+      destinationName: context.destinationName,
+      selectedDay: context.selectedDay,
+    );
+    return AiAssistantResult._(
+      'advice',
+      summary,
+      const [],
+      const [],
+      const [
+        'Câu hỏi nằm ngoài phạm vi lập kế hoạch du lịch của TravelGO (Hướng B kết hợp C: Smart Pivot).',
+      ],
+    );
+  }
+
   factory AiAssistantResult.fromJson(
     Map<String, Object?> raw,
     AiAssistantContext context,
@@ -643,6 +697,12 @@ Future<AiAssistantReply> askAiForDraft({
   required bool Function() workspaceCurrent,
   AiGatewayClient? gateway,
 }) async {
+  // Guardrail: Hướng B kết hợp C (Smart Pivot cho câu hỏi ngoài phạm vi nghiệp vụ)
+  if (isOutOfDomainQuery(prompt)) {
+    final pivot = AiAssistantResult.outOfDomainPivot(context, prompt);
+    return AiAssistantReply(pivot);
+  }
+
   final payload = assistantRequest(context, intent, prompt, history, requestId);
   final raw = await requestAiForDraft(
     auth: auth,
