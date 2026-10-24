@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../providers/discovery_provider.dart';
+import '../../providers/place_visit_details_provider.dart';
 import '../widgets/destination_reference_list_tile.dart';
 import 'destination_detail_screen.dart';
 import '../../../map/presentation/screens/trip_map_screen.dart';
@@ -20,8 +21,19 @@ class _ExploreScreenState extends State<ExploreScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) unawaited(context.read<DiscoveryProvider>().load());
+      if (mounted) unawaited(_loadDiscovery());
     });
+  }
+
+  Future<void> _loadDiscovery({bool force = false}) async {
+    final discovery = context.read<DiscoveryProvider>();
+    await discovery.load(force: force);
+    if (!mounted) return;
+    final catalogue = discovery.catalogue;
+    final visits = context.read<PlaceVisitDetailsProvider?>();
+    if (catalogue == null || visits == null) return;
+    await visits.load(catalogue);
+    if (force && mounted) await visits.refresh(force: true);
   }
 
   @override
@@ -58,7 +70,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
           IconButton(
             tooltip: 'Đọc lại danh mục',
             icon: const Icon(Icons.refresh),
-            onPressed: () => discovery.load(force: true),
+            onPressed: () => _loadDiscovery(force: true),
           ),
         ],
       ),
@@ -71,8 +83,14 @@ class _ExploreScreenState extends State<ExploreScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Danh mục tham khảo trong ứng dụng'),
-                  if (discovery.catalogue != null)
+                  if (MediaQuery.sizeOf(context).height -
+                          MediaQuery.viewInsetsOf(context).bottom >
+                      500)
+                    const Text('Danh mục tham khảo trong ứng dụng'),
+                  if (discovery.catalogue != null &&
+                      MediaQuery.sizeOf(context).height -
+                              MediaQuery.viewInsetsOf(context).bottom >
+                          500)
                     Text(
                       'Ngày kiểm nguồn ban đầu: ${discovery.catalogue!.checkedAt}',
                       style: Theme.of(context).textTheme.bodySmall,
@@ -81,6 +99,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   TextField(
                     key: const ValueKey('destination-search'),
                     controller: _search,
+                    textInputAction: TextInputAction.search,
+                    onSubmitted: (_) => FocusScope.of(context).unfocus(),
                     onChanged: discovery.setQuery,
                     decoration: InputDecoration(
                       labelText: 'Tìm điểm đến',
@@ -148,7 +168,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
               const Text('Không thể đọc danh mục tham khảo.'),
               const SizedBox(height: 8),
               OutlinedButton(
-                onPressed: () => provider.load(force: true),
+                onPressed: () => _loadDiscovery(force: true),
                 child: const Text('Thử lại'),
               ),
             ],
@@ -167,11 +187,12 @@ class _ExploreScreenState extends State<ExploreScreen> {
     }
     final catalogue = provider.catalogue!;
     return RefreshIndicator(
-      onRefresh: () => provider.load(force: true),
+      onRefresh: () => _loadDiscovery(force: true),
       child: ListView.separated(
+        padding: const EdgeInsets.all(16),
         physics: const AlwaysScrollableScrollPhysics(),
         itemCount: items.length,
-        separatorBuilder: (_, _) => const Divider(height: 1),
+        separatorBuilder: (_, _) => const SizedBox(height: 24),
         itemBuilder: (context, index) => DestinationReferenceListTile(
           destination: items[index],
           onTap: () => Navigator.push(
@@ -180,6 +201,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
               builder: (_) => DestinationDetailScreen(
                 catalogue: catalogue,
                 destination: items[index],
+                visitProvider: context.read<PlaceVisitDetailsProvider?>(),
               ),
             ),
           ),

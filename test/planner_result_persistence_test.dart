@@ -6,7 +6,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:travelgo_mobile/features/auth/models/user_model.dart';
 import 'package:travelgo_mobile/features/auth/providers/auth_provider.dart';
-import 'package:travelgo_mobile/features/trip_planner/models/planner_result_snapshot.dart';
 import 'package:travelgo_mobile/features/trip_planner/models/trip_request.dart';
 import 'package:travelgo_mobile/features/trip_planner/models/trip_response.dart';
 import 'package:travelgo_mobile/features/trip_planner/presentation/screens/dashboard_result_screen.dart';

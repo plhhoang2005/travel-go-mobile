@@ -3,11 +3,14 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:travelgo_mobile/core/theme/app_theme.dart';
+import 'package:travelgo_mobile/core/presentation/travel_image.dart';
+import 'package:travelgo_mobile/core/presentation/travel_media.dart';
 import 'package:travelgo_mobile/features/explore/models/catalogue_reference.dart'
     as catalogue;
 import 'package:travelgo_mobile/features/explore/services/catalogue_parser.dart';
 import 'package:travelgo_mobile/features/explore/services/catalogue_repository.dart';
 import 'package:travelgo_mobile/features/trip_planner/models/editable_trip_document.dart';
+import 'package:travelgo_mobile/features/trip_planner/models/editable_trip_command.dart';
 import 'package:travelgo_mobile/features/trip_planner/presentation/screens/manual_planner_screen.dart';
 import 'package:travelgo_mobile/features/trip_planner/presentation/widgets/manual_itinerary_timeline.dart';
 import 'package:travelgo_mobile/features/trip_planner/providers/manual_planner_provider.dart';
@@ -143,8 +146,282 @@ Future<void> add(WidgetTester tester, String title) async {
   await press(tester, 'Áp dụng thay đổi');
 }
 
+Future<void> pumpNestedEditor(
+  WidgetTester tester,
+  ManualPlannerProvider planner,
+) async {
+  await tester.pumpWidget(
+    MaterialApp(
+      theme: AppTheme.lightTheme,
+      home: Navigator(
+        onGenerateRoute: (_) => MaterialPageRoute<void>(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () => Navigator.of(context).push<void>(
+                MaterialPageRoute<void>(
+                  builder: (_) => ManualPlannerScreen(
+                    planner: planner,
+                    destinations: destinations(),
+                    newId: nextId,
+                    enableBudget: true,
+                  ),
+                ),
+              ),
+              child: const Text('Mở editor lồng'),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+  await press(tester, 'Mở editor lồng');
+  await tester.tap(find.byTooltip('Ngày sau'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.byTooltip('Ngày sau'));
+  await tester.pumpAndSettle();
+  await press(tester, 'Thêm thao tác');
+  await press(tester, 'Xóa hoạt động');
+  expect(find.text('Xóa hoạt động?'), findsOneWidget);
+}
+
+Future<void> checkNestedDelete(
+  WidgetTester tester,
+  ManualPlannerProvider planner, {
+  required bool confirm,
+}) async {
+  final original = planner.document!;
+  planner.dispatch(DayNotesCommand(original.days.last.id, 'Ghi chú chưa lưu'));
+  final before = EditableTripCodec.encode(planner.document!);
+  final generation = planner.editorGeneration;
+  await pumpNestedEditor(tester, planner);
+  await press(tester, confirm ? 'Xác nhận xóa' : 'Hủy');
+  expect(find.text('Xóa hoạt động?'), findsNothing);
+  expect(find.byType(ManualPlannerScreen), findsOneWidget);
+  expect(find.text('Mở editor lồng'), findsNothing);
+  expect(planner.document!.days.last.notes, 'Ghi chú chưa lưu');
+  expect(planner.dirty, isTrue);
+  expect(planner.editorGeneration, generation + (confirm ? 1 : 0));
+  if (confirm) {
+    expect(planner.document!.items, isEmpty);
+    final actual = planner.document!.actualExpenses.single;
+    expect(actual.amountVnd, original.actualExpenses.single.amountVnd);
+    expect(actual.paidOn, original.actualExpenses.single.paidOn);
+    expect(actual.itemId, isNull);
+    expect(
+      actual.sourceItemSnapshot!.toJson(),
+      original.actualExpenses.single.sourceItemSnapshot!.toJson(),
+    );
+    expect(planner.document!.estimates.first.active, isFalse);
+  } else {
+    expect(EditableTripCodec.encode(planner.document!), before);
+  }
+  expect(tester.takeException(), isNull);
+  await tester.pumpWidget(const SizedBox.shrink());
+  await tester.pumpAndSettle();
+}
+
 void main() {
+  EditableTripDocumentV2 photoDocument() {
+    final base = documentWithLinkedActivity();
+    final item = base.items.single;
+    return base.copyWith(
+      input: TripInput.fromJson({
+        ...base.input.toJson(),
+        'destinationId': 'hue',
+        'destinationName': 'Huế',
+      }),
+      items: [
+        TripItem.fromJson({
+          ...item.toJson(),
+          'title': 'Ngọ Môn',
+          'placeId': 'hue/citadel',
+        }),
+      ],
+    );
+  }
+
+  testWidgets(
+    'selected day photo keeps source and missing-photo days remain usable',
+    (tester) async {
+      final document = photoDocument();
+      final planner = guest(document: document);
+      addTearDown(planner.dispose);
+      final before = EditableTripCodec.encode(document);
+      await pumpEditor(
+        tester,
+        planner: planner,
+        destinations: destinations(),
+        textScale: 2,
+      );
+      expect(find.byType(TravelImage), findsNothing);
+      await tester.tap(find.byTooltip('Ngày sau'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Ngày sau'));
+      await tester.pumpAndSettle();
+      final photo = find.byType(TravelImage);
+      await tester.scrollUntilVisible(
+        photo,
+        300,
+        scrollable: find
+            .descendant(
+              of: find.byKey(const ValueKey('manual.timeline')),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      expect(
+        tester.widget<TravelImage>(photo).media,
+        same(TravelMediaCatalog.forPlace('hue/citadel')),
+      );
+      await press(tester, 'Sửa hoạt động');
+      await tester.enterText(
+        find.byKey(const ValueKey('activity.title')),
+        'Đi dạo tự chọn',
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(TravelImage), findsNothing);
+      expect(
+        find.text('Đã bỏ liên kết địa điểm vì tên hoạt động đã thay đổi.'),
+        findsOneWidget,
+      );
+      await press(tester, 'Hủy');
+      await press(tester, 'Bỏ thay đổi');
+      expect(EditableTripCodec.encode(planner.document!), before);
+      expect(find.text('Ngọ Môn'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'unlinked activity uses a compact missing-photo label and retains actions',
+    (tester) async {
+      final document = documentWithLinkedActivity();
+      final planner = guest(document: document);
+      addTearDown(planner.dispose);
+      final before = EditableTripCodec.encode(document);
+      await pumpEditor(
+        tester,
+        planner: planner,
+        destinations: destinations(),
+        textScale: 2,
+      );
+      await tester.tap(find.byTooltip('Ngày sau'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Ngày sau'));
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.text('Chưa có ảnh địa điểm'),
+        300,
+        scrollable: find
+            .descendant(
+              of: find.byKey(const ValueKey('manual.timeline')),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      expect(find.text('Chưa có ảnh địa điểm'), findsOneWidget);
+      expect(find.byType(TravelImage), findsNothing);
+      await press(tester, 'Sửa hoạt động');
+      expect(find.text('1. Hoạt động và địa điểm'), findsOneWidget);
+      await press(tester, 'Hủy');
+      expect(EditableTripCodec.encode(planner.document!), before);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   TestWidgetsFlutterBinding.ensureInitialized();
+  for (final confirm in [false, true]) {
+    testWidgets(
+      'nested Guest delete confirm=$confirm keeps editor and ledger',
+      (tester) async {
+        final planner = guest(document: documentWithLinkedActivity());
+        addTearDown(planner.dispose);
+        await checkNestedDelete(tester, planner, confirm: confirm);
+      },
+    );
+    testWidgets(
+      'nested Account delete confirm=$confirm keeps editor and ledger',
+      (tester) async {
+        await tester.runAsync(
+          () => repository.run((ctx) async {
+            await ctx.login();
+            final planner = ManualPlannerProvider(
+              repositoryLoader: () async => ctx.repository,
+              lifecycle: ctx.lifecycle,
+              newId: nextId,
+            );
+            try {
+              planner.openNew(documentWithLinkedActivity());
+              await checkNestedDelete(tester, planner, confirm: confirm);
+              expect(
+                ctx.server.creates + ctx.server.updates + ctx.server.deletes,
+                0,
+              );
+            } finally {
+              planner.dispose();
+            }
+          }),
+        );
+      },
+    );
+  }
+
+  for (final dismiss in ['system back', 'barrier']) {
+    testWidgets('nested delete $dismiss keeps unsaved document', (
+      tester,
+    ) async {
+      final planner = guest(document: documentWithLinkedActivity());
+      addTearDown(planner.dispose);
+      final before = EditableTripCodec.encode(planner.document!);
+      await pumpNestedEditor(tester, planner);
+      if (dismiss == 'system back') {
+        await tester.binding.handlePopRoute();
+      } else {
+        await tester.tapAt(const Offset(8, 8));
+      }
+      await tester.pumpAndSettle();
+      expect(find.text('Xóa hoạt động?'), findsNothing);
+      expect(find.byType(ManualPlannerScreen), findsOneWidget);
+      expect(EditableTripCodec.encode(planner.document!), before);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets(
+    'nested delete hides private content after Account invalidation',
+    (tester) async {
+      await tester.runAsync(
+        () => repository.run((ctx) async {
+          await ctx.login();
+          final planner = ManualPlannerProvider(
+            repositoryLoader: () async => ctx.repository,
+            lifecycle: ctx.lifecycle,
+            newId: nextId,
+          );
+          try {
+            planner.openNew(documentWithLinkedActivity());
+            await pumpNestedEditor(tester, planner);
+            ctx.lifecycle.invalidateAccountContext();
+            await tester.pumpAndSettle();
+            expect(find.text('Xóa hoạt động?'), findsNothing);
+            expect(find.text('Xác nhận xóa'), findsNothing);
+            expect(find.textContaining('Hoạt động C'), findsNothing);
+            expect(planner.document, isNull);
+            expect(
+              ctx.server.creates + ctx.server.updates + ctx.server.deletes,
+              0,
+            );
+            expect(tester.takeException(), isNull);
+            await tester.pumpWidget(const SizedBox.shrink());
+            await tester.pumpAndSettle();
+          } finally {
+            planner.dispose();
+          }
+        }),
+      );
+    },
+  );
+
   testWidgets(
     'empty day adds, edits and reorders with labelled buttons without engine calls',
     (tester) async {

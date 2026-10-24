@@ -1,9 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:latlong2/latlong.dart';
 import 'package:travelgo_mobile/features/explore/models/catalogue_reference.dart';
 import 'package:travelgo_mobile/features/explore/models/place_visit_details.dart';
 import 'package:travelgo_mobile/features/explore/models/public_catalogue_snapshot.dart';
-import 'package:travelgo_mobile/features/map/models/itinerary_map_context.dart';
 import 'package:travelgo_mobile/features/map/services/itinerary_map_builder.dart';
 import 'package:travelgo_mobile/features/trip_planner/models/planner_result_snapshot.dart';
 import 'package:travelgo_mobile/features/trip_planner/models/trip_request.dart';

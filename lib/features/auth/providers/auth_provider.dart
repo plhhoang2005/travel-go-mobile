@@ -7,6 +7,13 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../trips/services/local_account_lifecycle_service.dart';
 import '../models/user_model.dart';
 
+class RecoveryIntentCancelledException implements Exception {
+  final String message;
+  RecoveryIntentCancelledException([this.message = 'Recovery intent was cancelled.']);
+  @override
+  String toString() => 'RecoveryIntentCancelledException: $message';
+}
+
 class AuthProvider extends ChangeNotifier {
   final SupabaseClient? _injectedClient;
   final Future<String?> Function(String userId)? _trustedRoleFetcher;
@@ -84,18 +91,82 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  bool isCurrentRecoveryIntent(String intentId) =>
+      _isRecovering && _currentRecoveryIntentId == intentId;
+
+  final List<Future<void> Function()> _recoveryInvalidators = [];
+
+  VoidCallback registerRecoveryInvalidator(Future<void> Function() invalidate) {
+    _recoveryInvalidators.add(invalidate);
+    return () => _recoveryInvalidators.remove(invalidate);
+  }
+
+  void _handleRecoveryCancellation() {
+    if (_isRecovering || _currentRecoveryIntentId != null) {
+      _requestGeneration++;
+      _isRecovering = false;
+      _currentRecoveryIntentId = null;
+      notifyListeners();
+      for (final inv in List.of(_recoveryInvalidators)) {
+        unawaited(inv());
+      }
+      final client = _supabaseClient;
+      if (client != null) {
+        _enqueueCredential(() async {
+          try {
+            await client.auth.signOut(scope: SignOutScope.local);
+          } catch (_) {}
+        });
+      }
+    }
+  }
+
+  Future<void> cancelRecovery(String intentId) async {
+    if (_currentRecoveryIntentId == intentId || (_currentRecoveryIntentId == null && _isRecovering)) {
+      _requestGeneration++;
+      _isRecovering = false;
+      _currentRecoveryIntentId = null;
+      notifyListeners();
+      for (final inv in List.of(_recoveryInvalidators)) {
+        await inv();
+      }
+      final client = _supabaseClient;
+      if (client != null) {
+        await _enqueueCredential(() async {
+          try {
+            await client.auth.signOut(scope: SignOutScope.local);
+          } catch (_) {}
+        });
+      }
+    }
+  }
+
   Future<T> runRecoveryMutation<T>(
     String intentId,
     Future<T> Function(SupabaseClient) action,
   ) {
     if (_disposed) throw StateError('AuthProvider is disposed');
+    if (!isCurrentRecoveryIntent(intentId)) {
+      throw RecoveryIntentCancelledException();
+    }
     final client = _supabaseClient;
     if (client == null) throw StateError('SDK client unavailable');
+    final capturedGeneration = _requestGeneration;
     return _enqueueCredential(() async {
-      if (_disposed) throw StateError('AuthProvider is disposed');
+      if (_disposed ||
+          capturedGeneration != _requestGeneration ||
+          !isCurrentRecoveryIntent(intentId)) {
+        throw RecoveryIntentCancelledException();
+      }
       _credentialBusy = true;
       try {
-        return await action(client);
+        final result = await action(client);
+        if (_disposed ||
+            capturedGeneration != _requestGeneration ||
+            !isCurrentRecoveryIntent(intentId)) {
+          throw RecoveryIntentCancelledException();
+        }
+        return result;
       } finally {
         _credentialBusy = false;
       }
@@ -147,7 +218,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   void _initSession() {
-    if (_recoveryBootstrapBlocked || _isRecovering) return;
+    if (_recoveryBootstrapBlocked || _isRecovering || _currentRecoveryIntentId != null) return;
     final client = _supabaseClient;
     if (client == null) return;
 
@@ -161,7 +232,16 @@ class AuthProvider extends ChangeNotifier {
     }
 
     _authSubscription = client.auth.onAuthStateChange.listen((data) {
-      if (_disposed) return;
+      if (_disposed || _recoveryBootstrapBlocked || _isRecovering || _currentRecoveryIntentId != null) return;
+      if (data.event == AuthChangeEvent.passwordRecovery) return;
+      if (_userChoseGuest) {
+        _currentUser = null;
+        _isGuest = true;
+        _isDemoSession = false;
+        _isLoading = false;
+        notifyListeners();
+        return;
+      }
       final session = data.session;
       _authEpoch++;
       if (session != null) {
@@ -288,6 +368,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   void continueAsGuest() {
+    _handleRecoveryCancellation();
     _userChoseGuest = true;
     _travelPreferencesLoaded = false;
     _travelPreferencesLoading = false;
@@ -313,6 +394,7 @@ class AuthProvider extends ChangeNotifier {
 
   /// Real Supabase Email & Password Login without any mock bypasses
   Future<bool> login(String email, String password) async {
+    _handleRecoveryCancellation();
     _userChoseGuest = false;
     if (_lifecycleLoader != null) {
       return _guardedMutation(
@@ -326,50 +408,53 @@ class AuthProvider extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
 
-    final client = _supabaseClient;
-    if (client == null) {
-      _errorMessage = 'Chưa thể kết nối tới cơ sở dữ liệu Supabase. Vui lòng kiểm tra kết nối mạng.';
-      _isLoading = false;
-      notifyListeners();
-      return false;
-    }
-
-    try {
-      final response = await client.auth.signInWithPassword(
-        email: email.trim(),
-        password: password,
-      );
-
-      if (response.user != null) {
-        _authEpoch++;
-        _currentUser = _mapSupabaseUser(response.user!);
-        _isGuest = false;
-        _isDemoSession = false;
-        _isLoading = false;
-        notifyListeners();
-        _fetchTrustedRole(response.user!.id, _authEpoch);
-        return true;
-      } else {
-        _errorMessage = 'Không nhận được dữ liệu phiên đăng nhập từ máy chủ.';
+    return _enqueueCredential(() async {
+      final client = _supabaseClient;
+      if (client == null) {
+        _errorMessage = 'Chưa thể kết nối tới cơ sở dữ liệu Supabase. Vui lòng kiểm tra kết nối mạng.';
         _isLoading = false;
         notifyListeners();
         return false;
       }
-    } on AuthException catch (e) {
-      _errorMessage = _translateAuthError(e.message);
-      _isLoading = false;
-      notifyListeners();
-      return false;
-    } catch (e) {
-      _errorMessage = 'Lỗi kết nối máy chủ Supabase: ${e.toString()}';
-      _isLoading = false;
-      notifyListeners();
-      return false;
-    }
+
+      try {
+        final response = await client.auth.signInWithPassword(
+          email: email.trim(),
+          password: password,
+        );
+
+        if (response.user != null) {
+          _authEpoch++;
+          _currentUser = _mapSupabaseUser(response.user!);
+          _isGuest = false;
+          _isDemoSession = false;
+          _isLoading = false;
+          notifyListeners();
+          _fetchTrustedRole(response.user!.id, _authEpoch);
+          return true;
+        } else {
+          _errorMessage = 'Không nhận được dữ liệu phiên đăng nhập từ máy chủ.';
+          _isLoading = false;
+          notifyListeners();
+          return false;
+        }
+      } on AuthException catch (e) {
+        _errorMessage = _translateAuthError(e.message);
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      } catch (e) {
+        _errorMessage = 'Lỗi kết nối máy chủ Supabase: ${e.toString()}';
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+    });
   }
 
   /// Real Supabase OAuth Sign-In (Google & Facebook)
   Future<bool> signInWithOAuth(OAuthProvider provider) async {
+    _handleRecoveryCancellation();
     _userChoseGuest = false;
     if (_lifecycleLoader != null) return _guardedOAuth(provider);
     _isLoading = true;
@@ -428,6 +513,7 @@ class AuthProvider extends ChangeNotifier {
   /// Helper retained strictly for unit test fixtures
   @visibleForTesting
   Future<void> quickDemoLogin(UserRole role) async {
+    _handleRecoveryCancellation();
     _requestGeneration++;
     _authEpoch++;
     _isLoading = true;
@@ -482,6 +568,7 @@ class AuthProvider extends ChangeNotifier {
     required String phone,
     required String password,
   }) async {
+    _handleRecoveryCancellation();
     _userChoseGuest = false;
     if (_lifecycleLoader != null) {
       return _guardedMutation(
@@ -557,6 +644,7 @@ class AuthProvider extends ChangeNotifier {
 
   /// OTP verification via Supabase verifyOTP
   Future<bool> verifyOtp(String code, {String? email}) async {
+    _handleRecoveryCancellation();
     final trimmedCode = code.trim();
     if (!RegExp(r'^\d{6}$').hasMatch(trimmedCode)) {
       _errorMessage = 'Mã xác thực phải gồm đúng 6 chữ số.';
@@ -868,6 +956,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<bool> logout() {
+    _handleRecoveryCancellation();
     if (_lifecycleLoader != null) return _guardedLogout();
     _authEpoch++;
     _currentUser = null;
@@ -989,7 +1078,9 @@ class AuthProvider extends ChangeNotifier {
   }
 
   void _observeSdk(AuthState event) {
-    if (_disposed || _initializing || _credentialBusy || _loggingOut || _isRecovering) return;
+    if (_disposed || _initializing || _credentialBusy || _loggingOut || _isRecovering || _currentRecoveryIntentId != null) return;
+    if (event.event == AuthChangeEvent.passwordRecovery) return;
+    if (_userChoseGuest) return;
     final session = event.session;
     final current = _sdkSession();
     if (session != null &&
@@ -1032,7 +1123,9 @@ class AuthProvider extends ChangeNotifier {
         !_foreground ||
         generation != _requestGeneration ||
         _loggingOut ||
-        _logoutRetry) {
+        _logoutRetry ||
+        _isRecovering ||
+        _currentRecoveryIntentId != null) {
       return false;
     }
     final service = _lifecycle;
@@ -1287,7 +1380,9 @@ class AuthProvider extends ChangeNotifier {
             !_userChoseGuest &&
             !_credentialBusy &&
             !_loggingOut &&
-            !_initializing) {
+            !_initializing &&
+            !_isRecovering &&
+            _currentRecoveryIntentId == null) {
           await service.resumeForegroundContext();
           _publish(_requestGeneration);
         }

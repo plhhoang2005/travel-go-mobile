@@ -28,6 +28,9 @@ class RecoveryIntentStore {
       final decoded = jsonDecode(raw) as Map<String, dynamic>;
       final item = PendingRecovery.fromJson(decoded);
       if (item.isExpired(_clock())) {
+        if (item.phase == RecoveryPhase.updating || item.phase == RecoveryPhase.cleanup) {
+          return item;
+        }
         await clear();
         return null;
       }
@@ -53,7 +56,10 @@ class RecoveryIntentStore {
   Future<void> clear() async {
     final prefs = _prefs;
     if (prefs != null) {
-      await prefs.remove(_storageKey);
+      final removed = await prefs.remove(_storageKey);
+      if (!removed) {
+        throw StateError('Failed to remove recovery intent from storage.');
+      }
     }
   }
 }

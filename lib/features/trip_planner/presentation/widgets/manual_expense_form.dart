@@ -111,6 +111,11 @@ class _ManualExpenseFormState extends State<ManualExpenseForm> {
     _dirty = true;
     _error = null;
   });
+  void _selectPaidDate(DateTime date) {
+    _date.text = DateFormat('yyyy-MM-dd').format(date);
+    _changed();
+  }
+
   int? _integer(String text, int max, {int min = 0}) {
     final raw = text.trim();
     final n = RegExp(r'^\d+$').hasMatch(raw) ? int.tryParse(raw) : null;
@@ -281,6 +286,8 @@ class _ExpenseMoneyFields extends StatelessWidget {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
+      Text('1. Số tiền', style: Theme.of(context).textTheme.titleLarge),
+      const SizedBox(height: 16),
       TextFormField(
         key: const ValueKey('expense.amount'),
         controller: form._amount,
@@ -297,6 +304,15 @@ class _ExpenseMoneyFields extends StatelessWidget {
         validator: form._amountError,
         onChanged: (_) => form._changed(),
       ),
+      const SizedBox(height: 8),
+      if (form._integer(form._amount.text, EditableTripCodec.maxMoney)
+          case final amount?)
+        Text(
+          'Bạn đang nhập ${manualMoney(amount)}',
+          style: Theme.of(context).textTheme.titleMedium,
+        )
+      else if (form.estimate && form._amount.text.trim().isEmpty)
+        const Text('Khoản này chưa có giá, chưa được cộng vào tổng đã biết.'),
       if (form.estimate) ...[
         const SizedBox(height: 16),
         DropdownButtonFormField<String>(
@@ -330,7 +346,22 @@ class _ExpenseMoneyFields extends StatelessWidget {
               onChanged: (_) => form._changed(),
             ),
           ),
-      ] else
+      ] else ...[
+        ExpansionTile(
+          title: const Text('Chọn ngày đã chi trên lịch'),
+          leading: const Icon(Icons.calendar_month_outlined),
+          children: [
+            CalendarDatePicker(
+              key: ValueKey('expense.calendar.${form._date.text}'),
+              initialDate: form._dateError(form._date.text) == null
+                  ? DateTime.parse(form._date.text)
+                  : DateTime.now(),
+              firstDate: DateTime(0),
+              lastDate: DateTime(9999, 12, 31),
+              onDateChanged: form._selectPaidDate,
+            ),
+          ],
+        ),
         Padding(
           padding: const EdgeInsets.only(top: 16),
           child: TextFormField(
@@ -345,6 +376,7 @@ class _ExpenseMoneyFields extends StatelessWidget {
             onChanged: (_) => form._changed(),
           ),
         ),
+      ],
     ],
   );
 }
@@ -356,6 +388,11 @@ class _ExpenseDetails extends StatelessWidget {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
+      Text(
+        '2. Nhóm và liên kết',
+        style: Theme.of(context).textTheme.titleLarge,
+      ),
+      const SizedBox(height: 16),
       DropdownButtonFormField<String>(
         isExpanded: true,
         itemHeight: null,

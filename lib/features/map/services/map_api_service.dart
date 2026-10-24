@@ -130,11 +130,11 @@ class MapApiService {
       if (e.type == DioExceptionType.connectionError ||
           e.type == DioExceptionType.connectionTimeout ||
           e.type == DioExceptionType.receiveTimeout) {
-        return _fetchDirectOsrmRoute(origin, destination, waypoints);
+        return _fetchDirectOsrmRoute(origin, destination, waypoints, configRevision: opRevision);
       }
 
       if (e.response?.statusCode == 503) {
-        return _fetchDirectOsrmRoute(origin, destination, waypoints);
+        return _fetchDirectOsrmRoute(origin, destination, waypoints, configRevision: opRevision);
       }
 
       throw RoutingException(
@@ -145,7 +145,7 @@ class MapApiService {
       if (e is BackendConfigChangedException) rethrow;
       if (e is RoutingException) {
         if (e.backendUnreachable) {
-          return _fetchDirectOsrmRoute(origin, destination, waypoints);
+          return _fetchDirectOsrmRoute(origin, destination, waypoints, configRevision: opRevision);
         }
         rethrow;
       }
@@ -159,8 +159,17 @@ class MapApiService {
   Future<RouteData> _fetchDirectOsrmRoute(
     LatLng origin,
     LatLng destination,
-    List<RouteWaypoint> waypoints,
-  ) async {
+    List<RouteWaypoint> waypoints, {
+    required int configRevision,
+  }) async {
+    void checkRevision() {
+      if ((configRevisionReader?.call() ?? ApiConstants.configRevision) !=
+          configRevision) {
+        throw const BackendConfigChangedException();
+      }
+    }
+
+    checkRevision();
     final coordinates = [
       origin,
       ...waypoints.map((w) => w.position),
@@ -187,6 +196,7 @@ class MapApiService {
               throw TimeoutException('OSRM vượt quá thời gian chờ 5 giây.');
             },
           );
+      checkRevision();
       final data = response.data;
       if (data == null || data['code'] != 'Ok') {
         throw RoutingException(
@@ -233,12 +243,16 @@ class MapApiService {
         summary: 'Tuyến đường OSRM',
         waypoints: waypoints,
       );
+    } on BackendConfigChangedException {
+      rethrow;
     } on TimeoutException catch (error) {
+      checkRevision();
       throw RoutingException(
         'Backend và OSRM không khả dụng: $error',
         backendUnreachable: true,
       );
     } on DioException catch (error) {
+      checkRevision();
       final unreachable =
           error.type == DioExceptionType.connectionError ||
           error.type == DioExceptionType.connectionTimeout ||
@@ -250,8 +264,10 @@ class MapApiService {
         backendUnreachable: unreachable,
       );
     } on RoutingException {
+      checkRevision();
       rethrow;
     } catch (error) {
+      checkRevision();
       throw RoutingException('Dữ liệu OSRM không hợp lệ: $error');
     }
   }

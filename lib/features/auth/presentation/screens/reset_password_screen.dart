@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../models/password_recovery_state.dart';
 import '../../providers/password_recovery_provider.dart';
 
 class ResetPasswordScreen extends StatefulWidget {
@@ -49,6 +50,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     final recovery = context.watch<PasswordRecoveryProvider>();
     final isProcessing = recovery.isProcessing;
     final isCleanup = recovery.isCleanupRequired;
+    final isUncertain = recovery.state == RecoveryState.uncertain;
 
     return Scaffold(
       appBar: AppBar(
@@ -107,6 +109,29 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                             ElevatedButton(
                               onPressed: isProcessing ? null : () => recovery.retryCleanup(),
                               child: const Text('Thử lại hoàn tất đăng xuất'),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ] else if (isUncertain) ...[
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.orange[50],
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.orange[400]!),
+                        ),
+                        child: Column(
+                          children: [
+                            const Text(
+                              'Chưa rõ kết quả cập nhật mật khẩu do lỗi kết nối mạng. Vui lòng kiểm tra lại phiên hoặc thử hoàn tất dọn dẹp.',
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 12),
+                            ElevatedButton(
+                              onPressed: isProcessing ? null : () => recovery.retryCleanup(),
+                              child: const Text('Thử hoàn tất dọn dẹp phiên'),
                             ),
                           ],
                         ),

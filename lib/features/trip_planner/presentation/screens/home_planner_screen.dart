@@ -2,14 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 
-import '../../../../main.dart';
 import '../../models/trip_request.dart';
-import '../../services/manual_trip_factory.dart';
-import '../../../trips/models/trip_payload_codec.dart';
-import '../../../explore/providers/discovery_provider.dart';
-import '../../../explore/models/catalogue_reference.dart' as catalogue;
-import '../../providers/manual_planner_provider.dart';
-import 'manual_planner_screen.dart';
 import 'manual_planner_entry_screen.dart';
 
 import '../../providers/trip_provider.dart';

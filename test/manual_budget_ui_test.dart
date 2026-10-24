@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:fl_chart/fl_chart.dart';
 import 'package:travelgo_mobile/features/trip_planner/models/editable_trip_command.dart';
 import 'package:travelgo_mobile/features/trip_planner/models/editable_trip_document.dart';
 import 'package:travelgo_mobile/features/trip_planner/presentation/screens/manual_planner_screen.dart';
@@ -112,6 +113,85 @@ Future<void> finishSave(ManualPlannerProvider planner) async {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  testWidgets(
+    'budget chart keeps estimates, actuals and unknown prices separate at large text',
+    (tester) async {
+      final base = records.doc();
+      final document = base.copyWith(
+        input: TripInput.fromJson({
+          ...base.input.toJson(),
+          'totalBudgetVnd': 1,
+        }),
+      );
+      final totals = BudgetCalculator.calculate(document);
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(360, 800);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightTheme,
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(
+              textScaler: const TextScaler.linear(2),
+              disableAnimations: true,
+            ),
+            child: child!,
+          ),
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: ManualBudgetSummary(totals: totals, budget: 1),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final chart = tester.widget<BarChart>(find.byType(BarChart));
+      expect(chart.data.barGroups.map((g) => g.barRods.single.toY), [
+        1.0,
+        300000.0,
+        250000.0,
+      ]);
+      expect(find.text('Chưa gồm 1 khoản chưa biết giá'), findsOneWidget);
+      expect(
+        find.text('Vượt ngân sách theo dự kiến: 299.999 đ'),
+        findsOneWidget,
+      );
+      expect(
+        find.text('Vượt ngân sách theo đã chi: 249.999 đ'),
+        findsOneWidget,
+      );
+      expect(chart.duration, Duration.zero);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'paid-date calendar preserves exact VND and does not guess a payment date',
+    (tester) async {
+      EditableCommand? result;
+      await pumpForm(tester, ManualExpenseKind.actual, (v) => result = v);
+      expect(
+        tester
+            .widget<TextFormField>(find.byKey(const ValueKey('expense.paidOn')))
+            .controller!
+            .text,
+        isEmpty,
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('expense.amount')),
+        '5123456',
+      );
+      await tapText(tester, 'Chọn ngày đã chi trên lịch');
+      tester
+          .widget<CalendarDatePicker>(find.byType(CalendarDatePicker))
+          .onDateChanged(DateTime(2026, 10, 17));
+      await tester.pumpAndSettle();
+      await tapText(tester, 'Áp dụng thay đổi');
+      expect((result as PutActualCommand).actual.amountVnd, 5123456);
+      expect((result as PutActualCommand).actual.paidOn, '2026-10-17');
+    },
+  );
   testWidgets(
     'Guest confirms one frozen itinerary and actual snapshot to disk',
     (tester) async {

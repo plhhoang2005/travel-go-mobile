@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+
+import '../../../../core/presentation/travel_image.dart';
+import '../../../../core/presentation/travel_media.dart';
+
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
@@ -57,6 +61,17 @@ class SavedTripSnapshotScreen extends StatelessWidget {
               key: const ValueKey('saved.v1'),
               padding: const EdgeInsets.all(16),
               children: [
+                if (TravelMediaCatalog.forDestination(
+                      snapshot.cachedPayload.metadata.destinationId,
+                    )
+                    case final media?) ...[
+                  TravelImage(
+                    media: media,
+                    semanticLabel: media.caption,
+                    height: 180,
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 Text(
                   snapshot.title,
                   style: Theme.of(context).textTheme.headlineSmall,

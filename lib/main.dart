@@ -245,6 +245,7 @@ class TravelGoApp extends StatefulWidget {
   final Stream<Uri>? authCallbackLinks;
   final Future<Uri?> Function()? initialAuthLinkLoader;
   final BackendApiConfig? backendConfig;
+  final AuthProvider? authProvider;
   final PasswordRecoveryProvider? recoveryProvider;
   final RecoveryIntentStore? recoveryIntentStore;
   final PasswordRecoveryService? recoveryService;
@@ -256,6 +257,7 @@ class TravelGoApp extends StatefulWidget {
     this.authCallbackLinks,
     this.initialAuthLinkLoader,
     this.backendConfig,
+    this.authProvider,
     this.recoveryProvider,
     this.recoveryIntentStore,
     this.recoveryService,
@@ -310,7 +312,8 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
             'account_cache_lifecycle_v1.json',
           ),
         );
-    _auth = AuthProvider(
+    _auth = widget.authProvider ??
+        AuthProvider(
       client: _client,
       lifecycleLoader: _client == null ? null : _getLifecycle,
       sessionReader: () => _client?.auth.currentSession,

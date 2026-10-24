@@ -377,7 +377,12 @@ class ManualPlannerProvider extends ChangeNotifier {
       if (!_current(value)) return false;
       _saving = false;
       if (error is EditableRemoteException &&
-          error.code == 'version_conflict') {
+          error.kind == EditableRemoteFailure.rejected &&
+          error.code == 'version_conflict' &&
+          value.base != null) {
+        // A definitively rejected update is not an unresolved save. Retain the
+        // stale document/conflict, but allow explicit replacement confirmation.
+        _pending = null;
         _state = ManualPlannerState.conflict;
         _error = 'Chuyến đi đã có phiên bản mới. Các chỉnh sửa của bạn vẫn được giữ.';
       } else if (error is EditableRemoteException &&

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/presentation/travel_image.dart';
+import '../../../../core/presentation/travel_media.dart';
 import '../../models/editable_trip_command.dart';
 import '../../models/editable_trip_document.dart';
 import '../../providers/manual_planner_provider.dart';
@@ -116,43 +118,102 @@ class _ActivityRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.symmetric(horizontal: 16),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const Divider(height: 24),
-        Text(
-          manualTimeLabel(item),
-          style: Theme.of(context).textTheme.bodyMedium,
+    child: DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border(
+          left: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
         ),
-        Text(item.title, style: Theme.of(context).textTheme.titleMedium),
-        Text(
-          item.placeId == null ? 'Tự nhập' : 'Có liên kết địa điểm tham khảo',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-        if (item.notes.isNotEmpty) Text(item.notes),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: TextButton(
-            onPressed: onEdit,
-            child: Tooltip(
-              message: 'Sửa: ${item.title}',
-              child: const Text('Sửa hoạt động'),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.only(left: 16, bottom: 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(
+                  Icons.schedule_outlined,
+                  size: 20,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    manualTimeLabel(item),
+                    style: Theme.of(context).textTheme.labelLarge,
+                  ),
+                ),
+              ],
             ),
-          ),
+            const SizedBox(height: 12),
+            _ActivityPhoto(item: item),
+            const SizedBox(height: 12),
+            Text(item.title, style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 4),
+            Text(
+              item.placeId == null
+                  ? 'Tự nhập'
+                  : 'Có liên kết địa điểm tham khảo',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            if (item.notes.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(item.notes),
+              ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                onPressed: onEdit,
+                child: Tooltip(
+                  message: 'Sửa: ${item.title}',
+                  child: const Text('Sửa hoạt động'),
+                ),
+              ),
+            ),
+            _ActivityActions(
+              item: item,
+              isCurrent: isCurrent,
+              onUp: onUp,
+              onDown: onDown,
+              onMove: onMove,
+              onDelete: onDelete,
+              enabled: onEdit != null,
+            ),
+            const SizedBox(height: 8),
+          ],
         ),
-        _ActivityActions(
-          item: item,
-          isCurrent: isCurrent,
-          onUp: onUp,
-          onDown: onDown,
-          onMove: onMove,
-          onDelete: onDelete,
-          enabled: onEdit != null,
-        ),
-        const SizedBox(height: 8),
-      ],
+      ),
     ),
   );
+}
+
+class _ActivityPhoto extends StatelessWidget {
+  final TripItem item;
+  const _ActivityPhoto({required this.item});
+  @override
+  Widget build(BuildContext context) {
+    final media = TravelMediaCatalog.forPlace(item.placeId);
+    return media == null
+        ? Row(
+            children: [
+              const Icon(Icons.image_not_supported_outlined, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Chưa có ảnh địa điểm',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+            ],
+          )
+        : TravelImage(
+            media: media,
+            semanticLabel: 'Ảnh địa điểm: ${item.title}',
+            height: 160,
+          );
+  }
 }
 
 class _ReorderButton extends StatelessWidget {
@@ -272,6 +333,13 @@ class _TimelineDayHeader extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _DayNavigation(timeline: timeline, day: day),
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Text(
+            '${timeline.planner.document?.items.where((i) => i.dayId == day.id).length ?? 0} hoạt động trong ngày',
+            style: Theme.of(context).textTheme.labelLarge,
+          ),
+        ),
         if (day.notes.isNotEmpty) Text(day.notes),
         Align(
           alignment: Alignment.centerLeft,
@@ -285,7 +353,18 @@ class _TimelineDayHeader extends StatelessWidget {
         if (isEmpty)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 24),
-            child: Text('Ngày này chưa có hoạt động'),
+            child: Column(
+              children: [
+                Icon(Icons.add_location_alt_outlined, size: 32),
+                SizedBox(height: 12),
+                Text('Ngày này chưa có hoạt động'),
+                SizedBox(height: 8),
+                Text(
+                  'Thêm nơi muốn ghé hoặc một hoạt động của riêng bạn.',
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
           ),
       ],
     ),

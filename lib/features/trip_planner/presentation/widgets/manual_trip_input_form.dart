@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../../../core/presentation/travel_image.dart';
+import '../../../../core/presentation/travel_media.dart';
 import '../../../explore/models/catalogue_reference.dart' as catalogue;
 import '../../../trips/models/editable_trip_codec.dart';
 import '../../models/editable_trip_command.dart';
@@ -8,6 +10,7 @@ import '../../models/editable_trip_document.dart';
 import '../../services/budget_calculator.dart';
 import '../../services/editable_trip_mutator.dart';
 import 'manual_activity_form.dart';
+import 'trip_live_preview.dart';
 
 class ManualTripInputResult {
   final TripInput input;
@@ -58,6 +61,11 @@ class _ManualTripInputFormState extends State<ManualTripInputForm> {
   int _affectedIndex = 0;
   EditableTripDocumentV2? _candidate;
   String? _error;
+  late TripInput _preview;
+  late int _previewDays;
+  bool _previewStale = false, _calendarEnd = false;
+  int _section = 0;
+  final _sections = List.generate(3, (_) => GlobalKey());
   @override
   void initState() {
     super.initState();
@@ -76,6 +84,8 @@ class _ManualTripInputFormState extends State<ManualTripInputForm> {
     _focus = values.map((k, v) => MapEntry(k, FocusNode()));
     _destination = input.destinationId;
     _priority = input.priority;
+    _preview = input;
+    _previewDays = widget.initialDocument.days.length;
   }
 
   @override
@@ -96,7 +106,50 @@ class _ManualTripInputFormState extends State<ManualTripInputForm> {
       final count = end.difference(start).inDays + 1;
       if (count >= 1 && count <= 366) _fields['days']!.text = '$count';
     }
+    _previewStale = _fields.keys.any(
+      (name) => _validate(name, _fields[name]!.text) != null,
+    );
+    if (!_previewStale) {
+      _preview = _readInput();
+      _previewDays = int.parse(_text('days'));
+    }
     setState(() => _dirty = true);
+  }
+
+  void _jump(int index) {
+    FocusScope.of(context).unfocus();
+    setState(() => _section = index);
+    final target = _sections[index].currentContext;
+    if (target != null) Scrollable.ensureVisible(target);
+  }
+
+  void _setNumber(String name, int value) {
+    _fields[name]!.text = '$value';
+    _changed();
+  }
+
+  void _toggleInterest(String value) {
+    final interests = _text('interests')
+        .split('\n')
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
+    if (interests.contains(value)) {
+      interests.removeWhere((s) => s == value);
+    } else if (interests.length < 20) {
+      interests.add(value);
+    }
+    _fields['interests']!.text = interests.join('\n');
+    _changed();
+  }
+
+  void _selectCalendarEnd(bool value) => setState(() => _calendarEnd = value);
+
+  void _pickDate(DateTime date) {
+    final name = _calendarEnd ? 'end' : 'start';
+    _fields[name]!.text = DateFormat('yyyy-MM-dd').format(date);
+    if (!_calendarEnd) _calendarEnd = true;
+    _changed();
   }
 
   void _backToInputs() => setState(() {
@@ -182,24 +235,7 @@ class _ManualTripInputFormState extends State<ManualTripInputForm> {
     final count = start != null && end != null
         ? end.difference(start).inDays + 1
         : int.parse(_text('days'));
-    final selected = widget.destinations.where((d) => d.id == _destination);
-    _input = TripInput.fromJson({
-      ...original.input.toJson(),
-      'title': _text('title'),
-      'origin': _text('origin'),
-      'destinationId': _destination,
-      'destinationName': selected.isEmpty ? null : selected.single.name,
-      'startDate': start == null ? null : _text('start'),
-      'endDate': end == null ? null : _text('end'),
-      'travelerCount': int.parse(_text('travelers')),
-      'totalBudgetVnd': int.parse(_text('budget')),
-      'interests': _text('interests')
-          .split('\n')
-          .map((s) => s.trim())
-          .where((s) => s.isNotEmpty)
-          .toList(),
-      'priority': _priority,
-    });
+    _input = _readInput();
     _days = List.generate(
       count,
       (index) => TripDay(
@@ -228,6 +264,27 @@ class _ManualTripInputFormState extends State<ManualTripInputForm> {
     _error = null;
     _refreshCandidate();
     setState(() {});
+  }
+
+  TripInput _readInput() {
+    final selected = widget.destinations.where((d) => d.id == _destination);
+    return TripInput.fromJson({
+      ...widget.initialDocument.input.toJson(),
+      'title': _text('title'),
+      'origin': _text('origin'),
+      'destinationId': _destination,
+      'destinationName': selected.isEmpty ? null : selected.single.name,
+      'startDate': _text('start').isEmpty ? null : _text('start'),
+      'endDate': _text('end').isEmpty ? null : _text('end'),
+      'travelerCount': int.parse(_text('travelers')),
+      'totalBudgetVnd': int.parse(_text('budget')),
+      'interests': _text('interests')
+          .split('\n')
+          .map((s) => s.trim())
+          .where((s) => s.isNotEmpty)
+          .toList(),
+      'priority': _priority,
+    });
   }
 
   ManualTripInputResult _result() {
@@ -312,6 +369,7 @@ class _ManualTripInputFormState extends State<ManualTripInputForm> {
     title: 'Thông tin chuyến đi',
     dirty: _dirty,
     formKey: _key,
+    header: _TripPreviewHeader(form: this),
     applyLabel: _input == null ? 'Xem thay đổi' : 'Áp dụng thay đổi',
     onApply: _input == null
         ? _prepare
@@ -319,9 +377,282 @@ class _ManualTripInputFormState extends State<ManualTripInputForm> {
         ? null
         : _apply,
     fields: _input == null
-        ? [_TripMainFields(form: this), _TripExtraFields(form: this)]
+        ? [
+            _TripMainFields(form: this),
+            _TripBudgetFields(form: this),
+            _TripExtraFields(form: this),
+          ]
         : [_InputReview(form: this)],
   );
+}
+
+class _TripPreviewHeader extends StatelessWidget {
+  final _ManualTripInputFormState form;
+  const _TripPreviewHeader({required this.form});
+  @override
+  Widget build(BuildContext context) {
+    final input = form._input ?? form._preview;
+    final days = form._days?.length ?? form._previewDays;
+    final compact =
+        MediaQuery.viewInsetsOf(context).bottom > 0 ||
+        MediaQuery.sizeOf(context).height < 620 ||
+        MediaQuery.textScalerOf(context).scale(16) > 21;
+    return Material(
+      color: Theme.of(context).colorScheme.surface,
+      child: Padding(
+        key: const ValueKey('trip.livePreview'),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (form._input == null &&
+                MediaQuery.viewInsetsOf(context).bottom == 0)
+              Wrap(
+                spacing: 8,
+                children: [
+                  for (final (index, label) in [
+                    'Đi đâu',
+                    'Ngày & người',
+                    'Ngân sách',
+                  ].indexed)
+                    TextButton(
+                      key: ValueKey('trip.section.$index'),
+                      onPressed: () => form._jump(index),
+                      style: TextButton.styleFrom(
+                        backgroundColor: form._section == index
+                            ? Theme.of(context).colorScheme.primaryContainer
+                            : null,
+                      ),
+                      child: Text('${index + 1}. $label'),
+                    ),
+                ],
+              ),
+            if (compact) ...[
+              Text(
+                input.destinationName ?? 'Chọn điểm đến',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              Text(
+                '$days ngày · ${input.travelerCount} người · ${NumberFormat.currency(locale: 'vi_VN', symbol: '₫', decimalDigits: 0).format(input.totalBudgetVnd)}',
+              ),
+            ] else
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 104,
+                    child: TravelImage(
+                      media: TravelMediaCatalog.forDestination(
+                        input.destinationId,
+                      ),
+                      semanticLabel:
+                          'Ảnh ${input.destinationName ?? 'điểm đến'}',
+                      height: 128,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: TripLivePreview(
+                      input: input,
+                      dayCount: days,
+                      compact: true,
+                    ),
+                  ),
+                ],
+              ),
+            if (form._previewStale && form._input == null)
+              const Text(
+                'Xem trước đang giữ thông tin hợp lệ gần nhất. Kiểm tra phần đang nhập.',
+              ),
+            if (input.startDate != null && input.endDate != null && !compact)
+              Text(
+                '${DateFormat('dd/MM/yyyy').format(DateTime.parse(input.startDate!))} – ${DateFormat('dd/MM/yyyy').format(DateTime.parse(input.endDate!))}',
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TripSection extends StatelessWidget {
+  final String title, subtitle;
+  const _TripSection({super.key, required this.title, required this.subtitle});
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: 16, bottom: 20),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: Theme.of(context).textTheme.titleLarge),
+        const SizedBox(height: 8),
+        Text(subtitle),
+      ],
+    ),
+  );
+}
+
+class _NumberControl extends StatelessWidget {
+  final _ManualTripInputFormState form;
+  final String name, label;
+  final bool enabled;
+  const _NumberControl({
+    required this.form,
+    required this.name,
+    required this.label,
+    this.enabled = true,
+  });
+  @override
+  Widget build(BuildContext context) {
+    final value = int.tryParse(form._text(name));
+    final maximum = name == 'days' ? 366 : EditableTripCodec.maxCount;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        IconButton(
+          tooltip: 'Giảm $label',
+          onPressed: enabled && value != null && value > 1 && value <= maximum
+              ? () => form._setNumber(name, value - 1)
+              : null,
+          constraints: const BoxConstraints(minWidth: 48, minHeight: 56),
+          icon: const Icon(Icons.remove),
+        ),
+        Expanded(
+          child: _InputField(
+            form: form,
+            name: name,
+            label: label,
+            number: true,
+            enabled: enabled,
+          ),
+        ),
+        IconButton(
+          tooltip: 'Tăng $label',
+          onPressed: enabled && value != null && value >= 1 && value < maximum
+              ? () => form._setNumber(name, value + 1)
+              : null,
+          constraints: const BoxConstraints(minWidth: 48, minHeight: 56),
+          icon: const Icon(Icons.add),
+        ),
+      ],
+    );
+  }
+}
+
+class _TripCalendar extends StatelessWidget {
+  final _ManualTripInputFormState form;
+  const _TripCalendar({required this.form});
+  @override
+  Widget build(BuildContext context) {
+    final raw = form._date(form._text(form._calendarEnd ? 'end' : 'start'));
+    final date = raw == null
+        ? DateTime.now()
+        : DateTime(raw.year, raw.month, raw.day);
+    return ExpansionTile(
+      title: const Text('Chọn ngày trên lịch'),
+      leading: const Icon(Icons.calendar_month_outlined),
+      children: [
+        Wrap(
+          spacing: 8,
+          children: [
+            ChoiceChip(
+              label: const Text('Ngày đi'),
+              selected: !form._calendarEnd,
+              onSelected: (_) => form._selectCalendarEnd(false),
+            ),
+            ChoiceChip(
+              label: const Text('Ngày về'),
+              selected: form._calendarEnd,
+              onSelected: (_) => form._selectCalendarEnd(true),
+            ),
+          ],
+        ),
+        const Text(
+          'Chọn ngày đi, sau đó chọn ngày về. Tối đa 366 ngày, tính cả hai ngày.',
+        ),
+        CalendarDatePicker(
+          key: ValueKey(
+            'trip.calendar.${form._calendarEnd}.${DateFormat('yyyy-MM-dd').format(date)}',
+          ),
+          initialDate: date,
+          firstDate: DateTime(1),
+          lastDate: DateTime(9999, 12, 31),
+          onDateChanged: form._pickDate,
+        ),
+      ],
+    );
+  }
+}
+
+class _TripBudgetFields extends StatelessWidget {
+  final _ManualTripInputFormState form;
+  const _TripBudgetFields({required this.form});
+  @override
+  Widget build(BuildContext context) {
+    final selected = form
+        ._text('interests')
+        .split('\n')
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
+    final options = {
+      ...selected,
+      'biển',
+      'ẩm thực',
+      'văn hóa',
+      'thiên nhiên',
+      'nghỉ dưỡng',
+    };
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _TripSection(
+          key: form._sections[2],
+          title: '3. Ngân sách và sở thích',
+          subtitle: 'Chọn mức gợi ý hoặc nhập chính xác cho cả nhóm.',
+        ),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final amount in [3000000, 5000000, 8000000])
+              ChoiceChip(
+                label: Text('${amount ~/ 1000000} triệu'),
+                selected: int.tryParse(form._text('budget')) == amount,
+                onSelected: (_) => form._setNumber('budget', amount),
+              ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        _InputField(
+          form: form,
+          name: 'budget',
+          label: 'Ngân sách cả chuyến (VND)',
+          number: true,
+        ),
+        Text(
+          'Bạn muốn trải nghiệm gì?',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final interest in options)
+              FilterChip(
+                label: Text(interest),
+                selected: selected.contains(interest),
+                onSelected:
+                    !selected.contains(interest) && selected.length >= 20
+                    ? null
+                    : (_) => form._toggleInterest(interest),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
 }
 
 class _TripMainFields extends StatelessWidget {
@@ -331,6 +662,11 @@ class _TripMainFields extends StatelessWidget {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
+      _TripSection(
+        key: form._sections[0],
+        title: '1. Đi đâu?',
+        subtitle: 'Chọn điểm đến và nơi xuất phát.',
+      ),
       _InputField(form: form, name: 'title', label: 'Tên chuyến đi'),
       Padding(
         padding: const EdgeInsets.only(bottom: 16),
@@ -354,6 +690,12 @@ class _TripMainFields extends StatelessWidget {
         ),
       ),
       _InputField(form: form, name: 'origin', label: 'Nơi xuất phát'),
+      _TripSection(
+        key: form._sections[1],
+        title: '2. Khi nào và cùng ai?',
+        subtitle: 'Chưa có ngày cụ thể? Chỉ cần chọn số ngày.',
+      ),
+      _TripCalendar(form: form),
       _InputField(
         form: form,
         name: 'start',
@@ -377,25 +719,13 @@ class _TripMainFields extends StatelessWidget {
           child: const Text('Xóa khoảng ngày'),
         ),
       ),
-      _InputField(
+      _NumberControl(
         form: form,
         name: 'days',
         label: 'Số ngày khi chưa chọn ngày',
-        number: true,
         enabled: form._text('start').isEmpty && form._text('end').isEmpty,
       ),
-      _InputField(
-        form: form,
-        name: 'travelers',
-        label: 'Số người',
-        number: true,
-      ),
-      _InputField(
-        form: form,
-        name: 'budget',
-        label: 'Ngân sách cả chuyến (VND)',
-        number: true,
-      ),
+      _NumberControl(form: form, name: 'travelers', label: 'Số người'),
     ],
   );
 }

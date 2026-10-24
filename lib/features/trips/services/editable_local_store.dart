@@ -458,6 +458,49 @@ extension EditableLocalOperations on LocalTripStore {
     });
   }
 
+  /// Called only after the repository receives a definitive update rejection.
+  /// Uses the same owner/epoch/transaction guards as staging and acknowledgement.
+  Future<void> discardRejectedEditableUpdate({
+    required SessionHandle handle,
+    required EditablePendingAttempt attempt,
+  }) {
+    EditableRecordCodec.validateAttempt(attempt);
+    if (attempt.ownerId != handle.ownerId ||
+        attempt.operation != 'update' ||
+        attempt.sourceBinding != null) {
+      throw const ImportAttemptConflictException(
+        'Rejected update identity mismatch.',
+      );
+    }
+    final serialized = EditableTripCodec.canonicalJson(
+      EditableRecordCodec.attemptJson(attempt),
+    );
+    return _executeGuardedAccountOperation(handle, (txn) async {
+      final rows = await txn.query(
+        'editable_mutation_outbox',
+        where: 'owner_id=? AND request_id=?',
+        whereArgs: [handle.ownerId, attempt.requestId],
+      );
+      if (rows.length != 1 ||
+          rows.single['state'] != 'staged' ||
+          rows.single['attempt_json'] != serialized) {
+        throw const ImportAttemptConflictException(
+          'Rejected update differs from staged attempt.',
+        );
+      }
+      final removed = await txn.delete(
+        'editable_mutation_outbox',
+        where: 'owner_id=? AND request_id=? AND state=? AND attempt_json=?',
+        whereArgs: [handle.ownerId, attempt.requestId, 'staged', serialized],
+      );
+      if (removed != 1) {
+        throw const ImportAttemptConflictException(
+          'Rejected update changed during cleanup.',
+        );
+      }
+    });
+  }
+
   Future<List<EditableAttemptRecord>> listEditableAttempts({
     required SessionHandle handle,
   }) => _executeGuardedAccountOperation(handle, (txn) async {

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/presentation/travel_image.dart';
+import '../../../../core/presentation/travel_media.dart';
 import '../../../explore/models/catalogue_reference.dart' as catalogue;
 import '../../models/editable_trip_document.dart';
 
@@ -25,6 +27,7 @@ class ManualEditFormPage extends StatefulWidget {
   final bool dirty;
   final GlobalKey<FormState> formKey;
   final List<Widget> fields;
+  final Widget? header;
   final VoidCallback? onApply;
   const ManualEditFormPage({
     super.key,
@@ -33,6 +36,7 @@ class ManualEditFormPage extends StatefulWidget {
     required this.formKey,
     required this.fields,
     required this.onApply,
+    this.header,
     this.applyLabel = 'Áp dụng thay đổi',
   });
   @override
@@ -90,35 +94,50 @@ class _ManualEditFormPageState extends State<ManualEditFormPage> {
           actions: [TextButton(onPressed: _cancel, child: const Text('Hủy'))],
         ),
         body: SafeArea(
-          child: SingleChildScrollView(
-            key: const ValueKey('manual.form.scroll'),
-            padding: const EdgeInsets.all(16),
-            child: Form(
-              key: widget.formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (!allowed)
-                    const Padding(
-                      padding: EdgeInsets.only(bottom: 16),
-                      child: Text(
-                        'Dữ liệu chuyến đi đã thay đổi. Đóng form và mở lại để cập nhật.',
+          child: LayoutBuilder(
+            builder: (context, constraints) => Column(
+              children: [
+                if (widget.header != null)
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxHeight: constraints.maxHeight * .42,
+                    ),
+                    child: SingleChildScrollView(child: widget.header!),
+                  ),
+                Expanded(
+                  child: SingleChildScrollView(
+                    key: const ValueKey('manual.form.scroll'),
+                    padding: const EdgeInsets.all(16),
+                    child: Form(
+                      key: widget.formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (!allowed)
+                            const Padding(
+                              padding: EdgeInsets.only(bottom: 16),
+                              child: Text(
+                                'Dữ liệu chuyến đi đã thay đổi. Đóng form và mở lại để cập nhật.',
+                              ),
+                            ),
+                          for (final field in widget.fields)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 16),
+                              child: field,
+                            ),
+                          FilledButton(
+                            style: FilledButton.styleFrom(
+                              minimumSize: const Size.fromHeight(48),
+                            ),
+                            onPressed: allowed ? widget.onApply : null,
+                            child: Text(widget.applyLabel),
+                          ),
+                        ],
                       ),
                     ),
-                  for (final field in widget.fields)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      child: field,
-                    ),
-                  FilledButton(
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size.fromHeight(48),
-                    ),
-                    onPressed: allowed ? widget.onApply : null,
-                    child: Text(widget.applyLabel),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
@@ -273,6 +292,11 @@ class _ActivityIdentity extends StatelessWidget {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
+      Text(
+        '1. Hoạt động và địa điểm',
+        style: Theme.of(context).textTheme.titleLarge,
+      ),
+      const SizedBox(height: 16),
       TextFormField(
         key: const ValueKey('activity.title'),
         controller: form._title,
@@ -281,6 +305,7 @@ class _ActivityIdentity extends StatelessWidget {
         validator: form._titleError,
         onChanged: form._titleChanged,
       ),
+      const SizedBox(height: 16),
       DropdownButtonFormField<String>(
         itemHeight: null,
         isExpanded: true,
@@ -297,6 +322,14 @@ class _ActivityIdentity extends StatelessWidget {
         ],
         onChanged: form._selectPlace,
       ),
+      if (TravelMediaCatalog.forPlace(form._place) case final media?) ...[
+        const SizedBox(height: 16),
+        TravelImage(
+          media: media,
+          semanticLabel: 'Ảnh địa điểm: ${form._title.text}',
+          height: 160,
+        ),
+      ],
       if (form._unlinked)
         const Text('Đã bỏ liên kết địa điểm vì tên hoạt động đã thay đổi.'),
       if (form._place != null &&
@@ -315,6 +348,10 @@ class _ActivityTiming extends StatelessWidget {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
+      Text('2. Thời gian', style: Theme.of(context).textTheme.titleLarge),
+      const SizedBox(height: 8),
+      const Text('Có thể để trống giờ. Thứ tự trong ngày vẫn do bạn sắp xếp.'),
+      const SizedBox(height: 16),
       TextFormField(
         key: const ValueKey('activity.start'),
         controller: form._start,
@@ -327,6 +364,7 @@ class _ActivityTiming extends StatelessWidget {
         validator: form._timeError,
         onChanged: (_) => form._changed(),
       ),
+      const SizedBox(height: 16),
       TextFormField(
         key: const ValueKey('activity.end'),
         controller: form._end,
@@ -339,6 +377,9 @@ class _ActivityTiming extends StatelessWidget {
         validator: (v) => form._timeError(v, end: true),
         onChanged: (_) => form._changed(),
       ),
+      const SizedBox(height: 24),
+      Text('3. Ghi chú', style: Theme.of(context).textTheme.titleLarge),
+      const SizedBox(height: 16),
       TextFormField(
         key: const ValueKey('activity.notes'),
         controller: form._notes,

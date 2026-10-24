@@ -24,7 +24,7 @@ class PlannerResultSnapshot {
   /// Returns null if winnerId is not found or topDestinations is empty.
   DestinationCard? get winner {
     final winnerId = plan.winnerId;
-    if (winnerId == null || winnerId.isEmpty) return null;
+    if (winnerId.isEmpty) return null;
     try {
       return plan.topDestinations.firstWhere(
         (d) => d.id == winnerId,

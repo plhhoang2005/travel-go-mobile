@@ -5,7 +5,6 @@ import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../providers/trip_provider.dart';
 import '../../models/planner_result_snapshot.dart';
-import '../../models/trip_response.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../widgets/pareto_chart_widget.dart';
 import '../widgets/budget_donut_chart.dart';

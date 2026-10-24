@@ -26,7 +26,6 @@ void main() {
     });
 
     test('cold start with ready marker restores recovery mode without establishing normal account', () async {
-      // 1. Pre-seed store with ready marker
       final initialIntent = PendingRecovery(
         intentId: 'cold-intent-1',
         requestedAt: DateTime.now().toUtc(),
@@ -44,10 +43,26 @@ void main() {
         }),
       );
 
+      final sessionJson = jsonEncode({
+        'access_token': 'cold-token-1',
+        'token_type': 'bearer',
+        'expires_in': 3600,
+        'refresh_token': 'cold-refresh-1',
+        'user': {
+          'id': 'usr-cold-1',
+          'aud': 'authenticated',
+          'role': 'authenticated',
+          'email': 'cold1@travelgo.vn',
+          'created_at': DateTime.now().toIso8601String(),
+          'updated_at': DateTime.now().toIso8601String(),
+        },
+      });
+      await client.auth.recoverSession(sessionJson);
+
       final auth = AuthProvider(
         client: client,
         initialRecoveryIntentId: initialIntent.intentId,
-        recoveryBootstrapBlocked: true,
+        recoveryBootstrapBlocked: false,
       );
 
       final provider = PasswordRecoveryProvider(
@@ -57,10 +72,60 @@ void main() {
         clientProvider: () => client,
       );
 
+      await provider.initializeFromStore();
+
       expect(auth.isRecovering, isTrue);
       expect(auth.isAuthenticated, isFalse);
       expect(auth.currentUser, isNull);
+      expect(provider.isReady, isTrue);
+    });
+
+    test('cold start with mismatched session UID cancels recovery', () async {
+      final initialIntent = PendingRecovery(
+        intentId: 'cold-intent-mismatch',
+        requestedAt: DateTime.now().toUtc(),
+        phase: RecoveryPhase.ready,
+        verifiedUserId: 'usr-expected-owner',
+      );
+      await store.write(initialIntent);
+
+      final client = SupabaseClient(
+        'https://mock.supabase.co',
+        'mock-anon-key',
+        authOptions: const AuthClientOptions(autoRefreshToken: false),
+        httpClient: MockClient((request) async => http.Response('{}', 200)),
+      );
+
+      final wrongSessionJson = jsonEncode({
+        'access_token': 'wrong-token',
+        'token_type': 'bearer',
+        'expires_in': 3600,
+        'refresh_token': 'wrong-refresh',
+        'user': {
+          'id': 'usr-wrong-attacker',
+          'aud': 'authenticated',
+          'role': 'authenticated',
+          'email': 'attacker@travelgo.vn',
+          'created_at': DateTime.now().toIso8601String(),
+          'updated_at': DateTime.now().toIso8601String(),
+        },
+      });
+      await client.auth.recoverSession(wrongSessionJson);
+
+      final auth = AuthProvider(client: client);
+      final provider = PasswordRecoveryProvider(
+        service: service,
+        store: store,
+        auth: auth,
+        clientProvider: () => client,
+      );
+
+      await provider.initializeFromStore();
+
       expect(provider.isReady, isFalse);
+      expect(auth.isAuthenticated, isFalse);
+      expect(auth.currentUser, isNull);
+      expect(await store.read(), isNull);
     });
 
     test('cold start with expired marker clears marker and leaves app in normal idle state', () async {

@@ -163,10 +163,51 @@ void main() {
       userACompleter.complete('admin');
       await Future<void>.delayed(Duration.zero);
 
-      // Current user should remain User B with verified partner role, NOT User A's admin role!
+      // A removed legacy role remains customer; A's late admin cannot cross users.
       expect(auth.currentUser?.id, 'user-b');
-      expect(auth.currentUser?.role, UserRole.partner);
+      expect(auth.currentUser?.role, UserRole.customer);
     });
+
+    for (final role in <String?>['partner', 'superadmin', 'ADMIN', ' admin ', '', null]) {
+      test('trusted role $role never grants a removed or unknown role', () async {
+        final auth = AuthProvider(trustedRoleFetcher: (_) async => role);
+        addTearDown(auth.dispose);
+        auth.simulateSupabaseUser(createFakeUser(id: 'two-role-user', email: 'fixture@example.com'));
+        await Future<void>.delayed(Duration.zero);
+        expect(auth.currentUser?.role, UserRole.customer);
+        expect(auth.isAuthenticated, true);
+      });
+    }
+
+    for (final role in <String?>['admin', 'customer', 'partner', 'ADMIN', null]) {
+      test('profiles REST role $role uses the two-role mapping', () async {
+        final requested = Completer<Uri>();
+        final client = SupabaseClient(
+          'https://synthetic.invalid',
+          'synthetic-key',
+          authOptions: const AuthClientOptions(autoRefreshToken: false),
+          httpClient: MockClient((request) async {
+            requested.complete(request.url);
+            return http.Response(
+              jsonEncode({'role': role, 'full_name': 'Server Name', 'phone': '', 'avatar_url': null, 'address': null}),
+              200,
+              request: request,
+              headers: {'content-type': 'application/json'},
+            );
+          }),
+        );
+        addTearDown(client.dispose);
+        final auth = AuthProvider(client: client);
+        addTearDown(auth.dispose);
+        auth.simulateSupabaseUser(createFakeUser(id: 'rest-role-user', email: 'fixture@example.com'));
+        final uri = await requested.future;
+        await Future<void>.delayed(Duration.zero);
+        expect(uri.path, '/rest/v1/profiles');
+        expect(uri.queryParameters['id'], 'eq.rest-role-user');
+        expect(auth.currentUser?.role, role == 'admin' ? UserRole.admin : UserRole.customer);
+        expect(auth.currentUser?.fullName, 'Server Name');
+      });
+    }
 
     test('Demo session has explicit provenance and does not masquerade as live Supabase session', () async {
       final auth = AuthProvider();

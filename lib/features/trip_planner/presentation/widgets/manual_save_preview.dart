@@ -1,6 +1,11 @@
-import 'package:flutter/material.dart';
+import 'dart:async';
 
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../../../../main.dart';
 import '../../../trips/models/editable_trip_codec.dart';
+import '../../../trips/providers/saved_trips_provider.dart';
 import '../../models/editable_trip_command.dart';
 import '../../models/editable_trip_document.dart';
 import '../../providers/manual_planner_provider.dart';
@@ -70,6 +75,27 @@ class _ManualSavePreviewState extends State<ManualSavePreview> {
     final saved = await planner.confirmSave(preview);
     if (!mounted || !_workspace) return;
     if (saved) {
+      final owner = preview.proof?.ownerId;
+      if (owner != null) {
+        SavedTripsProvider? trips;
+        try {
+          trips = context.read<SavedTripsProvider>();
+        } on ProviderNotFoundException catch (_) {
+          // Standalone previews can save without a mounted trip list.
+          trips = null;
+        }
+        if (trips != null && trips.currentUserId == owner) {
+          unawaited(
+            _refreshSavedTrips(
+              trips,
+              owner,
+              ScaffoldMessenger.maybeOf(context),
+            ),
+          );
+        }
+      } else {
+        unawaited(_refreshGuestDrafts());
+      }
       Navigator.maybePop(context);
       return;
     }
@@ -78,6 +104,53 @@ class _ManualSavePreviewState extends State<ManualSavePreview> {
           planner.errorMessage ??
           'Chưa thể xác nhận lưu. Quay lại để kiểm tra nội dung.',
     );
+  }
+
+  Future<void> _refreshGuestDrafts() async {
+    final runtime = context.read<ManualPlannerRuntime?>();
+    if (runtime == null) return;
+    try {
+      final resources = await runtime.getResources();
+      if (!mounted ||
+          !_workspace ||
+          planner.editorGeneration != preview.generation ||
+          !identical(resources.planner, planner) ||
+          resources.repository.lifecycle.handle != null) {
+        return;
+      }
+      await resources.drafts.load();
+    } catch (_) {
+      if (mounted && _workspace) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Đã lưu bản nháp. Chưa thể tải lại danh sách; hãy thử tải lại.',
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _refreshSavedTrips(
+    SavedTripsProvider trips,
+    String owner,
+    ScaffoldMessengerState? messenger,
+  ) async {
+    try {
+      await trips.loadTrips(owner);
+    } catch (_) {
+      // Acknowledged persistence and list refresh are separate operations.
+      if (trips.currentUserId == owner && messenger?.mounted == true) {
+        messenger!.showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Đã lưu chuyến đi. Chưa thể tải lại danh sách; kéo xuống để thử lại.',
+            ),
+          ),
+        );
+      }
+    }
   }
 
   void _resolve(EditableValidationIssue issue) {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fl_chart/fl_chart.dart';
 
 import '../../models/editable_trip_document.dart';
 import '../../providers/manual_planner_provider.dart';
@@ -134,15 +135,123 @@ class ManualBudgetSummary extends StatelessWidget {
         style: Theme.of(context).textTheme.titleMedium,
       ),
       const SizedBox(height: 16),
+      _BudgetComparison(budget: budget, totals: totals),
+      const SizedBox(height: 24),
       Text('Dự kiến đã biết: ${manualMoney(totals.knownEstimate)}'),
       Text('Còn theo dự kiến: ${manualMoney(totals.estimateRemaining)}'),
+      if (totals.estimateRemaining < 0)
+        Text(
+          'Vượt ngân sách theo dự kiến: ${manualMoney(-totals.estimateRemaining)}',
+          style: TextStyle(color: Theme.of(context).colorScheme.error),
+        ),
       if (totals.unknownEstimateCount > 0)
         Text('Chưa gồm ${totals.unknownEstimateCount} khoản chưa biết giá'),
       const Divider(height: 32),
       Text('Đã chi: ${manualMoney(totals.actualTotal)}'),
       Text('Còn theo đã chi: ${manualMoney(totals.actualRemaining)}'),
+      if (totals.actualRemaining < 0)
+        Text(
+          'Vượt ngân sách theo đã chi: ${manualMoney(-totals.actualRemaining)}',
+          style: TextStyle(color: Theme.of(context).colorScheme.error),
+        ),
       const SizedBox(height: 8),
       const Text('Tiền dự kiến và tiền đã chi được theo dõi riêng.'),
+    ],
+  );
+}
+
+class _BudgetComparison extends StatelessWidget {
+  final int budget;
+  final BudgetTotals totals;
+  const _BudgetComparison({required this.budget, required this.totals});
+  @override
+  Widget build(BuildContext context) {
+    final values = [budget, totals.knownEstimate, totals.actualTotal];
+    const labels = ['Ngân sách', 'Dự kiến đã biết', 'Đã chi'];
+    final scheme = Theme.of(context).colorScheme;
+    final colors = [scheme.outline, scheme.primary, scheme.secondary];
+    return Column(
+      children: [
+        Semantics(
+          label: 'Biểu đồ so sánh ngân sách, dự kiến đã biết và đã chi. Số tiền chi tiết ở bên dưới.',
+          child: ExcludeSemantics(
+            child: SizedBox(
+              height: 160,
+              child: BarChart(
+                BarChartData(
+                  minY: 0,
+                  maxY: values.fold<int>(1, (a, b) => a > b ? a : b).toDouble(),
+                  gridData: const FlGridData(show: false),
+                  titlesData: const FlTitlesData(show: false),
+                  borderData: FlBorderData(show: false),
+                  barGroups: [
+                    for (var i = 0; i < values.length; i++)
+                      BarChartGroupData(
+                        x: i,
+                        barRods: [
+                          BarChartRodData(
+                            toY: values[i].toDouble(),
+                            width: 32,
+                            color: colors[i],
+                            borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(4),
+                            ),
+                          ),
+                        ],
+                      ),
+                  ],
+                  barTouchData: BarTouchData(
+                    touchTooltipData: BarTouchTooltipData(
+                      getTooltipColor: (_) => scheme.inverseSurface,
+                      fitInsideHorizontally: true,
+                      fitInsideVertically: true,
+                      getTooltipItem: (group, groupIndex, rod, rodIndex) =>
+                          BarTooltipItem(
+                            '${labels[group.x]}\n${manualMoney(values[group.x])}',
+                            TextStyle(
+                              color: scheme.onInverseSurface,
+                              fontSize: 14,
+                            ),
+                          ),
+                    ),
+                  ),
+                ),
+                duration: MediaQuery.disableAnimationsOf(context)
+                    ? Duration.zero
+                    : const Duration(milliseconds: 200),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        _BudgetLegend(labels: labels, colors: colors),
+      ],
+    );
+  }
+}
+
+class _BudgetLegend extends StatelessWidget {
+  final List<String> labels;
+  final List<Color> colors;
+  const _BudgetLegend({required this.labels, required this.colors});
+  @override
+  Widget build(BuildContext context) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      for (var i = 0; i < labels.length; i++)
+        Expanded(
+          child: Column(
+            children: [
+              Icon(Icons.square, size: 12, color: colors[i]),
+              const SizedBox(height: 4),
+              Text(
+                labels[i],
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ),
+        ),
     ],
   );
 }

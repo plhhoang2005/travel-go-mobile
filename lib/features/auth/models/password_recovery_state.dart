@@ -2,6 +2,7 @@ enum RecoveryPhase {
   requesting,
   sent,
   ready,
+  updating,
   cleanup,
 }
 

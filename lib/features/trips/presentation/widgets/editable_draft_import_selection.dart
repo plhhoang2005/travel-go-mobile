@@ -498,7 +498,7 @@ class _EditableGuestDraftListState extends State<EditableGuestDraftList> {
         deviceScope: source.deviceScope,
         draftId: source.draftId,
       );
-      if (!_current) {
+      if (!_current || !mounted) {
         return;
       }
       if (latest?.revision != source.revision ||

@@ -9,11 +9,8 @@ import 'package:travelgo_mobile/features/auth/providers/auth_provider.dart';
 import 'package:travelgo_mobile/features/explore/models/catalogue_reference.dart' as catalogue;
 import 'package:travelgo_mobile/features/explore/models/public_catalogue_snapshot.dart';
 import 'package:travelgo_mobile/features/explore/presentation/screens/destination_detail_screen.dart';
-import 'package:travelgo_mobile/features/explore/providers/public_catalogue_provider.dart';
 import 'package:travelgo_mobile/features/explore/services/public_catalogue_parser.dart';
-import 'package:travelgo_mobile/features/trip_planner/models/editable_trip_command.dart';
 import 'package:travelgo_mobile/features/trip_planner/models/editable_trip_document.dart';
-import 'package:travelgo_mobile/features/trip_planner/models/trip_request.dart';
 import 'package:travelgo_mobile/features/trip_planner/presentation/screens/manual_planner_entry_screen.dart';
 import 'package:travelgo_mobile/features/trip_planner/presentation/screens/manual_planner_screen.dart';
 import 'package:travelgo_mobile/features/trip_planner/providers/manual_planner_provider.dart';
@@ -246,7 +243,6 @@ void main() {
     testWidgets('ManualPlannerScreen with openAssistantOnReady opens composer once without making network requests', (tester) async {
       int aiCalls = 0;
       final snapshot = createTestSnapshot(destinations: testDestinations);
-      final destination = snapshot.catalogue.destinations.firstWhere((d) => d.id == dynamicDestId);
 
       final doc = records.doc().copyWith(
         input: TripInput.fromJson({

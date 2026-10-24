@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../../../core/services/backend_api_config.dart';
 import '../models/map_models.dart';
 import '../services/destination_catalog_service.dart';
 import '../services/group_location_service.dart';
@@ -540,9 +541,76 @@ class MapProvider extends ChangeNotifier {
       } else {
         _currentRoute = null;
       }
+    } on BackendConfigChangedException {
+      if (generation == _routeContextGeneration && !_disposed) {
+        _currentRoute = null;
+        _errorMessage = 'Cấu hình máy chủ đã thay đổi. Vui lòng tải lại lộ trình.';
+      }
     } catch (e) {
       if (generation == _routeContextGeneration && !_disposed) {
         _errorMessage = 'Không thể khởi tạo bản đồ: $e';
+      }
+    } finally {
+      if (generation == _routeContextGeneration && !_disposed) {
+        _isLoading = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  Future<void> initItineraryRoute({
+    required List<RouteWaypoint> stops,
+    required int contextGeneration,
+  }) async {
+    final generation = contextGeneration;
+    if (generation != _routeContextGeneration || _disposed) return;
+    final frozenStops = List<RouteWaypoint>.unmodifiable(stops);
+    _isLoading = true;
+    _errorMessage = null;
+    _currentRoute = null;
+    notifyListeners();
+
+    try {
+      if (frozenStops.length < 2) {
+        if (generation != _routeContextGeneration || _disposed) return;
+        _origin = frozenStops.isNotEmpty
+            ? frozenStops.first.position
+            : LocationService.defaultUniversityOrigin;
+        _originName = frozenStops.isNotEmpty
+            ? frozenStops.first.title
+            : LocationService.defaultOriginName;
+        _destination = null;
+        _destinationName = null;
+        _waypoints = [];
+        _currentRoute = null;
+        _selectedWaypoint = null;
+        _isUsingCurrentLocation = false;
+        _isMockGps = false;
+        return;
+      }
+
+      final firstStop = frozenStops.first;
+      final lastStop = frozenStops.last;
+      final middleStops = frozenStops.sublist(1, frozenStops.length - 1);
+
+      if (generation != _routeContextGeneration || _disposed) return;
+      _origin = firstStop.position;
+      _originName = firstStop.title;
+      _destination = lastStop.position;
+      _destinationName = lastStop.title;
+      _waypoints = List<RouteWaypoint>.from(middleStops);
+      _isUsingCurrentLocation = false;
+      _isMockGps = false;
+
+      await _fetchRoute(contextGeneration: generation);
+    } on BackendConfigChangedException {
+      if (generation == _routeContextGeneration && !_disposed) {
+        _currentRoute = null;
+        _errorMessage = 'Cấu hình máy chủ đã thay đổi. Vui lòng tải lại lộ trình.';
+      }
+    } catch (e) {
+      if (generation == _routeContextGeneration && !_disposed) {
+        _errorMessage = 'Không thể khởi tạo lộ trình lịch trình: $e';
       }
     } finally {
       if (generation == _routeContextGeneration && !_disposed) {
@@ -717,6 +785,10 @@ class MapProvider extends ChangeNotifier {
       if (generation != _routeContextGeneration || _disposed) return;
       _currentRoute = route;
       _errorMessage = null;
+    } on BackendConfigChangedException {
+      if (generation != _routeContextGeneration || _disposed) return;
+      _currentRoute = null;
+      _errorMessage = 'Cấu hình máy chủ đã thay đổi. Vui lòng tải lại lộ trình.';
     } on RoutingException catch (e) {
       if (generation != _routeContextGeneration || _disposed) return;
       if (e.backendUnreachable) {

@@ -51,9 +51,16 @@ class _TripMapScreenState extends State<TripMapScreen> with WidgetsBindingObserv
   // Tile degraded / fallback flag (Law 3: Zero Silent Fallbacks)
   bool _isTileDegraded = false;
   int? _routeContextToken;
+  MapProvider? _cachedMapProvider;
   ItineraryMapContext? _currentItinerary;
   int _selectedItineraryDay = 1;
   final Map<String, String> _userPlaceBindings = {};
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _cachedMapProvider = context.read<MapProvider>();
+  }
 
   @override
   void initState() {
@@ -98,52 +105,28 @@ class _TripMapScreenState extends State<TripMapScreen> with WidgetsBindingObserv
     final activities = _currentItinerary!.activitiesForDay(_selectedItineraryDay);
     final located = activities.where((a) => a.isLocated).toList();
 
-    if (located.length >= 2) {
-      final origin = located.first.positionOnMap!;
-      final destination = located.last.positionOnMap!;
-      final intermediate = located.sublist(1, located.length - 1).map((a) {
-        return RouteWaypoint(
-          id: a.key,
-          title: a.title,
-          position: a.positionOnMap!,
-          type: 'stop',
-          dayNumber: a.dayNumber,
-        );
-      }).toList();
-
-      provider.init(
-        targetDestination: destination,
-        targetName: located.last.title,
-        waypoints: intermediate,
-        contextGeneration: token,
-      ).then((_) {
-        if (mounted && _isMapReady) {
-          if (provider.hasRoute) {
-            _fitCameraToBounds(provider);
-          } else {
-            _mapController.move(origin, 14.0);
-          }
-        }
-      });
-    } else if (located.length == 1) {
-      provider.init(
-        targetDestination: null,
-        targetName: null,
-        waypoints: [],
-        contextGeneration: token,
-      ).then((_) {
-        if (mounted && _isMapReady) {
-          _mapController.move(located.first.positionOnMap!, 15.0);
-        }
-      });
-    } else {
-      provider.init(
-        targetDestination: null,
-        targetName: null,
-        waypoints: [],
-        contextGeneration: token,
+    final stops = located.map((a) {
+      return RouteWaypoint(
+        id: a.key,
+        title: a.title,
+        position: a.positionOnMap!,
+        type: 'stop',
+        dayNumber: a.dayNumber,
       );
-    }
+    }).toList();
+
+    provider.initItineraryRoute(
+      stops: stops,
+      contextGeneration: token,
+    ).then((_) {
+      if (mounted && _isMapReady && provider.isContextActive(token)) {
+        if (provider.hasRoute) {
+          _fitCameraToBounds(provider);
+        } else if (stops.isNotEmpty) {
+          _mapController.move(stops.first.position, 15.0);
+        }
+      }
+    });
   }
 
   @override
@@ -166,7 +149,7 @@ class _TripMapScreenState extends State<TripMapScreen> with WidgetsBindingObserv
     WidgetsBinding.instance.removeObserver(this);
     if (_routeContextToken != null) {
       try {
-        context.read<MapProvider>().endRouteContext(_routeContextToken!);
+        _cachedMapProvider?.endRouteContext(_routeContextToken!);
       } catch (_) {}
     }
     _mapController.dispose();
@@ -781,6 +764,7 @@ class _TripMapScreenState extends State<TripMapScreen> with WidgetsBindingObserv
                 onDaySelected: (day) {
                   setState(() => _selectedItineraryDay = day);
                   final p = context.read<MapProvider>();
+                  _routeContextToken = p.beginRouteContext();
                   _buildRouteFromItinerary(p, _routeContextToken!);
                 },
                 onPlaceBound: (key, placeId) {
@@ -793,6 +777,7 @@ class _TripMapScreenState extends State<TripMapScreen> with WidgetsBindingObserv
                     );
                   });
                   final p = context.read<MapProvider>();
+                  _routeContextToken = p.beginRouteContext();
                   _buildRouteFromItinerary(p, _routeContextToken!);
                 },
               ),

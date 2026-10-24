@@ -211,12 +211,28 @@ class EditableTripRepository {
           'committed_receipt_unavailable',
         );
       }
-      reply = await context.wait(switch (attempt.operation) {
-        'create' => service.create(proof: context.proof, attempt: attempt),
-        'update' => service.update(proof: context.proof, attempt: attempt),
-        'delete' => service.delete(proof: context.proof, attempt: attempt),
-        _ => throw const EditableMutationException('invalid_operation'),
-      });
+      try {
+        reply = await context.wait(switch (attempt.operation) {
+          'create' => service.create(proof: context.proof, attempt: attempt),
+          'update' => service.update(proof: context.proof, attempt: attempt),
+          'delete' => service.delete(proof: context.proof, attempt: attempt),
+          _ => throw const EditableMutationException('invalid_operation'),
+        });
+      } on EditableRemoteException catch (error) {
+        if (attempt.operation == 'update' &&
+            error.kind == EditableRemoteFailure.rejected &&
+            error.code == 'version_conflict') {
+          // Only after receipt lookup missed AND this frozen update was
+          // definitively rejected. Unknown/protocol/committed outcomes stay fenced.
+          await context.wait(
+            store.discardRejectedEditableUpdate(
+              handle: context.handle,
+              attempt: attempt,
+            ),
+          );
+        }
+        rethrow;
+      }
     }
     await context.wait(
       store.commitEditableAck(handle: context.handle, reply: reply),

@@ -305,7 +305,13 @@ void main() {
         await advanceGuestDisk(ctx, source.draftId);
         await tapText(tester, 'Kiểm tra lại lần chuyển');
         await tapText(tester, 'Xác nhận kiểm tra lại');
-        await Future<void>.delayed(const Duration(milliseconds: 200));
+        for (
+          var i = 0;
+          i < 200 && (await runtime.getResources()).drafts.uncertain;
+          i++
+        ) {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+        }
         await tester.pumpAndSettle();
         expect(ctx.server.creates, 1);
         expect((await runtime.getResources()).drafts.uncertain, isFalse);

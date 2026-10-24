@@ -8,7 +8,7 @@
 
 **Tech Stack:** Supabase Auth/PostgreSQL/RLS/Edge Functions, JavaScript modules được Deno import, Node built-in tests, Flutter/Dart/Provider/Dio/SQLite hiện có.
 
-**Spec:** [Thiết kế đã được owner duyệt](../specs/2026-10-23-flutter-admin-design.md), commit thiết kế `6385e3d`. Owner duyệt bằng tin nhắn “duyệt bản thiết kế này để mình viết kế hoạch triển khai cụ thể theo file, API và test”. Approval này cho phép viết kế hoạch, chưa cho phép code/deploy.
+**Spec:** [Thiết kế đã được owner duyệt](../specs/2026-10-23-flutter-admin-design.md), commit thiết kế `6385e3d`. Approval thiết kế ban đầu cho phép viết kế hoạch. Chỉ thị mới ngày 23/10/2026 “bạn hãy hoàn thành hết a0-a5 luôn đi không cần chia nhỏ ra đâu” giao trọn A0–A5 trong một đợt, theo phân công Codex plan/review, Antigravity code. Xem [packet thực thi chung](2026-10-23-admin-a0-a5-antigravity-packet.md): không xin giao lại từng task; chưa cấp quyền live rollout hoặc merge.
 
 ## Global Constraints
 
@@ -18,7 +18,7 @@
 - Mục tiêu staging duy nhất `bkocylxbuyvdgxccpixx`; local verification không phải staging rollout. Live mutation cần concrete packet được duyệt.
 - UI không báo thành công trước acknowledgement; retry giữ request ID; current server role/session quyết định quyền, không user_metadata.
 - Ngày dashboard theo `Asia/Ho_Chi_Minh`; reason 1–500 Unicode code points; user page size 25; 7/30 ngày gồm hôm nay.
-- Mỗi task dùng tối đa 5 authored files, 20 tool calls, 3 repair rounds theo trần đề xuất ở plan 3; mọi used counters phải cộng dồn. Không reset ngân sách cũ G2/G3/G4.
+- Owner đã bỏ trần tool/call nhân tạo. Với packet A0–A5 hiện tại, allowlist là hợp 23 execution files của sáu mục dưới đây; các số Files ở từng mục giúp truy vết, không phải gate xin phép mỗi năm file hoặc mỗi task. Đây là phạm vi riêng của packet, không sửa permanent rules hoặc mở scope F/P. Giữ RCA tối đa 3 vòng cho cùng vấn đề; không reset hoặc vay counters các gói G2/G3/G4.
 - Antigravity là người duy nhất sửa source implementation. Codex kiểm diff, constraints và tests, báo findings kèm bằng chứng rồi Antigravity sửa; không tự chuyển sang Codex repair nếu owner chưa đổi phân công.
 - Mọi migration mới được tạo khi execution bằng `supabase migration new <suffix>`; bind đúng filename CLI trả về vào evidence trước edit. Không invent timestamp. Các alias `M_*` dưới đây đại diện duy nhất file có suffix được chỉ định, không phải chỗ cho implementer tùy chọn thiết kế.
 
@@ -69,6 +69,8 @@ Edge module `createAdminControl({verifyCaller,callAsCaller,completeAsWorker,auth
 
 ## Task A0: Baseline và verification harness
 
+**Review hiện tại:** commit `02db19e7dd9005f441e541c45630abb20be0807a` đã có hai file A0 nhưng NEEDS CHANGES. Sửa bốn findings fail-open exit code, SelfTest nhận nhầm exception, thiếu PostgreSQL vẫn xanh và timeout vô hạn trước khi dùng harness nghiệm thu A1–A5. Chi tiết và regression controls có trong packet chung; việc mở rộng scope không đóng findings.
+
 **Files (2):** `tool/verify-flutter-admin.ps1` (Create), `docs/phase-3/FLUTTER_ADMIN_ACCEPTANCE_20261023.md` (Create).
 
 **Interfaces:** `verify-flutter-admin.ps1 -Mode Account|Draft|Publication|All -FlutterRoot 'D:/flutter/flutter'`; temporary local PostgreSQL uses unique loopback port/data root, synthetic auth/session/profile fixtures, `ON_ERROR_STOP=1`, cleanup only owned process. All mode chains existing Full plus every new SQL/Node suite listed here; modes do not deploy or install SDKs. Report records exact CLI migration alias bindings, hashes, used/max budgets, baseline versus new results.
@@ -76,7 +78,7 @@ Edge module `createAdminControl({verifyCaller,callAsCaller,completeAsWorker,auth
 - [ ] Inspect git/dirty dependencies, CLI/PostgreSQL/Node/Flutter versions and local SQL tools; only read live staging schema/history/ACL when needed, without selecting real user data. Preserve current source as execution baseline; do not create a worktree from bare HEAD that omits dirty dependencies.
 - [ ] Pin regression `harness_propagates_nonzero`: verify child SQL and Node exits are nonzero for deliberate failures and the harness itself rejects them; this is a harness self-test, not permission to weaken product assertions. CLI was not on PATH in the planning shell; discover existing approved cached CLI/runtime first, no automatic installation/upgrade.
 - [ ] Add harness checks that deliberate SQL assertion failure and Node failure propagate nonzero; no test failure may be converted to PASS. Each mode runs tests added by its owning tasks, without duplicate full suites.
-- [ ] Run existing Full once and collect its final result; inspect the two historical failing cases separately only when failure justifies it. Record fresh baseline, without fixing unrelated code/assertions or declaring old counts current.
+- [ ] Giữ logs Full tại baseline A0 đã có; chạy Full lại sau thay đổi implementation cuối packet và thu kết quả thực. Chỉ lặp giữa chừng khi có failure hoặc thay đổi cần kiểm chứng. Historical failures ghi riêng; không sửa code/assertions ngoài scope hoặc tự suy nguyên nhân khi chưa có bằng chứng.
 - [ ] Run `./tool/verify-flutter-admin.ps1 -Mode Account -DryRun` after defining DryRun alongside Mode; expected explicit command inventory and no database/network mutation. Commit only these two task files after scoped checks; message `test(admin): add isolated verification harness`.
 
 ## Task A1: Account schema, authority và atomic mutation
@@ -145,6 +147,6 @@ Edge module `createAdminControl({verifyCaller,callAsCaller,completeAsWorker,auth
 ## Completion and handoff
 
 - A0→A1→A2→A3→A4; A5 after A1 and local prepared A1, before Flutter editor F4. Do not publish admin-control while A2 guards are absent. F1–F3 can be developed against these tested contracts; no live-ready claim from mocks.
-- Update acceptance report with task budget actuals, commands/exits/hashes, unresolved baseline failures and exact migrations. Each task reports Changed/Why/Testing/Problems/Lesson Candidate; no out-of-scope repair automatically.
-- Run `./tool/verify-flutter-admin.ps1 -Mode Account` plus existing Full when this track finishes; new suite pass does not erase baseline failures. Live schema/API rollout remains a separate approved packet with SQL/advisor readback.
-- Next: [Flutter UI plan](2026-10-23-flutter-admin-ui.md), then [Publication/consumer plan](2026-10-23-discovery-publication-v2.md). Review whole plan set and execution/budget table at the end of plan 3 before code.
+- Update một acceptance report chung với trạng thái A0–A5, commands/exits/hashes, baseline failures và exact migrations. Một handover cuối đợt dùng Changed/Why/Testing/Problems/Lesson Candidate; không dừng xin giao/review sau mỗi nhãn A. Commit nhỏ theo dependency được phép, không phải approval gate.
+- Run Account, Draft, mọi SQL/Node suite A0–A5 và existing Full ở cuối packet; kiểm actual suite inventory, không dùng Publication/All đòi suites F/P chưa triển khai làm điều kiện giả. New suite pass không xóa historical failures. Live schema/API rollout vẫn là packet riêng cần duyệt với SQL/advisor readback.
+- Codex review toàn packet sau khi Antigravity bàn giao. Các plan [Flutter UI](2026-10-23-flutter-admin-ui.md) và [Publication/consumer](2026-10-23-discovery-publication-v2.md) vẫn là giai đoạn kế tiếp, không nằm trong chỉ thị A0–A5 hiện tại. Trần calls cũ trong bảng plan 3 đã được owner bỏ; file scope F/P không được cộng vào packet này.

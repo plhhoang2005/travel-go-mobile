@@ -668,7 +668,7 @@ class _LegacyTripCopyScreenState extends State<LegacyTripCopyScreen> {
     setState(() => _busy = true);
     try {
       final bundle = await context.read<ManualPlannerRuntime>().getResources();
-      if (!_current) return;
+      if (!_current || !mounted) return;
       final proof = bundle.repository.lifecycle.captureProof();
       if (proof.ownerId != widget.snapshot.ownerId) return;
       PublicCatalogueSnapshot? snapshot;

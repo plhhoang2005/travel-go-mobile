@@ -31,6 +31,188 @@ Session sessionFor(String owner) => Session.fromJson({
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   sqfliteFfiInit();
+  for (final outcome in [
+    'verified',
+    'offline',
+    'wrong-owner',
+    'late-owner',
+    'late-expiry',
+    'late-invalidation',
+    'no-verifier',
+    'revoked',
+  ]) {
+    test(
+      'AUTH_RESUME pending operation $outcome revalidates online without offline grant',
+      () async {
+        await fixtures.runWithStore((ctx) async {
+          var session = sessionFor(ownerA);
+          var returning = false;
+          var verifications = 0;
+          late final LocalAccountLifecycleService service;
+          final path = '${ctx.tempDir.path}/account_cache_lifecycle_v1.json';
+          service = LocalAccountLifecycleService(
+            storeLoader: () async => ctx.store,
+            sessionReader: () => session,
+            registryPath: path,
+            verifySubject: outcome == 'no-verifier'
+                ? null
+                : (_) async {
+                    verifications++;
+                    if (!returning) return ownerA;
+                    if (outcome == 'offline') {
+                      throw StateError('Controlled verifier outage');
+                    }
+                    if (outcome == 'wrong-owner') return ownerB;
+                    if (outcome == 'late-owner') session = sessionFor(ownerB);
+                    if (outcome == 'late-expiry') {
+                      session.expiresAt =
+                          DateTime.now().millisecondsSinceEpoch ~/ 1000;
+                    }
+                    if (outcome == 'late-invalidation') {
+                      service.invalidateAccountContext();
+                    }
+                    return ownerA;
+                  },
+          );
+          void Function()? finish;
+          try {
+            final handle = await service.establishAccount(
+              freshAuthentication: true,
+            );
+            expect(handle, isNotNull);
+            await ctx.store.saveDraftRevision(
+              draftId: 'Guest-resume',
+              payload: fixtures.createValidPayload(),
+            );
+            final proof = service.captureProof();
+            finish = service.beginAccountOperation(proof);
+            await service.suspendForegroundContext();
+            expect(service.handle, isNull);
+            expect(service.isCurrentProof(proof), isFalse);
+            expect(await service.sealForPause(), isFalse);
+            expect(
+              jsonDecode(await File(path).readAsString())['state'],
+              'active',
+            );
+            returning = true;
+            final resumed = service.resumeForegroundContext();
+            await Future<void>.delayed(Duration.zero);
+            expect(service.handle, isNull);
+            expect(verifications, outcome == 'no-verifier' ? 0 : 1);
+            final revocation = outcome == 'revoked'
+                ? service.revokeAccount()
+                : Future.value(false);
+            finish();
+            finish = null;
+            final restored = await resumed;
+            await revocation;
+            expect(service.isCurrentProof(proof), isFalse);
+            if (outcome == 'verified') {
+              expect(restored, isNotNull);
+              expect(restored!.ownerId, ownerA);
+              expect(verifications, 2);
+              expect(service.isCurrentProof(service.captureProof()), isTrue);
+            } else {
+              expect(restored, isNull);
+              expect(service.handle, isNull);
+            }
+            expect(await ctx.store.listGuestDrafts(), hasLength(1));
+          } finally {
+            finish?.call();
+            await service.close();
+          }
+        });
+      },
+    );
+  }
+  for (final outcome in [
+    'verified',
+    'offline',
+    'wrong-owner',
+    'late-owner',
+    'late-expiry',
+    'late-invalidation',
+  ]) {
+    test(
+      'PHONE03 active cold restart $outcome requires live authorization',
+      () async {
+        await fixtures.runWithStore((ctx) async {
+          var session = sessionFor(ownerA);
+          final path = '${ctx.tempDir.path}/account_cache_lifecycle_v1.json';
+          final first = LocalAccountLifecycleService(
+            storeLoader: () async => ctx.store,
+            sessionReader: () => session,
+            registryPath: path,
+          );
+          try {
+            final handle = await first.establishAccount(
+              freshAuthentication: true,
+            );
+            await ctx.store.replaceSnapshot(
+              handle: handle!,
+              tripId: 'cold-A',
+              payload: fixtures.createValidPayload(),
+              fetchedAt: DateTime.now().toUtc(),
+            );
+            await ctx.store.saveDraftRevision(
+              draftId: 'Guest',
+              payload: fixtures.createValidPayload(),
+            );
+          } finally {
+            await first.close();
+          }
+          expect(
+            jsonDecode(await File(path).readAsString())['state'],
+            'active',
+          );
+          final entered = Completer<void>(), release = Completer<void>();
+          var checks = 0;
+          final second = LocalAccountLifecycleService(
+            storeLoader: () async => ctx.store,
+            sessionReader: () => session,
+            registryPath: path,
+            verifySubject: (_) async {
+              checks++;
+              entered.complete();
+              if (outcome.startsWith('late-')) await release.future;
+              if (outcome == 'offline') throw StateError('Controlled offline');
+              return outcome == 'wrong-owner' ? ownerB : ownerA;
+            },
+          );
+          try {
+            final pending = second.resumeAccount();
+            if (outcome.startsWith('late-')) {
+              // Bound the diagnostic wait so pre-fix denial fails, not hangs.
+              await Future.any([entered.future, pending.then((_) {})]);
+              if (outcome == 'late-owner') session = sessionFor(ownerB);
+              if (outcome == 'late-expiry') session.expiresAt = 1;
+              if (outcome == 'late-invalidation') {
+                second.invalidateAccountContext();
+              }
+              release.complete();
+            }
+            final restored = await pending;
+            expect(checks, 1);
+            if (outcome == 'verified') {
+              expect(restored, isNotNull);
+              expect(restored!.ownerId, ownerA);
+              expect(
+                (await ctx.store.listSnapshots(handle: restored)).single.tripId,
+                'cold-A',
+              );
+            } else {
+              expect(restored, isNull);
+              expect(second.handle, isNull);
+            }
+            expect(await ctx.store.listGuestDrafts(), hasLength(1));
+          } finally {
+            if (!release.isCompleted) release.complete();
+            await second.close();
+          }
+        });
+      },
+    );
+  }
   test('L07 another blocked owner denies seal and deadline revokes without SDK event', () async {
     await fixtures.runWithStore((ctx) async {
       var now = DateTime.now().toUtc();

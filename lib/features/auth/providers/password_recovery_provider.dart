@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -17,6 +18,11 @@ class PasswordRecoveryProvider extends ChangeNotifier {
   PendingRecovery? _currentIntent;
   String? _errorMessage;
   String? _successMessage;
+  Future<void>? _initFuture;
+  Future<bool>? _inFlightExchange;
+  String? _activeExchangeCode;
+
+  VoidCallback? _removeRecoveryInvalidator;
 
   PasswordRecoveryProvider({
     required this.service,
@@ -24,7 +30,22 @@ class PasswordRecoveryProvider extends ChangeNotifier {
     required this.auth,
     this.clientProvider,
     DateTime Function()? clock,
-  })  : _clock = clock ?? (() => DateTime.now().toUtc());
+  })  : _clock = clock ?? (() => DateTime.now().toUtc()) {
+    _removeRecoveryInvalidator = auth.registerRecoveryInvalidator(_handleRecoveryInvalidated);
+  }
+
+  Future<void> _handleRecoveryInvalidated() async {
+    _state = RecoveryState.idle;
+    _currentIntent = null;
+    _errorMessage = null;
+    _initFuture = null;
+    _inFlightExchange = null;
+    _activeExchangeCode = null;
+    notifyListeners();
+    try {
+      await store.clear();
+    } catch (_) {}
+  }
 
   RecoveryState get state => _state;
   PendingRecovery? get currentIntent => _currentIntent;
@@ -54,7 +75,11 @@ class PasswordRecoveryProvider extends ChangeNotifier {
     return bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
   }
 
-  Future<void> initializeFromStore() async {
+  Future<void> initializeFromStore() {
+    return _initFuture ??= _performInitializeFromStore();
+  }
+
+  Future<void> _performInitializeFromStore() async {
     final intent = await store.read();
     if (intent == null) {
       _state = RecoveryState.idle;
@@ -63,11 +88,22 @@ class PasswordRecoveryProvider extends ChangeNotifier {
       return;
     }
 
+    if (_state == RecoveryState.ready && _currentIntent?.phase == RecoveryPhase.ready) {
+      return;
+    }
+
     _currentIntent = intent;
     await auth.beginRecovery(intent.intentId);
 
     if (intent.phase == RecoveryPhase.cleanup) {
       _state = RecoveryState.cleanupRequired;
+      notifyListeners();
+      return;
+    }
+
+    if (intent.phase == RecoveryPhase.updating) {
+      _state = RecoveryState.uncertain;
+      _errorMessage = 'Yêu cầu cập nhật mật khẩu trước đó chưa xác định được kết quả.';
       notifyListeners();
       return;
     }
@@ -144,30 +180,93 @@ class PasswordRecoveryProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> handleCallback(Uri uri) async {
+  static bool _isValidRecoveryUri(Uri uri) {
     if (uri.scheme != 'io.supabase.travelgo' ||
         uri.host != 'login-callback' ||
-        uri.queryParameters['flow'] != 'recovery') {
+        uri.path.isNotEmpty ||
+        uri.userInfo.isNotEmpty ||
+        uri.hasPort ||
+        uri.hasFragment) {
+      return false;
+    }
+    final paramsAll = uri.queryParametersAll;
+    if (paramsAll['flow']?.length != 1 || paramsAll['flow']!.first != 'recovery') {
+      return false;
+    }
+    if (paramsAll['code']?.length != 1 || paramsAll['code']!.first.trim().isEmpty) {
+      return false;
+    }
+    if (paramsAll.keys.any((key) => key.contains('token'))) {
+      return false;
+    }
+    return true;
+  }
+
+  Future<bool> handleCallback(Uri uri) async {
+    if (!_isValidRecoveryUri(uri)) {
       return false;
     }
 
-    final code = uri.queryParameters['code'];
-    if (code == null || code.trim().isEmpty) {
-      _errorMessage = 'Liên kết xác thực thiếu mã ủy quyền.';
-      _state = RecoveryState.error;
-      notifyListeners();
+    final code = uri.queryParameters['code']!.trim();
+
+    // Idempotent duplicate check when already ready
+    if (_state == RecoveryState.ready) {
+      if (_activeExchangeCode == null || _activeExchangeCode == code) {
+        _activeExchangeCode = code;
+        return true;
+      }
       return false;
     }
 
-    final intent = _currentIntent ?? await store.read();
-    if (intent == null || intent.isExpired(_clock())) {
-      _errorMessage = 'Yêu cầu khôi phục đã hết hạn. Vui lòng gửi lại email mới.';
-      _state = RecoveryState.error;
-      await store.clear();
-      notifyListeners();
+    // Join in-flight exchange if one is already running for the same code
+    if (_inFlightExchange != null) {
+      if (_activeExchangeCode == code) {
+        return await _inFlightExchange!;
+      }
       return false;
     }
 
+    // Synchronously claim the in-flight slot for this code
+    _activeExchangeCode = code;
+    final exchangeCompleter = Completer<bool>();
+    _inFlightExchange = exchangeCompleter.future;
+
+    try {
+      // Await bootstrap if running, or bootstrap from store
+      await (_initFuture ?? initializeFromStore());
+
+      if (_state == RecoveryState.ready) {
+        if (!exchangeCompleter.isCompleted) exchangeCompleter.complete(true);
+        return true;
+      }
+
+      final intent = _currentIntent ?? await store.read();
+      if (intent == null || intent.isExpired(_clock())) {
+        _errorMessage = 'Yêu cầu khôi phục đã hết hạn. Vui lòng gửi lại email mới.';
+        _state = RecoveryState.error;
+        await store.clear();
+        notifyListeners();
+        if (!exchangeCompleter.isCompleted) exchangeCompleter.complete(false);
+        return false;
+      }
+
+      if (intent.phase != RecoveryPhase.sent && intent.phase != RecoveryPhase.requesting) {
+        if (!exchangeCompleter.isCompleted) exchangeCompleter.complete(false);
+        return false;
+      }
+
+      final result = await _performExchange(intent, code);
+      if (!exchangeCompleter.isCompleted) exchangeCompleter.complete(result);
+      return result;
+    } catch (_) {
+      if (!exchangeCompleter.isCompleted) exchangeCompleter.complete(false);
+      return false;
+    } finally {
+      _inFlightExchange = null;
+    }
+  }
+
+  Future<bool> _performExchange(PendingRecovery intent, String code) async {
     _state = RecoveryState.exchanging;
     _errorMessage = null;
     notifyListeners();
@@ -178,6 +277,10 @@ class PasswordRecoveryProvider extends ChangeNotifier {
         (client) => service.exchange(client, code),
       );
 
+      if (!auth.isCurrentRecoveryIntent(intent.intentId)) {
+        return false;
+      }
+
       final sessionUser = res.session.user;
       final readyIntent = intent.copyWith(
         phase: RecoveryPhase.ready,
@@ -186,14 +289,19 @@ class PasswordRecoveryProvider extends ChangeNotifier {
       await store.write(readyIntent);
       _currentIntent = readyIntent;
       _state = RecoveryState.ready;
+      _activeExchangeCode = code;
       notifyListeners();
       return true;
+    } on RecoveryIntentCancelledException {
+      return false;
     } on AuthException catch (e) {
+      if (!auth.isCurrentRecoveryIntent(intent.intentId)) return false;
       _errorMessage = 'Liên kết không hợp lệ hoặc đã qua sử dụng: ${e.message}';
       _state = RecoveryState.error;
       notifyListeners();
       return false;
     } catch (_) {
+      if (!auth.isCurrentRecoveryIntent(intent.intentId)) return false;
       _errorMessage = 'Không thể hoàn tất trao đổi mã khôi phục.';
       _state = RecoveryState.error;
       notifyListeners();
@@ -223,7 +331,31 @@ class PasswordRecoveryProvider extends ChangeNotifier {
       return false;
     }
 
-    if (_state == RecoveryState.updating) return false;
+    final client = _client;
+    final currentSession = client?.auth.currentSession;
+    if (currentSession == null ||
+        currentSession.isExpired ||
+        currentSession.user.id != intent.verifiedUserId) {
+      _errorMessage = 'Phiên người dùng không khớp hoặc đã hết hạn.';
+      _state = RecoveryState.error;
+      notifyListeners();
+      return false;
+    }
+
+    if (_state == RecoveryState.updating || _state == RecoveryState.cleanupRequired) {
+      return false;
+    }
+
+    final updatingIntent = intent.copyWith(phase: RecoveryPhase.updating);
+    try {
+      await store.write(updatingIntent);
+      _currentIntent = updatingIntent;
+    } catch (_) {
+      _errorMessage = 'Không thể ghi nhận trạng thái khôi phục trước khi đổi mật khẩu.';
+      _state = RecoveryState.ready;
+      notifyListeners();
+      return false;
+    }
 
     _state = RecoveryState.updating;
     _errorMessage = null;
@@ -235,13 +367,18 @@ class PasswordRecoveryProvider extends ChangeNotifier {
         (client) => service.updatePassword(client, trimmed),
       );
 
-      // Password updated successfully. Transition to cleanup.
+      if (!auth.isCurrentRecoveryIntent(intent.intentId)) {
+        return false;
+      }
+
+      // Password updated successfully (ACK received).
+      // Synchronously transition in RAM to cleanupRequired before any further awaits.
+      _state = RecoveryState.cleanupRequired;
       final cleanupIntent = intent.copyWith(phase: RecoveryPhase.cleanup);
-      await store.write(cleanupIntent);
       _currentIntent = cleanupIntent;
 
       try {
-        final client = _client;
+        await store.write(cleanupIntent);
         if (client != null) {
           await client.auth.signOut(scope: SignOutScope.local);
         }
@@ -259,14 +396,39 @@ class PasswordRecoveryProvider extends ChangeNotifier {
         notifyListeners();
         return false;
       }
+    } on RecoveryIntentCancelledException {
+      return false;
     } on AuthException catch (e) {
-      _errorMessage = e.message;
-      _state = RecoveryState.error;
+      if (!auth.isCurrentRecoveryIntent(intent.intentId)) return false;
+      final msg = e.message.toLowerCase();
+      final isNetworkOrUncertain = e.statusCode == null ||
+          msg.contains('socket') ||
+          msg.contains('connection') ||
+          msg.contains('network') ||
+          msg.contains('timeout') ||
+          msg.contains('clientexception');
+
+      if (isNetworkOrUncertain) {
+        _state = RecoveryState.uncertain;
+        _errorMessage =
+            'Kết nối mạng bị gián đoạn khi cập nhật mật khẩu. Vui lòng kiểm tra lại trạng thái tài khoản.';
+      } else {
+        try {
+          final readyIntent = intent.copyWith(phase: RecoveryPhase.ready);
+          await store.write(readyIntent);
+          _currentIntent = readyIntent;
+          _state = RecoveryState.ready;
+        } catch (_) {
+          _state = RecoveryState.uncertain;
+        }
+        _errorMessage = e.message;
+      }
       notifyListeners();
       return false;
     } catch (_) {
-      _errorMessage = 'Không thể hoàn tất cập nhật mật khẩu; vui lòng thử lại.';
-      _state = RecoveryState.error;
+      _state = RecoveryState.uncertain;
+      _errorMessage =
+          'Kết nối mạng bị gián đoạn khi cập nhật mật khẩu. Vui lòng kiểm tra lại trạng thái tài khoản.';
       notifyListeners();
       return false;
     }
@@ -299,6 +461,9 @@ class PasswordRecoveryProvider extends ChangeNotifier {
     _state = RecoveryState.idle;
     _errorMessage = null;
     _successMessage = null;
+    _initFuture = null;
+    _inFlightExchange = null;
+    _activeExchangeCode = null;
 
     try {
       await store.clear();
@@ -312,5 +477,11 @@ class PasswordRecoveryProvider extends ChangeNotifier {
     } catch (_) {}
 
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _removeRecoveryInvalidator?.call();
+    super.dispose();
   }
 }

@@ -165,5 +165,212 @@ void main() {
         throwsA(isA<BackendConfigChangedException>()),
       );
     });
+
+    test('url_change_during_osrm_success_rejects_old_operation', () async {
+      final dio = Dio();
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) async {
+            if (options.uri.host.contains('project-osrm.org')) {
+              // Simulate config changing while OSRM request is in-flight
+              await config.setBaseUrl('http://192.168.1.99:9000');
+              return handler.resolve(
+                Response(
+                  requestOptions: options,
+                  statusCode: 200,
+                  data: {
+                    'code': 'Ok',
+                    'routes': [
+                      {
+                        'distance': 1500.0,
+                        'duration': 300.0,
+                        'geometry': {
+                          'coordinates': [
+                            [107.5775, 16.4698],
+                            [107.5440, 16.4530],
+                          ],
+                        },
+                      }
+                    ],
+                  },
+                ),
+              );
+            } else {
+              // Backend 503 triggers fallback to OSRM
+              return handler.reject(
+                DioException(
+                  requestOptions: options,
+                  response: Response(
+                    requestOptions: options,
+                    statusCode: 503,
+                  ),
+                  type: DioExceptionType.badResponse,
+                ),
+              );
+            }
+          },
+        ),
+      );
+
+      final mapClient = MapApiService(
+        dio: dio,
+        baseUrlReader: () => config.effectiveBaseUrl,
+        configRevisionReader: () => config.revision,
+      );
+
+      expect(
+        () => mapClient.getRoute(
+          origin: const LatLng(16.4698, 107.5775),
+          destination: const LatLng(16.4530, 107.5440),
+        ),
+        throwsA(isA<BackendConfigChangedException>()),
+      );
+    });
+
+    test('url_change_during_osrm_error_preserves_invalidation', () async {
+      final dio = Dio();
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) async {
+            if (options.uri.host.contains('project-osrm.org')) {
+              await config.setBaseUrl('http://192.168.1.99:9000');
+              return handler.reject(
+                DioException(
+                  requestOptions: options,
+                  type: DioExceptionType.connectionTimeout,
+                  error: 'OSRM timeout',
+                ),
+              );
+            } else {
+              return handler.reject(
+                DioException(
+                  requestOptions: options,
+                  response: Response(
+                    requestOptions: options,
+                    statusCode: 503,
+                  ),
+                  type: DioExceptionType.badResponse,
+                ),
+              );
+            }
+          },
+        ),
+      );
+
+      final mapClient = MapApiService(
+        dio: dio,
+        baseUrlReader: () => config.effectiveBaseUrl,
+        configRevisionReader: () => config.revision,
+      );
+
+      expect(
+        () => mapClient.getRoute(
+          origin: const LatLng(16.4698, 107.5775),
+          destination: const LatLng(16.4530, 107.5440),
+        ),
+        throwsA(isA<BackendConfigChangedException>()),
+      );
+    });
+
+    test('same_revision_osrm_still_succeeds', () async {
+      final dio = Dio();
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) async {
+            if (options.uri.host.contains('project-osrm.org')) {
+              return handler.resolve(
+                Response(
+                  requestOptions: options,
+                  statusCode: 200,
+                  data: {
+                    'code': 'Ok',
+                    'routes': [
+                      {
+                        'distance': 1500.0,
+                        'duration': 300.0,
+                        'geometry': {
+                          'coordinates': [
+                            [107.5775, 16.4698],
+                            [107.5440, 16.4530],
+                          ],
+                        },
+                      }
+                    ],
+                  },
+                ),
+              );
+            } else {
+              return handler.reject(
+                DioException(
+                  requestOptions: options,
+                  response: Response(
+                    requestOptions: options,
+                    statusCode: 503,
+                  ),
+                  type: DioExceptionType.badResponse,
+                ),
+              );
+            }
+          },
+        ),
+      );
+
+      final mapClient = MapApiService(
+        dio: dio,
+        baseUrlReader: () => config.effectiveBaseUrl,
+        configRevisionReader: () => config.revision,
+      );
+
+      final route = await mapClient.getRoute(
+        origin: const LatLng(16.4698, 107.5775),
+        destination: const LatLng(16.4530, 107.5440),
+      );
+
+      expect(route.points.length, 2);
+      expect(route.summary, 'Tuyến đường OSRM');
+    });
+
+    test('new_operation_uses_new_host_without_retargeting_old_retry', () async {
+      final recordedHosts = <String>[];
+      final dio = Dio();
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            recordedHosts.add(options.uri.host);
+            return handler.reject(
+              DioException(
+                requestOptions: options,
+                type: DioExceptionType.connectionError,
+                error: 'fail',
+              ),
+            );
+          },
+        ),
+      );
+
+      final mapClient = MapApiService(
+        dio: dio,
+        baseUrlReader: () => config.effectiveBaseUrl,
+        configRevisionReader: () => config.revision,
+      );
+
+      try {
+        await mapClient.getRoute(
+          origin: const LatLng(16.0, 108.0),
+          destination: const LatLng(16.1, 108.1),
+        );
+      } catch (_) {}
+
+      await config.setBaseUrl('http://192.168.1.99:9000');
+
+      try {
+        await mapClient.getRoute(
+          origin: const LatLng(16.0, 108.0),
+          destination: const LatLng(16.1, 108.1),
+        );
+      } catch (_) {}
+
+      expect(recordedHosts, contains('192.168.1.99'));
+    });
   });
 }
