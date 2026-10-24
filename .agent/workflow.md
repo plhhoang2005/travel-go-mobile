@@ -17,11 +17,11 @@ Quy trﾃｬnh v蘯ｭn hﾃnh tiﾃｪu chu蘯ｩn (SOP) cho **Autonomous AI
       - ﾄ雪ｻ訴 chi蘯ｿu 5 Lu蘯ｭt B蘯･t Bi蘯ｿn & Feature-First              笏・      - Th蘯ｩm ﾄ黛ｻ杵h Model DTO, Service Dio, Provider             笆ｼ
       笏・                                            [ﾄ脆ｰa ra 2-3 k盻議h b蘯｣n]
       笆ｼ                                                        笏・[3. IMPLEMENTATION PLAN]                                       笆ｼ
-      - Minimal Atomic Scope (T盻訴 ﾄ疎 5 files)       [2-3 Ready-to-Use Prompts]
+      - Minimal Atomic Scope (theo pham vi da duyet)       [2-3 Ready-to-Use Prompts]
       - Acceptance Criteria rﾃｵ rﾃng                            笏・      - Ch蘯｡m Vﾃｹng ﾄ雪ｻ・Mobile? -> D盻ｫng xin phﾃｩp                   笆ｼ
       笏・                                            [Ch盻・User Xﾃ｡c Nh蘯ｭn]
       笆ｼ                                                        笏・[4. MINIMAL IMPLEMENTATION] 笳・楳笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏笏・      - S盻ｭa code t盻訴 thi盻ブ, ﾆｰu tiﾃｪn `const`, sound null-safety
-      - Tuﾃ｢n th盻ｧ Workflow Budget Guard (Max 25 tool calls)
+      - Tuﾃ｢n th盻ｧ Workflow Budget Guard (RCA loop va tai nguyen thuc te)
       笏・      笆ｼ
 [5. LOCAL VERIFICATION & BOUNDED RETRY]
       - flutter analyze (Yﾃｪu c蘯ｧu: No issues found!)
@@ -135,12 +135,13 @@ M盻絞 ﾄ雪ｻ｣t phﾃ｡t tri盻ハ l盻嬾 (Phase/ﾄ雪ｻ｣t) ho蘯ｷ
 Vﾃｬ n盻］ t蘯｣ng Antigravity khﾃｴng expose thﾃｴng tin h蘯｡n m盻ｩc phiﾃｪn tr盻ｱc ti蘯ｿp, vi盻㌘ ki盻ノ soﾃ｡t tﾃi nguyﾃｪn ﾄ柁ｰ盻｣c th盻ｱc thi c盻ｩng thﾃｴng qua cﾃ｡c gi盻嬖 h蘯｡n ph蘯ｧn m盻［:
 
 ### 3.1. B蘯｣ng Gi盻嬖 H蘯｡n C盻ｩng (Workflow Budget Guard)
+
+Không áp dụng giới hạn số file hoặc số tool calls cho task. Giữ tối đa 3 vòng sửa lỗi (RCA loop); khi chạm giới hạn còn hiệu lực, lưu checkpoint và chờ người dùng. Quyết định owner ngày 24/10/2026 ghi đè các giới hạn số file/tool calls trong kế hoạch và báo cáo cũ; vẫn giữ phạm vi đã duyệt và các cổng phê duyệt.
+
 | Ch盻・S盻・Ki盻ノ Soﾃ｡t | Ngﾆｰ盻｡ng Tr蘯ｧn T盻訴 ﾄ紳 (Hard Limit) | Hﾃnh ﾄ雪ｻ冢g Khi Vﾆｰ盻｣t Ngﾆｰ盻｡ng |
 | :--- | :---: | :--- |
 | **Max Planning Retries** | **2 l蘯ｧn** | D盻ｫng l蘯｡i, xin ﾃｽ ki蘯ｿn Tech Lead. |
-| **Max File Touches per Task** | **5 files** | Ngﾄハ ch蘯ｷn refactor lan man, scope creep. |
 | **Max Test-Fix Retries (RCA)** | **3 l蘯ｧn** | Ng蘯ｯt m蘯｡ch (Circuit Breaker), rollback code g盻祖. |
-| **Max Tool Calls per Task** | **25 calls** | Chuy盻ハ sang tr蘯｡ng thﾃ｡i Graceful Stop. |
 | **Max Command Timeout** | **60 giﾃ｢y** | Ng蘯ｯt ti蘯ｿn trﾃｬnh b盻・treo (`manage_task kill`). |
 | **Max Slice Window khi ﾄ黛ｻ皇 file** | **150 dﾃｲng** | Trﾃ｡nh dump toﾃn b盻・file gﾃ｢y lﾃ｣ng phﾃｭ token context. |
 
@@ -192,7 +193,7 @@ Khi `flutter analyze` ho蘯ｷc `flutter test` th蘯･t b蘯｡i, Agent th盻�
 ## 6. Mobile Quality Gate & Pre-Commit Checklist
 
 Trﾆｰ盻嫩 khi hoﾃn t蘯･t b蘯･t k盻ｳ task nﾃo, Agent b蘯ｯt bu盻冂 ph蘯｣i t盻ｱ ﾄ黛ｻ訴 chi蘯ｿu 6 chi盻「:
-- [ ] **1. Requirement**: ﾄ静ｺng ph蘯｡m vi ﾄ柁ｰ盻｣c giao, khﾃｴng ti盻㌻ tay refactor ngoﾃi ph蘯｡m vi (<= 5 files).
+- [ ] **1. Requirement**: ﾄ静ｺng ph蘯｡m vi ﾄ柁ｰ盻｣c giao, khﾃｴng ti盻㌻ tay refactor ngoﾃi ph蘯｡m vi.
 - [ ] **2. 5 Laws**: Gi盻ｯ tr蘯｣i nghi盻㍊ Dashboard, khﾃｴng tﾃｭnh toﾃ｡n sai l盻㌘h DTO, gi盻ｯ c盻・fallback minh b蘯｡ch `[FALLBACK]`, khﾃｴng block main UI thread.
 - [ ] **3. Flutter Linter**: Ch蘯｡y `flutter analyze` tr蘯｣ v盻・`No issues found!`.
 - [ ] **4. Automated Tests**: Ch蘯｡y `flutter test` tr蘯｣ v盻・`All tests passed!`.

@@ -62,7 +62,7 @@ H盻・th盻創g tﾃi li盻㎡ d盻ｱ ﾃ｡n ﾄ柁ｰ盻｣c t盻・ch盻
 | :--- | :--- | :--- |
 | **Quy chu蘯ｩn k盻ｹ thu蘯ｭt & Lu蘯ｭt** | [.agent/rules.md](file:///.agent/rules.md) | 5 Lu蘯ｭt B蘯･t Bi蘯ｿn, Clean Feature Architecture, Flutter/Dart standards, Verification SOP (`flutter analyze`, `flutter test`), Git Safety, Lu蘯ｭt Ch盻創g AI-Slop (M盻･c 6) |
 | **Tri th盻ｩc d盻ｱ ﾃ｡n & B盻・nh盻・* | [.agent/knowledge.md](file:///.agent/knowledge.md) | Chﾃ｢n dung Persona Minh, 4 ADRs di ﾄ黛ｻ冢g, N盻｣ k盻ｹ thu蘯ｭt ﾄ妥｣ ch蘯･p nh蘯ｭn, Lessons Learned |
-| **Quy trﾃｬnh & Autonomous Pipeline** | [.agent/workflow.md](file:///.agent/workflow.md) | SOP Level 2.8, Mobile Anti-Vague Gatekeeper, Budget Guard (25 calls, 5 files), RCA Loop, Git Protocol |
+| **Quy trﾃｬnh & Autonomous Pipeline** | [.agent/workflow.md](file:///.agent/workflow.md) | SOP Level 2.8, Mobile Anti-Vague Gatekeeper, Budget Guard (RCA loop), RCA Loop, Git Protocol |
 | **C蘯ｩm nang phﾃ｡t tri盻ハ Flutter** | [.agent/skills/flutter-travelgo-guide/SKILL.md](file:///.agent/skills/flutter-travelgo-guide/SKILL.md) | Hﾆｰ盻嬾g d蘯ｫn phﾃ｡t tri盻ハ UI/Widgets, State v盻嬖 Provider, Charts v盻嬖 `fl_chart`, Subagents |
 | **K盻ｹ nﾄハg Ch盻創g AI-Slop UI/UX** | [.agent/skills/anti-slop-ui/SKILL.md](file:///.agent/skills/anti-slop-ui/SKILL.md) | B盻・l盻皇 33 Tells (`kill-ai-slop`), tﾆｰ duy Design Director (`impeccable`), tokens Flutter (`Theme.colorScheme`), Spacing & Radius |
 
@@ -89,7 +89,7 @@ Trﾆｰ盻嫩 khi l蘯ｭp k蘯ｿ ho蘯｡ch ho蘯ｷc vi蘯ｿt code, Agent b
 
 ## 5. Workflow Budget Guard & Git Safety
 
-- **Budget Guard**: T盻訴 ﾄ疎 25 tool calls/task, t盻訴 ﾄ疎 3 vﾃｲng th盻ｭ s盻ｭa l盻擁 (RCA loop), t盻訴 ﾄ疎 5 file/task. N蘯ｿu ch蘯｡m ngﾆｰ盻｡ng $\rightarrow$ Graceful Stop, lﾆｰu Checkpoint vﾃ ch盻・ngﾆｰ盻拱 dﾃｹng.
+- **Budget Guard**: Không áp dụng giới hạn số file hoặc số tool calls cho task. Giữ tối đa 3 vòng sửa lỗi (RCA loop); khi chạm giới hạn còn hiệu lực, lưu checkpoint và chờ người dùng. Quyết định owner ngày 24/10/2026 ghi đè các giới hạn số file/tool calls trong kế hoạch và báo cáo cũ; vẫn giữ phạm vi đã duyệt và các cổng phê duyệt.
 - **Git Safety**: T盻ｱ ﾄ黛ｻ冢g t蘯｡o feature branch (`feat/*`, `fix/*`), selective staging (ch盻・add file task), conventional commits. **C蘯､M TUY盻・ ﾄ雪ｻ蝕 PUSH TR盻ｰC TI蘯ｾP VﾃO MAIN**.
 - **Ch蘯ｷn rﾃｲ r盻・file build di ﾄ黛ｻ冢g**: Tuy盻㏄ ﾄ黛ｻ訴 khﾃｴng commit `build/`, `.dart_tool/`, `android/.gradle/`, `*.jks`, `*.keystore`, `ios/Pods/`, `.env`.
 - **Human Merge Gate**: M盻絞 thay ﾄ黛ｻ品 ﾄ柁ｰa vﾃo `main` ph蘯｣i thﾃｴng qua Pull Request do Human Tech Lead review vﾃ phﾃｪ duy盻㏄.

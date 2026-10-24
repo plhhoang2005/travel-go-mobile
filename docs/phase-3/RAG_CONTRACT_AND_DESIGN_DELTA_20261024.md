@@ -2,12 +2,13 @@
 
 - **Dự án**: TravelGO Mobile (Flutter Client)
 - **Tài liệu**: `docs/phase-3/RAG_CONTRACT_AND_DESIGN_DELTA_20261024.md`
-- **Phiên bản**: T0 — Architecture Responsibility & Contract Freeze
+- **Phiên bản**: T1 Repair — Architecture Responsibility, Contract Implementation & Codex Review Alignment
 - **Ngày thực hiện**: 24/10/2026
 - **Implementer**: Antigravity (AGY Mobile Team)
 - **Baseline Git HEAD**: `93b0abf00459007fec9049221f9d8746ad2a3cdb`
+- **Reviewed HEAD**: `c789c7a522719fc2f535cd18a30050bef7c3982c`
 - **Nhánh làm việc**: `fix/ai-planning-stability`
-- **Trạng thái**: CHỜ PHÊ DUYỆT (WAITING_OWNER_APPROVAL) — Chưa sửa source code/DB, chưa gọi live AI
+- **Trạng thái**: ĐÃ HOÀN THÀNH TRIỂN KHAI & REPAIR R1–R7 THEO REVIEW CỦA CODEX
 
 ---
 
@@ -69,7 +70,7 @@ Nhằm bảo đảm tính ổn định và tương thích ngược với các Ed
 - Giữ nguyên cấu trúc payload hiện tại của Edge Function `itinerary-proposal/gateway.mjs`:
   - `intent`: `'advice'` | `'recommendations'` | `'modify'`.
   - `context`: bao gồm `destinationId`, `selectedDay`, `date`, `priority`, `activities`, `places`, `constraints` (`openingWindows`, `routes`), `weather`.
-- **RAG v1 Delta**: Bổ sung dữ liệu thực tế vào các trường constraints hiện có (`openingWindows`, `routes`) và mở rộng cấu trúc `places` để chứa thông tin giá vé/tình trạng xác minh.
+- **RAG v1 Implementation**: Bổ sung dữ liệu thực tế vào các trường constraints hiện có (`openingWindows`, `routes`). Cấu trúc `places` trên wire contract được **giữ nguyên nghiêm ngặt** `{id, name, sourceId}` để tránh bị `gateway.mjs` object() từ chối schema. Các thông tin grounded facts, giá vé, và cảnh báo được lưu giữ trong `AiAssistantContext.grounding` và truyền tất định tới UI qua warnings/differences mà không làm đổi wire contract.
 
 ---
 
@@ -138,10 +139,11 @@ $$\text{PricingBasis} \in \{\mathbf{per\_person},\ \mathbf{trip\_total},\ \mathb
 
 1. **Ranh giới tin cậy (Trust Boundary)**:
    - Phía Client là untrusted, không được quyền tự ý gán nhãn `reviewed` cho dữ liệu giả mạo. Mọi fact đưa vào prompt phải có `sourceId` hợp lệ tương ứng trong danh mục nguồn chính thống.
-2. **Giới hạn số lượng (Hard Limits)**:
-   - Số địa điểm tối đa đưa vào ngữ cảnh trợ lý: **$\le 8$ places** (giảm từ 12 để tiết kiệm token và tránh tình trạng AI bị ngợp thông tin).
-   - Số khung giờ mở cửa tối đa (`openingWindows`): **$\le 16$ windows**.
-   - Số tuyến đường di chuyển tối đa (`routes`): **$\le 16$ routes**.
+2. **Giới hạn số lượng (Hard Limits khớp với gateway.mjs & Dart implementation)**:
+   - Số địa điểm tối đa đưa vào ngữ cảnh trợ lý: **$\le 12$ places**.
+   - Số khung giờ mở cửa tối đa (`openingWindows`): **$\le 48$ windows**.
+   - Số tuyến đường di chuyển tối đa (`routes`): **$\le 48$ routes**.
+   - Số hoạt động tối đa: **$\le 48$ activities**.
    - Kích thước payload tối đa: $\le 32\text{ KiB}$ cho request, $\le 14\text{ KiB}$ cho response.
 
 ---

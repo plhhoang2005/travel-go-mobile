@@ -102,47 +102,84 @@ GroundedPlaceFacts evaluatePlaceGrounding({
     availability = AvailabilityState.unknown;
     hoursNote = 'Chưa xác minh giờ tham quan chính thức.';
   } else if (hours.status == 'temporarily_closed') {
+    // R1: Temporary closure -> closed rõ ràng, không có windows
     availability = AvailabilityState.closed;
     hoursNote = 'Địa điểm đang tạm đóng cửa theo nguồn chính thức.';
   } else if (hours.status == 'scheduled' || hours.status == 'seasonal') {
-    final matchingRules = date == null
-        ? hours.rules
-        : hours.rules.where((r) => r.appliesOn(date)).toList();
-
-    if (matchingRules.isEmpty) {
-      availability = AvailabilityState.closed;
-      hoursNote = 'Không có lịch mở cửa vào ngày đã chọn.';
+    // R5: Nếu thiếu ngày đi (date == null) với lịch theo mùa hoặc theo thứ,
+    // phải trả về unknown; tuyệt đối không ghép union 2 mùa thành window đã xác minh!
+    if (date == null) {
+      availability = AvailabilityState.unknown;
+      hoursNote = 'Chưa có ngày đi cụ thể để xác định lịch mở cửa theo mùa/thứ.';
     } else {
-      availability = AvailabilityState.open;
-      final sourceRef = hours.evidence.sourceIds.isNotEmpty
-          ? hours.evidence.sourceIds.first
-          : 'catalogue_v1';
+      final matchingRules = hours.rules.where((r) => r.appliesOn(date)).toList();
 
-      for (final rule in matchingRules) {
-        // Hạn chót nhận khách nếu có, hoặc giờ đóng cửa
-        final effectiveEnd = rule.admissionCutoffMinutes != null &&
-                rule.admissionCutoffMinutes! > rule.startMinutes
-            ? rule.admissionCutoffMinutes!
-            : rule.endMinutes;
+      if (matchingRules.isEmpty) {
+        // R1: Ngày được chọn không có rule mở cửa -> closed rõ ràng
+        availability = AvailabilityState.closed;
+        hoursNote = 'Không có lịch mở cửa vào ngày đã chọn.';
+      } else {
+        availability = AvailabilityState.open;
+        final sourceRef = hours.evidence.sourceIds.isNotEmpty
+            ? hours.evidence.sourceIds.first
+            : 'catalogue_v1';
 
-        windows.add({
-          'placeId': placeId,
-          'startMinute': rule.startMinutes,
-          'endMinute': effectiveEnd,
-          'sourceRef': sourceRef,
-        });
-      }
+        for (final rule in matchingRules) {
+          // R2: Xử lý lịch qua đêm (endDayOffset == 1):
+          // Ngày bắt đầu mở từ rule.startMinutes đến hết ngày (1440).
+          // Đảm bảo effectiveEnd luôn > rule.startMinutes, không bao giờ tạo window lỗi end <= start!
+          final effectiveEnd = rule.endDayOffset == 1
+              ? 1440
+              : rule.endMinutes;
 
-      // Nếu có giờ cụ thể, kiểm tra xem có nằm trọn trong khung giờ mở cửa không
-      if (startMinute != null && endMinute != null && windows.isNotEmpty) {
-        final fits = windows.any(
-          (w) =>
-              startMinute >= (w['startMinute'] as int) &&
-              endMinute <= (w['endMinute'] as int),
-        );
-        if (!fits) {
-          availability = AvailabilityState.closed;
-          hoursNote = 'Thời gian tham quan nằm ngoài khung giờ mở cửa.';
+          if (effectiveEnd > rule.startMinutes) {
+            // R3: openingWindows biểu diễn toàn bộ khung giờ mở cửa (đến giờ đóng cửa rule.endMinutes hoặc 1440),
+            // KHÔNG cắt ngắn ở admissionCutoffMinutes.
+            windows.add({
+              'placeId': placeId,
+              'startMinute': rule.startMinutes,
+              'endMinute': effectiveEnd,
+              'sourceRef': sourceRef,
+            });
+          }
+        }
+
+        // R2 bổ sung: Nếu hôm trước có rule qua đêm áp dụng vào rạng sáng hôm nay
+        final yesterday = date.subtract(const Duration(days: 1));
+        final yesterdayOvernights = hours.rules
+            .where((r) => r.endDayOffset == 1 && r.appliesOn(yesterday))
+            .toList();
+        for (final yRule in yesterdayOvernights) {
+          if (yRule.endMinutes > 0) {
+            windows.add({
+              'placeId': placeId,
+              'startMinute': 0,
+              'endMinute': yRule.endMinutes,
+              'sourceRef': sourceRef,
+            });
+          }
+        }
+
+        // R3: Kiểm tra riêng rẽ hạn nhận khách (admission cutoff) và giờ đóng cửa (closing)
+        if (startMinute != null && endMinute != null && matchingRules.isNotEmpty) {
+          final fits = matchingRules.any((r) {
+            // Giờ bắt đầu phải trước hạn chót nhận khách (nếu có)
+            final cutoff = r.admissionCutoffMinutes != null &&
+                    r.admissionCutoffMinutes! >= r.startMinutes
+                ? r.admissionCutoffMinutes!
+                : (r.endDayOffset == 1 ? 1440 : r.endMinutes);
+            final maxClosing = r.endDayOffset == 1 ? 1440 : r.endMinutes;
+
+            final validStart = startMinute >= r.startMinutes && startMinute <= cutoff;
+            final validEnd = endMinute <= maxClosing && endMinute > startMinute;
+            return validStart && validEnd;
+          });
+
+          if (!fits) {
+            availability = AvailabilityState.closed;
+            hoursNote =
+                'Thời gian tham quan nằm ngoài khung giờ mở cửa hoặc vào sau giờ ngừng nhận khách.';
+          }
         }
       }
     }
@@ -195,7 +232,7 @@ GroundedPlaceFacts evaluatePlaceGrounding({
   );
 }
 
-/// Giải quyết gói combo (Package Resolution) và tổng hợp toàn bộ Facts
+/// Phân giải tổng thể Facts địa điểm cho ngữ cảnh trợ lý
 GroundingResolution resolveGrounding({
   required List<String> placeIds,
   required Map<String, PlaceVisitDetails> visitDetails,
@@ -204,9 +241,7 @@ GroundingResolution resolveGrounding({
 }) {
   final factsMap = <String, GroundedPlaceFacts>{};
   final allWindows = <Map<String, Object?>>[];
-  final appliedPackages = <String>{};
   final warnings = <String>[];
-  var totalEstimatedCost = 0;
 
   for (final id in placeIds) {
     final details = visitDetails[id];
@@ -218,49 +253,68 @@ GroundingResolution resolveGrounding({
     factsMap[id] = fact;
     allWindows.addAll(fact.openingWindows);
 
-    if (!fact.isReviewed || fact.availability == AvailabilityState.unknown) {
+    // R1 & R6: Surface warnings rõ ràng
+    if (fact.availability == AvailabilityState.closed) {
+      warnings.add(
+        'Địa điểm $id đang đóng cửa${date != null ? " vào ngày đã chọn" : ""}.',
+      );
+    } else if (!fact.isReviewed || fact.availability == AvailabilityState.unknown) {
       warnings.add(
         'Địa điểm $id chưa xác minh đầy đủ thông tin vé/giờ tham quan.',
       );
     }
   }
 
-  // Thuật toán kiểm tra Combo Packages (Tránh cộng dồn vé lẻ sai lệch)
-  final uniquePlaces = placeIds.toSet();
-  for (final pkg in packages.values) {
-    // Nếu chuyến đi ghé thăm từ 2 điểm trở lên thuộc cùng gói package
-    final coveredInTrip = pkg.included.where(uniquePlaces.contains).toList();
-    if (coveredInTrip.length >= 2) {
-      appliedPackages.add(pkg.id);
-      warnings.add(
-        'Đã phát hiện gói vé combo ${pkg.label} cho các điểm: ${coveredInTrip.join(", ")}.',
-      );
-    }
-  }
-
-  // Tính toán sơ bộ chi phí
-  for (final fact in factsMap.values) {
-    if (fact.amountVnd != null && fact.amountVnd! > 0) {
-      totalEstimatedCost += fact.amountVnd!;
-    }
-  }
+  // R7: Package budget resolution & auto combo discount
+  // Trong seed hiện tại, pkg.included sử dụng nhãn văn bản tiếng Việt thay vì stable placeId.
+  // Đồng thời, việc tính toán ngân sách tối ưu thuộc thẩm quyền của Backend/Decision Engine
+  // theo Luật 2. Do đó, logic tự động trừ tiền combo ở client được đánh dấu NOT_IMPLEMENTED
+  // để bảo toàn Luật 2 và tránh sai lệch ngân sách.
+  const appliedPackages = <String>[];
 
   return GroundingResolution(
     facts: Map.unmodifiable(factsMap),
     openingWindows: List.unmodifiable(allWindows),
-    appliedPackages: appliedPackages.toList(),
-    totalEstimatedCostVnd: totalEstimatedCost,
+    appliedPackages: appliedPackages,
+    totalEstimatedCostVnd: 0, // Tuân thủ Luật 2: Client không tự ý cộng trừ ngân sách
     warnings: warnings,
   );
 }
 
-/// Bộ lọc nhận diện câu hỏi ngoài phạm vi nghiệp vụ du lịch (Hướng B kết hợp C)
+/// R4: Nhận diện yêu cầu có yếu tố lịch trình / du lịch
+bool isTravelOrItineraryIntent(String clean) {
+  const travelIndicators = [
+    // Hành động lập lịch / chuyến đi
+    'thêm', 'bớt', 'xóa', 'dời', 'đổi', 'chuyển', 'xếp lịch', 'lên lịch',
+    'lịch trình', 'kế hoạch', 'chuyến đi', 'ngày 1', 'ngày 2', 'ngày 3',
+    'buổi sáng', 'buổi chiều', 'buổi tối', 'tham quan', 'du lịch',
+    'khách sạn', 'ăn uống', 'quán', 'nhà hàng', 'địa điểm', 'điểm đến',
+    'tối ưu', 'chi phí', 'ngân sách', 'giá vé', 'vé vào', 'gợi ý',
+    'chuẩn bị', 'đến', 'ghé', 'xem', 'chơi gì', 'ăn gì', 'ở đâu',
+    'bản nháp', 'hoạt động', 'thời gian', 'mở cửa', 'đóng cửa',
+
+    // Địa danh / công trình / loại hình điểm đến
+    'bảo tàng', 'chùa', 'nhà thờ', 'di tích', 'lăng', 'đại nội', 'kinh thành',
+    'chợ', 'bãi biển', 'công viên', 'sân vận động', 'phố cổ', 'đảo', 'núi',
+    'đèo', 'thác', 'hồ', 'vịnh', 'rừng', 'cố đô', 'phố đi bộ',
+  ];
+
+  return travelIndicators.any(clean.contains);
+}
+
+/// R4: Bộ lọc nhận diện câu hỏi ngoài phạm vi nghiệp vụ du lịch (Hướng B kết hợp C)
 bool isOutOfDomainQuery(String prompt) {
   final clean = prompt.toLowerCase().trim();
   if (clean.isEmpty) return false;
 
-  const patterns = [
-    // 1. Thể thao / giải đấu quốc tế
+  // Nếu câu hỏi có chứa ý định lập lịch hoặc tên/loại hình địa điểm du lịch -> KHÔNG chặn!
+  if (isTravelOrItineraryIntent(clean)) {
+    return false;
+  }
+
+  // Danh sách các chủ đề thuần túy ngoài miền (chỉ kích hoạt khi KHÔNG có ý định du lịch)
+  const nonTravelPatterns = [
+    // 1. Thể thao / giải đấu thuần túy
     'world cup',
     'fifa',
     'bóng đá',
@@ -295,14 +349,14 @@ bool isOutOfDomainQuery(String prompt) {
     'phương trình',
     'hóa học',
     'vật lý',
-    // 5. Chính trị / chiến sự / thời sự ngoài du lịch
+    // 5. Chính trị / thời sự quốc tế
     'tổng thống',
     'bầu cử',
     'chiến tranh',
     'chính trị',
   ];
 
-  return patterns.any(clean.contains);
+  return nonTravelPatterns.any(clean.contains);
 }
 
 /// Tạo phản hồi Smart Pivot điều hướng người dùng quay lại kế hoạch chuyến đi (Hướng B kết hợp C)

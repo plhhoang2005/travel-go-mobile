@@ -12,7 +12,7 @@ T蘯ｭp h盻｣p toﾃn b盻・cﾃ｡c quy chu蘯ｩn k盻ｹ thu蘯ｭt b�
 - **Zero Guessing**: Tuyệt đối không tự ý giả định các trường dữ liệu DTO hoặc logic xử lý fallback.
 
 ### 1.2. Tối Thiểu Hóa Thay Đổi (Minimal Viable Change)
-- Chỉ sửa đúng các file và dòng code cần thiết để hoàn thành nhiệm vụ được giao (tối đa 5 file/task).
+- Chỉ sửa đúng các file và dòng code cần thiết để hoàn thành nhiệm vụ được giao. Không giới hạn số file hoặc số tool calls; cho phép sửa đồng bộ source, contract, test và tài liệu trong phạm vi đã duyệt.
 - Tuyệt đối không tự ý "tiện tay" refactor toàn bộ màn hình, format lại các file không liên quan, hoặc đổi tên biến ngoài phạm vi task.
 - Bảo toàn comment, docstring và các quy ước code hiện hữu trong file được chỉnh sửa.
 

@@ -77,13 +77,25 @@ class AiAssistantContext {
   final String baseDigest;
   final GroundingResolution? grounding;
   final String? destinationName;
+  final Set<String> closedPlaceIds;
 
   AiAssistantContext._(
     Map<String, Object?> body,
     this.baseDigest, {
     this.grounding,
     this.destinationName,
-  }) : _body = _freeze(body) as Map<String, Object?>;
+    Set<String>? closedPlaceIds,
+  })  : closedPlaceIds = Set.unmodifiable(
+          closedPlaceIds ??
+              (grounding?.facts.entries
+                      .where(
+                        (e) => e.value.availability == AvailabilityState.closed,
+                      )
+                      .map((e) => e.key)
+                      .toSet() ??
+                  const <String>{}),
+        ),
+        _body = _freeze(body) as Map<String, Object?>;
 
   int get selectedDay => _body['selectedDay'] as int;
   String get destinationId => _body['destinationId'] as String;
@@ -102,6 +114,7 @@ class AiAssistantContext {
     List<Map<String, Object?>> routes = const [],
     Map<String, PlaceVisitDetails> visitDetails = const {},
     Map<String, VisitPackage> packages = const {},
+    Set<String>? closedPlaceIds,
   }) {
     final base = AiGenerationContext.fromDocument(
       doc,
@@ -137,7 +150,7 @@ class AiAssistantContext {
 
     GroundingResolution? grounding;
     var effectiveWindows = openingWindows;
-    if (openingWindows.isEmpty && visitDetails.isNotEmpty) {
+    if (visitDetails.isNotEmpty) {
       final selectedDate =
           day.date != null ? DateTime.tryParse(day.date!) : null;
       grounding = resolveGrounding(
@@ -146,7 +159,9 @@ class AiAssistantContext {
         packages: packages,
         date: selectedDate,
       );
-      effectiveWindows = grounding.openingWindows.take(48).toList();
+      if (effectiveWindows.isEmpty) {
+        effectiveWindows = grounding.openingWindows.take(48).toList();
+      }
     }
 
     final body = <String, Object?>{
@@ -165,6 +180,7 @@ class AiAssistantContext {
       EditableTripCodec.digest(doc),
       grounding: grounding,
       destinationName: destination?.name,
+      closedPlaceIds: closedPlaceIds,
     );
   }
 }
@@ -321,11 +337,13 @@ class AiAssistantResult {
     final placeIds = context.places.map((p) => p['id']).toSet();
     final recommendations = (v['recommendations'] as List).map((value) {
       final r = _object(value, {'title', 'reason', 'placeId'});
-      _check(r['placeId'] == null || placeIds.contains(r['placeId']));
+      final pid = r['placeId'] as String?;
+      _check(pid == null || placeIds.contains(pid));
+      _check(pid == null || !context.closedPlaceIds.contains(pid));
       return AiRecommendation(
         _human(r['title'], 200),
         _human(r['reason'], 400, multiline: true),
-        r['placeId'] as String?,
+        pid,
       );
     }).toList();
     if (intent == 'recommendations') {
@@ -363,7 +381,9 @@ class AiAssistantResult {
       }
       if (kind != 'remove') {
         _human(op['title'], 200);
-        _check(op['placeId'] == null || placeIds.contains(op['placeId']));
+        final pid = op['placeId'] as String?;
+        _check(pid == null || placeIds.contains(pid));
+        _check(pid == null || !context.closedPlaceIds.contains(pid));
         final start = _time(op['startMinute'], 1439),
             end = _time(op['endMinute'], 1440);
         _check(
@@ -383,14 +403,17 @@ class AiAssistantResult {
     if (intent == 'modify') {
       _validateCandidate(context, operations);
     }
+    final combinedWarnings = <String>[
+      if (context.grounding != null) ...context.grounding!.warnings,
+      ...(v['warnings'] as List)
+          .map((w) => _human(w, 200, multiline: true)),
+    ];
     return AiAssistantResult._(
       intent,
       summary,
       recommendations,
       operations,
-      (v['warnings'] as List)
-          .map((w) => _human(w, 200, multiline: true))
-          .toList(),
+      combinedWarnings,
     );
   }
 }
@@ -424,6 +447,10 @@ void _validateCandidate(
   }
   final facts = context.toJson()['constraints'] as Map;
   for (final a in items) {
+    final pid = a['placeId'] as String?;
+    if (pid != null) {
+      _check(!context.closedPlaceIds.contains(pid));
+    }
     if (a['startMinute'] == null || a['endMinute'] == null) {
       continue;
     }
@@ -659,6 +686,12 @@ AiModificationPreview prepareAiModification(
     differences.add(
       'Sắp xếp lại thứ tự các hoạt động trong ngày theo giờ bắt đầu.',
     );
+  }
+
+  if (context.grounding != null) {
+    for (final w in context.grounding!.warnings) {
+      differences.add('Lưu ý dữ liệu: $w');
+    }
   }
 
   final after = EditableTripMutator.apply(before, commands);

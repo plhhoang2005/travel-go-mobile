@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../models/ai_context_grounding.dart';
 import '../../services/ai_assistant_service.dart';
 import '../../services/ai_generation_service.dart';
 
@@ -32,9 +33,24 @@ class _AiAssistantPreviewState extends State<AiAssistantPreview> {
     final reference = widget.input.places
         .where((p) => p['id'] == recommendation.placeId)
         .firstOrNull;
-    return reference == null
-        ? 'Địa điểm chưa xác minh.'
-        : 'Tên tham chiếu từ danh mục TravelGO: ${reference['name']}. Giờ, giá và tính khả thi chưa xác minh.';
+    if (reference == null) {
+      return 'Địa điểm chưa xác minh.';
+    }
+    final fact = widget.input.grounding?.facts[recommendation.placeId];
+    if (fact != null && fact.isReviewed) {
+      final availText = fact.availability == AvailabilityState.open
+          ? 'Đang mở cửa theo lịch'
+          : fact.availability == AvailabilityState.closed
+              ? 'Đang đóng cửa'
+              : 'Giờ mở cửa chưa rõ';
+      final priceText = fact.priceStatus == 'free'
+          ? 'Miễn phí vé vào'
+          : fact.amountVnd != null
+              ? 'Giá tham khảo: ${fact.amountVnd} VND'
+              : 'Giá vé chưa xác minh';
+      return 'Tham chiếu: ${reference['name']} · $availText · $priceText.';
+    }
+    return 'Tên tham chiếu từ danh mục TravelGO: ${reference['name']}. Giờ, giá và tính khả thi chưa xác minh.';
   }
 
   @override
