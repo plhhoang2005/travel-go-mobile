@@ -428,18 +428,22 @@ class AiModificationPreview {
   final List<String> differences;
   final List<EditableValidationIssue> issues;
   final BudgetTotals beforeBudget, afterBudget;
+  final List<String> estimateReviewItemIds;
   AiModificationPreview(
     this.before,
     this.document,
     List<EditableCommand> commands,
     List<String> differences,
-    List<EditableValidationIssue> issues,
-  ) : commands = List.unmodifiable(commands),
+    List<EditableValidationIssue> issues, {
+    List<String> estimateReviewItemIds = const [],
+  }) : commands = List.unmodifiable(commands),
       differences = List.unmodifiable(differences),
       issues = List.unmodifiable(issues),
+      estimateReviewItemIds = List.unmodifiable(estimateReviewItemIds),
       beforeBudget = BudgetCalculator.calculate(before),
       afterBudget = BudgetCalculator.calculate(document);
   bool get canApply => !issues.any((i) => i.isBlocking);
+  bool get requiresEstimateReview => estimateReviewItemIds.isNotEmpty;
 }
 
 String _clock(int? value) => value == null
@@ -447,6 +451,8 @@ String _clock(int? value) => value == null
     : '${(value ~/ 60).toString().padLeft(2, '0')}:${(value % 60).toString().padLeft(2, '0')}';
 String _description(String title, int? start, int? end, String? place) =>
     '$title · ${_clock(start)}–${_clock(end)} · ${place ?? 'địa điểm chưa rõ'}';
+String _normalizeTitle(String text) =>
+    text.trim().replaceAll(RegExp(r'\s+'), ' ').toLowerCase();
 String _ledger(EditableTripDocumentV2 doc) => EditableTripCodec.canonicalJson(
   doc.actualExpenses
       .map(
@@ -473,7 +479,8 @@ AiModificationPreview prepareAiModification(
   _check(result.intent == 'modify' && result.operations.isNotEmpty);
   final day = before.days[context.selectedDay - 1],
       commands = <EditableCommand>[],
-      differences = <String>[];
+      differences = <String>[],
+      estimateReviewItemIds = <String>[];
   var count = before.items.where((i) => i.dayId == day.id).length;
   for (final operation in result.operations) {
     final o = operation.values;
@@ -486,6 +493,16 @@ AiModificationPreview prepareAiModification(
       );
     } else if (operation.kind == 'edit') {
       final old = before.items.firstWhere((i) => i.id == o['itemId']);
+      final titleChanged =
+          _normalizeTitle(old.title) != _normalizeTitle(o['title'] as String);
+      final placeChanged = old.placeId != o['placeId'];
+      final hasActiveEstimate =
+          before.estimates.any((e) => e.itemId == old.id && e.active);
+      if ((titleChanged || placeChanged) && hasActiveEstimate) {
+        if (!estimateReviewItemIds.contains(old.id)) {
+          estimateReviewItemIds.add(old.id);
+        }
+      }
       commands.add(
         EditItemCommand(
           itemId: old.id,
@@ -549,6 +566,47 @@ AiModificationPreview prepareAiModification(
       );
     }
   }
+
+  final candidate = EditableTripMutator.apply(before, commands);
+  final candidateDayItems =
+      candidate.items.where((i) => i.dayId == day.id).toList()
+        ..sort((a, b) => a.position.compareTo(b.position));
+  final known =
+      candidateDayItems
+          .where((i) => i.startMinute != null && i.endMinute != null)
+          .toList()
+        ..sort((a, b) {
+          final startCmp = a.startMinute!.compareTo(b.startMinute!);
+          if (startCmp != 0) return startCmp;
+          final endCmp = a.endMinute!.compareTo(b.endMinute!);
+          if (endCmp != 0) return endCmp;
+          return a.position.compareTo(b.position);
+        });
+  final unknown =
+      candidateDayItems
+          .where((i) => i.startMinute == null || i.endMinute == null)
+          .toList()
+        ..sort((a, b) => a.position.compareTo(b.position));
+  final ordered = [...known, ...unknown];
+  final orderedIds = ordered.map((i) => i.id).toList();
+  final currentIds = candidateDayItems.map((i) => i.id).toList();
+
+  var changedOrder = false;
+  if (orderedIds.length == currentIds.length) {
+    for (var i = 0; i < orderedIds.length; i++) {
+      if (orderedIds[i] != currentIds[i]) {
+        changedOrder = true;
+        break;
+      }
+    }
+  }
+  if (changedOrder) {
+    commands.add(ReorderDayCommand(day.id, orderedIds));
+    differences.add(
+      'Sắp xếp lại thứ tự các hoạt động trong ngày theo giờ bắt đầu.',
+    );
+  }
+
   final after = EditableTripMutator.apply(before, commands);
   _check(_ledger(before) == _ledger(after));
   return AiModificationPreview(
@@ -557,6 +615,7 @@ AiModificationPreview prepareAiModification(
     commands,
     differences,
     EditableTripValidator.validate(after, mode: ValidationMode.draft),
+    estimateReviewItemIds: estimateReviewItemIds,
   );
 }
 

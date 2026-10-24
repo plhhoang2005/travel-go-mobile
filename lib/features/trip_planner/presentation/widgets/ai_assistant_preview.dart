@@ -26,7 +26,7 @@ class _AiAssistantPreviewState extends State<AiAssistantPreview> {
   String? _requestId, _askedPrompt, _error;
   List<Map<String, Object?>>? _requestHistory;
   final List<Map<String, Object?>> _history = [];
-  bool _consent = false, _loading = false, _closing = false;
+  bool _consent = false, _loading = false, _closing = false, _estimateReviewAck = false;
   AiAssistantReply? _reply;
   String _source(AiRecommendation recommendation) {
     final reference = widget.input.places
@@ -78,6 +78,7 @@ class _AiAssistantPreviewState extends State<AiAssistantPreview> {
       }
       setState(() {
         _reply = reply;
+        _estimateReviewAck = false;
         if (reply.modification == null) {
           _history.addAll([
             {'role': 'user', 'text': prompt},
@@ -179,6 +180,7 @@ class _AiAssistantPreviewState extends State<AiAssistantPreview> {
                         _reply = null;
                         _error = null;
                         _consent = false;
+                        _estimateReviewAck = false;
                       })
                     : null,
               ),
@@ -194,7 +196,10 @@ class _AiAssistantPreviewState extends State<AiAssistantPreview> {
                   labelText: 'Câu hỏi hoặc yêu cầu chỉnh lịch',
                   helperText: 'Không nhập số liên hệ, email hoặc URL.',
                 ),
-                onChanged: (_) => setState(() => _consent = false),
+                onChanged: (_) => setState(() {
+                  _consent = false;
+                  _estimateReviewAck = false;
+                }),
               ),
               if (modification == null) ...[
                 CheckboxListTile(
@@ -297,6 +302,17 @@ class _AiAssistantPreviewState extends State<AiAssistantPreview> {
                   const Text(
                     'Có lỗi chặn; Hủy để chỉnh lịch trước khi tạo đề xuất mới.',
                   ),
+                if (modification.requiresEstimateReview)
+                  CheckboxListTile(
+                    key: const ValueKey('ai-assistant-estimate-review-ack'),
+                    contentPadding: EdgeInsets.zero,
+                    value: _estimateReviewAck,
+                    onChanged: (v) =>
+                        setState(() => _estimateReviewAck = v == true),
+                    title: const Text(
+                      'Tôi đã rà soát dự toán cũ của các hoạt động thay đổi.',
+                    ),
+                  ),
                 const Text(
                   'Xác nhận chỉ sửa bản nháp hiện tại. Chưa lưu lên tài khoản.',
                 ),
@@ -313,7 +329,9 @@ class _AiAssistantPreviewState extends State<AiAssistantPreview> {
           if (modification != null)
             FilledButton(
               key: const ValueKey('ai-assistant-apply'),
-              onPressed: modification.canApply
+              onPressed: (modification.canApply &&
+                      (!modification.requiresEstimateReview ||
+                          _estimateReviewAck))
                   ? () => Navigator.of(context).pop(modification)
                   : null,
               child: const Text('Xác nhận chỉnh bản nháp'),

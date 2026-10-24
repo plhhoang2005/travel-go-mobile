@@ -13,6 +13,7 @@ import 'package:travelgo_mobile/features/trip_planner/services/ai_assistant_serv
 import 'package:travelgo_mobile/features/trip_planner/services/ai_generation_service.dart';
 import 'package:travelgo_mobile/features/trips/models/editable_trip_codec.dart';
 import 'package:travelgo_mobile/features/trip_planner/models/editable_trip_document.dart';
+import 'package:travelgo_mobile/features/trip_planner/services/editable_trip_mutator.dart';
 
 import 'editable_local_store_test.dart' as records;
 
@@ -20,11 +21,12 @@ Map<String, Object?> assistantResult(
   String intent, {
   List<Object?> operations = const [],
   List<Object?> recommendations = const [],
+  int numDays = 1,
 }) => {
   'contract': 'travelgo.assistant.v1',
   'intent': intent,
   'destinationId': 'hue',
-  'numDays': 1,
+  'numDays': numDays,
   'selectedDay': 1,
   'summary': 'Tư vấn tham khảo',
   'recommendations': recommendations,
@@ -37,6 +39,756 @@ int assistantId = 700;
 String nextAssistantId() =>
     '00000000-0000-4000-8000-${(assistantId++).toString().padLeft(12, '0')}';
 void main() {
+  test('ai_move_to_afternoon_reorders_without_overlap', () {
+    final base = records.doc();
+    final dayId = base.days.first.id;
+    const idA = '00000000-0000-4000-8000-000000000a01';
+    const idB = '00000000-0000-4000-8000-000000000b01';
+    final before = base.copyWith(
+      items: [
+        TripItem(
+          id: idA,
+          dayId: dayId,
+          position: 0,
+          title: 'Hoạt động A',
+          placeId: 'hue/citadel',
+          startMinute: 540,
+          endMinute: 600,
+          notes: 'Notes A',
+          provenance: FieldProvenance(
+            quality: 'user_provided',
+            sourceRefs: [],
+            observedAt: null,
+          ),
+        ),
+        TripItem(
+          id: idB,
+          dayId: dayId,
+          position: 1,
+          title: 'Hoạt động B',
+          placeId: 'hue/thien-mu',
+          startMinute: 660,
+          endMinute: 720,
+          notes: 'Notes B',
+          provenance: FieldProvenance(
+            quality: 'user_provided',
+            sourceRefs: [],
+            observedAt: null,
+          ),
+        ),
+      ],
+    );
+    final context = AiAssistantContext.fromDocument(
+      before,
+      selectedDay: 1,
+      places: const [
+        catalogue.PlaceReference(
+          id: 'hue/citadel',
+          name: 'Đại Nội Huế',
+          sourceId: 'src_citadel',
+        ),
+        catalogue.PlaceReference(
+          id: 'hue/thien-mu',
+          name: 'Chùa Thiên Mụ',
+          sourceId: 'src_thien_mu',
+        ),
+      ],
+    );
+    final rawInput = EditableTripCodec.encode(before);
+
+    final result = AiAssistantResult.fromJson(
+      assistantResult(
+        'modify',
+        operations: [
+          {
+            'kind': 'edit',
+            'itemId': idA,
+            'title': 'Hoạt động A chiều',
+            'placeId': 'hue/citadel',
+            'startMinute': 780,
+            'endMinute': 840,
+          },
+        ],
+      ),
+      context,
+      'modify',
+    );
+
+    final prepared = prepareAiModification(
+      before,
+      result,
+      context,
+      nextAssistantId,
+    );
+
+    expect(prepared.canApply, isTrue);
+    expect(prepared.issues.where((i) => i.isBlocking), isEmpty);
+    expect(
+      prepared.document.items.map((i) => i.id).toList(),
+      [idB, idA],
+    );
+    final replayed = EditableTripMutator.apply(before, prepared.commands);
+    expect(
+      EditableTripCodec.canonicalJson(replayed.toJson()),
+      EditableTripCodec.canonicalJson(prepared.document.toJson()),
+    );
+    expect(EditableTripCodec.encode(before), rawInput);
+  });
+
+  test('ai_insert_early_and_null_time_stable_order', () {
+    final base = records.doc();
+    final dayId = base.days.first.id;
+    const idExisting = '00000000-0000-4000-8000-000000000e01';
+    final before = base.copyWith(
+      items: [
+        TripItem(
+          id: idExisting,
+          dayId: dayId,
+          position: 0,
+          title: 'Hoạt động 09-10',
+          placeId: 'hue/citadel',
+          startMinute: 540,
+          endMinute: 600,
+          notes: 'Existing',
+          provenance: FieldProvenance(
+            quality: 'user_provided',
+            sourceRefs: [],
+            observedAt: null,
+          ),
+        ),
+      ],
+    );
+    final context = AiAssistantContext.fromDocument(
+      before,
+      selectedDay: 1,
+      places: const [
+        catalogue.PlaceReference(
+          id: 'hue/citadel',
+          name: 'Đại Nội Huế',
+          sourceId: 'src_citadel',
+        ),
+        catalogue.PlaceReference(
+          id: 'hue/market',
+          name: 'Chợ Đông Ba',
+          sourceId: 'src_market',
+        ),
+      ],
+    );
+
+    final result = AiAssistantResult.fromJson(
+      assistantResult(
+        'modify',
+        operations: [
+          {
+            'kind': 'add',
+            'title': 'Hoạt động sáng sớm',
+            'placeId': 'hue/market',
+            'category': 'attractions',
+            'costVnd': 50000,
+            'startMinute': 480,
+            'endMinute': 540,
+          },
+          {
+            'kind': 'add',
+            'title': 'Hoạt động dạo tự do',
+            'placeId': null,
+            'category': 'attractions',
+            'costVnd': 0,
+            'startMinute': null,
+            'endMinute': null,
+          },
+        ],
+      ),
+      context,
+      'modify',
+    );
+
+    final prepared = prepareAiModification(
+      before,
+      result,
+      context,
+      nextAssistantId,
+    );
+
+    expect(prepared.canApply, isTrue);
+    expect(prepared.issues.where((i) => i.isBlocking), isEmpty);
+    final dayItems = prepared.document.items.where((i) => i.dayId == dayId).toList();
+    expect(dayItems.length, 3);
+    expect(dayItems[0].startMinute, 480);
+    expect(dayItems[0].endMinute, 540);
+    expect(dayItems[1].id, idExisting);
+    expect(dayItems[1].startMinute, 540);
+    expect(dayItems[2].startMinute, isNull);
+    expect(dayItems[2].endMinute, isNull);
+
+    final replayed = EditableTripMutator.apply(before, prepared.commands);
+    expect(
+      EditableTripCodec.canonicalJson(replayed.toJson()),
+      EditableTripCodec.canonicalJson(prepared.document.toJson()),
+    );
+  });
+
+  test('ai_batch_preserves_other_days_and_financial_ledger', () {
+    final baseSingle = records.doc();
+    const day2Id = '00000000-0000-4000-8000-0000000000d2';
+    final base = baseSingle.copyWith(
+      input: TripInput.fromJson({
+        ...baseSingle.input.toJson(),
+        'startDate': '2026-10-15',
+        'endDate': '2026-10-16',
+      }),
+      days: [
+        baseSingle.days.first,
+        TripDay(id: day2Id, ordinal: 2, date: '2026-10-16', notes: 'Ghi chú ngày 2'),
+      ],
+    );
+    expect(base.days.length, 2);
+    final day1 = base.days[0];
+    final day2 = base.days[1];
+
+    const idD1A = '00000000-0000-4000-8000-000000000101';
+    const idD1B = '00000000-0000-4000-8000-000000000102';
+    const idD2 = '00000000-0000-4000-8000-000000000201';
+    const idActual = '00000000-0000-4000-8000-000000000999';
+
+    final before = base.copyWith(
+      items: [
+        TripItem(
+          id: idD1A,
+          dayId: day1.id,
+          position: 0,
+          title: 'Ngày 1 - A',
+          placeId: 'hue/citadel',
+          startMinute: 540,
+          endMinute: 600,
+          notes: 'Notes D1A',
+          provenance: FieldProvenance(
+            quality: 'user_provided',
+            sourceRefs: [],
+            observedAt: null,
+          ),
+        ),
+        TripItem(
+          id: idD1B,
+          dayId: day1.id,
+          position: 1,
+          title: 'Ngày 1 - B',
+          placeId: 'hue/thien-mu',
+          startMinute: 660,
+          endMinute: 720,
+          notes: 'Notes D1B',
+          provenance: FieldProvenance(
+            quality: 'user_provided',
+            sourceRefs: [],
+            observedAt: null,
+          ),
+        ),
+        TripItem(
+          id: idD2,
+          dayId: day2.id,
+          position: 0,
+          title: 'Ngày 2 - Giữ nguyên',
+          placeId: 'hue/tombs',
+          startMinute: 500,
+          endMinute: 600,
+          notes: 'Notes Day 2',
+          provenance: FieldProvenance(
+            quality: 'user_provided',
+            sourceRefs: [],
+            observedAt: null,
+          ),
+        ),
+      ],
+      actualExpenses: [
+        ActualExpense(
+          id: idActual,
+          itemId: idD1A,
+          amountVnd: 120000,
+          category: 'attractions',
+          paidOn: '2026-10-15',
+          description: 'Vé tham quan đã mua',
+          sourceItemSnapshot: null,
+          provenance: FieldProvenance(
+            quality: 'user_provided',
+            sourceRefs: [],
+            observedAt: null,
+          ),
+        ),
+      ],
+    );
+
+    final context = AiAssistantContext.fromDocument(
+      before,
+      selectedDay: 1,
+      places: const [
+        catalogue.PlaceReference(
+          id: 'hue/citadel',
+          name: 'Đại Nội Huế',
+          sourceId: 'src_citadel',
+        ),
+        catalogue.PlaceReference(
+          id: 'hue/thien-mu',
+          name: 'Chùa Thiên Mụ',
+          sourceId: 'src_thien_mu',
+        ),
+        catalogue.PlaceReference(
+          id: 'hue/perfume-river',
+          name: 'Sông Hương',
+          sourceId: 'src_perfume_river',
+        ),
+      ],
+    );
+    final rawInput = EditableTripCodec.encode(before);
+
+    final result = AiAssistantResult.fromJson(
+      assistantResult(
+        'modify',
+        numDays: 2,
+        operations: [
+          {'kind': 'remove', 'itemId': idD1A},
+          {
+            'kind': 'edit',
+            'itemId': idD1B,
+            'title': 'Ngày 1 - B Chiều',
+            'placeId': 'hue/thien-mu',
+            'startMinute': 840,
+            'endMinute': 900,
+          },
+          {
+            'kind': 'add',
+            'title': 'Ngày 1 - Hoạt động mới sáng',
+            'placeId': 'hue/perfume-river',
+            'category': 'attractions',
+            'costVnd': 30000,
+            'startMinute': 540,
+            'endMinute': 600,
+          },
+        ],
+      ),
+      context,
+      'modify',
+    );
+
+    final prepared = prepareAiModification(
+      before,
+      result,
+      context,
+      nextAssistantId,
+    );
+
+    expect(prepared.canApply, isTrue);
+    final day2Items = prepared.document.items.where((i) => i.dayId == day2.id).toList();
+    expect(day2Items.length, 1);
+    expect(day2Items.first.id, idD2);
+    expect(day2Items.first.title, 'Ngày 2 - Giữ nguyên');
+    expect(day2Items.first.startMinute, 500);
+
+    expect(prepared.document.actualExpenses.length, 1);
+    expect(prepared.document.actualExpenses.first.id, idActual);
+    expect(prepared.document.actualExpenses.first.amountVnd, 120000);
+    expect(prepared.document.actualExpenses.first.description, 'Vé tham quan đã mua');
+
+    final day1Items = prepared.document.items.where((i) => i.dayId == day1.id).toList();
+    expect(day1Items.length, 2);
+    expect(day1Items[0].startMinute, 540);
+    expect(day1Items[1].id, idD1B);
+    expect(day1Items[1].startMinute, 840);
+
+    final replayed = EditableTripMutator.apply(before, prepared.commands);
+    expect(
+      EditableTripCodec.canonicalJson(replayed.toJson()),
+      EditableTripCodec.canonicalJson(prepared.document.toJson()),
+    );
+    expect(EditableTripCodec.encode(before), rawInput);
+  });
+
+  test('ai_activity_identity_change_requires_estimate_review', () {
+    final base = assistantDoc();
+    final item = base.items.first;
+    const estId = '00000000-0000-4000-8000-000000000e99';
+    final beforeWithEstimate = base.copyWith(
+      estimates: [
+        EstimatedExpense(
+          id: estId,
+          itemId: item.id,
+          category: 'attractions',
+          unitAmountVnd: 100000,
+          basis: 'trip_total',
+          customQuantity: null,
+          active: true,
+          description: 'Vé tham quan ban đầu',
+          provenance: FieldProvenance(
+            quality: 'estimated',
+            sourceRefs: [],
+            observedAt: null,
+          ),
+        ),
+      ],
+    );
+    final context = AiAssistantContext.fromDocument(
+      beforeWithEstimate,
+      selectedDay: 1,
+      places: const [
+        catalogue.PlaceReference(
+          id: 'hue/citadel',
+          name: 'Đại Nội Huế',
+          sourceId: 'src_citadel',
+        ),
+        catalogue.PlaceReference(
+          id: 'hue/thien-mu',
+          name: 'Chùa Thiên Mụ',
+          sourceId: 'src_thien_mu',
+        ),
+      ],
+    );
+
+    // Ca 1: Đổi tên khác hẳn -> requiresEstimateReview = true
+    final resTitleChange = AiAssistantResult.fromJson(
+      assistantResult(
+        'modify',
+        operations: [
+          {
+            'kind': 'edit',
+            'itemId': item.id,
+            'title': 'Bữa tối ẩm thực Huế',
+            'placeId': item.placeId,
+            'startMinute': item.startMinute,
+            'endMinute': item.endMinute,
+          },
+        ],
+      ),
+      context,
+      'modify',
+    );
+    final prepTitleChange = prepareAiModification(
+      beforeWithEstimate,
+      resTitleChange,
+      context,
+      nextAssistantId,
+    );
+    expect(prepTitleChange.requiresEstimateReview, isTrue);
+    expect(prepTitleChange.estimateReviewItemIds, [item.id]);
+
+    // Ca 2: Đổi địa điểm -> requiresEstimateReview = true
+    final resPlaceChange = AiAssistantResult.fromJson(
+      assistantResult(
+        'modify',
+        operations: [
+          {
+            'kind': 'edit',
+            'itemId': item.id,
+            'title': item.title,
+            'placeId': 'hue/thien-mu',
+            'startMinute': item.startMinute,
+            'endMinute': item.endMinute,
+          },
+        ],
+      ),
+      context,
+      'modify',
+    );
+    final prepPlaceChange = prepareAiModification(
+      beforeWithEstimate,
+      resPlaceChange,
+      context,
+      nextAssistantId,
+    );
+    expect(prepPlaceChange.requiresEstimateReview, isTrue);
+
+    // Ca 3: Chỉ đổi giờ -> requiresEstimateReview = false
+    final resTimeOnly = AiAssistantResult.fromJson(
+      assistantResult(
+        'modify',
+        operations: [
+          {
+            'kind': 'edit',
+            'itemId': item.id,
+            'title': item.title,
+            'placeId': item.placeId,
+            'startMinute': 720,
+            'endMinute': 780,
+          },
+        ],
+      ),
+      context,
+      'modify',
+    );
+    final prepTimeOnly = prepareAiModification(
+      beforeWithEstimate,
+      resTimeOnly,
+      context,
+      nextAssistantId,
+    );
+    expect(prepTimeOnly.requiresEstimateReview, isFalse);
+
+    // Ca 4: Tên chỉ đổi whitespace/case -> requiresEstimateReview = false
+    final resCaseOnly = AiAssistantResult.fromJson(
+      assistantResult(
+        'modify',
+        operations: [
+          {
+            'kind': 'edit',
+            'itemId': item.id,
+            'title': '  ${item.title.toUpperCase()}  '.trim(),
+            'placeId': item.placeId,
+            'startMinute': item.startMinute,
+            'endMinute': item.endMinute,
+          },
+        ],
+      ),
+      context,
+      'modify',
+    );
+    final prepCaseOnly = prepareAiModification(
+      beforeWithEstimate,
+      resCaseOnly,
+      context,
+      nextAssistantId,
+    );
+    expect(prepCaseOnly.requiresEstimateReview, isFalse);
+
+    // Ca 5: Estimate bị inactive -> requiresEstimateReview = false
+    final beforeInactive = beforeWithEstimate.copyWith(
+      estimates: [
+        EstimatedExpense.fromJson({
+          ...beforeWithEstimate.estimates.first.toJson(),
+          'active': false,
+        }),
+      ],
+    );
+    final contextInactive = AiAssistantContext.fromDocument(
+      beforeInactive,
+      selectedDay: 1,
+      places: const [
+        catalogue.PlaceReference(
+          id: 'hue/citadel',
+          name: 'Đại Nội Huế',
+          sourceId: 'src_citadel',
+        ),
+      ],
+    );
+    final prepInactive = prepareAiModification(
+      beforeInactive,
+      resTitleChange,
+      contextInactive,
+      nextAssistantId,
+    );
+    expect(prepInactive.requiresEstimateReview, isFalse);
+  });
+
+  testWidgets(
+    'ai_estimate_review_ack_gates_apply_but_not_cancel',
+    (tester) async {
+      final base = assistantDoc();
+      final item = base.items.first;
+      final docWithEstimate = base.copyWith(
+        estimates: [
+          EstimatedExpense(
+            id: '00000000-0000-4000-8000-000000000e99',
+            itemId: item.id,
+            category: 'attractions',
+            unitAmountVnd: 100000,
+            basis: 'trip_total',
+            customQuantity: null,
+            active: true,
+            description: 'Vé tham quan',
+            provenance: FieldProvenance(
+              quality: 'estimated',
+              sourceRefs: [],
+              observedAt: null,
+            ),
+          ),
+        ],
+      );
+      final planner = assistantPlanner()..openNew(docWithEstimate);
+      final auth = AuthProvider()..continueAsGuest();
+      addTearDown(planner.dispose);
+      addTearDown(auth.dispose);
+
+      final context = AiAssistantContext.fromDocument(
+        docWithEstimate,
+        selectedDay: 1,
+        places: const [
+          catalogue.PlaceReference(
+            id: 'hue/citadel',
+            name: 'Đại Nội Huế',
+            sourceId: 'src_citadel',
+          ),
+        ],
+      );
+      final result = AiAssistantResult.fromJson(
+        assistantResult(
+          'modify',
+          operations: [
+            {
+              'kind': 'edit',
+              'itemId': item.id,
+              'title': 'Ăn tối nhà hàng Cung Đình',
+              'placeId': item.placeId,
+              'startMinute': item.startMinute,
+              'endMinute': item.endMinute,
+            },
+          ],
+        ),
+        context,
+        'modify',
+      );
+      final modification = prepareAiModification(
+        docWithEstimate,
+        result,
+        context,
+        nextAssistantId,
+      );
+
+      await tester.pumpWidget(
+        assistantApp(
+          planner,
+          auth,
+          (intent, prompt, history, id) async => AiAssistantReply(result, modification),
+        ),
+      );
+      await tester.tap(find.byKey(const ValueKey('ai-assistant-open')));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const ValueKey('ai-assistant-mode')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Đề xuất chỉnh lịch').last);
+      await tester.pumpAndSettle();
+
+      await sendAssistant(tester, 'Đổi tham quan thành ăn tối');
+
+      final ackFinder = find.byKey(const ValueKey('ai-assistant-estimate-review-ack'));
+      await tester.ensureVisible(ackFinder);
+      expect(ackFinder, findsOneWidget);
+
+      expect(
+        tester
+            .widget<FilledButton>(find.byKey(const ValueKey('ai-assistant-apply')))
+            .onPressed,
+        isNull,
+      );
+
+      await tester.tap(ackFinder);
+      await tester.pumpAndSettle();
+
+      expect(
+        tester
+            .widget<FilledButton>(find.byKey(const ValueKey('ai-assistant-apply')))
+            .onPressed,
+        isNotNull,
+      );
+
+      await tester.tap(find.byKey(const ValueKey('ai-assistant-cancel')));
+      await tester.pumpAndSettle();
+      expect(planner.document?.items.first.title, item.title);
+    },
+  );
+
+  testWidgets(
+    'ai_estimate_ack_cannot_leak_between_previews',
+    (tester) async {
+      final base = assistantDoc();
+      final item = base.items.first;
+      final docWithEstimate = base.copyWith(
+        estimates: [
+          EstimatedExpense(
+            id: '00000000-0000-4000-8000-000000000e99',
+            itemId: item.id,
+            category: 'attractions',
+            unitAmountVnd: 100000,
+            basis: 'trip_total',
+            customQuantity: null,
+            active: true,
+            description: 'Vé tham quan',
+            provenance: FieldProvenance(
+              quality: 'estimated',
+              sourceRefs: [],
+              observedAt: null,
+            ),
+          ),
+        ],
+      );
+      final planner = assistantPlanner()..openNew(docWithEstimate);
+      final auth = AuthProvider()..continueAsGuest();
+      addTearDown(planner.dispose);
+      addTearDown(auth.dispose);
+
+      final context = AiAssistantContext.fromDocument(
+        docWithEstimate,
+        selectedDay: 1,
+        places: const [
+          catalogue.PlaceReference(
+            id: 'hue/citadel',
+            name: 'Đại Nội Huế',
+            sourceId: 'src_citadel',
+          ),
+        ],
+      );
+      final result = AiAssistantResult.fromJson(
+        assistantResult(
+          'modify',
+          operations: [
+            {
+              'kind': 'edit',
+              'itemId': item.id,
+              'title': 'Ăn tối nhà hàng Cung Đình',
+              'placeId': item.placeId,
+              'startMinute': item.startMinute,
+              'endMinute': item.endMinute,
+            },
+          ],
+        ),
+        context,
+        'modify',
+      );
+      final modification = prepareAiModification(
+        docWithEstimate,
+        result,
+        context,
+        nextAssistantId,
+      );
+
+      await tester.pumpWidget(
+        assistantApp(
+          planner,
+          auth,
+          (intent, prompt, history, id) async => AiAssistantReply(result, modification),
+        ),
+      );
+      await tester.tap(find.byKey(const ValueKey('ai-assistant-open')));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const ValueKey('ai-assistant-mode')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Đề xuất chỉnh lịch').last);
+      await tester.pumpAndSettle();
+
+      await sendAssistant(tester, 'Đổi tham quan thành ăn tối');
+
+      final ackFinder = find.byKey(const ValueKey('ai-assistant-estimate-review-ack'));
+      await tester.ensureVisible(ackFinder);
+      await tester.tap(ackFinder);
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<FilledButton>(find.byKey(const ValueKey('ai-assistant-apply')))
+            .onPressed,
+        isNotNull,
+      );
+
+      // Đóng preview A
+      await tester.tap(find.byKey(const ValueKey('ai-assistant-cancel')));
+      await tester.pumpAndSettle();
+
+      // Mở lại preview mới: ACK cũ không được rò rỉ sang phiên mới
+      await tester.tap(find.byKey(const ValueKey('ai-assistant-open')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('ai-assistant-estimate-review-ack')), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('ai-assistant-cancel')));
+      await tester.pumpAndSettle();
+    },
+  );
   test('multiline question/history/answer stay usable without allowing control characters', () {
     final context = AiAssistantContext.fromDocument(
       assistantDoc(),

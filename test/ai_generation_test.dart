@@ -15,6 +15,7 @@ import 'package:travelgo_mobile/features/trips/models/editable_trip_codec.dart';
 import 'package:travelgo_mobile/features/auth/providers/auth_provider.dart';
 import 'package:travelgo_mobile/features/trip_planner/providers/manual_planner_provider.dart';
 import 'package:travelgo_mobile/features/trip_planner/presentation/screens/manual_planner_screen.dart';
+import 'package:travelgo_mobile/features/trip_planner/services/editable_trip_mutator.dart';
 
 import 'editable_local_store_test.dart' as records;
 
@@ -38,6 +39,189 @@ Map<String, Object?> proposalJson() => {
   'warnings': <String>[],
 };
 void main() {
+  test('ai_repeat_untimed_proposal_cannot_double_budget', () {
+    final base = records.doc();
+    final context = AiGenerationContext.fromDocument(base);
+    final raw = {
+      'contract': 'travelgo.itinerary.v1',
+      'destinationId': 'hue',
+      'numDays': 1,
+      'summary': 'Đề xuất tham khảo',
+      'model': 'gemini-3.5-flash-lite',
+      'verification': 'unverified',
+      'activities': [
+        {
+          'day': 1,
+          'title': 'Hoạt động trải nghiệm',
+          'startMinute': null,
+          'endMinute': null,
+          'costVnd': 200000,
+          'category': 'attractions',
+        },
+      ],
+      'warnings': <String>[],
+    };
+    final proposal = AiItineraryProposal.fromJson(raw, context);
+
+    final firstPrepared = prepareAiProposal(base, proposal, nextAiId);
+    expect(firstPrepared.canApply, isTrue);
+    final afterFirst = EditableTripMutator.apply(base, firstPrepared.commands);
+    expect(afterFirst.items.length, base.items.length + 1);
+
+    final secondPrepared = prepareAiProposal(afterFirst, proposal, nextAiId);
+    expect(secondPrepared.canApply, isFalse);
+    expect(
+      secondPrepared.issues.any((i) => i.code == 'ai_duplicate_activity'),
+      isTrue,
+    );
+  });
+
+  test('ai_duplicate_key_is_scoped_to_day_and_time', () {
+    final base = records.doc();
+    final context = AiGenerationContext.fromDocument(base);
+
+    final rawDupInternal = {
+      'contract': 'travelgo.itinerary.v1',
+      'destinationId': 'hue',
+      'numDays': 1,
+      'summary': 'Đề xuất',
+      'model': 'gemini-3.5-flash-lite',
+      'verification': 'unverified',
+      'activities': [
+        {
+          'day': 1,
+          'title': 'THAM   QUAN   ĐẠI   NỘI',
+          'startMinute': null,
+          'endMinute': null,
+          'costVnd': 100000,
+          'category': 'attractions',
+        },
+        {
+          'day': 1,
+          'title': 'tham quan đại nội',
+          'startMinute': null,
+          'endMinute': null,
+          'costVnd': 100000,
+          'category': 'attractions',
+        },
+      ],
+      'warnings': <String>[],
+    };
+    final propDup = AiItineraryProposal.fromJson(rawDupInternal, context);
+    final prepDup = prepareAiProposal(base, propDup, nextAiId);
+    expect(prepDup.canApply, isFalse);
+    expect(
+      prepDup.issues.any((i) => i.code == 'ai_duplicate_activity'),
+      isTrue,
+    );
+
+    final rawDiffTime = {
+      'contract': 'travelgo.itinerary.v1',
+      'destinationId': 'hue',
+      'numDays': 1,
+      'summary': 'Đề xuất',
+      'model': 'gemini-3.5-flash-lite',
+      'verification': 'unverified',
+      'activities': [
+        {
+          'day': 1,
+          'title': 'Tham quan Đại Nội',
+          'startMinute': 540,
+          'endMinute': 600,
+          'costVnd': 100000,
+          'category': 'attractions',
+        },
+        {
+          'day': 1,
+          'title': 'Tham quan Đại Nội',
+          'startMinute': 840,
+          'endMinute': 900,
+          'costVnd': 100000,
+          'category': 'attractions',
+        },
+      ],
+      'warnings': <String>[],
+    };
+    final propDiffTime = AiItineraryProposal.fromJson(rawDiffTime, context);
+    final prepDiffTime = prepareAiProposal(base, propDiffTime, nextAiId);
+    expect(
+      prepDiffTime.issues.any((i) => i.code == 'ai_duplicate_activity'),
+      isFalse,
+    );
+  });
+
+  testWidgets(
+    'blocked_duplicate_has_explanation_and_cancel',
+    (tester) async {
+      final base = records.doc();
+      final planner = aiPlanner()..openNew(base);
+      final auth = AuthProvider()..continueAsGuest();
+      addTearDown(planner.dispose);
+      addTearDown(auth.dispose);
+
+      final raw = {
+        'contract': 'travelgo.itinerary.v1',
+        'destinationId': 'hue',
+        'numDays': 1,
+        'summary': 'Trùng lặp',
+        'model': 'gemini-3.5-flash-lite',
+        'verification': 'unverified',
+        'activities': [
+          {
+            'day': 1,
+            'title': 'Hoạt động A',
+            'startMinute': null,
+            'endMinute': null,
+            'costVnd': 100000,
+            'category': 'attractions',
+          },
+          {
+            'day': 1,
+            'title': 'Hoạt động A',
+            'startMinute': null,
+            'endMinute': null,
+            'costVnd': 100000,
+            'category': 'attractions',
+          },
+        ],
+        'warnings': <String>[],
+      };
+      final proposal = AiItineraryProposal.fromJson(
+        raw,
+        AiGenerationContext.fromDocument(base),
+      );
+
+      await tester.pumpWidget(
+        aiApp(
+          planner,
+          auth,
+          (doc, id) async => prepareAiProposal(doc, proposal, nextAiId),
+        ),
+      );
+      await tester.tap(find.text('Trợ giúp AI'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byKey(const ValueKey('ai-consent')));
+      await tester.tap(find.byKey(const ValueKey('ai-consent')));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byKey(const ValueKey('ai-generate')));
+      await tester.tap(find.byKey(const ValueKey('ai-generate')));
+      await tester.pumpAndSettle();
+
+      expect(
+        tester
+            .widget<FilledButton>(find.byKey(const ValueKey('ai-apply')))
+            .onPressed,
+        isNull,
+      );
+      expect(
+        find.textContaining('Đề xuất có hoạt động trùng'),
+        findsOneWidget,
+      );
+      await tester.tap(find.byKey(const ValueKey('ai-cancel')));
+      await tester.pumpAndSettle();
+      expect(planner.document?.items.length, base.items.length);
+    },
+  );
   testWidgets(
     'large Vietnamese text keeps AI confirmation and Cancel reachable',
     (tester) async {

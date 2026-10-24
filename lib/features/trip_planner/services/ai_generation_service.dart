@@ -239,11 +239,36 @@ class AiPreparedProposal {
   bool get canApply => !issues.any((i) => i.isBlocking);
 }
 
+String _normalizeActivityTitle(String text) =>
+    text.trim().replaceAll(RegExp(r'\s+'), ' ').toLowerCase();
+
 AiPreparedProposal prepareAiProposal(
   EditableTripDocumentV2 before,
   AiItineraryProposal proposal,
   String Function() newId,
 ) {
+  final existingKeys = <String>{};
+  for (var i = 0; i < before.days.length; i++) {
+    final day = before.days[i];
+    final dayOrdinal = i + 1;
+    for (final item in before.items.where((it) => it.dayId == day.id)) {
+      existingKeys.add(
+        '$dayOrdinal|${_normalizeActivityTitle(item.title)}|${item.startMinute}|${item.endMinute}',
+      );
+    }
+  }
+
+  final proposalKeys = <String>{};
+  final duplicateTitles = <String>{};
+  for (final a in proposal.activities) {
+    final key =
+        '${a.day}|${_normalizeActivityTitle(a.title)}|${a.startMinute}|${a.endMinute}';
+    if (existingKeys.contains(key) || proposalKeys.contains(key)) {
+      duplicateTitles.add(a.title.trim());
+    }
+    proposalKeys.add(key);
+  }
+
   final commands = <EditableCommand>[];
   final positions = {
     for (final d in before.days)
@@ -291,12 +316,66 @@ AiPreparedProposal prepareAiProposal(
       ),
     );
   }
+
+  final candidate = EditableTripMutator.apply(before, commands);
+  for (final day in before.days) {
+    final dayItems =
+        candidate.items.where((i) => i.dayId == day.id).toList()
+          ..sort((a, b) => a.position.compareTo(b.position));
+    final known =
+        dayItems
+            .where((i) => i.startMinute != null && i.endMinute != null)
+            .toList()
+          ..sort((a, b) {
+            final startCmp = a.startMinute!.compareTo(b.startMinute!);
+            if (startCmp != 0) return startCmp;
+            final endCmp = a.endMinute!.compareTo(b.endMinute!);
+            if (endCmp != 0) return endCmp;
+            return a.position.compareTo(b.position);
+          });
+    final unknown =
+        dayItems
+            .where((i) => i.startMinute == null || i.endMinute == null)
+            .toList()
+          ..sort((a, b) => a.position.compareTo(b.position));
+    final ordered = [...known, ...unknown];
+    final orderedIds = ordered.map((i) => i.id).toList();
+    final currentIds = dayItems.map((i) => i.id).toList();
+    var changed = false;
+    if (orderedIds.length == currentIds.length) {
+      for (var i = 0; i < orderedIds.length; i++) {
+        if (orderedIds[i] != currentIds[i]) {
+          changed = true;
+          break;
+        }
+      }
+    }
+    if (changed) {
+      commands.add(ReorderDayCommand(day.id, orderedIds));
+    }
+  }
+
   final after = EditableTripMutator.apply(before, commands);
+  final issues = <EditableValidationIssue>[];
+  if (duplicateTitles.isNotEmpty) {
+    issues.add(
+      EditableValidationIssue(
+        code: 'ai_duplicate_activity',
+        path: 'proposal.activities',
+        message:
+            'Đề xuất có hoạt động trùng với lịch hiện có hoặc bị lặp trong chính đề xuất: ${duplicateTitles.join(', ')}.',
+        severity: EditableIssueSeverity.error,
+      ),
+    );
+  }
+  issues.addAll(
+    EditableTripValidator.validate(after, mode: ValidationMode.draft),
+  );
   return AiPreparedProposal(
     proposal,
     after,
     commands,
-    EditableTripValidator.validate(after, mode: ValidationMode.draft),
+    issues,
   );
 }
 
