@@ -66,7 +66,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             title: const Text('Kiểm tra email xác nhận'),
             content: const SingleChildScrollView(
               child: Text(
-                'Yêu cầu đăng ký đã được tiếp nhận. Nếu nhận được thư xác nhận, bạn có thể lấy mã OTP để nhập vào app hoặc mở liên kết trong thư.',
+                'Yêu cầu đăng ký đã được tiếp nhận. Nếu nhận được thư xác nhận, hãy mở liên kết trong thư hoặc nhập mã OTP. Bạn chưa đăng nhập vào tài khoản. Kiểm tra cả thư rác.',
               ),
             ),
             actions: [
