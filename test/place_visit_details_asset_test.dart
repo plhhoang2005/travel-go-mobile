@@ -9,8 +9,11 @@ import 'package:travelgo_mobile/features/explore/models/place_visit_details.dart
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   const assetPath = 'assets/catalogue/place_visit_details_v1.json';
-  final baseBytes = File('assets/catalogue/catalogue_readiness_v1.json')
+  final rawBytes = File('assets/catalogue/catalogue_readiness_v1.json')
       .readAsBytesSync();
+  final baseBytes = rawBytes.contains(13)
+      ? rawBytes
+      : utf8.encode(utf8.decode(rawBytes).replaceAll('\r\n', '\n').replaceAll('\n', '\r\n'));
   final base = jsonDecode(utf8.decode(baseBytes)) as Map<String, dynamic>;
   final destinations = base['destinations'] as List;
   final ids = destinations
