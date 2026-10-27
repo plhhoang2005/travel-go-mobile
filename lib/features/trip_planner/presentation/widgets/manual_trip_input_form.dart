@@ -51,6 +51,7 @@ class _ManualTripInputFormState extends State<ManualTripInputForm> {
   final _key = GlobalKey<FormState>();
   late final Map<String, TextEditingController> _fields;
   late final Map<String, FocusNode> _focus;
+  final TextEditingController _customInterestController = TextEditingController();
   String? _destination;
   late String _priority;
   bool _dirty = false;
@@ -91,6 +92,7 @@ class _ManualTripInputFormState extends State<ManualTripInputForm> {
 
   @override
   void dispose() {
+    _customInterestController.dispose();
     for (final c in _fields.values) {
       c.dispose();
     }
@@ -140,6 +142,35 @@ class _ManualTripInputFormState extends State<ManualTripInputForm> {
     } else if (interests.length < 20) {
       interests.add(value);
     }
+    _fields['interests']!.text = interests.join('\n');
+    _changed();
+  }
+
+  void _addInterest(String raw) {
+    final tag = raw.trim();
+    if (tag.isEmpty) return;
+    if (tag.runes.length > 80) return;
+    final interests = _text('interests')
+        .split('\n')
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
+    if (interests.length >= 20) return;
+    if (!interests.any((s) => s.toLowerCase() == tag.toLowerCase())) {
+      interests.add(tag);
+      _fields['interests']!.text = interests.join('\n');
+      _changed();
+    }
+    _customInterestController.clear();
+  }
+
+  void _removeInterest(String tag) {
+    final interests = _text('interests')
+        .split('\n')
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
+    interests.removeWhere((s) => s.toLowerCase() == tag.toLowerCase());
     _fields['interests']!.text = interests.join('\n');
     _changed();
   }
@@ -430,6 +461,9 @@ class _TripPreviewHeader extends StatelessWidget {
                         backgroundColor: form._section == index
                             ? Theme.of(context).colorScheme.primaryContainer
                             : null,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
                       ),
                       child: Text('${index + 1}. $label'),
                     ),
@@ -597,6 +631,7 @@ class _TripBudgetFields extends StatelessWidget {
   const _TripBudgetFields({required this.form});
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final selected = form
         ._text('interests')
         .split('\n')
@@ -610,6 +645,13 @@ class _TripBudgetFields extends StatelessWidget {
       'văn hóa',
       'thiên nhiên',
       'nghỉ dưỡng',
+      'chụp ảnh',
+      'cafe & chill',
+      'khám phá',
+      'mua sắm',
+      'lịch sử',
+      'săn mây',
+      'trekking',
     };
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -637,10 +679,32 @@ class _TripBudgetFields extends StatelessWidget {
           name: 'budget',
           label: 'Ngân sách cả chuyến (VND)',
           number: true,
+          prefixIcon: const Icon(Icons.account_balance_wallet_outlined),
         ),
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Text(
+              'Bạn muốn trải nghiệm gì?',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            Text(
+              '${selected.length}/20',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.outline,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
         Text(
-          'Bạn muốn trải nghiệm gì?',
-          style: Theme.of(context).textTheme.titleMedium,
+          'Chọn gợi ý bên dưới hoặc tự do nhập sở thích riêng:',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
         ),
         const SizedBox(height: 8),
         Wrap(
@@ -649,13 +713,59 @@ class _TripBudgetFields extends StatelessWidget {
           children: [
             for (final interest in options)
               FilterChip(
+                key: ValueKey('interest.$interest'),
                 label: Text(interest),
                 selected: selected.contains(interest),
                 onSelected:
                     !selected.contains(interest) && selected.length >= 20
                     ? null
                     : (_) => form._toggleInterest(interest),
+                onDeleted: selected.contains(interest)
+                    ? () => form._removeInterest(interest)
+                    : null,
               ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                key: const ValueKey('trip.customInterestInput'),
+                controller: form._customInterestController,
+                decoration: InputDecoration(
+                  hintText: 'Thêm sở thích khác (săn mây, lặn biển...)',
+                  prefixIcon: const Icon(Icons.add_circle_outline, size: 20),
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 12,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                textInputAction: TextInputAction.done,
+                onSubmitted: (val) => form._addInterest(val),
+              ),
+            ),
+            const SizedBox(width: 8),
+            FilledButton.tonal(
+              key: const ValueKey('trip.addInterestBtn'),
+              onPressed: () => form._addInterest(
+                form._customInterestController.text,
+              ),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text('Thêm'),
+            ),
           ],
         ),
       ],
@@ -675,14 +785,22 @@ class _TripMainFields extends StatelessWidget {
         title: '1. Đi đâu?',
         subtitle: 'Chọn trong danh sách hoặc tự nhập điểm đến.',
       ),
-      _InputField(form: form, name: 'title', label: 'Tên chuyến đi'),
+      _InputField(
+        form: form,
+        name: 'title',
+        label: 'Tên chuyến đi',
+        prefixIcon: const Icon(Icons.edit_outlined),
+      ),
       Padding(
         padding: const EdgeInsets.only(bottom: 16),
         child: DropdownButtonFormField<String>(
           itemHeight: null,
           isExpanded: true,
           initialValue: form._destination,
-          decoration: const InputDecoration(labelText: 'Điểm đến'),
+          decoration: const InputDecoration(
+            labelText: 'Điểm đến',
+            prefixIcon: Icon(Icons.map_outlined),
+          ),
           items: [
             const DropdownMenuItem<String>(
               value: null,
@@ -708,8 +826,19 @@ class _TripMainFields extends StatelessWidget {
         ),
       ),
       if (form._destination == null)
-        _InputField(form: form, name: 'destinationName', label: 'Tên điểm đến'),
-      _InputField(form: form, name: 'origin', label: 'Nơi xuất phát'),
+        _InputField(
+          form: form,
+          name: 'destinationName',
+          label: 'Tên điểm đến',
+          hintText: 'Ví dụ: Đắk Lắk, Đắk Nông, Đà Lạt...',
+          prefixIcon: const Icon(Icons.place_outlined),
+        ),
+      _InputField(
+        form: form,
+        name: 'origin',
+        label: 'Nơi xuất phát',
+        prefixIcon: const Icon(Icons.flight_takeoff_outlined),
+      ),
       _TripSection(
         key: form._sections[1],
         title: '2. Khi nào và cùng ai?',
@@ -754,48 +883,69 @@ class _TripExtraFields extends StatelessWidget {
   final _ManualTripInputFormState form;
   const _TripExtraFields({required this.form});
   @override
-  Widget build(BuildContext context) => ExpansionTile(
-    title: const Text('Thông tin khác'),
-    children: [
-      _InputField(
-        form: form,
-        name: 'interests',
-        label: 'Sở thích (mỗi dòng một sở thích)',
-        multiline: true,
-      ),
-      DropdownButtonFormField<String>(
-        itemHeight: null,
-        isExpanded: true,
-        initialValue: form._priority,
-        decoration: const InputDecoration(labelText: 'Ưu tiên'),
-        items: const [
-          DropdownMenuItem(value: 'balanced', child: Text('Cân bằng')),
-          DropdownMenuItem(value: 'cheapest', child: Text('Rẻ nhất')),
-          DropdownMenuItem(value: 'fastest', child: Text('Nhanh nhất')),
-          DropdownMenuItem(value: 'comfortable', child: Text('Thoải mái')),
-        ],
-        onChanged: (v) {
-          if (v != null) {
-            form._priority = v;
-            form._changed();
-          }
-        },
-      ),
-    ],
-  );
+  Widget build(BuildContext context) {
+    const priorityItems = [
+      ('balanced', 'Cân bằng', 'Hài hòa chi phí & trải nghiệm', Icons.balance_outlined),
+      ('cheapest', 'Rẻ nhất', 'Tối ưu ngân sách, chi phí thấp nhất', Icons.savings_outlined),
+      ('fastest', 'Nhanh nhất', 'Tiết kiệm thời gian di chuyển', Icons.bolt_outlined),
+      ('comfortable', 'Thoải mái', 'Nghỉ ngơi tiện nghi, thư thái', Icons.weekend_outlined),
+    ];
+    final theme = Theme.of(context);
+    return ExpansionTile(
+      initiallyExpanded: true,
+      title: const Text('Phong cách chuyến đi & Ưu tiên'),
+      leading: const Icon(Icons.tune_outlined),
+      childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      children: [
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            'Chọn mục tiêu ưu tiên cho lịch trình và phân bổ chi phí:',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final (value, label, desc, icon) in priorityItems)
+              ChoiceChip(
+                key: ValueKey('trip.priority.$value'),
+                avatar: Icon(icon, size: 16),
+                label: Text(label),
+                tooltip: desc,
+                selected: form._priority == value,
+                onSelected: (selected) {
+                  if (selected) {
+                    form._priority = value;
+                    form._changed();
+                  }
+                },
+              ),
+          ],
+        ),
+      ],
+    );
+  }
 }
 
 class _InputField extends StatelessWidget {
   final _ManualTripInputFormState form;
   final String name, label;
-  final bool number, date, multiline, enabled;
+  final String? hintText;
+  final Widget? prefixIcon;
+  final bool number, date, enabled;
   const _InputField({
     required this.form,
     required this.name,
     required this.label,
+    this.hintText,
+    this.prefixIcon,
     this.number = false,
     this.date = false,
-    this.multiline = false,
     this.enabled = true,
   });
   @override
@@ -806,16 +956,16 @@ class _InputField extends StatelessWidget {
       controller: form._fields[name],
       focusNode: form._focus[name],
       enabled: enabled,
-      minLines: multiline ? 2 : 1,
-      maxLines: multiline ? 5 : 1,
       keyboardType: number
           ? TextInputType.number
           : date
           ? TextInputType.datetime
-          : multiline
-          ? TextInputType.multiline
           : TextInputType.text,
-      decoration: InputDecoration(labelText: label),
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hintText,
+        prefixIcon: prefixIcon,
+      ),
       validator: (v) => form._validate(name, v),
       onChanged: (_) => form._changed(),
     ),

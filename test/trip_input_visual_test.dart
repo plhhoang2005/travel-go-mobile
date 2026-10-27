@@ -242,4 +242,71 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+  testWidgets(
+    'custom interest tag input adds and deletes chips, and priority style selector updates document input',
+    (tester) async {
+      final base = records.doc();
+      final document = base.copyWith(
+        input: TripInput.fromJson({
+          ...base.input.toJson(),
+          'interests': ['ẩm thực'],
+          'priority': 'balanced',
+        }),
+      );
+      await showInputs(tester, document);
+      await tester.tap(find.byKey(const ValueKey('trip.section.2')));
+      await tester.pumpAndSettle();
+
+      // Verify initial selected chip
+      expect(preview(tester).input.interests, ['ẩm thực']);
+
+      // Enter a custom interest: 'săn mây'
+      final addBtn = find.byKey(const ValueKey('trip.addInterestBtn'));
+      await tester.scrollUntilVisible(
+        addBtn,
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pumpAndSettle();
+      final customInput = find.byKey(const ValueKey('trip.customInterestInput'));
+      await tester.enterText(customInput, 'săn mây');
+      await tester.tap(addBtn);
+      await tester.pumpAndSettle();
+
+      // Verify custom interest was added to preview
+      expect(preview(tester).input.interests, ['ẩm thực', 'săn mây']);
+      expect(find.byKey(const ValueKey('interest.săn mây')), findsOneWidget);
+
+      // Tap on preset 'chụp ảnh'
+      await tapText(tester, 'chụp ảnh');
+      expect(preview(tester).input.interests, ['ẩm thực', 'săn mây', 'chụp ảnh']);
+
+      // Scroll to priority style selector
+      final cheapestChip = find.byKey(const ValueKey('trip.priority.cheapest'));
+      await tester.scrollUntilVisible(
+        cheapestChip,
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(cheapestChip);
+      await tester.pumpAndSettle();
+      expect(preview(tester).input.priority, 'cheapest');
+
+      // Now scroll back and unselect 'săn mây' chip
+      final sanMayChip = find.byKey(const ValueKey('interest.săn mây'));
+      await tester.scrollUntilVisible(
+        sanMayChip,
+        -200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(sanMayChip);
+      await tester.pumpAndSettle();
+      expect(preview(tester).input.interests, ['ẩm thực', 'chụp ảnh']);
+
+      expect(tester.takeException(), isNull);
+    },
+  );
 }
