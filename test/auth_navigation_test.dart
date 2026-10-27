@@ -2279,6 +2279,44 @@ void _authRefreshUiTests() {
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });
+
+  testWidgets('unauthenticated_startup_stream_error_does_not_set_error_message', (
+    tester,
+  ) async {
+    await tester.runAsync(
+      () => _withAuthFixture((ctx, sdk, service, auth) async {
+        auth.continueAsGuest();
+        expect(auth.currentUser, isNull);
+        expect(auth.errorMessage, isNull);
+
+        auth.clearError();
+        expect(auth.errorMessage, isNull);
+
+        await tester.pumpWidget(_authUi(auth, const LoginScreen()));
+        await tester.pumpAndSettle();
+        expect(find.text('Không thể kiểm tra phiên đăng nhập.'), findsNothing);
+        expect(auth.errorMessage, isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+      }),
+    );
+  });
+
+  testWidgets('login_screen_clears_stale_session_check_error_on_init', (
+    tester,
+  ) async {
+    await tester.runAsync(
+      () => _withAuthFixture((ctx, sdk, service, auth) async {
+        auth.continueAsGuest();
+        await tester.pumpWidget(_authUi(auth, const LoginScreen()));
+        await tester.pumpAndSettle();
+
+        // Verify that the login screen displays cleanly without stale error
+        expect(find.text('Không thể kiểm tra phiên đăng nhập.'), findsNothing);
+        expect(auth.errorMessage, isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+      }),
+    );
+  });
 }
 
 Future<void> _waitAuthIdle(AuthProvider auth) async {

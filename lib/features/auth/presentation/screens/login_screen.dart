@@ -27,6 +27,19 @@ class _LoginScreenState extends State<LoginScreen> {
   Timer? _timer;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        final auth = context.read<AuthProvider>();
+        if (auth.errorMessage == 'Không thể kiểm tra phiên đăng nhập.') {
+          auth.clearError();
+        }
+      }
+    });
+  }
+
+  @override
   void dispose() {
     _operation++;
     _timer?.cancel();
