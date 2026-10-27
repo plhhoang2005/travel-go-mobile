@@ -1,0 +1,3 @@
+# Ensure catalogue JSON assets retain exact CRLF byte endings across OS checkouts
+assets/catalogue/*.json text eol=crlf
+docs/phase-2/catalogue/*.json text eol=crlf

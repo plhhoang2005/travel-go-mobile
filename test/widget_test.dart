@@ -2,7 +2,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:travelgo_mobile/main.dart';
 import 'package:travelgo_mobile/features/trip_planner/models/trip_request.dart';
 import 'package:travelgo_mobile/features/trip_planner/models/trip_response.dart';
-import 'package:travelgo_mobile/features/favorites/models/favorite_item_model.dart';
 import 'package:travelgo_mobile/features/trips/models/saved_trip_model.dart';
 import 'package:travelgo_mobile/features/home/models/destination_model.dart';
 import 'package:travelgo_mobile/features/home/models/service_model.dart';
@@ -79,34 +78,6 @@ void main() {
     expect(res.transportOptions.first.isParetoOptimal, true);
     expect(res.budgetBreakdown?.totalAllocated, 3800000);
     expect(res.isFallback, false);
-  });
-
-  test('FavoriteItem JSON serialization test', () {
-    final item = FavoriteItem(
-      id: 'fav-1',
-      userId: 'usr-1',
-      itemId: 'furama-resort',
-      itemType: 'hotel',
-      title: 'Furama Resort Đà Nẵng',
-      location: 'Đà Nẵng',
-      price: 2500000,
-      rating: 4.8,
-      createdAt: DateTime(2026, 9, 26),
-    );
-
-    final json = item.toJson();
-    expect(json['user_id'], 'usr-1');
-    expect(json['item_id'], 'furama-resort');
-    expect(json['item_type'], 'hotel');
-    expect(json['price'], 2500000);
-
-    final parsed = FavoriteItem.fromJson({
-      'id': 'fav-1',
-      ...json,
-      'created_at': '2026-09-26T12:00:00Z',
-    });
-    expect(parsed.title, 'Furama Resort Đà Nẵng');
-    expect(parsed.rating, 4.8);
   });
 
   test('SavedTrip JSON serialization test', () {

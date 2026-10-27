@@ -173,6 +173,36 @@ class TripSnapshotService {
     return data is String ? jsonDecode(data) : data;
   }
 
+  /// IDs must come from the authoritative mixed-list discriminator.
+  Future<SnapshotFetchBatch> fetchLegacySnapshots({
+    required AccountSessionProof proof,
+    required List<String> tripIds,
+  }) async {
+    _check(proof);
+    if (tripIds.length > 100 ||
+        tripIds.toSet().length != tripIds.length ||
+        tripIds.any((id) => id.trim().isEmpty)) {
+      throw const SnapshotRejectedException('Invalid legacy ID batch.');
+    }
+    final snapshots = <RemoteTripSnapshot>[];
+    for (final id in tripIds) {
+      final result = await readOwnedSnapshot(proof: proof, tripId: id);
+      _check(proof);
+      if (result.status == SnapshotLookupStatus.deleted ||
+          result.status == SnapshotLookupStatus.unavailable) {
+        continue;
+      }
+      if (result.status != SnapshotLookupStatus.ready ||
+          result.snapshot?.tripId != id) {
+        throw const SnapshotRejectedException(
+          'Legacy ID snapshot is unavailable.',
+        );
+      }
+      snapshots.add(result.snapshot!);
+    }
+    return SnapshotFetchBatch(snapshots, _fetchedAt());
+  }
+
   Future<SnapshotFetchBatch> fetchSnapshots({
     required AccountSessionProof proof,
   }) async {

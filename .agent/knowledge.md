@@ -1,3 +1,7 @@
+> **Quyết định owner 24/10/2026 — phạm vi sản phẩm hiện hành:** Đọc [product-scope.md](product-scope.md) trước khi lập kế hoạch/code/review. TravelGO là đồ án app lập kế hoạch du lịch + AI tạo lịch, tư vấn và đề xuất sửa hoạt động; mọi thay đổi AI có preview/hủy/xác nhận. Giữ auth/OTP/recovery, tài khoản, khám phá, lịch thủ công, chuyến đi theo tài khoản, ngân sách và admin user/địa điểm. Giữ AI assistant cho tư vấn chuyến đi/đề xuất sửa hoạt động, không chatbot tổng quát. Loại bản đồ/định vị, dashboard Decision Intelligence, yêu thích và tiện ích ngoài scope. Những yêu cầu sản phẩm/ADR/roadmap cũ mâu thuẫn dưới đây là lịch sử, không được dùng để tái thêm chức năng bị loại. Các quy tắc an toàn dữ liệu, kiểm quyền, approval và bàn giao không mâu thuẫn vẫn giữ. Việc cập nhật tài liệu chưa xóa code hoặc chứng nhận demo ổn định.
+
+> **Thiết kế trợ lý AI hiện hành:** Đọc [ai-planner-design.md](ai-planner-design.md). Gemini qua backend, ưu tiên RAG catalogue; thiếu thì người dùng chọn tìm web có dẫn nguồn (Google Search Grounding), nhãn chưa được Admin kiểm duyệt, không tự nhập catalogue chung; kiểm tra kết quả bằng code, thay đổi lịch phải qua preview/hủy/xác nhận. Tái sử dụng code hiện có; không tự thêm vector database hoặc chatbot tổng quát.
+
 # KNOWLEDGE BASE & MEMORY — TRAVELGO MOBILE (FLUTTER)
 
 Cơ sở tri thức toàn diện, các quyết định kiến trúc bất biến (ADRs), nợ kỹ thuật được chấp nhận và bộ nhớ bài học kinh nghiệm (Episodic Memory) dành riêng cho ứng dụng di động TravelGO Flutter.

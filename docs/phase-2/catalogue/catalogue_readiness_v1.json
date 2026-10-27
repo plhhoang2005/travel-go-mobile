@@ -114,6 +114,20 @@
       "url": "https://vietnam.travel/things-to-do/can-tho-glimpse-river-and-garden",
       "publisher": "Viet Nam National Authority of Tourism",
       "checkedAt": "2026-10-13"
+    },
+    {
+      "id": "spe-operator",
+      "title": "SAPANAPRO — tên đơn vị và địa chỉ Tả Phìn",
+      "url": "https://sapanapro.com/tam-la-nguoi-dao-tri-thuc-ban-dia-khoa-hoc/",
+      "publisher": "SAPANAPRO",
+      "checkedAt": "2026-10-15"
+    },
+    {
+      "id": "dn-linh-ung",
+      "title": "Chùa Linh Ứng – Bãi Bụt – Đà Nẵng",
+      "url": "https://danangfantasticity.com/en/kham-pha/chua-linh-ung-bai-but-da-nang",
+      "publisher": "Da Nang Tourism Promotion Center",
+      "checkedAt": "2026-10-15"
     }
   ],
   "destinations": [
@@ -194,6 +208,13 @@
         "id": "ha-noi/sample-1",
         "kind": "authored_example",
         "status": "not_feasibility_verified",
+        "editorialReview": {
+          "status": "pending",
+          "reviewedAt": null,
+          "sourceIds": [],
+          "conditions": [],
+          "reviewNotes": ["Chưa kiểm độc lập tuyến và thời lượng; chưa công bố lịch theo ngày."]
+        },
         "days": [
           {
             "day": 1,
@@ -300,6 +321,13 @@
         "id": "ha-long/sample-1",
         "kind": "authored_example",
         "status": "not_feasibility_verified",
+        "editorialReview": {
+          "status": "pending",
+          "reviewedAt": null,
+          "sourceIds": [],
+          "conditions": [],
+          "reviewNotes": ["Cần sửa cách ghép hang theo tuyến tàu; không công bố cặp Mê Cung–Thiên Cung như cùng tuyến mặc định."]
+        },
         "days": [
           {
             "day": 1,
@@ -392,8 +420,8 @@
         },
         {
           "id": "sa-pa/sapa-napro",
-          "name": "Sa Pa-napro, Tả Phìn",
-          "sourceId": "spe",
+          "name": "SAPANAPRO, Tả Phìn",
+          "sourceId": "spe-operator",
           "referenceStatus": "name_in_official_source",
           "coordinates": null,
           "openingHours": null,
@@ -406,6 +434,13 @@
         "id": "sa-pa/sample-1",
         "kind": "authored_example",
         "status": "not_feasibility_verified",
+        "editorialReview": {
+          "status": "pending",
+          "reviewedAt": null,
+          "sourceIds": [],
+          "conditions": [],
+          "reviewNotes": ["Chưa kiểm dịch vụ đón khách, ngày họp chợ và di chuyển; tên đơn vị không xác nhận hoạt động tắm tại chỗ."]
+        },
         "days": [
           {
             "day": 1,
@@ -510,6 +545,13 @@
         "id": "ninh-binh/sample-1",
         "kind": "authored_example",
         "status": "not_feasibility_verified",
+        "editorialReview": {
+          "status": "pending",
+          "reviewedAt": null,
+          "sourceIds": [],
+          "conditions": [],
+          "reviewNotes": ["Chưa kiểm tuyến, thời gian tham quan và di chuyển giữa các khu; chưa công bố lịch theo ngày."]
+        },
         "days": [
           {
             "day": 1,
@@ -616,6 +658,13 @@
         "id": "hue/sample-1",
         "kind": "authored_example",
         "status": "not_feasibility_verified",
+        "editorialReview": {
+          "status": "pending",
+          "reviewedAt": null,
+          "sourceIds": [],
+          "conditions": [],
+          "reviewNotes": ["Cần review cách nhóm các lăng theo thời lượng và di chuyển; không mặc định ghép đủ các lăng trong một ngày."]
+        },
         "days": [
           {
             "day": 1,
@@ -686,8 +735,8 @@
         },
         {
           "id": "da-nang/lady-buddha",
-          "name": "Tượng Phật bà trên bán đảo Sơn Trà",
-          "sourceId": "dn",
+          "name": "Tượng Quan Thế Âm — chùa Linh Ứng Bãi Bụt, Sơn Trà",
+          "sourceId": "dn-linh-ung",
           "referenceStatus": "name_in_official_source",
           "coordinates": null,
           "openingHours": null,
@@ -722,6 +771,13 @@
         "id": "da-nang/sample-1",
         "kind": "authored_example",
         "status": "not_feasibility_verified",
+        "editorialReview": {
+          "status": "pending",
+          "reviewedAt": null,
+          "sourceIds": [],
+          "conditions": [],
+          "reviewNotes": ["Sơn Trà và tượng tại chùa Linh Ứng có quan hệ khu vực–điểm con; không tính thành hai hoạt động độc lập mặc định."]
+        },
         "days": [
           {
             "day": 1,
@@ -828,6 +884,13 @@
         "id": "hoi-an/sample-1",
         "kind": "authored_example",
         "status": "not_feasibility_verified",
+        "editorialReview": {
+          "status": "pending",
+          "reviewedAt": null,
+          "sourceIds": [],
+          "conditions": [],
+          "reviewNotes": ["Chưa kiểm thời lượng nhóm phố cổ, Chùa Cầu, nhà cổ và bảo tàng hoặc điều kiện đón khách từng điểm."]
+        },
         "days": [
           {
             "day": 1,
@@ -934,6 +997,13 @@
         "id": "nha-trang/sample-1",
         "kind": "authored_example",
         "status": "not_feasibility_verified",
+        "editorialReview": {
+          "status": "pending",
+          "reviewedAt": null,
+          "sourceIds": [],
+          "conditions": [],
+          "reviewNotes": ["Chưa xác minh trạng thái hoạt động hiện tại ở Hòn Mun; claim Bảo Đại mở lại tháng 4/2026 vẫn chưa được kiểm chứng độc lập."]
+        },
         "days": [
           {
             "day": 1,
@@ -1040,6 +1110,13 @@
         "id": "da-lat/sample-1",
         "kind": "authored_example",
         "status": "not_feasibility_verified",
+        "editorialReview": {
+          "status": "pending",
+          "reviewedAt": null,
+          "sourceIds": [],
+          "conditions": [],
+          "reviewNotes": ["Cần chọn loại tuyến Bidoup và thời lượng có căn cứ; chưa công bố cách ghép Bidoup với Linh Phước cùng ngày."]
+        },
         "days": [
           {
             "day": 1,
@@ -1146,6 +1223,13 @@
         "id": "ho-chi-minh/sample-1",
         "kind": "authored_example",
         "status": "not_feasibility_verified",
+        "editorialReview": {
+          "status": "pending",
+          "reviewedAt": null,
+          "sourceIds": [],
+          "conditions": [],
+          "reviewNotes": ["Chưa xác nhận chính sách khách du lịch trong thời gian trùng tu nhà thờ Đức Bà; lịch lễ không phải giờ tham quan."]
+        },
         "days": [
           {
             "day": 1,
@@ -1252,6 +1336,13 @@
         "id": "phu-quoc/sample-1",
         "kind": "authored_example",
         "status": "not_feasibility_verified",
+        "editorialReview": {
+          "status": "pending",
+          "reviewedAt": null,
+          "sourceIds": [],
+          "conditions": [],
+          "reviewNotes": ["Cần review vùng Bắc/Nam và thời lượng Hòn Thơm; chưa đo tuyến hoặc kiểm điều kiện vận hành hiện tại."]
+        },
         "days": [
           {
             "day": 1,
@@ -1358,6 +1449,13 @@
         "id": "can-tho/sample-1",
         "kind": "authored_example",
         "status": "not_feasibility_verified",
+        "editorialReview": {
+          "status": "pending",
+          "reviewedAt": null,
+          "sourceIds": [],
+          "conditions": [],
+          "reviewNotes": ["Cần kiểm di chuyển giữa Cồn Sơn và Bằng Lăng; không suy thời lượng từ khoảng cách tới trung tâm thành phố."]
+        },
         "days": [
           {
             "day": 1,

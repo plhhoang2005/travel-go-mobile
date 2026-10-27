@@ -10,6 +10,12 @@ import 'package:travelgo_mobile/features/trips/providers/saved_trips_provider.da
 import 'package:travelgo_mobile/features/trips/services/local_account_lifecycle_service.dart';
 import 'package:travelgo_mobile/features/trips/services/trip_snapshot_service.dart';
 import 'package:travelgo_mobile/features/trips/services/trips_service.dart';
+import 'package:travelgo_mobile/features/trips/services/editable_trip_repository.dart';
+import 'package:travelgo_mobile/features/trips/services/editable_trip_service.dart';
+import 'package:travelgo_mobile/features/trips/services/local_trip_store.dart';
+import 'package:travelgo_mobile/features/trips/models/editable_remote_records.dart';
+
+import 'editable_local_store_test.dart' as editable;
 
 import 'local_account_lifecycle_test.dart' as lifecycle_fixtures;
 import 'local_trip_store_test.dart' as store_fixtures;
@@ -132,6 +138,39 @@ class FakeTripsService extends TripsService {
   }
 }
 
+class _MixedRepository extends EditableTripRepository {
+  Future<OwnedTripPage> Function(OwnedTripCursor?)? onList;
+  Future<EditableTripView> Function(String, bool)? onRead;
+  _MixedRepository(LocalTripStore store, LocalAccountLifecycleService lifecycle)
+    : super(
+        store: store,
+        lifecycle: lifecycle,
+        service: EditableTripService(
+          projectUrl: 'https://staging.example.test',
+          publicKey: 'synthetic',
+          isCurrentProof: lifecycle.isCurrentProof,
+        ),
+      );
+  @override
+  Future<OwnedTripPage> listOwned({OwnedTripCursor? cursor}) => onList!(cursor);
+  @override
+  Future<EditableTripView> readTrip(
+    String tripId, {
+    bool allowCached = true,
+    OwnedTripKind? kind,
+  }) => onRead!(tripId, allowCached);
+}
+
+OwnedTripSummary _summary(String id, OwnedTripKind kind) => OwnedTripSummary(
+  kind: kind,
+  tripId: id,
+  ownerId: lifecycle_fixtures.ownerA,
+  title: kind == OwnedTripKind.editableV2 ? 'V2 manual' : 'V1 legacy',
+  destinationName: 'Huế',
+  createdAt: DateTime.utc(2026, 10, 15),
+  version: kind == OwnedTripKind.editableV2 ? 1 : null,
+);
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   sqfliteFfiInit();
@@ -173,6 +212,276 @@ void main() {
       }
     });
   }
+
+  test(
+    'mixed discriminator list only sends legacy IDs to V1 snapshot decoder',
+    () async {
+      await withStrictProvider((provider, snapshots, lifecycle, context) async {
+        final repo = _MixedRepository(context.store, lifecycle);
+        final legacy = _summary(_ownedTripId, OwnedTripKind.legacyV1);
+        final v2 = _summary(editable.tripId, OwnedTripKind.editableV2);
+        var broadFetches = 0;
+        final legacyIds = <String>[];
+        snapshots.fetch = (_) async {
+          broadFetches++;
+          throw StateError('broad decoder forbidden');
+        };
+        snapshots.read = (proof, id) async {
+          legacyIds.add(id);
+          expect(id, _ownedTripId);
+          return SnapshotLookup(
+            SnapshotLookupStatus.ready,
+            _remote(proof.ownerId),
+          );
+        };
+        repo.onList = (_) async => OwnedTripPage(items: [legacy, v2]);
+        repo.onRead = (id, allow) async {
+          expect(id, editable.tripId);
+          expect(allow, isFalse);
+          return EditableTripView(
+            EditableTripViewState.online,
+            editable.head(),
+          );
+        };
+        try {
+          provider.bindEditableRepository(repo);
+          await provider.loadTrips(lifecycle_fixtures.ownerA);
+          expect(provider.visibleTrips.map((t) => t.kind).toSet(), {
+            OwnedTripKind.legacyV1,
+            OwnedTripKind.editableV2,
+          });
+          expect(provider.trips.single.id, _ownedTripId);
+          expect(provider.accountSnapshots.single.tripId, _ownedTripId);
+          expect(legacyIds, [_ownedTripId]);
+          expect(broadFetches, 0);
+          expect(provider.cacheState, AccountCacheState.online);
+          expect(await provider.deleteTrip(editable.tripId), isFalse);
+        } finally {
+          repo.service.close();
+        }
+      });
+    },
+  );
+  test(
+    'mixed pages recheck absent caches and load more without duplicates',
+    () async {
+      await withStrictProvider((provider, snapshots, lifecycle, context) async {
+        final repo = _MixedRepository(context.store, lifecycle);
+        final remote = _remote(lifecycle_fixtures.ownerA);
+        await context.store.replaceSnapshot(
+          handle: lifecycle.handle!,
+          tripId: remote.tripId,
+          payload: remote.payload,
+          remoteVersion: null,
+          fetchedAt: remote.fetchedAt,
+        );
+        await context.store.putEditableSnapshot(
+          handle: lifecycle.handle!,
+          head: editable.head(),
+        );
+        snapshots.read = (_, _) async =>
+            SnapshotLookup(SnapshotLookupStatus.ready, remote);
+        final cursor = OwnedTripCursor(
+          DateTime.utc(2026, 10, 15),
+          editable.tripId,
+        );
+        var pages = 0;
+        final reads = <String>[];
+        repo.onList = (after) async {
+          pages++;
+          return after == null
+              ? OwnedTripPage(items: [], nextCursor: cursor)
+              : OwnedTripPage(
+                  items: [
+                    _summary(remote.tripId, OwnedTripKind.legacyV1),
+                    _summary(editable.tripId, OwnedTripKind.editableV2),
+                  ],
+                );
+        };
+        repo.onRead = (id, allow) async {
+          reads.add(id);
+          expect(allow, isFalse);
+          return EditableTripView(
+            EditableTripViewState.online,
+            editable.head(),
+          );
+        };
+        try {
+          provider.bindEditableRepository(repo);
+          await provider.loadTrips(lifecycle_fixtures.ownerA);
+          expect(provider.visibleTrips.length, 2);
+          expect(provider.hasMoreTrips, isTrue);
+          expect(reads, [editable.tripId]);
+          await provider.loadMoreTrips();
+          expect(provider.visibleTrips.length, 2);
+          expect(provider.hasMoreTrips, isFalse);
+          expect(pages, 2);
+          expect(
+            await context.store.readEditableSnapshot(
+              handle: lifecycle.handle!,
+              tripId: editable.tripId,
+            ),
+            isNotNull,
+          );
+        } finally {
+          repo.service.close();
+        }
+      });
+    },
+  );
+  test(
+    'late mixed page after unbind cannot publish private summaries',
+    () async {
+      await withStrictProvider((provider, snapshots, lifecycle, context) async {
+        final repo = _MixedRepository(context.store, lifecycle),
+            pending = Completer<OwnedTripPage>();
+        repo.onList = (_) => pending.future;
+        try {
+          provider.bindEditableRepository(repo);
+          final loading = provider.loadTrips(lifecycle_fixtures.ownerA);
+          provider.unbindAccount();
+          pending.complete(
+            OwnedTripPage(
+              items: [_summary(editable.tripId, OwnedTripKind.editableV2)],
+            ),
+          );
+          await loading;
+          expect(provider.visibleTrips, isEmpty);
+          expect(provider.trips, isEmpty);
+        } finally {
+          repo.service.close();
+        }
+      });
+    },
+  );
+  test(
+    'translated unauthorized mixed list invalidates account access',
+    () async {
+      await withStrictProvider((provider, snapshots, lifecycle, context) async {
+        final repo = _MixedRepository(context.store, lifecycle);
+        final proof = lifecycle.captureProof();
+        repo.onList = (_) async => throw const EditableRemoteException(
+          EditableRemoteFailure.rejected,
+          'unauthorized',
+        );
+        try {
+          provider.bindEditableRepository(repo);
+          await provider.loadTrips(lifecycle_fixtures.ownerA);
+          expect(lifecycle.isCurrentProof(proof), isFalse);
+          expect(provider.currentUserId, isNull);
+          expect(provider.cacheState, AccountCacheState.blocked);
+          expect(provider.visibleTrips, isEmpty);
+          expect(provider.isLoading, isFalse);
+        } finally {
+          repo.service.close();
+        }
+      });
+    },
+  );
+
+  test('missing V2 list RPC is deployment error without legacy fallback or cache purge', () async {
+    await withStrictProvider((provider, snapshots, lifecycle, context) async {
+      final repo = _MixedRepository(context.store, lifecycle);
+      var fallback = 0;
+      snapshots.fetch = (_) async {
+        fallback++;
+        return SnapshotFetchBatch([], DateTime.now());
+      };
+      await context.store.putEditableSnapshot(
+        handle: lifecycle.handle!,
+        head: editable.head(),
+      );
+      repo.onList = (_) async => throw const EditableRemoteException(
+        EditableRemoteFailure.deploymentBlocked,
+        'editable_schema_unavailable',
+      );
+      try {
+        provider.bindEditableRepository(repo);
+        await provider.loadTrips(lifecycle_fixtures.ownerA);
+        expect(provider.cacheState, AccountCacheState.error);
+        expect(provider.cacheErrorMessage, contains('chưa sẵn sàng'));
+        expect(provider.visibleTrips, isEmpty);
+        expect(fallback, 0);
+        expect(
+          await context.store.readEditableSnapshot(
+            handle: lifecycle.handle!,
+            tripId: editable.tripId,
+          ),
+          isNotNull,
+        );
+      } finally {
+        repo.service.close();
+      }
+    });
+  });
+  test(
+    'uncertain mixed list exposes separately cached V1 and V2 in offline state',
+    () async {
+      await withStrictProvider((provider, snapshots, lifecycle, context) async {
+        final repo = _MixedRepository(context.store, lifecycle),
+            remote = _remote(lifecycle_fixtures.ownerA);
+        await context.store.replaceSnapshot(
+          handle: lifecycle.handle!,
+          tripId: remote.tripId,
+          payload: remote.payload,
+          remoteVersion: null,
+          fetchedAt: remote.fetchedAt,
+        );
+        await context.store.putEditableSnapshot(
+          handle: lifecycle.handle!,
+          head: editable.head(),
+        );
+        repo.onList = (_) async => throw const EditableRemoteException(
+          EditableRemoteFailure.uncertain,
+          'outcome_unknown',
+        );
+        try {
+          provider.bindEditableRepository(repo);
+          await provider.loadTrips(lifecycle_fixtures.ownerA);
+          expect(provider.cacheState, AccountCacheState.offline);
+          expect(provider.visibleTrips.length, 2);
+          expect(provider.trips.length, 1);
+          expect(provider.hasMoreTrips, isFalse);
+        } finally {
+          repo.service.close();
+        }
+      });
+    },
+  );
+
+  test(
+    'imported V1 remains a legacy snapshot with its remote version',
+    () async {
+      await withStrictProvider((provider, snapshots, lifecycle, context) async {
+        final repo = _MixedRepository(context.store, lifecycle);
+        final base = _remote(lifecycle_fixtures.ownerA);
+        snapshots.read = (_, _) async => SnapshotLookup(
+          SnapshotLookupStatus.ready,
+          RemoteTripSnapshot(
+            ownerId: base.ownerId,
+            tripId: base.tripId,
+            payload: base.payload,
+            remoteVersion: 1,
+            fetchedAt: base.fetchedAt,
+            headers: base.headers,
+          ),
+        );
+        repo.onList = (_) async => OwnedTripPage(
+          items: [_summary(base.tripId, OwnedTripKind.legacyV1)],
+        );
+        try {
+          provider.bindEditableRepository(repo);
+          await provider.loadTrips(lifecycle_fixtures.ownerA);
+          expect(provider.visibleTrips.single.kind, OwnedTripKind.legacyV1);
+          expect(provider.visibleTrips.single.version, isNull);
+          expect(provider.accountSnapshots.single.remoteVersion, 1);
+          expect(provider.trips.single.id, base.tripId);
+        } finally {
+          repo.service.close();
+        }
+      });
+    },
+  );
 
   group('B6.4 lifecycle-bound SQLite cache', () {
     test(

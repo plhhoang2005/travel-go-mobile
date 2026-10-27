@@ -167,6 +167,8 @@ class CanonicalTripPayloadV1 {
       TripPayloadCodec.validatePlan(this.plan!);
     }
   }
+
+  Map<String, dynamic> toJson() => TripPayloadCodec.encodeToMap(this);
 }
 
 /// Original raw headers preserved from a legacy database row.
@@ -235,6 +237,20 @@ class TripPayloadCodec {
     'budgetVnd',
     'preferences',
     'priority',
+  };
+
+  static const Set<String> _allAllowedRequestKeys = {
+    'origin',
+    'numDays',
+    'numPeople',
+    'budgetVnd',
+    'preferences',
+    'priority',
+    'destinationId',
+    'destinationName',
+    'startDate',
+    'endDate',
+    'companionType',
   };
 
   static const Set<String> _requiredPlanKeys = {
@@ -333,13 +349,18 @@ class TripPayloadCodec {
   /// Keys are sorted recursively by UTF-16 code-unit ordinal (String.compareTo).
   /// Original Unicode code points are preserved without NFC normalization.
   static String encode(CanonicalTripPayloadV1 payload) {
-    final map = <String, dynamic>{
+    final map = encodeToMap(payload);
+    return _canonicalize(map);
+  }
+
+  /// Encodes a [CanonicalTripPayloadV1] into a raw JSON map representation.
+  static Map<String, dynamic> encodeToMap(CanonicalTripPayloadV1 payload) {
+    return <String, dynamic>{
       'schemaVersion': payload.schemaVersion,
       'metadata': payload.metadata.toJson(),
       'request': payload.request?.toJson(),
       'plan': payload.plan?.toJson(),
     };
-    return _canonicalize(map);
   }
 
   /// Computes SHA-256 hex digest over the UTF-8 bytes of the canonical JSON string.
@@ -565,6 +586,34 @@ class TripPayloadCodec {
       validateUnicode(pref);
     }
     validateUnicode(req.priority);
+    if (req.destinationId != null) {
+      validateUnicode(req.destinationId!);
+    }
+    if (req.destinationName != null) {
+      validateUnicode(req.destinationName!);
+    }
+    if (req.startDate != null) {
+      validateCalendarDate(req.startDate!);
+    }
+    if (req.endDate != null) {
+      validateCalendarDate(req.endDate!);
+    }
+    if (req.startDate != null && req.endDate != null) {
+      final s = DateTime.utc(
+        int.parse(req.startDate!.substring(0, 4)),
+        int.parse(req.startDate!.substring(5, 7)),
+        int.parse(req.startDate!.substring(8, 10)),
+      );
+      final e = DateTime.utc(
+        int.parse(req.endDate!.substring(0, 4)),
+        int.parse(req.endDate!.substring(5, 7)),
+        int.parse(req.endDate!.substring(8, 10)),
+      );
+      if (e.isBefore(s)) {
+        throw const InvalidDateRangeException('startDate must be before or equal to endDate');
+      }
+    }
+    validateUnicode(req.companionType);
   }
 
   /// Validates [PlanTripResponse] at constructor/encoding boundaries.
@@ -661,7 +710,7 @@ class TripPayloadCodec {
       }
     }
     for (final k in m.keys) {
-      if (!_requiredRequestKeys.contains(k)) {
+      if (!_allAllowedRequestKeys.contains(k)) {
         throw CorruptPayloadException('Unknown request key: $k');
       }
     }
@@ -710,6 +759,37 @@ class TripPayloadCodec {
       throw const CorruptPayloadException('Request priority must be a String');
     }
     validateUnicode(m['priority'] as String);
+
+    if (m.containsKey('destinationId') && m['destinationId'] != null) {
+      if (m['destinationId'] is! String) {
+        throw const CorruptPayloadException('Request destinationId must be a String');
+      }
+      validateUnicode(m['destinationId'] as String);
+    }
+    if (m.containsKey('destinationName') && m['destinationName'] != null) {
+      if (m['destinationName'] is! String) {
+        throw const CorruptPayloadException('Request destinationName must be a String');
+      }
+      validateUnicode(m['destinationName'] as String);
+    }
+    if (m.containsKey('startDate') && m['startDate'] != null) {
+      if (m['startDate'] is! String) {
+        throw const CorruptPayloadException('Request startDate must be a String');
+      }
+      validateCalendarDate(m['startDate'] as String);
+    }
+    if (m.containsKey('endDate') && m['endDate'] != null) {
+      if (m['endDate'] is! String) {
+        throw const CorruptPayloadException('Request endDate must be a String');
+      }
+      validateCalendarDate(m['endDate'] as String);
+    }
+    if (m.containsKey('companionType') && m['companionType'] != null) {
+      if (m['companionType'] is! String) {
+        throw const CorruptPayloadException('Request companionType must be a String');
+      }
+      validateUnicode(m['companionType'] as String);
+    }
   }
 
   static void _validatePlanMap(Map<String, dynamic> m, {bool isLegacy = false}) {
@@ -989,6 +1069,11 @@ class TripPayloadCodec {
       budgetVnd: req.budgetVnd,
       preferences: List<String>.unmodifiable(req.preferences),
       priority: req.priority,
+      destinationId: req.destinationId,
+      destinationName: req.destinationName,
+      startDate: req.startDate,
+      endDate: req.endDate,
+      companionType: req.companionType,
     );
   }
 

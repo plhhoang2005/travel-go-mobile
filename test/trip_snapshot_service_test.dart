@@ -100,6 +100,51 @@ void main() {
   sqfliteFfiInit();
 
   test(
+    'exact legacy fetch does not enumerate or decode unrelated V2 rows',
+    () async {
+      await _withProof((proof, lifecycle) async {
+        final payload = store_fixtures.createValidPayload();
+        final ids = <String>[];
+        final service = _service(lifecycle, (options) async {
+          if (options.method == 'POST') {
+            return _json({
+              'status': 'unavailable',
+              'receipt': null,
+              'payloadText': null,
+            });
+          }
+          final id = options.uri.queryParameters['id'];
+          ids.add(id!);
+          expect(id, 'eq.$trip');
+          return _json([
+            {
+              'id': trip,
+              'user_id': owner,
+              'canonical_payload_text': null,
+              'ai_plan_data': jsonDecode(TripPayloadCodec.encode(payload)),
+            },
+          ]);
+        });
+        try {
+          final batch = await service.fetchLegacySnapshots(
+            proof: proof,
+            tripIds: [trip],
+          );
+          expect(batch.snapshots.single.tripId, trip);
+          expect(ids, ['eq.$trip']);
+          expect(batch.complete, isFalse);
+          await expectLater(
+            service.fetchLegacySnapshots(proof: proof, tripIds: [trip, trip]),
+            throwsA(isA<SnapshotRejectedException>()),
+          );
+        } finally {
+          service.close();
+        }
+      });
+    },
+  );
+
+  test(
     'legacy row preserves missing headers and has no invented version',
     () async {
       await _withProof((proof, lifecycle) async {

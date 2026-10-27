@@ -40,6 +40,7 @@ class AppTheme {
         seedColor: primaryColor,
         primary: primaryColor,
         secondary: accentOrange,
+        onSecondary: textMain,
         tertiary: navy,
         surface: slate50,
       ),
@@ -64,6 +65,32 @@ class AppTheme {
           side: const BorderSide(color: slate200, width: 1),
         ),
       ),
+      inputDecorationTheme: InputDecorationThemeData(
+        filled: true,
+        fillColor: Colors.white,
+        contentPadding: const EdgeInsets.all(16),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: border),
+        ),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(48, 48),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(minimumSize: const Size(48, 48)),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
+      ),
       sliderTheme: SliderThemeData(
         activeTrackColor: primaryColor,
         thumbColor: primaryColor,
@@ -72,9 +99,7 @@ class AppTheme {
         thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10),
       ),
       chipTheme: ChipThemeData(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         selectedColor: primaryColor.withValues(alpha: 0.15),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
@@ -85,10 +110,7 @@ class AppTheme {
             borderRadius: BorderRadius.circular(12),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-          textStyle: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
         ),
       ),
     );

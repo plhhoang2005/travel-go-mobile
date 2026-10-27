@@ -1,0 +1,137 @@
+{
+  "vectors": [
+    {
+      "name": "lock_pending",
+      "user": {
+        "id": "c6666666-0000-4000-8000-000000000001",
+        "role": "customer",
+        "email": "c6-target@example.invalid",
+        "state": "locked",
+        "fullName": "c6-target",
+        "revision": 2,
+        "createdAt": "2026-10-01T00:00:00Z",
+        "authSynced": false,
+        "lastSignInAt": null
+      },
+      "operation": {
+        "id": "d6666666-0000-4000-8000-000000000001",
+        "state": "pending",
+        "action": "lock",
+        "targetId": "c6666666-0000-4000-8000-000000000001",
+        "authSynced": false,
+        "targetRevision": 2
+      }
+    },
+    {
+      "name": "lock_needs_retry",
+      "user": {
+        "id": "c6666666-0000-4000-8000-000000000001",
+        "role": "customer",
+        "email": "c6-target@example.invalid",
+        "state": "locked",
+        "fullName": "c6-target",
+        "revision": 2,
+        "createdAt": "2026-10-01T00:00:00Z",
+        "authSynced": false,
+        "lastSignInAt": null
+      },
+      "operation": {
+        "id": "d6666666-0000-4000-8000-000000000001",
+        "state": "needs_retry",
+        "action": "lock",
+        "targetId": "c6666666-0000-4000-8000-000000000001",
+        "authSynced": false,
+        "targetRevision": 2
+      }
+    },
+    {
+      "name": "lock_completed",
+      "user": {
+        "id": "c6666666-0000-4000-8000-000000000001",
+        "role": "customer",
+        "email": "c6-target@example.invalid",
+        "state": "locked",
+        "fullName": "c6-target",
+        "revision": 2,
+        "createdAt": "2026-10-01T00:00:00Z",
+        "authSynced": true,
+        "lastSignInAt": null
+      },
+      "operation": {
+        "id": "d6666666-0000-4000-8000-000000000001",
+        "state": "completed",
+        "action": "lock",
+        "targetId": "c6666666-0000-4000-8000-000000000001",
+        "authSynced": true,
+        "targetRevision": 2
+      }
+    },
+    {
+      "name": "unlock_pending",
+      "user": {
+        "id": "c6666666-0000-4000-8000-000000000001",
+        "role": "customer",
+        "email": "c6-target@example.invalid",
+        "state": "unlocking",
+        "fullName": "c6-target",
+        "revision": 3,
+        "createdAt": "2026-10-01T00:00:00Z",
+        "authSynced": false,
+        "lastSignInAt": null
+      },
+      "operation": {
+        "id": "d6666666-0000-4000-8000-000000000003",
+        "state": "pending",
+        "action": "unlock",
+        "targetId": "c6666666-0000-4000-8000-000000000001",
+        "authSynced": false,
+        "targetRevision": 3
+      }
+    },
+    {
+      "name": "unlock_needs_retry",
+      "user": {
+        "id": "c6666666-0000-4000-8000-000000000001",
+        "role": "customer",
+        "email": "c6-target@example.invalid",
+        "state": "unlocking",
+        "fullName": "c6-target",
+        "revision": 3,
+        "createdAt": "2026-10-01T00:00:00Z",
+        "authSynced": false,
+        "lastSignInAt": null
+      },
+      "operation": {
+        "id": "d6666666-0000-4000-8000-000000000003",
+        "state": "needs_retry",
+        "action": "unlock",
+        "targetId": "c6666666-0000-4000-8000-000000000001",
+        "authSynced": false,
+        "targetRevision": 3
+      }
+    },
+    {
+      "name": "unlock_completed",
+      "user": {
+        "id": "c6666666-0000-4000-8000-000000000001",
+        "role": "customer",
+        "email": "c6-target@example.invalid",
+        "state": "enabled",
+        "fullName": "c6-target",
+        "revision": 3,
+        "createdAt": "2026-10-01T00:00:00Z",
+        "authSynced": true,
+        "lastSignInAt": null
+      },
+      "operation": {
+        "id": "d6666666-0000-4000-8000-000000000003",
+        "state": "completed",
+        "action": "unlock",
+        "targetId": "c6666666-0000-4000-8000-000000000001",
+        "authSynced": true,
+        "targetRevision": 3
+      }
+    }
+  ],
+  "contract": "travelgo.admin.v1"
+}

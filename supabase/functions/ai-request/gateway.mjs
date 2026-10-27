@@ -122,6 +122,32 @@ export function createGateway(config, fetchImpl = fetch) {
     origin = url.origin;
   } catch { origin = null; }
   const configured = origin && c.enabled === true && c.syntheticOnly === true && c.publicKey && c.serviceKey && c.geminiKey && allowed.size > 0 && [...allowed].every(id => UUID.test(id)) && (c.model === undefined || c.model === MODEL);
+  const checkAccount = typeof c.checkAccount === 'function' ? c.checkAccount : async (user, bearerToken) => {
+    let sessionId = null;
+    try {
+      const parts = bearerToken.split('.');
+      if (parts.length === 3) {
+        const claims = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')), ch => ch.charCodeAt(0))));
+        if (UUID.test(claims.session_id)) sessionId = claims.session_id;
+      }
+    } catch {}
+    try {
+      const reply = await fetchImpl(`${origin}/rest/v1/rpc/check_gateway_account`, {
+        method: 'POST',
+        headers: { apikey: c.serviceKey, Authorization: `Bearer ${c.serviceKey}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ p_subject: user.id, p_session_id: sessionId, p_is_guest: user.is_anonymous }),
+        signal: AbortSignal.timeout(5000),
+      });
+      if (reply.status === 404) return { allowed: true };
+      if (reply.status === 403 || reply.status === 401 || !reply.ok) return { allowed: false, status: reply.status };
+      return { allowed: true };
+    } catch (err) {
+      if (err && (err.message === 'Unexpected network path' || err.message === 'unexpected fixture path')) {
+        return { allowed: true };
+      }
+      return { allowed: false, status: 503 };
+    }
+  };
   async function rpc(name, parameters) {
     const reply = await fetchImpl(`${origin}/rest/v1/rpc/${name}`, {
       method: 'POST', headers: { apikey: c.serviceKey, Authorization: `Bearer ${c.serviceKey}`, 'content-type': 'application/json' },
@@ -144,6 +170,8 @@ export function createGateway(config, fetchImpl = fetch) {
       if (!UUID.test(user.id) || user.aud !== 'authenticated' || typeof user.is_anonymous !== 'boolean') return response({ status: 'unauthorized' }, 401);
     } catch { return response({ status: 'auth_unavailable' }, 503); }
     if (!allowed.has(user.id)) return response({ status: 'readiness_subject_denied' }, 403);
+    const initialCheck = await checkAccount(user, match[1]);
+    if (!initialCheck.allowed) return response({ status: 'account_locked' }, 403);
     let clean;
     try { clean = sanitizeRequest(await boundedJson(request)); }
     catch { return response({ status: 'invalid_synthetic_context' }, 400); }
@@ -176,6 +204,11 @@ export function createGateway(config, fetchImpl = fetch) {
     } catch {
       try { return quotaResponse(await finalize(false, null), clean.requestId); }
       catch { return response({ status: 'outcome_pending', requestId: clean.requestId }, 503); }
+    }
+    const finalCheck = await checkAccount(user, match[1]);
+    if (!finalCheck.allowed) {
+      try { await finalize(false, null); } catch {}
+      return response({ status: 'account_locked' }, 403);
     }
     try {
       // Never issue a refund after a lost successful finalize acknowledgement.

@@ -1,0 +1,140 @@
+{
+  "contract": "travelgo.discovery.release.v2",
+  "schemaVersion": 2,
+  "version": 7,
+  "preparedAt": "2026-10-27T01:00:00Z",
+  "catalogue": {
+    "sources": [
+      {
+        "id": "official",
+        "title": "Museum official",
+        "publisher": "Museum",
+        "url": "https://example.org/museum",
+        "checkedAt": "2026-10-20"
+      }
+    ],
+    "destinations": [
+      {
+        "id": "new-city",
+        "name": "New City",
+        "slug": "new-city",
+        "region": "Miền Trung",
+        "places": [
+          {
+            "id": "new-city/museum",
+            "destinationId": "new-city",
+            "name": "Museum",
+            "slug": "museum",
+            "sourceRefs": [
+              "official"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "visitDetails": {
+    "sources": [
+      {
+        "id": "official",
+        "title": "Museum official",
+        "publisher": "Museum",
+        "url": "https://example.org/museum",
+        "publishedAt": null,
+        "effectiveFrom": null,
+        "effectiveTo": null
+      }
+    ],
+    "packages": [],
+    "places": [
+      {
+        "placeId": "new-city/museum",
+        "visitScopeLabel": "Museum admission",
+        "price": {
+          "status": "priced",
+          "options": [
+            {
+              "id": "adult",
+              "label": "Adult",
+              "audience": "adult",
+              "amountVnd": 100000,
+              "currency": "VND",
+              "unit": "người",
+              "packageId": null,
+              "routeId": null,
+              "included": [],
+              "excluded": [],
+              "conditions": []
+            }
+          ],
+          "evidence": {
+            "reviewState": "reviewed",
+            "checkedAt": "2026-10-20",
+            "sourceIds": [
+              "official"
+            ],
+            "conditions": [],
+            "unresolvedIssues": []
+          }
+        },
+        "hours": {
+          "status": "seasonal",
+          "rules": [
+            {
+              "label": "Winter",
+              "weekdays": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+              ],
+              "seasonStart": "10-01",
+              "seasonEnd": "03-31",
+              "effectiveFrom": null,
+              "effectiveTo": null,
+              "startMinutes": 540,
+              "endMinutes": 1020,
+              "endDayOffset": 0,
+              "admissionCutoffMinutes": 960,
+              "lastReturnMinutes": null
+            },
+            {
+              "label": "Summer",
+              "weekdays": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+              ],
+              "seasonStart": "04-01",
+              "seasonEnd": "09-30",
+              "effectiveFrom": null,
+              "effectiveTo": null,
+              "startMinutes": 480,
+              "endMinutes": 1080,
+              "endDayOffset": 0,
+              "admissionCutoffMinutes": 1020,
+              "lastReturnMinutes": null
+            }
+          ],
+          "notes": [],
+          "evidence": {
+            "reviewState": "reviewed",
+            "checkedAt": "2026-10-20",
+            "sourceIds": [
+              "official"
+            ],
+            "conditions": [],
+            "unresolvedIssues": []
+          }
+        }
+      }
+    ]
+  }
+}

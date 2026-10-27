@@ -1,0 +1,4940 @@
+{
+  "schemaVersion": 1,
+  "version": 1,
+  "publishedAt": "2026-10-20T00:00:00Z",
+  "catalogueSha256": "c14cecc97149a3acf64f439d44662333bbb8756bd580e18f368ac053bdd1542a",
+  "timezone": "Asia/Ho_Chi_Minh",
+  "sources": [
+    {
+      "id": "vm-visitor",
+      "title": "Thông tin cho du khách",
+      "publisher": "Trung tâm Văn Miếu – Quốc Tử Giám",
+      "url": "https://www.vanmieu.gov.vn/vi/introduction/visitor-information"
+    },
+    {
+      "id": "vnat-hanoi",
+      "title": "11 điểm du lịch không thể bỏ qua tại Hà Nội — mục Hồ Hoàn Kiếm",
+      "publisher": "Cục Du lịch Quốc gia Việt Nam",
+      "url": "https://image.vietnam.travel/vi/things-to-do/11-must-see-attractions-ha-noi"
+    },
+    {
+      "publisher": "Ban quản lý di sản thế giới vịnh Hạ Long – Yên Tử",
+      "url": "https://halongbay.com.vn/p/58-muc-phi-tham-quan-vinh-ha-long",
+      "publishedAt": "2025-03-31",
+      "id": "halong-fees",
+      "title": "Mức phí tham quan vịnh Hạ Long"
+    },
+    {
+      "publisher": "Ban quản lý di sản thế giới vịnh Hạ Long – Yên Tử",
+      "url": "https://halongbay.com.vn/p/71-thoi-gian-don-tra-khach-ve-cang-ben",
+      "publishedAt": "2024-11-06",
+      "id": "halong-hours",
+      "title": "Thời gian đón khách tham quan"
+    },
+    {
+      "publisher": "Ban quản lý vịnh Hạ Long",
+      "url": "https://halongbay.com.vn/en/places/5-hon-trong-mai",
+      "id": "halong-trong-mai",
+      "title": "Trong Mai Islet (Ga Choi Islet)"
+    },
+    {
+      "publisher": "Tuần Châu Verse — Tập đoàn Tuần Châu",
+      "url": "https://booking.tuanchauverse.com/vi/combo-tuan-chau-park",
+      "id": "tuan-park4",
+      "title": "Combo vé 4 công viên Tuần Châu Park"
+    },
+    {
+      "publisher": "Tuần Châu Verse — Tập đoàn Tuần Châu",
+      "url": "https://booking.tuanchauverse.com/vi/tuan-chau-farm",
+      "id": "tuan-park3",
+      "title": "Combo 3 công viên kèm đồ uống cho người lớn"
+    },
+    {
+      "publisher": "Tuần Châu Verse — Tập đoàn Tuần Châu",
+      "url": "https://booking.tuanchauverse.com/vi/hours",
+      "id": "tuan-hours",
+      "effectiveFrom": "2026-05-04",
+      "title": "Giờ hoạt động Tuần Châu Park"
+    },
+    {
+      "publisher": "Tuần Châu Verse — Tập đoàn Tuần Châu",
+      "url": "https://booking.tuanchauverse.com/vi/news/tuan-chau-park-cam-nang-kham-pha-cong-vien-giai-tri-da-dang-tai-dao-tuan-chau-tu-a-den-z",
+      "publishedAt": "2026-08-04",
+      "id": "tuan-guide",
+      "title": "Cẩm nang Tuần Châu Park — lịch các phân khu"
+    },
+    {
+      "title": "Bảng phí: vé lẻ từ 02/06/2026, vé tuyến từ 04/01/2026",
+      "id": "hue-fees-2026",
+      "url": "https://hueworldheritage.org.vn/Thong-tin-tham-quan/Gia-ve",
+      "publisher": "Trung tâm Bảo tồn Di tích Cố đô Huế"
+    },
+    {
+      "title": "Thời gian bán vé và thời gian đóng cửa tham quan",
+      "id": "hue-time",
+      "url": "https://eticket.hueworldheritage.org.vn/thoi-gian-tham-quan",
+      "publisher": "Trung tâm Bảo tồn Di tích Cố đô Huế"
+    },
+    {
+      "title": "Nội quy tham quan",
+      "id": "hue-rules",
+      "url": "https://eticket.hueworldheritage.org.vn/noi-quy",
+      "publisher": "Trung tâm Bảo tồn Di tích Cố đô Huế"
+    },
+    {
+      "title": "Hồ sơ Chợ Đông Ba trên Huetripo",
+      "id": "hue-dongba-directory",
+      "url": "https://huetripo.hue.gov.vn/co-so-dich-vu/cho-/cho-dong-ba-hue-759007",
+      "publisher": "Cổng Huetripo — Thành phố Huế"
+    },
+    {
+      "publisher": "Trung tâm Bảo tồn Di sản văn hóa thế giới Hội An",
+      "publishedAt": "2026-03-16",
+      "url": "https://hoianworldheritage.org.vn/vi/news/Du-lich-Hoi-An/cap-nhat-ve-tham-quan-khu-pho-co-hoi-an-hanh-trinh-cham-ve-nguyen-ban-giua-long-di-san-3033.hwh",
+      "title": "Vé tham quan phố cổ — quyền lợi hai gói",
+      "id": "hoian-fees-2026"
+    },
+    {
+      "publisher": "Trung tâm Bảo tồn Di sản văn hóa thế giới Hội An",
+      "publishedAt": "2020-02-23",
+      "url": "https://www.hoianworldheritage.org.vn/vi/news/Dieu-can-biet/ve-tham-quan-hoi-an-1940.hwh",
+      "title": "Danh mục di tích trong vé Hội An — dùng đối chiếu tên điểm",
+      "id": "hoian-ticket-sites"
+    },
+    {
+      "publisher": "Cổng Hội An Thành phố sáng tạo — mục tổng hợp",
+      "url": "https://hoiancreativecity.com/vi/bao-tang-lich-su-van-hoa-hoi-an-minh-chung-song-dong-cua-thuong-cang-phon-thinh-mot-thoi",
+      "title": "Bảo tàng Lịch sử – Văn hóa Hội An — hồ sơ giới thiệu",
+      "id": "hoian-museum-hours"
+    },
+    {
+      "publisher": "Cổng Hội An Thành phố sáng tạo — bài dẫn Traveloka",
+      "url": "https://hoiancreativecity.com/vi/nha-co-tan-ky-noi-luu-giu-ve-dep-xua-cu-cua-hoi-an",
+      "title": "Nhà cổ Tấn Ký — giờ sáng/chiều trong hồ sơ giới thiệu",
+      "id": "hoian-tanky-hours"
+    },
+    {
+      "publisher": "Ban quản lý Di tích Danh thắng Ngũ Hành Sơn",
+      "title": "Giá vé và thời gian phục vụ Ngũ Hành Sơn",
+      "id": "marble-management",
+      "publishedAt": "2014-06-18",
+      "url": "https://nguhanhson.org/news/thong-tin-can-biet/gia-ve-tham-quan/"
+    },
+    {
+      "publisher": "Trung tâm Xúc tiến Du lịch TP. Đà Nẵng",
+      "title": "Bảng giá tham khảo năm 2026 — mục Ngũ Hành Sơn",
+      "id": "danang-fees-2026",
+      "publishedAt": "2026-01-22",
+      "url": "https://danangfantasticity.com/ja/tin-tuc/len-lich-kham-pha-da-nang-2026-cap-nhat-gia-ve-tham-quan-cac-diem-khu-du-lich"
+    },
+    {
+      "publisher": "Trung tâm Xúc tiến Du lịch Đà Nẵng",
+      "title": "Bảng giá tham quan 2023 — mục Sơn Trà và Linh Ứng",
+      "publishedAt": "2023-01-03",
+      "id": "danang-fees-2023",
+      "url": "https://danangfantasticity.com/en/gia-ve-cac-diem-tham-quan-tai-da-nang-2023",
+      "effectiveFrom": "2023-01-01"
+    },
+    {
+      "publisher": "Trung tâm Xúc tiến Du lịch Đà Nẵng",
+      "title": "Bán đảo Sơn Trà — ba tuyến và khung giờ theo mùa",
+      "id": "sontra-route-rules",
+      "url": "https://danangfantasticity.com/en/di-san-canh-quan/ban-dao-son-tra"
+    },
+    {
+      "publisher": "Trung tâm Xúc tiến Du lịch Đà Nẵng",
+      "title": "Đèo Hải Vân — chi phí ngắm cảnh và lưu ý hành trình",
+      "id": "haivan-landscape",
+      "publishedAt": "2025-08-01",
+      "url": "https://danangfantasticity.com/ja/di-san-canh-quan/deo-hai-van-thien-ha-de-nhat-hung-quan"
+    },
+    {
+      "publisher": "Trung tâm Xúc tiến Du lịch TP. Đà Nẵng",
+      "title": "Chợ Hàn — khung giờ tham khảo trong hướng dẫn chợ địa phương",
+      "id": "han-market-reference",
+      "publishedAt": "2026-06-12",
+      "url": "https://danangfantasticity.com/cn/am-thuc-dia-phuong/kham-pha-am-thuc-da-nang-tai-6-khu-cho-dia-phuong-noi-tieng"
+    },
+    {
+      "publisher": "Chùa Linh Ứng Bãi Bụt",
+      "title": "Những lời nhắc nhở khách tham quan chùa Linh Ứng Bãi Bụt",
+      "id": "linhung-visitor-rules",
+      "url": "https://chualinhung.vn/"
+    }
+  ],
+  "packages": [
+    {
+      "sourceIds": [
+        "halong-fees"
+      ],
+      "included": [
+        "Thiên Cung",
+        "Đầu Gỗ",
+        "Trống Mái"
+      ],
+      "excluded": [],
+      "scope": "Phí chung của hành trình, không phải phí riêng từng hang/điểm.",
+      "label": "VHL1 ban ngày",
+      "id": "halong-vhl1-day",
+      "conditions": [
+        "Đây là phí tham quan vịnh, không phải báo giá trọn gói dịch vụ tàu. Đối chiếu dịch vụ và đối tượng miễn, giảm trước khi mua.",
+        "Mức phí theo trang quản lý công bố 31/03/2025; lịch chuyến và thông báo điều tiết thực tế cần kiểm tra trước đi."
+      ]
+    },
+    {
+      "sourceIds": [
+        "halong-fees"
+      ],
+      "included": [
+        "Sửng Sốt",
+        "Mê Cung",
+        "Các điểm thuộc hành trình VHL2"
+      ],
+      "excluded": [],
+      "scope": "Phí chung của hành trình, không phải phí riêng từng hang/điểm.",
+      "label": "VHL2 ban ngày",
+      "id": "halong-vhl2-day",
+      "conditions": [
+        "Đây là phí tham quan vịnh, không phải báo giá trọn gói dịch vụ tàu. Đối chiếu dịch vụ và đối tượng miễn, giảm trước khi mua.",
+        "Mức phí theo trang quản lý công bố 31/03/2025; lịch chuyến và thông báo điều tiết thực tế cần kiểm tra trước đi."
+      ]
+    },
+    {
+      "sourceIds": [
+        "halong-fees"
+      ],
+      "included": [
+        "Cửa Vạn",
+        "Tiên Ông",
+        "Các điểm thuộc hành trình VHL3"
+      ],
+      "excluded": [],
+      "scope": "Phí chung của hành trình, không phải phí riêng từng hang/điểm.",
+      "label": "VHL3 ban ngày",
+      "id": "halong-vhl3-day",
+      "conditions": [
+        "Đây là phí tham quan vịnh, không phải báo giá trọn gói dịch vụ tàu. Đối chiếu dịch vụ và đối tượng miễn, giảm trước khi mua.",
+        "Mức phí theo trang quản lý công bố 31/03/2025; lịch chuyến và thông báo điều tiết thực tế cần kiểm tra trước đi."
+      ]
+    },
+    {
+      "sourceIds": [
+        "halong-fees"
+      ],
+      "included": [
+        "Các điểm thuộc hành trình VHL4"
+      ],
+      "excluded": [],
+      "scope": "Phí chung của hành trình, không phải phí riêng từng hang/điểm.",
+      "label": "VHL4 ban ngày",
+      "id": "halong-vhl4-day",
+      "conditions": [
+        "Đây là phí tham quan vịnh, không phải báo giá trọn gói dịch vụ tàu. Đối chiếu dịch vụ và đối tượng miễn, giảm trước khi mua.",
+        "Mức phí theo trang quản lý công bố 31/03/2025; lịch chuyến và thông báo điều tiết thực tế cần kiểm tra trước đi."
+      ]
+    },
+    {
+      "sourceIds": [
+        "halong-fees"
+      ],
+      "included": [
+        "Thiên Cung",
+        "Trống Mái",
+        "Gia Luận"
+      ],
+      "excluded": [],
+      "scope": "Phí chung của hành trình, không phải phí riêng từng hang/điểm.",
+      "label": "VHL5 tới Gia Luận",
+      "id": "halong-vhl5-day",
+      "conditions": [
+        "Đây là phí tham quan vịnh, không phải báo giá trọn gói dịch vụ tàu. Đối chiếu dịch vụ và đối tượng miễn, giảm trước khi mua.",
+        "Mức phí theo trang quản lý công bố 31/03/2025; lịch chuyến và thông báo điều tiết thực tế cần kiểm tra trước đi."
+      ]
+    },
+    {
+      "sourceIds": [
+        "halong-fees"
+      ],
+      "included": [
+        "Các điểm thuộc hành trình VHL6"
+      ],
+      "excluded": [],
+      "scope": "Phí chung của hành trình, không phải phí riêng từng hang/điểm.",
+      "label": "VHL6 ban ngày",
+      "id": "halong-vhl6-day",
+      "conditions": [
+        "Đây là phí tham quan vịnh, không phải báo giá trọn gói dịch vụ tàu. Đối chiếu dịch vụ và đối tượng miễn, giảm trước khi mua.",
+        "Mức phí theo trang quản lý công bố 31/03/2025; lịch chuyến và thông báo điều tiết thực tế cần kiểm tra trước đi."
+      ]
+    },
+    {
+      "sourceIds": [
+        "halong-fees"
+      ],
+      "included": [
+        "Các hành trình VHL1–4 theo sản phẩm khám phá"
+      ],
+      "excluded": [],
+      "scope": "Phí chung của hành trình, không phải phí riêng từng hang/điểm.",
+      "label": "VHL7 — chỉ du thuyền khám phá",
+      "id": "halong-vhl7-day",
+      "conditions": [
+        "Đây là phí tham quan vịnh, không phải báo giá trọn gói dịch vụ tàu. Đối chiếu dịch vụ và đối tượng miễn, giảm trước khi mua.",
+        "Mức phí theo trang quản lý công bố 31/03/2025; lịch chuyến và thông báo điều tiết thực tế cần kiểm tra trước đi."
+      ]
+    },
+    {
+      "sourceIds": [
+        "halong-fees"
+      ],
+      "included": [
+        "Hành trình ven bờ theo nguồn"
+      ],
+      "excluded": [],
+      "scope": "Phí chung của hành trình, không phải phí riêng từng hang/điểm.",
+      "label": "VHL8 ven bờ",
+      "id": "halong-vhl8-day",
+      "conditions": [
+        "Đây là phí tham quan vịnh, không phải báo giá trọn gói dịch vụ tàu. Đối chiếu dịch vụ và đối tượng miễn, giảm trước khi mua.",
+        "Mức phí theo trang quản lý công bố 31/03/2025; lịch chuyến và thông báo điều tiết thực tế cần kiểm tra trước đi."
+      ]
+    },
+    {
+      "sourceIds": [
+        "halong-fees"
+      ],
+      "included": [
+        "Tuyến 2 và lưu trú 1 đêm theo biểu phí"
+      ],
+      "excluded": [],
+      "scope": "Phí chung của hành trình, không phải phí riêng từng hang/điểm.",
+      "label": "VHL2 lưu trú 1 đêm, tối đa 24 giờ",
+      "id": "halong-vhl2-night1",
+      "conditions": [
+        "Đây là phí tham quan vịnh, không phải báo giá trọn gói dịch vụ tàu. Đối chiếu dịch vụ và đối tượng miễn, giảm trước khi mua.",
+        "Mức phí theo trang quản lý công bố 31/03/2025; lịch chuyến và thông báo điều tiết thực tế cần kiểm tra trước đi."
+      ]
+    },
+    {
+      "sourceIds": [
+        "halong-fees"
+      ],
+      "included": [
+        "Tuyến 2 và lưu trú 2 đêm theo biểu phí"
+      ],
+      "excluded": [],
+      "scope": "Phí chung của hành trình, không phải phí riêng từng hang/điểm.",
+      "label": "VHL2 lưu trú 2 đêm, tối đa 48 giờ",
+      "id": "halong-vhl2-night2",
+      "conditions": [
+        "Đây là phí tham quan vịnh, không phải báo giá trọn gói dịch vụ tàu. Đối chiếu dịch vụ và đối tượng miễn, giảm trước khi mua.",
+        "Mức phí theo trang quản lý công bố 31/03/2025; lịch chuyến và thông báo điều tiết thực tế cần kiểm tra trước đi."
+      ]
+    },
+    {
+      "sourceIds": [
+        "halong-fees"
+      ],
+      "included": [
+        "Tuyến 3 và lưu trú 1 đêm theo biểu phí"
+      ],
+      "excluded": [],
+      "scope": "Phí chung của hành trình, không phải phí riêng từng hang/điểm.",
+      "label": "VHL3 lưu trú 1 đêm, tối đa 24 giờ",
+      "id": "halong-vhl3-night1",
+      "conditions": [
+        "Đây là phí tham quan vịnh, không phải báo giá trọn gói dịch vụ tàu. Đối chiếu dịch vụ và đối tượng miễn, giảm trước khi mua.",
+        "Mức phí theo trang quản lý công bố 31/03/2025; lịch chuyến và thông báo điều tiết thực tế cần kiểm tra trước đi."
+      ]
+    },
+    {
+      "sourceIds": [
+        "halong-fees"
+      ],
+      "included": [
+        "Tuyến 3 và lưu trú 2 đêm theo biểu phí"
+      ],
+      "excluded": [],
+      "scope": "Phí chung của hành trình, không phải phí riêng từng hang/điểm.",
+      "label": "VHL3 lưu trú 2 đêm, tối đa 48 giờ",
+      "id": "halong-vhl3-night2",
+      "conditions": [
+        "Đây là phí tham quan vịnh, không phải báo giá trọn gói dịch vụ tàu. Đối chiếu dịch vụ và đối tượng miễn, giảm trước khi mua.",
+        "Mức phí theo trang quản lý công bố 31/03/2025; lịch chuyến và thông báo điều tiết thực tế cần kiểm tra trước đi."
+      ]
+    },
+    {
+      "sourceIds": [
+        "halong-fees"
+      ],
+      "included": [
+        "Tuyến 4 và lưu trú 1 đêm theo biểu phí"
+      ],
+      "excluded": [],
+      "scope": "Phí chung của hành trình, không phải phí riêng từng hang/điểm.",
+      "label": "VHL4 lưu trú 1 đêm, tối đa 24 giờ",
+      "id": "halong-vhl4-night1",
+      "conditions": [
+        "Đây là phí tham quan vịnh, không phải báo giá trọn gói dịch vụ tàu. Đối chiếu dịch vụ và đối tượng miễn, giảm trước khi mua.",
+        "Mức phí theo trang quản lý công bố 31/03/2025; lịch chuyến và thông báo điều tiết thực tế cần kiểm tra trước đi."
+      ]
+    },
+    {
+      "sourceIds": [
+        "halong-fees"
+      ],
+      "included": [
+        "Tuyến 4 và lưu trú 2 đêm theo biểu phí"
+      ],
+      "excluded": [],
+      "scope": "Phí chung của hành trình, không phải phí riêng từng hang/điểm.",
+      "label": "VHL4 lưu trú 2 đêm, tối đa 48 giờ",
+      "id": "halong-vhl4-night2",
+      "conditions": [
+        "Đây là phí tham quan vịnh, không phải báo giá trọn gói dịch vụ tàu. Đối chiếu dịch vụ và đối tượng miễn, giảm trước khi mua.",
+        "Mức phí theo trang quản lý công bố 31/03/2025; lịch chuyến và thông báo điều tiết thực tế cần kiểm tra trước đi."
+      ]
+    },
+    {
+      "sourceIds": [
+        "tuan-park4",
+        "tuan-hours"
+      ],
+      "included": [
+        "Show cá heo, hải cẩu",
+        "Tuần Châu Farm",
+        "Tuần Châu Farm Hill",
+        "King Kong Park"
+      ],
+      "excluded": [],
+      "scope": "Tuần Châu Park, không phải vé toàn đảo/cảng/phà",
+      "label": "Combo 4 công viên",
+      "id": "tuan-park4",
+      "conditions": [
+        "Vé cho một người, đúng ngày đã chọn."
+      ]
+    },
+    {
+      "sourceIds": [
+        "tuan-park3"
+      ],
+      "included": [
+        "Tuần Châu Farm",
+        "Tuần Châu Farm Hill",
+        "King Kong Park"
+      ],
+      "excluded": [
+        "Show cá heo, hải cẩu"
+      ],
+      "scope": "Gói hiện ghi trên trang đặt vé, khác gói 3 công viên trong bài tổng quan cũ",
+      "label": "Combo 3 công viên kèm đồ uống cho người lớn",
+      "id": "tuan-park3-drink",
+      "conditions": [
+        "Đồ uống tặng được nêu cho vé người lớn; không tự áp cho vé trẻ em."
+      ]
+    },
+    {
+      "included": [
+        "Lăng Minh Mạng",
+        "Lăng Gia Long"
+      ],
+      "sourceIds": [
+        "hue-fees-2026"
+      ],
+      "id": "hue-mm-gl",
+      "scope": "Phí chung cả tuyến, không cộng lại cho mỗi di tích trong cùng gói.",
+      "conditions": [
+        "Theo bảng phí tuyến áp dụng từ 04/01/2026. Kiểm tra thời hạn sử dụng và điều kiện vé khi đặt."
+      ],
+      "label": "Minh Mạng + Gia Long",
+      "excluded": []
+    },
+    {
+      "included": [
+        "Lăng Tự Đức",
+        "Lăng Đồng Khánh"
+      ],
+      "sourceIds": [
+        "hue-fees-2026"
+      ],
+      "id": "hue-td-dk",
+      "scope": "Phí chung cả tuyến, không cộng lại cho mỗi di tích trong cùng gói.",
+      "conditions": [
+        "Theo bảng phí tuyến áp dụng từ 04/01/2026. Kiểm tra thời hạn sử dụng và điều kiện vé khi đặt."
+      ],
+      "label": "Tự Đức + Đồng Khánh",
+      "excluded": []
+    },
+    {
+      "included": [
+        "Đại Nội",
+        "Lăng Minh Mạng",
+        "Lăng Khải Định"
+      ],
+      "sourceIds": [
+        "hue-fees-2026"
+      ],
+      "id": "hue-dn-mm-kd",
+      "scope": "Phí chung cả tuyến, không cộng lại cho mỗi di tích trong cùng gói.",
+      "conditions": [
+        "Theo bảng phí tuyến áp dụng từ 04/01/2026. Kiểm tra thời hạn sử dụng và điều kiện vé khi đặt."
+      ],
+      "label": "Đại Nội + Minh Mạng + Khải Định",
+      "excluded": []
+    },
+    {
+      "included": [
+        "Đại Nội",
+        "Lăng Minh Mạng",
+        "Lăng Tự Đức"
+      ],
+      "sourceIds": [
+        "hue-fees-2026"
+      ],
+      "id": "hue-dn-mm-td",
+      "scope": "Phí chung cả tuyến, không cộng lại cho mỗi di tích trong cùng gói.",
+      "conditions": [
+        "Theo bảng phí tuyến áp dụng từ 04/01/2026. Kiểm tra thời hạn sử dụng và điều kiện vé khi đặt."
+      ],
+      "label": "Đại Nội + Minh Mạng + Tự Đức",
+      "excluded": []
+    },
+    {
+      "included": [
+        "Đại Nội",
+        "Lăng Tự Đức",
+        "Lăng Khải Định"
+      ],
+      "sourceIds": [
+        "hue-fees-2026"
+      ],
+      "id": "hue-dn-td-kd",
+      "scope": "Phí chung cả tuyến, không cộng lại cho mỗi di tích trong cùng gói.",
+      "conditions": [
+        "Theo bảng phí tuyến áp dụng từ 04/01/2026. Kiểm tra thời hạn sử dụng và điều kiện vé khi đặt."
+      ],
+      "label": "Đại Nội + Tự Đức + Khải Định",
+      "excluded": []
+    },
+    {
+      "included": [
+        "Đại Nội",
+        "Lăng Minh Mạng",
+        "Lăng Tự Đức",
+        "Lăng Khải Định"
+      ],
+      "sourceIds": [
+        "hue-fees-2026"
+      ],
+      "id": "hue-four",
+      "scope": "Phí chung cả tuyến, không cộng lại cho mỗi di tích trong cùng gói.",
+      "conditions": [
+        "Theo bảng phí tuyến áp dụng từ 04/01/2026. Kiểm tra thời hạn sử dụng và điều kiện vé khi đặt."
+      ],
+      "label": "Đại Nội + Minh Mạng + Tự Đức + Khải Định",
+      "excluded": []
+    },
+    {
+      "included": [
+        "Các điểm di tích thuộc tuyến gộp do Trung tâm công bố"
+      ],
+      "sourceIds": [
+        "hue-fees-2026"
+      ],
+      "id": "hue-all",
+      "scope": "Phí chung cả tuyến, không cộng lại cho mỗi di tích trong cùng gói.",
+      "conditions": [
+        "Theo bảng phí tuyến áp dụng từ 04/01/2026. Kiểm tra thời hạn sử dụng và điều kiện vé khi đặt."
+      ],
+      "label": "Tuyến gộp tất cả điểm di tích theo bảng phí",
+      "excluded": []
+    },
+    {
+      "included": [
+        "Cảnh quan phố cổ",
+        "Chọn Chùa Cầu hoặc Miếu Quan Công",
+        "Hai công trình văn hóa tự chọn"
+      ],
+      "label": "Vé phố cổ 80.000đ",
+      "id": "hoian-heritage-80",
+      "sourceIds": [
+        "hoian-fees-2026"
+      ],
+      "scope": "Vé chung nhiều điểm theo ô lựa chọn",
+      "excluded": [
+        "Dịch vụ mua riêng ngoài quyền lợi vé"
+      ],
+      "conditions": [
+        "Dùng một lần mua trong thời gian lưu trú, tối đa 03 ngày; giữ cuống vé. Chọn điểm theo ô vé và xác nhận quyền lợi tại quầy.",
+        "Các mức dưới đây là giá gói; không cộng lại khi ghé nhiều điểm bằng cùng vé. Không tự suy mức giảm theo tuổi, quốc tịch hoặc giấy tờ."
+      ]
+    },
+    {
+      "included": [
+        "Cảnh quan phố cổ",
+        "Chọn Chùa Cầu hoặc Miếu Quan Công",
+        "Tự chọn hệ thống bảo tàng",
+        "Ba công trình văn hóa tự chọn"
+      ],
+      "label": "Vé phố cổ 120.000đ",
+      "id": "hoian-heritage-120",
+      "sourceIds": [
+        "hoian-fees-2026"
+      ],
+      "scope": "Vé chung nhiều điểm theo ô lựa chọn",
+      "excluded": [
+        "Dịch vụ mua riêng ngoài quyền lợi vé"
+      ],
+      "conditions": [
+        "Dùng một lần mua trong thời gian lưu trú, tối đa 03 ngày; giữ cuống vé. Chọn điểm theo ô vé và xác nhận quyền lợi tại quầy.",
+        "Các mức dưới đây là giá gói; không cộng lại khi ghé nhiều điểm bằng cùng vé. Không tự suy mức giảm theo tuổi, quốc tịch hoặc giấy tờ."
+      ]
+    }
+  ],
+  "places": [
+    {
+      "placeId": "ha-noi/hoan-kiem",
+      "visitScopeLabel": "Đi dạo không gian công cộng quanh hồ; không gồm đền Ngọc Sơn hoặc dịch vụ",
+      "price": {
+        "status": "free",
+        "options": [
+          {
+            "id": "public-walk",
+            "label": "Đi dạo quanh hồ",
+            "audience": "Khách đi dạo",
+            "amountVnd": 0,
+            "currency": "VND",
+            "unit": "người",
+            "included": [
+              "Không gian công cộng ven hồ"
+            ],
+            "excluded": [
+              "Đền Ngọc Sơn",
+              "Dịch vụ và sự kiện có vé"
+            ],
+            "conditions": [
+              "Tuân thủ điều tiết tại chỗ."
+            ]
+          }
+        ],
+        "evidence": {
+          "sourceIds": [
+            "vnat-hanoi"
+          ],
+          "checkedAt": "2026-10-20",
+          "reviewState": "reviewed",
+          "conditions": [
+            "Theo mục Hồ Hoàn Kiếm của cổng du lịch quốc gia; không áp dụng cho các điểm bán vé quanh hồ."
+          ],
+          "unresolvedIssues": []
+        }
+      },
+      "hours": {
+        "status": "no_fixed_hours",
+        "rules": [],
+        "notes": [
+          "Nguồn mô tả khu vực hồ mở cả ngày. Không có khung giờ vào di tích trong hồ trong hồ sơ này; theo điều tiết, sự kiện và hạn chế tại chỗ."
+        ],
+        "evidence": {
+          "sourceIds": [
+            "vnat-hanoi"
+          ],
+          "checkedAt": "2026-10-20",
+          "reviewState": "reviewed",
+          "conditions": [
+            "Chỉ không gian công cộng ven hồ; không dùng làm lịch đền Ngọc Sơn hay lịch phố đi bộ."
+          ],
+          "unresolvedIssues": []
+        }
+      },
+      "notes": []
+    },
+    {
+      "placeId": "ha-noi/van-mieu",
+      "visitScopeLabel": "Tham quan Văn Miếu – Quốc Tử Giám ban ngày; tour đêm là dịch vụ riêng",
+      "price": {
+        "status": "priced",
+        "options": [
+          {
+            "id": "standard",
+            "label": "Vé phổ thông ban ngày",
+            "audience": "Người lớn phổ thông",
+            "amountVnd": 70000,
+            "currency": "VND",
+            "unit": "người/lượt",
+            "included": [
+              "Tham quan ban ngày"
+            ],
+            "excluded": [
+              "Tour đêm"
+            ],
+            "conditions": []
+          },
+          {
+            "id": "student",
+            "label": "Vé ưu tiên",
+            "audience": "Học sinh, sinh viên các trường tại Việt Nam",
+            "amountVnd": 35000,
+            "currency": "VND",
+            "unit": "người/lượt",
+            "included": [],
+            "excluded": [
+              "Tour đêm"
+            ],
+            "conditions": [
+              "Mang thẻ học sinh, sinh viên."
+            ]
+          },
+          {
+            "id": "priority",
+            "label": "Vé ưu tiên",
+            "audience": "Người từ 60 tuổi; người khuyết tật nặng; đối tượng ưu đãi văn hóa",
+            "amountVnd": 35000,
+            "currency": "VND",
+            "unit": "người/lượt",
+            "included": [],
+            "excluded": [
+              "Tour đêm"
+            ],
+            "conditions": [
+              "Mang CCCD hoặc giấy tờ chứng minh theo quy định."
+            ]
+          },
+          {
+            "id": "eligible-free",
+            "label": "Miễn phí theo đối tượng",
+            "audience": "Trẻ dưới 16 tuổi; người khuyết tật đặc biệt nặng",
+            "amountVnd": 0,
+            "currency": "VND",
+            "unit": "người/lượt",
+            "included": [],
+            "excluded": [
+              "Tour đêm"
+            ],
+            "conditions": [
+              "Chỉ áp dụng đúng đối tượng theo nguồn."
+            ]
+          }
+        ],
+        "evidence": {
+          "sourceIds": [
+            "vm-visitor"
+          ],
+          "checkedAt": "2026-10-20",
+          "reviewState": "reviewed",
+          "conditions": [
+            "Đối chiếu nguồn đơn vị quản lý; không áp giá vé ban ngày cho tour đêm."
+          ],
+          "unresolvedIssues": []
+        }
+      },
+      "hours": {
+        "status": "scheduled",
+        "rules": [
+          {
+            "label": "Tham quan ban ngày, hằng ngày",
+            "weekdays": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "startMinutes": 480,
+            "endMinutes": 1020,
+            "endDayOffset": 0
+          }
+        ],
+        "notes": [
+          "Nguồn còn công bố tour đêm 18:30–22:00 thứ Tư, thứ Bảy, Chủ nhật; kiểm tra vé riêng trước khi đặt."
+        ],
+        "evidence": {
+          "sourceIds": [
+            "vm-visitor"
+          ],
+          "checkedAt": "2026-10-20",
+          "reviewState": "reviewed",
+          "conditions": [
+            "Lịch công bố, không phải trạng thái mở cửa trực tiếp tại thời điểm xem."
+          ],
+          "unresolvedIssues": []
+        }
+      },
+      "notes": []
+    },
+    {
+      "placeId": "ha-noi/old-quarter",
+      "visitScopeLabel": "Phố cổ Hà Nội",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giá và điều kiện áp dụng."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giờ tham quan."
+          ]
+        }
+      },
+      "notes": [
+        "Giá và giờ của từng di tích, cửa hàng khác với không gian đường phố."
+      ]
+    },
+    {
+      "placeId": "ha-noi/opera",
+      "visitScopeLabel": "Nhà hát Lớn Hà Nội",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giá và điều kiện áp dụng."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giờ tham quan."
+          ]
+        }
+      },
+      "notes": [
+        "Giá và lịch phụ thuộc chương trình hoặc tour được chọn; kiểm tra chương trình cụ thể trước khi đặt."
+      ]
+    },
+    {
+      "placeId": "ha-noi/one-pillar",
+      "visitScopeLabel": "Chùa Một Cột",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giá và điều kiện áp dụng."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giờ tham quan."
+          ]
+        }
+      },
+      "notes": [
+        "Cần xác nhận phí theo đối tượng và lịch tiếp đón trước khi đi."
+      ]
+    },
+    {
+      "placeId": "ha-noi/st-joseph",
+      "visitScopeLabel": "Nhà thờ Lớn Hà Nội",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giá và điều kiện áp dụng."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giờ tham quan."
+          ]
+        }
+      },
+      "notes": [
+        "Giờ lễ khác giờ khách tham quan. Xác nhận lịch tham quan và tôn trọng sinh hoạt tôn giáo."
+      ]
+    },
+    {
+      "placeId": "ha-long/bay",
+      "visitScopeLabel": "Tham quan vịnh bằng tàu theo tuyến; giờ dưới đây là khung xuất/về bến, không phải giờ mở từng hang",
+      "price": {
+        "evidence": {
+          "sourceIds": [
+            "halong-fees"
+          ],
+          "checkedAt": "2026-10-20",
+          "reviewState": "reviewed",
+          "conditions": [
+            "Đây là phí tham quan vịnh, không phải báo giá trọn gói dịch vụ tàu. Đối chiếu dịch vụ và đối tượng miễn, giảm trước khi mua.",
+            "Mức phí theo trang quản lý công bố 31/03/2025; lịch chuyến và thông báo điều tiết thực tế cần kiểm tra trước đi."
+          ],
+          "unresolvedIssues": []
+        },
+        "options": [
+          {
+            "conditions": [
+              "Xác nhận đúng tuyến và thời gian lưu trú; không cộng lại cùng phí tuyến ở từng địa điểm."
+            ],
+            "included": [],
+            "routeId": "VHL1",
+            "amountVnd": 250000,
+            "id": "halong-vhl1-day",
+            "packageId": "halong-vhl1-day",
+            "label": "VHL1 ban ngày",
+            "unit": "người/lần/tuyến",
+            "audience": "Khách áp dụng mức phí cơ bản trong biểu phí",
+            "excluded": [],
+            "currency": "VND"
+          },
+          {
+            "conditions": [
+              "Xác nhận đúng tuyến và thời gian lưu trú; không cộng lại cùng phí tuyến ở từng địa điểm."
+            ],
+            "included": [],
+            "routeId": "VHL2",
+            "amountVnd": 250000,
+            "id": "halong-vhl2-day",
+            "packageId": "halong-vhl2-day",
+            "label": "VHL2 ban ngày",
+            "unit": "người/lần/tuyến",
+            "audience": "Khách áp dụng mức phí cơ bản trong biểu phí",
+            "excluded": [],
+            "currency": "VND"
+          },
+          {
+            "conditions": [
+              "Xác nhận đúng tuyến và thời gian lưu trú; không cộng lại cùng phí tuyến ở từng địa điểm."
+            ],
+            "included": [],
+            "routeId": "VHL3",
+            "amountVnd": 200000,
+            "id": "halong-vhl3-day",
+            "packageId": "halong-vhl3-day",
+            "label": "VHL3 ban ngày",
+            "unit": "người/lần/tuyến",
+            "audience": "Khách áp dụng mức phí cơ bản trong biểu phí",
+            "excluded": [],
+            "currency": "VND"
+          },
+          {
+            "conditions": [
+              "Xác nhận đúng tuyến và thời gian lưu trú; không cộng lại cùng phí tuyến ở từng địa điểm."
+            ],
+            "included": [],
+            "routeId": "VHL4",
+            "amountVnd": 200000,
+            "id": "halong-vhl4-day",
+            "packageId": "halong-vhl4-day",
+            "label": "VHL4 ban ngày",
+            "unit": "người/lần/tuyến",
+            "audience": "Khách áp dụng mức phí cơ bản trong biểu phí",
+            "excluded": [],
+            "currency": "VND"
+          },
+          {
+            "conditions": [
+              "Xác nhận đúng tuyến và thời gian lưu trú; không cộng lại cùng phí tuyến ở từng địa điểm."
+            ],
+            "included": [],
+            "routeId": "VHL5",
+            "amountVnd": 250000,
+            "id": "halong-vhl5-day",
+            "packageId": "halong-vhl5-day",
+            "label": "VHL5 tới Gia Luận",
+            "unit": "người/lần/tuyến",
+            "audience": "Khách áp dụng mức phí cơ bản trong biểu phí",
+            "excluded": [],
+            "currency": "VND"
+          },
+          {
+            "conditions": [
+              "Xác nhận đúng tuyến và thời gian lưu trú; không cộng lại cùng phí tuyến ở từng địa điểm."
+            ],
+            "included": [],
+            "routeId": "VHL6",
+            "amountVnd": 150000,
+            "id": "halong-vhl6-day",
+            "packageId": "halong-vhl6-day",
+            "label": "VHL6 ban ngày",
+            "unit": "người/ngày",
+            "audience": "Khách áp dụng mức phí cơ bản trong biểu phí",
+            "excluded": [],
+            "currency": "VND"
+          },
+          {
+            "conditions": [
+              "Xác nhận đúng tuyến và thời gian lưu trú; không cộng lại cùng phí tuyến ở từng địa điểm."
+            ],
+            "included": [],
+            "routeId": "VHL7",
+            "amountVnd": 600000,
+            "id": "halong-vhl7-day",
+            "packageId": "halong-vhl7-day",
+            "label": "VHL7 — chỉ du thuyền khám phá",
+            "unit": "người/lần",
+            "audience": "Khách áp dụng mức phí cơ bản trong biểu phí",
+            "excluded": [],
+            "currency": "VND"
+          },
+          {
+            "conditions": [
+              "Xác nhận đúng tuyến và thời gian lưu trú; không cộng lại cùng phí tuyến ở từng địa điểm."
+            ],
+            "included": [],
+            "routeId": "VHL8",
+            "amountVnd": 70000,
+            "id": "halong-vhl8-day",
+            "packageId": "halong-vhl8-day",
+            "label": "VHL8 ven bờ",
+            "unit": "người/lần",
+            "audience": "Khách áp dụng mức phí cơ bản trong biểu phí",
+            "excluded": [],
+            "currency": "VND"
+          },
+          {
+            "conditions": [
+              "Xác nhận đúng tuyến và thời gian lưu trú; không cộng lại cùng phí tuyến ở từng địa điểm."
+            ],
+            "included": [],
+            "routeId": "VHL2",
+            "amountVnd": 550000,
+            "id": "halong-vhl2-night1",
+            "packageId": "halong-vhl2-night1",
+            "label": "VHL2 lưu trú 1 đêm, tối đa 24 giờ",
+            "unit": "người/lần",
+            "audience": "Khách áp dụng mức phí cơ bản trong biểu phí",
+            "excluded": [],
+            "currency": "VND"
+          },
+          {
+            "conditions": [
+              "Xác nhận đúng tuyến và thời gian lưu trú; không cộng lại cùng phí tuyến ở từng địa điểm."
+            ],
+            "included": [],
+            "routeId": "VHL2",
+            "amountVnd": 750000,
+            "id": "halong-vhl2-night2",
+            "packageId": "halong-vhl2-night2",
+            "label": "VHL2 lưu trú 2 đêm, tối đa 48 giờ",
+            "unit": "người/lần",
+            "audience": "Khách áp dụng mức phí cơ bản trong biểu phí",
+            "excluded": [],
+            "currency": "VND"
+          },
+          {
+            "conditions": [
+              "Xác nhận đúng tuyến và thời gian lưu trú; không cộng lại cùng phí tuyến ở từng địa điểm."
+            ],
+            "included": [],
+            "routeId": "VHL3",
+            "amountVnd": 500000,
+            "id": "halong-vhl3-night1",
+            "packageId": "halong-vhl3-night1",
+            "label": "VHL3 lưu trú 1 đêm, tối đa 24 giờ",
+            "unit": "người/lần",
+            "audience": "Khách áp dụng mức phí cơ bản trong biểu phí",
+            "excluded": [],
+            "currency": "VND"
+          },
+          {
+            "conditions": [
+              "Xác nhận đúng tuyến và thời gian lưu trú; không cộng lại cùng phí tuyến ở từng địa điểm."
+            ],
+            "included": [],
+            "routeId": "VHL3",
+            "amountVnd": 650000,
+            "id": "halong-vhl3-night2",
+            "packageId": "halong-vhl3-night2",
+            "label": "VHL3 lưu trú 2 đêm, tối đa 48 giờ",
+            "unit": "người/lần",
+            "audience": "Khách áp dụng mức phí cơ bản trong biểu phí",
+            "excluded": [],
+            "currency": "VND"
+          },
+          {
+            "conditions": [
+              "Xác nhận đúng tuyến và thời gian lưu trú; không cộng lại cùng phí tuyến ở từng địa điểm."
+            ],
+            "included": [],
+            "routeId": "VHL4",
+            "amountVnd": 500000,
+            "id": "halong-vhl4-night1",
+            "packageId": "halong-vhl4-night1",
+            "label": "VHL4 lưu trú 1 đêm, tối đa 24 giờ",
+            "unit": "người/lần",
+            "audience": "Khách áp dụng mức phí cơ bản trong biểu phí",
+            "excluded": [],
+            "currency": "VND"
+          },
+          {
+            "conditions": [
+              "Xác nhận đúng tuyến và thời gian lưu trú; không cộng lại cùng phí tuyến ở từng địa điểm."
+            ],
+            "included": [],
+            "routeId": "VHL4",
+            "amountVnd": 650000,
+            "id": "halong-vhl4-night2",
+            "packageId": "halong-vhl4-night2",
+            "label": "VHL4 lưu trú 2 đêm, tối đa 48 giờ",
+            "unit": "người/lần",
+            "audience": "Khách áp dụng mức phí cơ bản trong biểu phí",
+            "excluded": [],
+            "currency": "VND"
+          }
+        ],
+        "status": "bundled"
+      },
+      "hours": {
+        "rules": [
+          {
+            "label": "Khung xuất/về bến mùa hè",
+            "weekdays": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "startMinutes": 300,
+            "endMinutes": 1200,
+            "endDayOffset": 0,
+            "seasonStart": "04-01",
+            "seasonEnd": "10-31",
+            "lastReturnMinutes": 1200
+          },
+          {
+            "label": "Khung xuất/về bến mùa đông",
+            "weekdays": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "startMinutes": 330,
+            "endMinutes": 1140,
+            "endDayOffset": 0,
+            "seasonStart": "11-01",
+            "seasonEnd": "03-31",
+            "lastReturnMinutes": 1140
+          }
+        ],
+        "evidence": {
+          "sourceIds": [
+            "halong-hours"
+          ],
+          "checkedAt": "2026-10-20",
+          "reviewState": "reviewed",
+          "conditions": [
+            "Mùa của cảng bắt đầu 01/4, khác mùa đón khách từng hang bắt đầu 16/4."
+          ],
+          "unresolvedIssues": []
+        },
+        "notes": [
+          "Nguồn nêu giờ bắt đầu xuất bến và hạn về bến; giờ về bến không phải giờ còn được lên chuyến mới. Kiểm tra giờ chuyến đã đặt."
+        ],
+        "status": "seasonal"
+      },
+      "notes": []
+    },
+    {
+      "placeId": "ha-long/sung-sot",
+      "visitScopeLabel": "Tham quan điểm trong hành trình vịnh; phí tuyến dùng chung, không phải vé lẻ hang",
+      "price": {
+        "evidence": {
+          "sourceIds": [
+            "halong-fees"
+          ],
+          "checkedAt": "2026-10-20",
+          "reviewState": "reviewed",
+          "conditions": [
+            "Đây là phí tham quan vịnh, không phải báo giá trọn gói dịch vụ tàu. Đối chiếu dịch vụ và đối tượng miễn, giảm trước khi mua.",
+            "Mức phí theo trang quản lý công bố 31/03/2025; lịch chuyến và thông báo điều tiết thực tế cần kiểm tra trước đi."
+          ],
+          "unresolvedIssues": []
+        },
+        "options": [
+          {
+            "conditions": [
+              "Xác nhận đúng tuyến và thời gian lưu trú; không cộng lại cùng phí tuyến ở từng địa điểm."
+            ],
+            "included": [],
+            "routeId": "VHL2",
+            "amountVnd": 250000,
+            "id": "halong-vhl2-day",
+            "packageId": "halong-vhl2-day",
+            "label": "VHL2 ban ngày",
+            "unit": "người/lần/tuyến",
+            "audience": "Khách áp dụng mức phí cơ bản trong biểu phí",
+            "excluded": [],
+            "currency": "VND"
+          }
+        ],
+        "status": "bundled"
+      },
+      "hours": {
+        "rules": [
+          {
+            "label": "Đón khách mùa hè",
+            "weekdays": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "startMinutes": 450,
+            "endMinutes": 1050,
+            "endDayOffset": 0,
+            "seasonStart": "04-16",
+            "seasonEnd": "10-31"
+          },
+          {
+            "label": "Đón khách mùa đông",
+            "weekdays": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "startMinutes": 450,
+            "endMinutes": 1020,
+            "endDayOffset": 0,
+            "seasonStart": "11-01",
+            "seasonEnd": "04-15"
+          }
+        ],
+        "evidence": {
+          "sourceIds": [
+            "halong-hours"
+          ],
+          "checkedAt": "2026-10-20",
+          "reviewState": "reviewed",
+          "conditions": [
+            "Theo lịch quản lý công bố 06/11/2024; kiểm tra thông báo trước khi khởi hành."
+          ],
+          "unresolvedIssues": []
+        },
+        "notes": [
+          "Lịch đón khách tại điểm, không phải giờ tàu xuất/về cảng. Tuân thủ điều tiết và thời tiết ngày đi."
+        ],
+        "status": "seasonal"
+      },
+      "notes": []
+    },
+    {
+      "placeId": "ha-long/me-cung",
+      "visitScopeLabel": "Tham quan điểm trong hành trình vịnh; phí tuyến dùng chung, không phải vé lẻ hang",
+      "price": {
+        "evidence": {
+          "sourceIds": [
+            "halong-fees"
+          ],
+          "checkedAt": "2026-10-20",
+          "reviewState": "reviewed",
+          "conditions": [
+            "Đây là phí tham quan vịnh, không phải báo giá trọn gói dịch vụ tàu. Đối chiếu dịch vụ và đối tượng miễn, giảm trước khi mua.",
+            "Mức phí theo trang quản lý công bố 31/03/2025; lịch chuyến và thông báo điều tiết thực tế cần kiểm tra trước đi."
+          ],
+          "unresolvedIssues": []
+        },
+        "options": [
+          {
+            "conditions": [
+              "Xác nhận đúng tuyến và thời gian lưu trú; không cộng lại cùng phí tuyến ở từng địa điểm."
+            ],
+            "included": [],
+            "routeId": "VHL2",
+            "amountVnd": 250000,
+            "id": "halong-vhl2-day",
+            "packageId": "halong-vhl2-day",
+            "label": "VHL2 ban ngày",
+            "unit": "người/lần/tuyến",
+            "audience": "Khách áp dụng mức phí cơ bản trong biểu phí",
+            "excluded": [],
+            "currency": "VND"
+          }
+        ],
+        "status": "bundled"
+      },
+      "hours": {
+        "rules": [
+          {
+            "label": "Đón khách mùa hè",
+            "weekdays": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "startMinutes": 480,
+            "endMinutes": 1050,
+            "endDayOffset": 0,
+            "seasonStart": "04-16",
+            "seasonEnd": "10-31"
+          },
+          {
+            "label": "Đón khách mùa đông",
+            "weekdays": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "startMinutes": 480,
+            "endMinutes": 1020,
+            "endDayOffset": 0,
+            "seasonStart": "11-01",
+            "seasonEnd": "04-15"
+          }
+        ],
+        "evidence": {
+          "sourceIds": [
+            "halong-hours"
+          ],
+          "checkedAt": "2026-10-20",
+          "reviewState": "reviewed",
+          "conditions": [
+            "Theo lịch quản lý công bố 06/11/2024; kiểm tra thông báo trước khi khởi hành."
+          ],
+          "unresolvedIssues": []
+        },
+        "notes": [
+          "Lịch đón khách tại điểm, không phải giờ tàu xuất/về cảng. Tuân thủ điều tiết và thời tiết ngày đi."
+        ],
+        "status": "seasonal"
+      },
+      "notes": []
+    },
+    {
+      "placeId": "ha-long/thien-cung",
+      "visitScopeLabel": "Tham quan điểm trong hành trình vịnh; phí tuyến dùng chung, không phải vé lẻ hang",
+      "price": {
+        "evidence": {
+          "sourceIds": [
+            "halong-fees"
+          ],
+          "checkedAt": "2026-10-20",
+          "reviewState": "reviewed",
+          "conditions": [
+            "Đây là phí tham quan vịnh, không phải báo giá trọn gói dịch vụ tàu. Đối chiếu dịch vụ và đối tượng miễn, giảm trước khi mua.",
+            "Mức phí theo trang quản lý công bố 31/03/2025; lịch chuyến và thông báo điều tiết thực tế cần kiểm tra trước đi."
+          ],
+          "unresolvedIssues": []
+        },
+        "options": [
+          {
+            "conditions": [
+              "Xác nhận đúng tuyến và thời gian lưu trú; không cộng lại cùng phí tuyến ở từng địa điểm."
+            ],
+            "included": [],
+            "routeId": "VHL1",
+            "amountVnd": 250000,
+            "id": "halong-vhl1-day",
+            "packageId": "halong-vhl1-day",
+            "label": "VHL1 ban ngày",
+            "unit": "người/lần/tuyến",
+            "audience": "Khách áp dụng mức phí cơ bản trong biểu phí",
+            "excluded": [],
+            "currency": "VND"
+          }
+        ],
+        "status": "bundled"
+      },
+      "hours": {
+        "rules": [
+          {
+            "label": "Đón khách mùa hè",
+            "weekdays": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "startMinutes": 450,
+            "endMinutes": 1050,
+            "endDayOffset": 0,
+            "seasonStart": "04-16",
+            "seasonEnd": "10-31"
+          },
+          {
+            "label": "Đón khách mùa đông",
+            "weekdays": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "startMinutes": 450,
+            "endMinutes": 1020,
+            "endDayOffset": 0,
+            "seasonStart": "11-01",
+            "seasonEnd": "04-15"
+          }
+        ],
+        "evidence": {
+          "sourceIds": [
+            "halong-hours"
+          ],
+          "checkedAt": "2026-10-20",
+          "reviewState": "reviewed",
+          "conditions": [
+            "Theo lịch quản lý công bố 06/11/2024; kiểm tra thông báo trước khi khởi hành."
+          ],
+          "unresolvedIssues": []
+        },
+        "notes": [
+          "Lịch đón khách tại điểm, không phải giờ tàu xuất/về cảng. Tuân thủ điều tiết và thời tiết ngày đi."
+        ],
+        "status": "seasonal"
+      },
+      "notes": []
+    },
+    {
+      "placeId": "ha-long/ga-choi",
+      "visitScopeLabel": "Hòn Trống Mái (Gà Chọi): ngắm từ tàu trên tuyến 1 hoặc 5",
+      "price": {
+        "evidence": {
+          "sourceIds": [
+            "halong-fees",
+            "halong-trong-mai"
+          ],
+          "checkedAt": "2026-10-20",
+          "reviewState": "reviewed",
+          "conditions": [
+            "Đây là phí tham quan vịnh, không phải báo giá trọn gói dịch vụ tàu. Đối chiếu dịch vụ và đối tượng miễn, giảm trước khi mua.",
+            "Mức phí theo trang quản lý công bố 31/03/2025; lịch chuyến và thông báo điều tiết thực tế cần kiểm tra trước đi."
+          ],
+          "unresolvedIssues": []
+        },
+        "options": [
+          {
+            "conditions": [
+              "Xác nhận đúng tuyến và thời gian lưu trú; không cộng lại cùng phí tuyến ở từng địa điểm."
+            ],
+            "included": [],
+            "routeId": "VHL1",
+            "amountVnd": 250000,
+            "id": "halong-vhl1-day",
+            "packageId": "halong-vhl1-day",
+            "label": "VHL1 ban ngày",
+            "unit": "người/lần/tuyến",
+            "audience": "Khách áp dụng mức phí cơ bản trong biểu phí",
+            "excluded": [],
+            "currency": "VND"
+          },
+          {
+            "conditions": [
+              "Xác nhận đúng tuyến và thời gian lưu trú; không cộng lại cùng phí tuyến ở từng địa điểm."
+            ],
+            "included": [],
+            "routeId": "VHL5",
+            "amountVnd": 250000,
+            "id": "halong-vhl5-day",
+            "packageId": "halong-vhl5-day",
+            "label": "VHL5 tới Gia Luận",
+            "unit": "người/lần/tuyến",
+            "audience": "Khách áp dụng mức phí cơ bản trong biểu phí",
+            "excluded": [],
+            "currency": "VND"
+          }
+        ],
+        "status": "bundled"
+      },
+      "hours": {
+        "rules": [],
+        "evidence": {
+          "sourceIds": [
+            "halong-trong-mai"
+          ],
+          "checkedAt": "2026-10-20",
+          "reviewState": "reviewed",
+          "conditions": [
+            "Không thay giờ chuyến tàu bằng giờ mở cửa cố định của hòn đảo. Xác nhận hành trình với đơn vị tàu."
+          ],
+          "unresolvedIssues": []
+        },
+        "notes": [
+          "Thời điểm tàu đi qua theo lịch chuyến thuộc tuyến 1 hoặc 5. Nguồn mô tả ngắm từ tàu, không công bố một khung giờ vào hòn đảo riêng."
+        ],
+        "status": "event_based"
+      },
+      "notes": []
+    },
+    {
+      "placeId": "ha-long/tuan-chau",
+      "visitScopeLabel": "Các gói vui chơi Tuần Châu Park trên đảo; không phải phí vào toàn đảo, cảng hoặc phà",
+      "price": {
+        "evidence": {
+          "sourceIds": [
+            "tuan-park4",
+            "tuan-park3"
+          ],
+          "checkedAt": "2026-10-20",
+          "reviewState": "reviewed",
+          "conditions": [
+            "Chỉ áp dụng các gói/đối tượng đã nêu; chính sách miễn/giảm của nhóm khác cần xác nhận tại cổng đặt vé.",
+            "Giá gói 3 kèm đồ uống khác gói 100.000đ trong bài cũ. Không dùng các combo ẩm thực đã ghi hết hạn 31/08/2026."
+          ],
+          "unresolvedIssues": []
+        },
+        "options": [
+          {
+            "conditions": [
+              "Đối chiếu chính sách chiều cao trước khi mua."
+            ],
+            "included": [],
+            "amountVnd": 300000,
+            "id": "park4-adult",
+            "packageId": "tuan-park4",
+            "label": "Combo 4 công viên",
+            "unit": "người/ngày đã chọn",
+            "audience": "Vé người lớn theo cổng đặt vé",
+            "excluded": [],
+            "currency": "VND"
+          },
+          {
+            "conditions": [
+              "Đúng gói kèm đồ uống trên trang đặt vé."
+            ],
+            "included": [
+              "1 đồ uống tại Lakeside Coffee"
+            ],
+            "amountVnd": 150000,
+            "id": "park3-adult",
+            "packageId": "tuan-park3-drink",
+            "label": "Combo 3 công viên + 1 đồ uống",
+            "unit": "người/ngày đã chọn",
+            "audience": "Người lớn",
+            "excluded": [],
+            "currency": "VND"
+          },
+          {
+            "conditions": [
+              "Không tự áp chính sách trẻ em của gói khác hoặc khuyến mại cũ."
+            ],
+            "included": [],
+            "amountVnd": 50000,
+            "id": "park3-child",
+            "packageId": "tuan-park3-drink",
+            "label": "Combo 3 công viên",
+            "unit": "người/ngày đã chọn",
+            "audience": "Trẻ em cao 80–100 cm",
+            "excluded": [],
+            "currency": "VND"
+          }
+        ],
+        "status": "bundled"
+      },
+      "hours": {
+        "rules": [
+          {
+            "label": "King Kong Park",
+            "weekdays": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "startMinutes": 480,
+            "endMinutes": 1020,
+            "endDayOffset": 0,
+            "effectiveFrom": "2026-05-04"
+          },
+          {
+            "label": "Tuần Châu Farm — ca sáng",
+            "weekdays": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "startMinutes": 480,
+            "endMinutes": 660,
+            "endDayOffset": 0,
+            "effectiveFrom": "2026-05-04"
+          },
+          {
+            "label": "Tuần Châu Farm — ca chiều",
+            "weekdays": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "startMinutes": 810,
+            "endMinutes": 1020,
+            "endDayOffset": 0,
+            "effectiveFrom": "2026-05-04"
+          },
+          {
+            "label": "Farm Hill — ca sáng",
+            "weekdays": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "startMinutes": 510,
+            "endMinutes": 660,
+            "endDayOffset": 0,
+            "effectiveFrom": "2026-05-04"
+          },
+          {
+            "label": "Farm Hill — ca chiều",
+            "weekdays": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "startMinutes": 810,
+            "endMinutes": 1020,
+            "endDayOffset": 0,
+            "effectiveFrom": "2026-05-04"
+          }
+        ],
+        "evidence": {
+          "sourceIds": [
+            "tuan-hours",
+            "tuan-guide"
+          ],
+          "checkedAt": "2026-10-20",
+          "reviewState": "reviewed",
+          "conditions": [
+            "Lịch áp dụng từ 04/05/2026 đến khi có thông báo mới; mỗi phân khu có lịch riêng."
+          ],
+          "unresolvedIssues": []
+        },
+        "notes": [
+          "Show cá heo và hải cẩu: suất 10:00 và 15:00; nên đến trước 30 phút. Nguồn không nêu giờ kết thúc từng suất.",
+          "Farm nghỉ 11:00–13:30. Lịch có thể thay đổi vì thời tiết và tình hình thực tế."
+        ],
+        "status": "scheduled"
+      },
+      "notes": []
+    },
+    {
+      "placeId": "sa-pa/fansipan",
+      "visitScopeLabel": "Fansipan",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giá và điều kiện áp dụng."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giờ tham quan."
+          ]
+        }
+      },
+      "notes": []
+    },
+    {
+      "placeId": "sa-pa/cat-cat",
+      "visitScopeLabel": "Bản Cát Cát",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giá và điều kiện áp dụng."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giờ tham quan."
+          ]
+        }
+      },
+      "notes": []
+    },
+    {
+      "placeId": "sa-pa/ta-phin",
+      "visitScopeLabel": "Bản Tả Phìn",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giá và điều kiện áp dụng."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giờ tham quan."
+          ]
+        }
+      },
+      "notes": []
+    },
+    {
+      "placeId": "sa-pa/bac-ha",
+      "visitScopeLabel": "Chợ Bắc Hà",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giá và điều kiện áp dụng."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giờ tham quan."
+          ]
+        }
+      },
+      "notes": []
+    },
+    {
+      "placeId": "sa-pa/muong-hum",
+      "visitScopeLabel": "Chợ Mường Hum",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giá và điều kiện áp dụng."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giờ tham quan."
+          ]
+        }
+      },
+      "notes": []
+    },
+    {
+      "placeId": "sa-pa/sapa-napro",
+      "visitScopeLabel": "SAPANAPRO, Tả Phìn",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giá và điều kiện áp dụng."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giờ tham quan."
+          ]
+        }
+      },
+      "notes": []
+    },
+    {
+      "placeId": "ninh-binh/hang-mua",
+      "visitScopeLabel": "Hang Múa",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giá và điều kiện áp dụng."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giờ tham quan."
+          ]
+        }
+      },
+      "notes": []
+    },
+    {
+      "placeId": "ninh-binh/tam-coc",
+      "visitScopeLabel": "Tam Cốc",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giá và điều kiện áp dụng."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giờ tham quan."
+          ]
+        }
+      },
+      "notes": []
+    },
+    {
+      "placeId": "ninh-binh/trang-an",
+      "visitScopeLabel": "Tràng An",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giá và điều kiện áp dụng."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giờ tham quan."
+          ]
+        }
+      },
+      "notes": []
+    },
+    {
+      "placeId": "ninh-binh/hoa-lu",
+      "visitScopeLabel": "Cố đô Hoa Lư",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giá và điều kiện áp dụng."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giờ tham quan."
+          ]
+        }
+      },
+      "notes": []
+    },
+    {
+      "placeId": "ninh-binh/van-long",
+      "visitScopeLabel": "Đầm Vân Long",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giá và điều kiện áp dụng."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giờ tham quan."
+          ]
+        }
+      },
+      "notes": []
+    },
+    {
+      "placeId": "ninh-binh/bai-dinh",
+      "visitScopeLabel": "Chùa Bái Đính",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giá và điều kiện áp dụng."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giờ tham quan."
+          ]
+        }
+      },
+      "notes": []
+    },
+    {
+      "placeId": "hue/citadel",
+      "visitScopeLabel": "Khu tham quan Đại Nội Huế có vé; không phải phí đi lại toàn bộ Kinh thành Huế",
+      "price": {
+        "status": "priced",
+        "options": [
+          {
+            "included": [
+              "Tham quan một điểm đã chọn"
+            ],
+            "unit": "người/lượt",
+            "excluded": [],
+            "label": "Vé lẻ",
+            "audience": "Người lớn theo bảng phí",
+            "currency": "VND",
+            "id": "single-adult",
+            "amountVnd": 200000,
+            "conditions": [
+              "Mức vé lẻ trong bảng áp dụng từ 02/06/2026."
+            ]
+          },
+          {
+            "included": [],
+            "unit": "người/lượt",
+            "excluded": [],
+            "label": "Vé lẻ trẻ em",
+            "audience": "Trẻ em từ 7 đến 12 tuổi",
+            "currency": "VND",
+            "id": "single-child",
+            "amountVnd": 40000,
+            "conditions": [
+              "Theo đúng nhóm tuổi trong bảng phí; không tự suy mức miễn/giảm cho nhóm khác."
+            ]
+          },
+          {
+            "included": [],
+            "unit": "người/tuyến",
+            "excluded": [],
+            "label": "Gói Đại Nội + Minh Mạng + Khải Định",
+            "audience": "Người lớn",
+            "currency": "VND",
+            "packageId": "hue-dn-mm-kd",
+            "id": "hue-dn-mm-kd-adult",
+            "amountVnd": 420000,
+            "conditions": [
+              "Chọn thay cho vé lẻ của cùng tuyến, không cộng cùng phí nhiều lần."
+            ]
+          },
+          {
+            "included": [],
+            "unit": "người/tuyến",
+            "excluded": [],
+            "label": "Gói trẻ em Đại Nội + Minh Mạng + Khải Định",
+            "audience": "Trẻ em từ 7 đến 12 tuổi",
+            "currency": "VND",
+            "packageId": "hue-dn-mm-kd",
+            "id": "hue-dn-mm-kd-child",
+            "amountVnd": 80000,
+            "conditions": [
+              "Đối chiếu tuổi, thời hạn và quyền lợi tại nơi đặt vé."
+            ]
+          },
+          {
+            "included": [],
+            "unit": "người/tuyến",
+            "excluded": [],
+            "label": "Gói Đại Nội + Minh Mạng + Tự Đức",
+            "audience": "Người lớn",
+            "currency": "VND",
+            "packageId": "hue-dn-mm-td",
+            "id": "hue-dn-mm-td-adult",
+            "amountVnd": 420000,
+            "conditions": [
+              "Chọn thay cho vé lẻ của cùng tuyến, không cộng cùng phí nhiều lần."
+            ]
+          },
+          {
+            "included": [],
+            "unit": "người/tuyến",
+            "excluded": [],
+            "label": "Gói trẻ em Đại Nội + Minh Mạng + Tự Đức",
+            "audience": "Trẻ em từ 7 đến 12 tuổi",
+            "currency": "VND",
+            "packageId": "hue-dn-mm-td",
+            "id": "hue-dn-mm-td-child",
+            "amountVnd": 80000,
+            "conditions": [
+              "Đối chiếu tuổi, thời hạn và quyền lợi tại nơi đặt vé."
+            ]
+          },
+          {
+            "included": [],
+            "unit": "người/tuyến",
+            "excluded": [],
+            "label": "Gói Đại Nội + Tự Đức + Khải Định",
+            "audience": "Người lớn",
+            "currency": "VND",
+            "packageId": "hue-dn-td-kd",
+            "id": "hue-dn-td-kd-adult",
+            "amountVnd": 420000,
+            "conditions": [
+              "Chọn thay cho vé lẻ của cùng tuyến, không cộng cùng phí nhiều lần."
+            ]
+          },
+          {
+            "included": [],
+            "unit": "người/tuyến",
+            "excluded": [],
+            "label": "Gói trẻ em Đại Nội + Tự Đức + Khải Định",
+            "audience": "Trẻ em từ 7 đến 12 tuổi",
+            "currency": "VND",
+            "packageId": "hue-dn-td-kd",
+            "id": "hue-dn-td-kd-child",
+            "amountVnd": 80000,
+            "conditions": [
+              "Đối chiếu tuổi, thời hạn và quyền lợi tại nơi đặt vé."
+            ]
+          },
+          {
+            "included": [],
+            "unit": "người/tuyến",
+            "excluded": [],
+            "label": "Gói Đại Nội + Minh Mạng + Tự Đức + Khải Định",
+            "audience": "Người lớn",
+            "currency": "VND",
+            "packageId": "hue-four",
+            "id": "hue-four-adult",
+            "amountVnd": 530000,
+            "conditions": [
+              "Chọn thay cho vé lẻ của cùng tuyến, không cộng cùng phí nhiều lần."
+            ]
+          },
+          {
+            "included": [],
+            "unit": "người/tuyến",
+            "excluded": [],
+            "label": "Gói trẻ em Đại Nội + Minh Mạng + Tự Đức + Khải Định",
+            "audience": "Trẻ em từ 7 đến 12 tuổi",
+            "currency": "VND",
+            "packageId": "hue-four",
+            "id": "hue-four-child",
+            "amountVnd": 100000,
+            "conditions": [
+              "Đối chiếu tuổi, thời hạn và quyền lợi tại nơi đặt vé."
+            ]
+          },
+          {
+            "included": [],
+            "unit": "người/tuyến",
+            "excluded": [],
+            "label": "Gói Tuyến gộp tất cả điểm di tích theo bảng phí",
+            "audience": "Người lớn",
+            "currency": "VND",
+            "packageId": "hue-all",
+            "id": "hue-all-adult",
+            "amountVnd": 600000,
+            "conditions": [
+              "Chọn thay cho vé lẻ của cùng tuyến, không cộng cùng phí nhiều lần."
+            ]
+          },
+          {
+            "included": [],
+            "unit": "người/tuyến",
+            "excluded": [],
+            "label": "Gói trẻ em Tuyến gộp tất cả điểm di tích theo bảng phí",
+            "audience": "Trẻ em từ 7 đến 12 tuổi",
+            "currency": "VND",
+            "packageId": "hue-all",
+            "id": "hue-all-child",
+            "amountVnd": 120000,
+            "conditions": [
+              "Đối chiếu tuổi, thời hạn và quyền lợi tại nơi đặt vé."
+            ]
+          }
+        ],
+        "evidence": {
+          "reviewState": "reviewed",
+          "conditions": [
+            "Vé lẻ từ 02/06/2026; bảng tuyến từ 04/01/2026. Nhóm miễn/giảm, ngày ưu đãi cần kiểm tra quy định trước khi mua. Không suy chính sách miễn trẻ em ở di tích khác áp dụng cho bốn điểm này."
+          ],
+          "unresolvedIssues": [],
+          "checkedAt": "2026-10-20",
+          "sourceIds": [
+            "hue-fees-2026"
+          ]
+        }
+      },
+      "hours": {
+        "status": "seasonal",
+        "evidence": {
+          "reviewState": "reviewed",
+          "conditions": [
+            "Khung giờ do cổng vé Trung tâm công bố, không dùng giờ bán vé làm giờ đóng cửa; kiểm tra thông báo đặc biệt tại ngày đi."
+          ],
+          "unresolvedIssues": [],
+          "checkedAt": "2026-10-20",
+          "sourceIds": [
+            "hue-time",
+            "hue-rules"
+          ]
+        },
+        "rules": [
+          {
+            "endMinutes": 1110,
+            "seasonEnd": "10-15",
+            "startMinutes": 390,
+            "endDayOffset": 0,
+            "admissionCutoffMinutes": 1050,
+            "weekdays": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "seasonStart": "03-16",
+            "label": "Mùa hè — giờ tham quan, tách hạn bán vé"
+          },
+          {
+            "endMinutes": 1080,
+            "seasonEnd": "03-15",
+            "startMinutes": 420,
+            "endDayOffset": 0,
+            "admissionCutoffMinutes": 1020,
+            "weekdays": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "seasonStart": "10-16",
+            "label": "Mùa đông — giờ tham quan, tách hạn bán vé"
+          }
+        ],
+        "notes": [
+          "Nguồn ghi đóng cửa ngừng phục vụ sau 60 phút kể từ khi kết thúc bán vé. Mốc nhận khách trong hồ sơ là hạn bán vé theo nguồn; xác nhận yêu cầu kiểm soát cổng trước khi đi.",
+          "Lịch lễ hội/chương trình đêm nếu có là thông báo riêng. Mặc trang phục lịch sự ở nội điện, giữ yên lặng và tuân thủ nội quy."
+        ]
+      },
+      "notes": []
+    },
+    {
+      "placeId": "hue/tu-duc",
+      "visitScopeLabel": "Lăng Tự Đức",
+      "price": {
+        "status": "priced",
+        "options": [
+          {
+            "included": [
+              "Tham quan một điểm đã chọn"
+            ],
+            "unit": "người/lượt",
+            "excluded": [],
+            "label": "Vé lẻ",
+            "audience": "Người lớn theo bảng phí",
+            "currency": "VND",
+            "id": "single-adult",
+            "amountVnd": 150000,
+            "conditions": [
+              "Mức vé lẻ trong bảng áp dụng từ 02/06/2026."
+            ]
+          },
+          {
+            "included": [],
+            "unit": "người/lượt",
+            "excluded": [],
+            "label": "Vé lẻ trẻ em",
+            "audience": "Trẻ em từ 7 đến 12 tuổi",
+            "currency": "VND",
+            "id": "single-child",
+            "amountVnd": 30000,
+            "conditions": [
+              "Theo đúng nhóm tuổi trong bảng phí; không tự suy mức miễn/giảm cho nhóm khác."
+            ]
+          },
+          {
+            "included": [],
+            "unit": "người/tuyến",
+            "excluded": [],
+            "label": "Gói Tự Đức + Đồng Khánh",
+            "audience": "Người lớn",
+            "currency": "VND",
+            "packageId": "hue-td-dk",
+            "id": "hue-td-dk-adult",
+            "amountVnd": 200000,
+            "conditions": [
+              "Chọn thay cho vé lẻ của cùng tuyến, không cộng cùng phí nhiều lần."
+            ]
+          },
+          {
+            "included": [],
+            "unit": "người/tuyến",
+            "excluded": [],
+            "label": "Gói trẻ em Tự Đức + Đồng Khánh",
+            "audience": "Trẻ em từ 7 đến 12 tuổi",
+            "currency": "VND",
+            "packageId": "hue-td-dk",
+            "id": "hue-td-dk-child",
+            "amountVnd": 30000,
+            "conditions": [
+              "Đối chiếu tuổi, thời hạn và quyền lợi tại nơi đặt vé."
+            ]
+          },
+          {
+            "included": [],
+            "unit": "người/tuyến",
+            "excluded": [],
+            "label": "Gói Đại Nội + Minh Mạng + Tự Đức",
+            "audience": "Người lớn",
+            "currency": "VND",
+            "packageId": "hue-dn-mm-td",
+            "id": "hue-dn-mm-td-adult",
+            "amountVnd": 420000,
+            "conditions": [
+              "Chọn thay cho vé lẻ của cùng tuyến, không cộng cùng phí nhiều lần."
+            ]
+          },
+          {
+            "included": [],
+            "unit": "người/tuyến",
+            "excluded": [],
+            "label": "Gói trẻ em Đại Nội + Minh Mạng + Tự Đức",
+            "audience": "Trẻ em từ 7 đến 12 tuổi",
+            "currency": "VND",
+            "packageId": "hue-dn-mm-td",
+            "id": "hue-dn-mm-td-child",
+            "amountVnd": 80000,
+            "conditions": [
+              "Đối chiếu tuổi, thời hạn và quyền lợi tại nơi đặt vé."
+            ]
+          },
+          {
+            "included": [],
+            "unit": "người/tuyến",
+            "excluded": [],
+            "label": "Gói Đại Nội + Tự Đức + Khải Định",
+            "audience": "Người lớn",
+            "currency": "VND",
+            "packageId": "hue-dn-td-kd",
+            "id": "hue-dn-td-kd-adult",
+            "amountVnd": 420000,
+            "conditions": [
+              "Chọn thay cho vé lẻ của cùng tuyến, không cộng cùng phí nhiều lần."
+            ]
+          },
+          {
+            "included": [],
+            "unit": "người/tuyến",
+            "excluded": [],
+            "label": "Gói trẻ em Đại Nội + Tự Đức + Khải Định",
+            "audience": "Trẻ em từ 7 đến 12 tuổi",
+            "currency": "VND",
+            "packageId": "hue-dn-td-kd",
+            "id": "hue-dn-td-kd-child",
+            "amountVnd": 80000,
+            "conditions": [
+              "Đối chiếu tuổi, thời hạn và quyền lợi tại nơi đặt vé."
+            ]
+          },
+          {
+            "included": [],
+            "unit": "người/tuyến",
+            "excluded": [],
+            "label": "Gói Đại Nội + Minh Mạng + Tự Đức + Khải Định",
+            "audience": "Người lớn",
+            "currency": "VND",
+            "packageId": "hue-four",
+            "id": "hue-four-adult",
+            "amountVnd": 530000,
+            "conditions": [
+              "Chọn thay cho vé lẻ của cùng tuyến, không cộng cùng phí nhiều lần."
+            ]
+          },
+          {
+            "included": [],
+            "unit": "người/tuyến",
+            "excluded": [],
+            "label": "Gói trẻ em Đại Nội + Minh Mạng + Tự Đức + Khải Định",
+            "audience": "Trẻ em từ 7 đến 12 tuổi",
+            "currency": "VND",
+            "packageId": "hue-four",
+            "id": "hue-four-child",
+            "amountVnd": 100000,
+            "conditions": [
+              "Đối chiếu tuổi, thời hạn và quyền lợi tại nơi đặt vé."
+            ]
+          },
+          {
+            "included": [],
+            "unit": "người/tuyến",
+            "excluded": [],
+            "label": "Gói Tuyến gộp tất cả điểm di tích theo bảng phí",
+            "audience": "Người lớn",
+            "currency": "VND",
+            "packageId": "hue-all",
+            "id": "hue-all-adult",
+            "amountVnd": 600000,
+            "conditions": [
+              "Chọn thay cho vé lẻ của cùng tuyến, không cộng cùng phí nhiều lần."
+            ]
+          },
+          {
+            "included": [],
+            "unit": "người/tuyến",
+            "excluded": [],
+            "label": "Gói trẻ em Tuyến gộp tất cả điểm di tích theo bảng phí",
+            "audience": "Trẻ em từ 7 đến 12 tuổi",
+            "currency": "VND",
+            "packageId": "hue-all",
+            "id": "hue-all-child",
+            "amountVnd": 120000,
+            "conditions": [
+              "Đối chiếu tuổi, thời hạn và quyền lợi tại nơi đặt vé."
+            ]
+          }
+        ],
+        "evidence": {
+          "reviewState": "reviewed",
+          "conditions": [
+            "Vé lẻ từ 02/06/2026; bảng tuyến từ 04/01/2026. Nhóm miễn/giảm, ngày ưu đãi cần kiểm tra quy định trước khi mua. Không suy chính sách miễn trẻ em ở di tích khác áp dụng cho bốn điểm này."
+          ],
+          "unresolvedIssues": [],
+          "checkedAt": "2026-10-20",
+          "sourceIds": [
+            "hue-fees-2026"
+          ]
+        }
+      },
+      "hours": {
+        "status": "seasonal",
+        "evidence": {
+          "reviewState": "reviewed",
+          "conditions": [
+            "Khung giờ do cổng vé Trung tâm công bố, không dùng giờ bán vé làm giờ đóng cửa; kiểm tra thông báo đặc biệt tại ngày đi."
+          ],
+          "unresolvedIssues": [],
+          "checkedAt": "2026-10-20",
+          "sourceIds": [
+            "hue-time",
+            "hue-rules"
+          ]
+        },
+        "rules": [
+          {
+            "endMinutes": 1110,
+            "seasonEnd": "10-15",
+            "startMinutes": 390,
+            "endDayOffset": 0,
+            "admissionCutoffMinutes": 1050,
+            "weekdays": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "seasonStart": "03-16",
+            "label": "Mùa hè — giờ tham quan, tách hạn bán vé"
+          },
+          {
+            "endMinutes": 1080,
+            "seasonEnd": "03-15",
+            "startMinutes": 420,
+            "endDayOffset": 0,
+            "admissionCutoffMinutes": 1020,
+            "weekdays": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "seasonStart": "10-16",
+            "label": "Mùa đông — giờ tham quan, tách hạn bán vé"
+          }
+        ],
+        "notes": [
+          "Nguồn ghi đóng cửa ngừng phục vụ sau 60 phút kể từ khi kết thúc bán vé. Mốc nhận khách trong hồ sơ là hạn bán vé theo nguồn; xác nhận yêu cầu kiểm soát cổng trước khi đi.",
+          "Lịch lễ hội/chương trình đêm nếu có là thông báo riêng. Mặc trang phục lịch sự ở nội điện, giữ yên lặng và tuân thủ nội quy."
+        ]
+      },
+      "notes": []
+    },
+    {
+      "placeId": "hue/minh-mang",
+      "visitScopeLabel": "Lăng Minh Mạng",
+      "price": {
+        "status": "priced",
+        "options": [
+          {
+            "included": [
+              "Tham quan một điểm đã chọn"
+            ],
+            "unit": "người/lượt",
+            "excluded": [],
+            "label": "Vé lẻ",
+            "audience": "Người lớn theo bảng phí",
+            "currency": "VND",
+            "id": "single-adult",
+            "amountVnd": 150000,
+            "conditions": [
+              "Mức vé lẻ trong bảng áp dụng từ 02/06/2026."
+            ]
+          },
+          {
+            "included": [],
+            "unit": "người/lượt",
+            "excluded": [],
+            "label": "Vé lẻ trẻ em",
+            "audience": "Trẻ em từ 7 đến 12 tuổi",
+            "currency": "VND",
+            "id": "single-child",
+            "amountVnd": 30000,
+            "conditions": [
+              "Theo đúng nhóm tuổi trong bảng phí; không tự suy mức miễn/giảm cho nhóm khác."
+            ]
+          },
+          {
+            "included": [],
+            "unit": "người/tuyến",
+            "excluded": [],
+            "label": "Gói Minh Mạng + Gia Long",
+            "audience": "Người lớn",
+            "currency": "VND",
+            "packageId": "hue-mm-gl",
+            "id": "hue-mm-gl-adult",
+            "amountVnd": 240000,
+            "conditions": [
+              "Chọn thay cho vé lẻ của cùng tuyến, không cộng cùng phí nhiều lần."
+            ]
+          },
+          {
+            "included": [],
+            "unit": "người/tuyến",
+            "excluded": [],
+            "label": "Gói trẻ em Minh Mạng + Gia Long",
+            "audience": "Trẻ em từ 7 đến 12 tuổi",
+            "currency": "VND",
+            "packageId": "hue-mm-gl",
+            "id": "hue-mm-gl-child",
+            "amountVnd": 30000,
+            "conditions": [
+              "Đối chiếu tuổi, thời hạn và quyền lợi tại nơi đặt vé."
+            ]
+          },
+          {
+            "included": [],
+            "unit": "người/tuyến",
+            "excluded": [],
+            "label": "Gói Đại Nội + Minh Mạng + Khải Định",
+            "audience": "Người lớn",
+            "currency": "VND",
+            "packageId": "hue-dn-mm-kd",
+            "id": "hue-dn-mm-kd-adult",
+            "amountVnd": 420000,
+            "conditions": [
+              "Chọn thay cho vé lẻ của cùng tuyến, không cộng cùng phí nhiều lần."
+            ]
+          },
+          {
+            "included": [],
+            "unit": "người/tuyến",
+            "excluded": [],
+            "label": "Gói trẻ em Đại Nội + Minh Mạng + Khải Định",
+            "audience": "Trẻ em từ 7 đến 12 tuổi",
+            "currency": "VND",
+            "packageId": "hue-dn-mm-kd",
+            "id": "hue-dn-mm-kd-child",
+            "amountVnd": 80000,
+            "conditions": [
+              "Đối chiếu tuổi, thời hạn và quyền lợi tại nơi đặt vé."
+            ]
+          },
+          {
+            "included": [],
+            "unit": "người/tuyến",
+            "excluded": [],
+            "label": "Gói Đại Nội + Minh Mạng + Tự Đức",
+            "audience": "Người lớn",
+            "currency": "VND",
+            "packageId": "hue-dn-mm-td",
+            "id": "hue-dn-mm-td-adult",
+            "amountVnd": 420000,
+            "conditions": [
+              "Chọn thay cho vé lẻ của cùng tuyến, không cộng cùng phí nhiều lần."
+            ]
+          },
+          {
+            "included": [],
+            "unit": "người/tuyến",
+            "excluded": [],
+            "label": "Gói trẻ em Đại Nội + Minh Mạng + Tự Đức",
+            "audience": "Trẻ em từ 7 đến 12 tuổi",
+            "currency": "VND",
+            "packageId": "hue-dn-mm-td",
+            "id": "hue-dn-mm-td-child",
+            "amountVnd": 80000,
+            "conditions": [
+              "Đối chiếu tuổi, thời hạn và quyền lợi tại nơi đặt vé."
+            ]
+          },
+          {
+            "included": [],
+            "unit": "người/tuyến",
+            "excluded": [],
+            "label": "Gói Đại Nội + Minh Mạng + Tự Đức + Khải Định",
+            "audience": "Người lớn",
+            "currency": "VND",
+            "packageId": "hue-four",
+            "id": "hue-four-adult",
+            "amountVnd": 530000,
+            "conditions": [
+              "Chọn thay cho vé lẻ của cùng tuyến, không cộng cùng phí nhiều lần."
+            ]
+          },
+          {
+            "included": [],
+            "unit": "người/tuyến",
+            "excluded": [],
+            "label": "Gói trẻ em Đại Nội + Minh Mạng + Tự Đức + Khải Định",
+            "audience": "Trẻ em từ 7 đến 12 tuổi",
+            "currency": "VND",
+            "packageId": "hue-four",
+            "id": "hue-four-child",
+            "amountVnd": 100000,
+            "conditions": [
+              "Đối chiếu tuổi, thời hạn và quyền lợi tại nơi đặt vé."
+            ]
+          },
+          {
+            "included": [],
+            "unit": "người/tuyến",
+            "excluded": [],
+            "label": "Gói Tuyến gộp tất cả điểm di tích theo bảng phí",
+            "audience": "Người lớn",
+            "currency": "VND",
+            "packageId": "hue-all",
+            "id": "hue-all-adult",
+            "amountVnd": 600000,
+            "conditions": [
+              "Chọn thay cho vé lẻ của cùng tuyến, không cộng cùng phí nhiều lần."
+            ]
+          },
+          {
+            "included": [],
+            "unit": "người/tuyến",
+            "excluded": [],
+            "label": "Gói trẻ em Tuyến gộp tất cả điểm di tích theo bảng phí",
+            "audience": "Trẻ em từ 7 đến 12 tuổi",
+            "currency": "VND",
+            "packageId": "hue-all",
+            "id": "hue-all-child",
+            "amountVnd": 120000,
+            "conditions": [
+              "Đối chiếu tuổi, thời hạn và quyền lợi tại nơi đặt vé."
+            ]
+          }
+        ],
+        "evidence": {
+          "reviewState": "reviewed",
+          "conditions": [
+            "Vé lẻ từ 02/06/2026; bảng tuyến từ 04/01/2026. Nhóm miễn/giảm, ngày ưu đãi cần kiểm tra quy định trước khi mua. Không suy chính sách miễn trẻ em ở di tích khác áp dụng cho bốn điểm này."
+          ],
+          "unresolvedIssues": [],
+          "checkedAt": "2026-10-20",
+          "sourceIds": [
+            "hue-fees-2026"
+          ]
+        }
+      },
+      "hours": {
+        "status": "seasonal",
+        "evidence": {
+          "reviewState": "reviewed",
+          "conditions": [
+            "Khung giờ do cổng vé Trung tâm công bố, không dùng giờ bán vé làm giờ đóng cửa; kiểm tra thông báo đặc biệt tại ngày đi."
+          ],
+          "unresolvedIssues": [],
+          "checkedAt": "2026-10-20",
+          "sourceIds": [
+            "hue-time",
+            "hue-rules"
+          ]
+        },
+        "rules": [
+          {
+            "endMinutes": 1110,
+            "seasonEnd": "10-15",
+            "startMinutes": 390,
+            "endDayOffset": 0,
+            "admissionCutoffMinutes": 1050,
+            "weekdays": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "seasonStart": "03-16",
+            "label": "Mùa hè — giờ tham quan, tách hạn bán vé"
+          },
+          {
+            "endMinutes": 1080,
+            "seasonEnd": "03-15",
+            "startMinutes": 420,
+            "endDayOffset": 0,
+            "admissionCutoffMinutes": 1020,
+            "weekdays": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "seasonStart": "10-16",
+            "label": "Mùa đông — giờ tham quan, tách hạn bán vé"
+          }
+        ],
+        "notes": [
+          "Nguồn ghi đóng cửa ngừng phục vụ sau 60 phút kể từ khi kết thúc bán vé. Mốc nhận khách trong hồ sơ là hạn bán vé theo nguồn; xác nhận yêu cầu kiểm soát cổng trước khi đi.",
+          "Lịch lễ hội/chương trình đêm nếu có là thông báo riêng. Mặc trang phục lịch sự ở nội điện, giữ yên lặng và tuân thủ nội quy."
+        ]
+      },
+      "notes": []
+    },
+    {
+      "placeId": "hue/khai-dinh",
+      "visitScopeLabel": "Lăng Khải Định",
+      "price": {
+        "status": "priced",
+        "options": [
+          {
+            "included": [
+              "Tham quan một điểm đã chọn"
+            ],
+            "unit": "người/lượt",
+            "excluded": [],
+            "label": "Vé lẻ",
+            "audience": "Người lớn theo bảng phí",
+            "currency": "VND",
+            "id": "single-adult",
+            "amountVnd": 150000,
+            "conditions": [
+              "Mức vé lẻ trong bảng áp dụng từ 02/06/2026."
+            ]
+          },
+          {
+            "included": [],
+            "unit": "người/lượt",
+            "excluded": [],
+            "label": "Vé lẻ trẻ em",
+            "audience": "Trẻ em từ 7 đến 12 tuổi",
+            "currency": "VND",
+            "id": "single-child",
+            "amountVnd": 30000,
+            "conditions": [
+              "Theo đúng nhóm tuổi trong bảng phí; không tự suy mức miễn/giảm cho nhóm khác."
+            ]
+          },
+          {
+            "included": [],
+            "unit": "người/tuyến",
+            "excluded": [],
+            "label": "Gói Đại Nội + Minh Mạng + Khải Định",
+            "audience": "Người lớn",
+            "currency": "VND",
+            "packageId": "hue-dn-mm-kd",
+            "id": "hue-dn-mm-kd-adult",
+            "amountVnd": 420000,
+            "conditions": [
+              "Chọn thay cho vé lẻ của cùng tuyến, không cộng cùng phí nhiều lần."
+            ]
+          },
+          {
+            "included": [],
+            "unit": "người/tuyến",
+            "excluded": [],
+            "label": "Gói trẻ em Đại Nội + Minh Mạng + Khải Định",
+            "audience": "Trẻ em từ 7 đến 12 tuổi",
+            "currency": "VND",
+            "packageId": "hue-dn-mm-kd",
+            "id": "hue-dn-mm-kd-child",
+            "amountVnd": 80000,
+            "conditions": [
+              "Đối chiếu tuổi, thời hạn và quyền lợi tại nơi đặt vé."
+            ]
+          },
+          {
+            "included": [],
+            "unit": "người/tuyến",
+            "excluded": [],
+            "label": "Gói Đại Nội + Tự Đức + Khải Định",
+            "audience": "Người lớn",
+            "currency": "VND",
+            "packageId": "hue-dn-td-kd",
+            "id": "hue-dn-td-kd-adult",
+            "amountVnd": 420000,
+            "conditions": [
+              "Chọn thay cho vé lẻ của cùng tuyến, không cộng cùng phí nhiều lần."
+            ]
+          },
+          {
+            "included": [],
+            "unit": "người/tuyến",
+            "excluded": [],
+            "label": "Gói trẻ em Đại Nội + Tự Đức + Khải Định",
+            "audience": "Trẻ em từ 7 đến 12 tuổi",
+            "currency": "VND",
+            "packageId": "hue-dn-td-kd",
+            "id": "hue-dn-td-kd-child",
+            "amountVnd": 80000,
+            "conditions": [
+              "Đối chiếu tuổi, thời hạn và quyền lợi tại nơi đặt vé."
+            ]
+          },
+          {
+            "included": [],
+            "unit": "người/tuyến",
+            "excluded": [],
+            "label": "Gói Đại Nội + Minh Mạng + Tự Đức + Khải Định",
+            "audience": "Người lớn",
+            "currency": "VND",
+            "packageId": "hue-four",
+            "id": "hue-four-adult",
+            "amountVnd": 530000,
+            "conditions": [
+              "Chọn thay cho vé lẻ của cùng tuyến, không cộng cùng phí nhiều lần."
+            ]
+          },
+          {
+            "included": [],
+            "unit": "người/tuyến",
+            "excluded": [],
+            "label": "Gói trẻ em Đại Nội + Minh Mạng + Tự Đức + Khải Định",
+            "audience": "Trẻ em từ 7 đến 12 tuổi",
+            "currency": "VND",
+            "packageId": "hue-four",
+            "id": "hue-four-child",
+            "amountVnd": 100000,
+            "conditions": [
+              "Đối chiếu tuổi, thời hạn và quyền lợi tại nơi đặt vé."
+            ]
+          },
+          {
+            "included": [],
+            "unit": "người/tuyến",
+            "excluded": [],
+            "label": "Gói Tuyến gộp tất cả điểm di tích theo bảng phí",
+            "audience": "Người lớn",
+            "currency": "VND",
+            "packageId": "hue-all",
+            "id": "hue-all-adult",
+            "amountVnd": 600000,
+            "conditions": [
+              "Chọn thay cho vé lẻ của cùng tuyến, không cộng cùng phí nhiều lần."
+            ]
+          },
+          {
+            "included": [],
+            "unit": "người/tuyến",
+            "excluded": [],
+            "label": "Gói trẻ em Tuyến gộp tất cả điểm di tích theo bảng phí",
+            "audience": "Trẻ em từ 7 đến 12 tuổi",
+            "currency": "VND",
+            "packageId": "hue-all",
+            "id": "hue-all-child",
+            "amountVnd": 120000,
+            "conditions": [
+              "Đối chiếu tuổi, thời hạn và quyền lợi tại nơi đặt vé."
+            ]
+          }
+        ],
+        "evidence": {
+          "reviewState": "reviewed",
+          "conditions": [
+            "Vé lẻ từ 02/06/2026; bảng tuyến từ 04/01/2026. Nhóm miễn/giảm, ngày ưu đãi cần kiểm tra quy định trước khi mua. Không suy chính sách miễn trẻ em ở di tích khác áp dụng cho bốn điểm này."
+          ],
+          "unresolvedIssues": [],
+          "checkedAt": "2026-10-20",
+          "sourceIds": [
+            "hue-fees-2026"
+          ]
+        }
+      },
+      "hours": {
+        "status": "seasonal",
+        "evidence": {
+          "reviewState": "reviewed",
+          "conditions": [
+            "Khung giờ do cổng vé Trung tâm công bố, không dùng giờ bán vé làm giờ đóng cửa; kiểm tra thông báo đặc biệt tại ngày đi."
+          ],
+          "unresolvedIssues": [],
+          "checkedAt": "2026-10-20",
+          "sourceIds": [
+            "hue-time",
+            "hue-rules"
+          ]
+        },
+        "rules": [
+          {
+            "endMinutes": 1110,
+            "seasonEnd": "10-15",
+            "startMinutes": 390,
+            "endDayOffset": 0,
+            "admissionCutoffMinutes": 1050,
+            "weekdays": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "seasonStart": "03-16",
+            "label": "Mùa hè — giờ tham quan, tách hạn bán vé"
+          },
+          {
+            "endMinutes": 1080,
+            "seasonEnd": "03-15",
+            "startMinutes": 420,
+            "endDayOffset": 0,
+            "admissionCutoffMinutes": 1020,
+            "weekdays": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "seasonStart": "10-16",
+            "label": "Mùa đông — giờ tham quan, tách hạn bán vé"
+          }
+        ],
+        "notes": [
+          "Nguồn ghi đóng cửa ngừng phục vụ sau 60 phút kể từ khi kết thúc bán vé. Mốc nhận khách trong hồ sơ là hạn bán vé theo nguồn; xác nhận yêu cầu kiểm soát cổng trước khi đi.",
+          "Lịch lễ hội/chương trình đêm nếu có là thông báo riêng. Mặc trang phục lịch sự ở nội điện, giữ yên lặng và tuân thủ nội quy."
+        ]
+      },
+      "notes": []
+    },
+    {
+      "placeId": "hue/dong-ba",
+      "visitScopeLabel": "Chợ Đông Ba",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giá và điều kiện áp dụng."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [
+            "hue-dongba-directory"
+          ],
+          "checkedAt": "2026-10-20",
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Hồ sơ Huetripo nêu 06:30–19:00 nhưng chưa đối chiếu đủ lịch theo ngày/phân khu với quản lý chợ."
+          ]
+        }
+      },
+      "notes": [
+        "Lịch từng quầy và khu chợ đêm có thể khác khối chợ chính; xác nhận trước khi đi. Không dùng giá món hàng trên cổng du lịch thành vé tham quan."
+      ]
+    },
+    {
+      "placeId": "hue/thien-mu",
+      "visitScopeLabel": "Chùa Thiên Mụ",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giá và điều kiện áp dụng."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giờ tham quan."
+          ]
+        }
+      },
+      "notes": [
+        "Chưa đối chiếu đủ phí và lịch đón khách với đơn vị quản lý chùa. Không áp bảng giờ bán vé các di tích khác làm giờ tham quan chùa."
+      ]
+    },
+    {
+      "placeId": "da-nang/my-khe",
+      "visitScopeLabel": "Biển Mỹ Khê",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": "2026-10-20",
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đọc được nguồn quản lý đủ để duyệt phí/miễn phí; không tự lấy giá dịch vụ biển làm vé vào bãi."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": "2026-10-20",
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa xác nhận lịch tắm/giờ cứu hộ hoặc giới hạn tiếp cận từ nguồn quản lý; tuân thủ cờ, biển báo và hướng dẫn tại bãi. Không mặc định24/7."
+          ]
+        }
+      },
+      "notes": []
+    },
+    {
+      "placeId": "da-nang/marble",
+      "visitScopeLabel": "Ngũ Hành Sơn — Thủy Sơn, động Âm Phủ và thang máy có phí riêng",
+      "price": {
+        "evidence": {
+          "reviewState": "reviewed",
+          "conditions": [
+            "Phí tham quan và thang máy tách riêng. Trang quản lý ghi ngày18/06/2014; đối chiếu nội dung với bảng du lịch22/01/2026, không suy đó là ngày hiệu lực của mọi mức giá.",
+            "Nguồn2026 gọi đây là mức tham khảo; ngày miễn/giảm đặc biệt và giấy tờ cần kiểm tra tại quầy."
+          ],
+          "sourceIds": [
+            "marble-management",
+            "danang-fees-2026"
+          ],
+          "checkedAt": "2026-10-20",
+          "unresolvedIssues": []
+        },
+        "options": [
+          {
+            "amountVnd": 40000,
+            "unit": "người/lần",
+            "label": "Vé Thủy Sơn",
+            "excluded": [
+              "Vé động Âm Phủ, vé thang máy"
+            ],
+            "conditions": [
+              "Mua ở cổng 01 hoặc 02 theo hướng dẫn Ban quản lý."
+            ],
+            "currency": "VND",
+            "audience": "Người lớn",
+            "included": [
+              "Tham quan Thủy Sơn"
+            ],
+            "id": "thuy-son-adult"
+          },
+          {
+            "amountVnd": 10000,
+            "unit": "người/lần",
+            "label": "Vé Thủy Sơn học sinh/sinh viên",
+            "excluded": [
+              "Vé động Âm Phủ, vé thang máy"
+            ],
+            "conditions": [
+              "Chuẩn bị giấy tờ chứng minh đối tượng và kiểm tra yêu cầu tại quầy."
+            ],
+            "currency": "VND",
+            "audience": "Học sinh, sinh viên",
+            "included": [
+              "Tham quan Thủy Sơn"
+            ],
+            "id": "thuy-son-student"
+          },
+          {
+            "amountVnd": 0,
+            "unit": "người/lần",
+            "label": "Miễn vé Thủy Sơn theo tuổi",
+            "excluded": [],
+            "conditions": [
+              "Chỉ nhóm dưới 6 tuổi theo bảng nguồn."
+            ],
+            "currency": "VND",
+            "audience": "Trẻ em dưới 6 tuổi",
+            "included": [
+              "Tham quan Thủy Sơn"
+            ],
+            "id": "thuy-son-under-six"
+          },
+          {
+            "amountVnd": 20000,
+            "unit": "người/lần",
+            "label": "Vé động Âm Phủ — mua riêng nếu chọn tham quan",
+            "excluded": [
+              "Vé Thủy Sơn, thang máy"
+            ],
+            "conditions": [],
+            "currency": "VND",
+            "audience": "Người lớn",
+            "included": [
+              "Động Âm Phủ"
+            ],
+            "id": "am-phu-adult"
+          },
+          {
+            "amountVnd": 7000,
+            "unit": "người/lần",
+            "label": "Vé động Âm Phủ học sinh/sinh viên",
+            "excluded": [
+              "Vé Thủy Sơn, thang máy"
+            ],
+            "conditions": [
+              "Đối chiếu giấy tờ tại quầy."
+            ],
+            "currency": "VND",
+            "audience": "Học sinh, sinh viên",
+            "included": [
+              "Động Âm Phủ"
+            ],
+            "id": "am-phu-student"
+          },
+          {
+            "amountVnd": 0,
+            "unit": "người/lần",
+            "label": "Miễn vé động Âm Phủ theo tuổi",
+            "excluded": [],
+            "conditions": [],
+            "currency": "VND",
+            "audience": "Trẻ em dưới 6 tuổi",
+            "included": [
+              "Động Âm Phủ"
+            ],
+            "id": "am-phu-under-six"
+          },
+          {
+            "amountVnd": 15000,
+            "unit": "người/lượt",
+            "label": "Thang máy một lượt — dịch vụ tùy chọn",
+            "excluded": [
+              "Vé tham quan"
+            ],
+            "conditions": [
+              "Mua thêm khi dùng; không cộng cả vé một lượt và khứ hồi cho cùng lựa chọn."
+            ],
+            "currency": "VND",
+            "audience": "Người lớn, học sinh, sinh viên",
+            "included": [
+              "Một lượt thang máy"
+            ],
+            "id": "lift-one-way"
+          },
+          {
+            "amountVnd": 30000,
+            "unit": "người/khứ hồi",
+            "label": "Thang máy khứ hồi — dịch vụ tùy chọn",
+            "excluded": [
+              "Vé tham quan"
+            ],
+            "conditions": [
+              "Nguồn du lịch2026 ghi mức khứ hồi."
+            ],
+            "currency": "VND",
+            "audience": "Người dùng dịch vụ theo bảng giá",
+            "included": [
+              "Thang máy khứ hồi"
+            ],
+            "id": "lift-return"
+          },
+          {
+            "amountVnd": 0,
+            "unit": "người/lượt",
+            "label": "Miễn dịch vụ thang máy theo tuổi",
+            "excluded": [
+              "Các dịch vụ khác"
+            ],
+            "conditions": [],
+            "currency": "VND",
+            "audience": "Trẻ em dưới 6 tuổi",
+            "included": [
+              "Thang máy"
+            ],
+            "id": "lift-under-six"
+          }
+        ],
+        "status": "priced"
+      },
+      "hours": {
+        "evidence": {
+          "reviewState": "reviewed",
+          "conditions": [
+            "Kiểm tra thông báo vận hành hoặc thời tiết tại ngày đi."
+          ],
+          "sourceIds": [
+            "marble-management",
+            "danang-fees-2026"
+          ],
+          "checkedAt": "2026-10-20",
+          "unresolvedIssues": []
+        },
+        "notes": [
+          "Giờ phục vụ theo Ban quản lý và bảng du lịch2026; không coi đây là giờ nhận lượt thang máy cuối."
+        ],
+        "status": "scheduled",
+        "rules": [
+          {
+            "label": "Hằng ngày theo Ban quản lý",
+            "startMinutes": 420,
+            "weekdays": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "endDayOffset": 0,
+            "endMinutes": 1020
+          }
+        ]
+      },
+      "notes": [
+        "Chọn khu và dịch vụ cần dùng, không coi tất cả mức giá dưới đây là một combo bắt buộc."
+      ]
+    },
+    {
+      "placeId": "da-nang/son-tra",
+      "visitScopeLabel": "Sơn Trà — tham quan cảnh quan trên ba tuyến được phép, ngoài cơ sở thu phí riêng",
+      "price": {
+        "evidence": {
+          "reviewState": "reviewed",
+          "conditions": [
+            "Bảng nguồn áp dụng từ01/01/2023, chưa ghi ngày chỉnh sửa mới trên trang; xác nhận chính sách tại điểm trước chuyến đi."
+          ],
+          "sourceIds": [
+            "danang-fees-2023"
+          ],
+          "checkedAt": "2026-10-20",
+          "unresolvedIssues": []
+        },
+        "options": [
+          {
+            "amountVnd": 0,
+            "unit": "người",
+            "label": "Tham quan cảnh quan theo nguồn du lịch",
+            "excluded": [
+              "Bảo tàng Đồng Đình, điểm dịch vụ riêng, tour, xe và đồ uống"
+            ],
+            "conditions": [
+              "Nguồn bảng giá2023 ghi miễn phí; không phải gói miễn phí mọi cơ sở trên bán đảo."
+            ],
+            "currency": "VND",
+            "audience": "Du khách tham quan cảnh quan chung",
+            "included": [
+              "Cảnh quan chung bán đảo"
+            ],
+            "id": "landscape-entry"
+          }
+        ],
+        "status": "free"
+      },
+      "hours": {
+        "evidence": {
+          "reviewState": "reviewed",
+          "conditions": [
+            "Giờ là khung được phép tham quan ba tuyến; không suy đó là giờ khởi hành cuối hoặc giờ mở riêng từng cơ sở."
+          ],
+          "sourceIds": [
+            "sontra-route-rules"
+          ],
+          "checkedAt": "2026-10-20",
+          "unresolvedIssues": []
+        },
+        "notes": [
+          "Áp dụng các tuyến Hoàng Sa–Cây Đa, Yết Kiêu–Đỉnh Bàn Cờ–Bãi Bắc, Yết Kiêu–Suối Ôm; không áp lịch này cho toàn bộ khách sạn, chùa hay cơ sở khác.",
+          "Có trạm kiểm soát; ngoài giờ rào chắn đóng. Không đi tuyến nhánh bị hạn chế. Các tuyến nêu trong nguồn loại trừ xe tay ga và ô tô trên24 chỗ; đoạn Đỉnh Bàn Cờ–Bãi Bắc một chiều theo hướng nguồn quy định.",
+          "Giữ khoảng cách với động vật, không cho ăn hoặc gây tiếng ồn; tuân theo hướng dẫn tại trạm và thông báo thời tiết."
+        ],
+        "status": "seasonal",
+        "rules": [
+          {
+            "seasonStart": "03-01",
+            "seasonEnd": "09-30",
+            "startMinutes": 450,
+            "endDayOffset": 0,
+            "weekdays": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "endMinutes": 1110,
+            "label": "Ba tuyến — tháng3 đến hết tháng9"
+          },
+          {
+            "seasonStart": "10-01",
+            "seasonEnd": "02-29",
+            "startMinutes": 450,
+            "endDayOffset": 0,
+            "weekdays": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "endMinutes": 1050,
+            "label": "Ba tuyến — tháng10 đến hết tháng2"
+          }
+        ]
+      },
+      "notes": []
+    },
+    {
+      "placeId": "da-nang/lady-buddha",
+      "visitScopeLabel": "Tượng Quan Thế Âm — khu tham quan chùa Linh Ứng Bãi Bụt, Sơn Trà",
+      "price": {
+        "evidence": {
+          "reviewState": "reviewed",
+          "conditions": [
+            "Bảng du lịch2023 ghi miễn phí; kiểm tra thông báo tại chùa trước đi. Không dùng sự im lặng của nguồn về giá làm bằng chứng miễn phí."
+          ],
+          "sourceIds": [
+            "danang-fees-2023"
+          ],
+          "checkedAt": "2026-10-20",
+          "unresolvedIssues": []
+        },
+        "options": [
+          {
+            "amountVnd": 0,
+            "unit": "người",
+            "label": "Vào tham quan chùa theo nguồn du lịch",
+            "excluded": [
+              "Dịch vụ mua riêng, khu hạn chế hoặc mọi tầng bên trong tượng"
+            ],
+            "conditions": [
+              "Không phải chùa Linh Ứng tại Bà Nà hoặc Ngũ Hành Sơn."
+            ],
+            "currency": "VND",
+            "audience": "Khách tham quan chùa Linh Ứng Bãi Bụt",
+            "included": [
+              "Khu tham quan chùa theo hướng dẫn tại chỗ"
+            ],
+            "id": "pagoda-admission"
+          }
+        ],
+        "status": "free"
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "reviewState": "unverified",
+          "conditions": [],
+          "sourceIds": [
+            "danang-fees-2023",
+            "linhung-visitor-rules"
+          ],
+          "checkedAt": "2026-10-20",
+          "unresolvedIssues": [
+            "Nguồn du lịch2023 ghi08:00–17:00 nhưng các bài hướng dẫn khác ghi06:00–21:00; trang chùa chưa đọc được thông báo xác nhận giờ. Vui lòng kiểm tra với chùa trước khi đến."
+          ]
+        }
+      },
+      "notes": [
+        "Theo nội quy chùa: đỗ xe đúng nơi hướng dẫn; trang phục kín đáo, giữ yên tĩnh, không chạm/hư hại cảnh quan hoặc tượng. Không suy có thể vào mọi tầng của tượng."
+      ]
+    },
+    {
+      "placeId": "da-nang/hai-van",
+      "visitScopeLabel": "Đèo Hải Vân — ngắm cảnh đường đèo, không bao gồm di tích Hải Vân Quan",
+      "price": {
+        "evidence": {
+          "reviewState": "reviewed",
+          "conditions": [
+            "Phạm vi chỉ cảnh quan đường đèo theo bài01/08/2025."
+          ],
+          "sourceIds": [
+            "haivan-landscape"
+          ],
+          "checkedAt": "2026-10-20",
+          "unresolvedIssues": []
+        },
+        "options": [
+          {
+            "amountVnd": 0,
+            "unit": "người",
+            "label": "Ngắm cảnh thiên nhiên trên đường đèo",
+            "excluded": [
+              "Vé Hải Vân Quan, vận chuyển, hầm, gửi xe, quán và dịch vụ riêng"
+            ],
+            "conditions": [
+              "Nguồn du lịch xác nhận ngắm cảnh miễn phí; không suy phí di tích Hải Vân Quan từ phí đường đèo."
+            ],
+            "currency": "VND",
+            "audience": "Khách tự tham quan cảnh quan",
+            "included": [
+              "Ngắm cảnh đường đèo"
+            ],
+            "id": "landscape"
+          }
+        ],
+        "status": "free"
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [
+          "Nguồn khuyên tránh trời tối, mưa bão và sương mù; giờ gợi ý ngắm cảnh không phải giờ mở cửa được xác minh."
+        ],
+        "evidence": {
+          "reviewState": "unverified",
+          "conditions": [],
+          "sourceIds": [
+            "haivan-landscape"
+          ],
+          "checkedAt": "2026-10-20",
+          "unresolvedIssues": [
+            "Nguồn chỉ khuyên thời điểm đi, chưa xác nhận khung giờ vận hành/điều tiết đường; không mặc định24/7."
+          ]
+        }
+      },
+      "notes": []
+    },
+    {
+      "placeId": "da-nang/han-market",
+      "visitScopeLabel": "Chợ Hàn",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "reviewState": "unverified",
+          "conditions": [],
+          "sourceIds": [
+            "han-market-reference"
+          ],
+          "checkedAt": "2026-10-20",
+          "unresolvedIssues": [
+            "Chưa có nguồn xác nhận phí/miễn phí vào chợ; giá món ăn, hàng hóa, tour và gửi xe không phải giá vé tham quan."
+          ]
+        }
+      },
+      "hours": {
+        "evidence": {
+          "reviewState": "reviewed",
+          "conditions": [
+            "Bài giới thiệu nêu khung giờ chung, không có lịch theo từng thứ/ngày lễ. Xác nhận lịch quầy trước khi ghé; không lấy giờ quán cà phê riêng làm giờ toàn chợ."
+          ],
+          "sourceIds": [
+            "han-market-reference"
+          ],
+          "checkedAt": "2026-10-20",
+          "unresolvedIssues": []
+        },
+        "notes": [
+          "Nguồn du lịch12/06/2026 ghi giờ tham khảo06:00–19:00; giờ từng quầy và ngày đặc biệt có thể khác. Không phải cam kết mọi gian hàng mở suốt khung này."
+        ],
+        "status": "scheduled",
+        "rules": [
+          {
+            "label": "Khung giờ tham khảo chung của chợ",
+            "startMinutes": 360,
+            "weekdays": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "endDayOffset": 0,
+            "endMinutes": 1140
+          }
+        ]
+      },
+      "notes": []
+    },
+    {
+      "placeId": "hoi-an/ancient-town",
+      "visitScopeLabel": "Phố cổ Hội An — tham quan theo gói vé di sản",
+      "price": {
+        "options": [
+          {
+            "id": "heritage-80",
+            "conditions": [
+              "Mức tiền là cho gói, không phải vé lẻ riêng của địa điểm này. Kiểm tra còn ô phù hợp cho điểm muốn vào."
+            ],
+            "included": [],
+            "currency": "VND",
+            "label": "Gói vé phố cổ 80.000đ",
+            "audience": "Chọn gói theo quyền lợi công bố",
+            "amountVnd": 80000,
+            "unit": "người/gói",
+            "excluded": [],
+            "packageId": "hoian-heritage-80"
+          },
+          {
+            "id": "heritage-120",
+            "conditions": [
+              "Mức tiền là cho gói, không phải vé lẻ riêng của địa điểm này. Kiểm tra còn ô phù hợp cho điểm muốn vào."
+            ],
+            "included": [],
+            "currency": "VND",
+            "label": "Gói vé phố cổ 120.000đ",
+            "audience": "Chọn gói theo quyền lợi công bố",
+            "amountVnd": 120000,
+            "unit": "người/gói",
+            "excluded": [],
+            "packageId": "hoian-heritage-120"
+          }
+        ],
+        "status": "bundled",
+        "evidence": {
+          "conditions": [
+            "Giá/quyền lợi dùng thông tin 16/03/2026; danh mục cũ chỉ đối chiếu tên điểm, không dùng giá theo quốc tịch hay lịch cũ."
+          ],
+          "unresolvedIssues": [],
+          "reviewState": "reviewed",
+          "checkedAt": "2026-10-20",
+          "sourceIds": [
+            "hoian-fees-2026",
+            "hoian-ticket-sites"
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [
+          "Nguồn mô tả phố đi bộ 09:00–21:30 mùa hè, 09:00–21:00 mùa đông; riêng Phan Châu Trinh bắt đầu 17:30. Đây là giờ điều tiết phố đi bộ, không phải lịch mở từng di tích."
+        ],
+        "evidence": {
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đầy đủ mốc chuyển mùa và khung giờ tham quan theo phạm vi vé; không tự áp lịch phố đi bộ cho tất cả công trình."
+          ],
+          "reviewState": "unverified",
+          "checkedAt": "2026-10-20",
+          "sourceIds": [
+            "hoian-fees-2026"
+          ]
+        }
+      },
+      "notes": [
+        "Giá có nguồn tham khảo tại ngày kiểm tra; kiểm tra thông báo và quyền lợi khi mua vé."
+      ]
+    },
+    {
+      "placeId": "hoi-an/japanese-bridge",
+      "visitScopeLabel": "Chùa Cầu — chọn điểm trong ô vé phố cổ",
+      "price": {
+        "options": [
+          {
+            "id": "heritage-80",
+            "conditions": [
+              "Mức tiền là cho gói, không phải vé lẻ riêng của địa điểm này. Kiểm tra còn ô phù hợp cho điểm muốn vào."
+            ],
+            "included": [],
+            "currency": "VND",
+            "label": "Gói vé phố cổ 80.000đ",
+            "audience": "Chọn gói theo quyền lợi công bố",
+            "amountVnd": 80000,
+            "unit": "người/gói",
+            "excluded": [],
+            "packageId": "hoian-heritage-80"
+          },
+          {
+            "id": "heritage-120",
+            "conditions": [
+              "Mức tiền là cho gói, không phải vé lẻ riêng của địa điểm này. Kiểm tra còn ô phù hợp cho điểm muốn vào."
+            ],
+            "included": [],
+            "currency": "VND",
+            "label": "Gói vé phố cổ 120.000đ",
+            "audience": "Chọn gói theo quyền lợi công bố",
+            "amountVnd": 120000,
+            "unit": "người/gói",
+            "excluded": [],
+            "packageId": "hoian-heritage-120"
+          }
+        ],
+        "status": "bundled",
+        "evidence": {
+          "conditions": [
+            "Giá/quyền lợi dùng thông tin 16/03/2026; danh mục cũ chỉ đối chiếu tên điểm, không dùng giá theo quốc tịch hay lịch cũ."
+          ],
+          "unresolvedIssues": [],
+          "reviewState": "reviewed",
+          "checkedAt": "2026-10-20",
+          "sourceIds": [
+            "hoian-fees-2026",
+            "hoian-ticket-sites"
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [
+            "hoian-fees-2026"
+          ],
+          "checkedAt": "2026-10-20",
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Nguồn vé xác nhận quyền chọn Chùa Cầu nhưng chưa có lịch mở riêng; vui lòng kiểm tra tại quầy trước khi đến."
+          ]
+        }
+      },
+      "notes": [
+        "Giá có nguồn tham khảo tại ngày kiểm tra; kiểm tra thông báo và quyền lợi khi mua vé."
+      ]
+    },
+    {
+      "placeId": "hoi-an/tan-ky",
+      "visitScopeLabel": "Nhà cổ Tấn Ký",
+      "price": {
+        "options": [
+          {
+            "id": "heritage-80",
+            "conditions": [
+              "Mức tiền là cho gói, không phải vé lẻ riêng của địa điểm này. Kiểm tra còn ô phù hợp cho điểm muốn vào."
+            ],
+            "included": [],
+            "currency": "VND",
+            "label": "Gói vé phố cổ 80.000đ",
+            "audience": "Chọn gói theo quyền lợi công bố",
+            "amountVnd": 80000,
+            "unit": "người/gói",
+            "excluded": [],
+            "packageId": "hoian-heritage-80"
+          },
+          {
+            "id": "heritage-120",
+            "conditions": [
+              "Mức tiền là cho gói, không phải vé lẻ riêng của địa điểm này. Kiểm tra còn ô phù hợp cho điểm muốn vào."
+            ],
+            "included": [],
+            "currency": "VND",
+            "label": "Gói vé phố cổ 120.000đ",
+            "audience": "Chọn gói theo quyền lợi công bố",
+            "amountVnd": 120000,
+            "unit": "người/gói",
+            "excluded": [],
+            "packageId": "hoian-heritage-120"
+          }
+        ],
+        "status": "bundled",
+        "evidence": {
+          "conditions": [
+            "Giá/quyền lợi dùng thông tin 16/03/2026; danh mục cũ chỉ đối chiếu tên điểm, không dùng giá theo quốc tịch hay lịch cũ."
+          ],
+          "unresolvedIssues": [],
+          "reviewState": "reviewed",
+          "checkedAt": "2026-10-20",
+          "sourceIds": [
+            "hoian-fees-2026",
+            "hoian-ticket-sites"
+          ]
+        }
+      },
+      "hours": {
+        "rules": [
+          {
+            "startMinutes": 480,
+            "label": "Buổi sáng — thứ Hai đến Chủ nhật",
+            "endDayOffset": 0,
+            "weekdays": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "endMinutes": 690
+          },
+          {
+            "startMinutes": 810,
+            "label": "Buổi chiều — thứ Hai đến Chủ nhật",
+            "endDayOffset": 0,
+            "weekdays": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "endMinutes": 1065
+          }
+        ],
+        "status": "scheduled",
+        "notes": [
+          "Có nghỉ giữa ngày theo hồ sơ giới thiệu; hạn chế tiếng ồn, không chạm hiện vật. Kiểm tra lịch đặc biệt tại nơi tham quan."
+        ],
+        "evidence": {
+          "conditions": [
+            "Cổng Hội An dẫn bài Traveloka, chưa ghi ngày công bố/hiệu lực. Đây là giờ tham khảo có nguồn; xác nhận lại với điểm trước khi đến."
+          ],
+          "unresolvedIssues": [],
+          "reviewState": "reviewed",
+          "checkedAt": "2026-10-20",
+          "sourceIds": [
+            "hoian-tanky-hours"
+          ]
+        }
+      },
+      "notes": [
+        "Giá có nguồn tham khảo tại ngày kiểm tra; kiểm tra thông báo và quyền lợi khi mua vé."
+      ]
+    },
+    {
+      "placeId": "hoi-an/history-museum",
+      "visitScopeLabel": "Bảo tàng Lịch sử – Văn hóa Hội An — 10B Trần Hưng Đạo",
+      "price": {
+        "options": [
+          {
+            "id": "heritage-120",
+            "conditions": [
+              "Mức tiền là cho gói, không phải vé lẻ riêng của địa điểm này. Kiểm tra còn ô phù hợp cho điểm muốn vào."
+            ],
+            "included": [],
+            "currency": "VND",
+            "label": "Gói vé phố cổ 120.000đ",
+            "audience": "Chọn gói theo quyền lợi công bố",
+            "amountVnd": 120000,
+            "unit": "người/gói",
+            "excluded": [],
+            "packageId": "hoian-heritage-120"
+          }
+        ],
+        "status": "bundled",
+        "evidence": {
+          "conditions": [
+            "Giá/quyền lợi dùng thông tin 16/03/2026; danh mục cũ chỉ đối chiếu tên điểm, không dùng giá theo quốc tịch hay lịch cũ."
+          ],
+          "unresolvedIssues": [],
+          "reviewState": "reviewed",
+          "checkedAt": "2026-10-20",
+          "sourceIds": [
+            "hoian-fees-2026",
+            "hoian-ticket-sites"
+          ]
+        }
+      },
+      "hours": {
+        "rules": [
+          {
+            "startMinutes": 420,
+            "label": "Hằng ngày theo hồ sơ giới thiệu",
+            "endDayOffset": 0,
+            "weekdays": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "endMinutes": 1020
+          }
+        ],
+        "status": "scheduled",
+        "notes": [
+          "Giờ theo mục giới thiệu trên cổng Hội An; chưa thấy ngày công bố hoặc mốc hiệu lực trong bài. Kiểm tra lịch đặc biệt trước khi đi."
+        ],
+        "evidence": {
+          "conditions": [
+            "Cổng Hội An đăng mục tổng hợp, không phải thông báo vận hành theo ngày; không dùng lịch phố đi bộ thay cho giờ bảo tàng."
+          ],
+          "unresolvedIssues": [],
+          "reviewState": "reviewed",
+          "checkedAt": "2026-10-20",
+          "sourceIds": [
+            "hoian-museum-hours"
+          ]
+        }
+      },
+      "notes": [
+        "Giá có nguồn tham khảo tại ngày kiểm tra; kiểm tra thông báo và quyền lợi khi mua vé."
+      ]
+    },
+    {
+      "placeId": "hoi-an/an-bang",
+      "visitScopeLabel": "Biển An Bàng",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giá và điều kiện áp dụng."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giờ tham quan."
+          ]
+        }
+      },
+      "notes": []
+    },
+    {
+      "placeId": "hoi-an/cua-dai",
+      "visitScopeLabel": "Biển Cửa Đại",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giá và điều kiện áp dụng."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giờ tham quan."
+          ]
+        }
+      },
+      "notes": []
+    },
+    {
+      "placeId": "nha-trang/city-beach",
+      "visitScopeLabel": "Bãi biển Nha Trang",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giá và điều kiện áp dụng."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giờ tham quan."
+          ]
+        }
+      },
+      "notes": []
+    },
+    {
+      "placeId": "nha-trang/hon-mun",
+      "visitScopeLabel": "Hòn Mun",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giá và điều kiện áp dụng."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giờ tham quan."
+          ]
+        }
+      },
+      "notes": []
+    },
+    {
+      "placeId": "nha-trang/monkey-island",
+      "visitScopeLabel": "Đảo Khỉ",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giá và điều kiện áp dụng."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giờ tham quan."
+          ]
+        }
+      },
+      "notes": []
+    },
+    {
+      "placeId": "nha-trang/long-son",
+      "visitScopeLabel": "Chùa Long Sơn",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giá và điều kiện áp dụng."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giờ tham quan."
+          ]
+        }
+      },
+      "notes": []
+    },
+    {
+      "placeId": "nha-trang/po-nagar",
+      "visitScopeLabel": "Tháp Bà Po Nagar",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giá và điều kiện áp dụng."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giờ tham quan."
+          ]
+        }
+      },
+      "notes": []
+    },
+    {
+      "placeId": "nha-trang/bao-dai",
+      "visitScopeLabel": "Biệt thự Bảo Đại",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giá và điều kiện áp dụng."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giờ tham quan."
+          ]
+        }
+      },
+      "notes": []
+    },
+    {
+      "placeId": "da-lat/xuan-huong",
+      "visitScopeLabel": "Hồ Xuân Hương",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giá và điều kiện áp dụng."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giờ tham quan."
+          ]
+        }
+      },
+      "notes": []
+    },
+    {
+      "placeId": "da-lat/central-market",
+      "visitScopeLabel": "Chợ Đà Lạt",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giá và điều kiện áp dụng."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giờ tham quan."
+          ]
+        }
+      },
+      "notes": []
+    },
+    {
+      "placeId": "da-lat/railway-station",
+      "visitScopeLabel": "Ga Đà Lạt",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giá và điều kiện áp dụng."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giờ tham quan."
+          ]
+        }
+      },
+      "notes": []
+    },
+    {
+      "placeId": "da-lat/lang-biang",
+      "visitScopeLabel": "Lang Biang",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giá và điều kiện áp dụng."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giờ tham quan."
+          ]
+        }
+      },
+      "notes": []
+    },
+    {
+      "placeId": "da-lat/bidoup",
+      "visitScopeLabel": "Vườn quốc gia Bidoup – Núi Bà",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giá và điều kiện áp dụng."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giờ tham quan."
+          ]
+        }
+      },
+      "notes": []
+    },
+    {
+      "placeId": "da-lat/linh-phuoc",
+      "visitScopeLabel": "Chùa Linh Phước",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giá và điều kiện áp dụng."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giờ tham quan."
+          ]
+        }
+      },
+      "notes": []
+    },
+    {
+      "placeId": "ho-chi-minh/notre-dame",
+      "visitScopeLabel": "Nhà thờ Đức Bà Sài Gòn",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giá và điều kiện áp dụng."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giờ tham quan."
+          ]
+        }
+      },
+      "notes": []
+    },
+    {
+      "placeId": "ho-chi-minh/post-office",
+      "visitScopeLabel": "Bưu điện Trung tâm Sài Gòn",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giá và điều kiện áp dụng."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giờ tham quan."
+          ]
+        }
+      },
+      "notes": []
+    },
+    {
+      "placeId": "ho-chi-minh/opera",
+      "visitScopeLabel": "Nhà hát Thành phố",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giá và điều kiện áp dụng."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giờ tham quan."
+          ]
+        }
+      },
+      "notes": []
+    },
+    {
+      "placeId": "ho-chi-minh/ben-thanh",
+      "visitScopeLabel": "Chợ Bến Thành",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giá và điều kiện áp dụng."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giờ tham quan."
+          ]
+        }
+      },
+      "notes": []
+    },
+    {
+      "placeId": "ho-chi-minh/jade-emperor",
+      "visitScopeLabel": "Chùa Ngọc Hoàng",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giá và điều kiện áp dụng."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giờ tham quan."
+          ]
+        }
+      },
+      "notes": []
+    },
+    {
+      "placeId": "ho-chi-minh/binh-tay",
+      "visitScopeLabel": "Chợ Bình Tây",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giá và điều kiện áp dụng."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giờ tham quan."
+          ]
+        }
+      },
+      "notes": []
+    },
+    {
+      "placeId": "phu-quoc/sao",
+      "visitScopeLabel": "Bãi Sao",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giá và điều kiện áp dụng."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giờ tham quan."
+          ]
+        }
+      },
+      "notes": []
+    },
+    {
+      "placeId": "phu-quoc/hon-thom",
+      "visitScopeLabel": "Hòn Thơm",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giá và điều kiện áp dụng."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giờ tham quan."
+          ]
+        }
+      },
+      "notes": []
+    },
+    {
+      "placeId": "phu-quoc/national-park",
+      "visitScopeLabel": "Vườn quốc gia Phú Quốc",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giá và điều kiện áp dụng."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giờ tham quan."
+          ]
+        }
+      },
+      "notes": []
+    },
+    {
+      "placeId": "phu-quoc/long-beach",
+      "visitScopeLabel": "Bãi Trường",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giá và điều kiện áp dụng."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giờ tham quan."
+          ]
+        }
+      },
+      "notes": []
+    },
+    {
+      "placeId": "phu-quoc/ganh-dau",
+      "visitScopeLabel": "Mũi Gành Dầu",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giá và điều kiện áp dụng."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giờ tham quan."
+          ]
+        }
+      },
+      "notes": []
+    },
+    {
+      "placeId": "phu-quoc/dinh-cau",
+      "visitScopeLabel": "Dinh Cậu",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giá và điều kiện áp dụng."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giờ tham quan."
+          ]
+        }
+      },
+      "notes": []
+    },
+    {
+      "placeId": "can-tho/cai-rang",
+      "visitScopeLabel": "Chợ nổi Cái Răng",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giá và điều kiện áp dụng."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giờ tham quan."
+          ]
+        }
+      },
+      "notes": []
+    },
+    {
+      "placeId": "can-tho/ninh-kieu",
+      "visitScopeLabel": "Bến Ninh Kiều",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giá và điều kiện áp dụng."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giờ tham quan."
+          ]
+        }
+      },
+      "notes": []
+    },
+    {
+      "placeId": "can-tho/ong-pagoda",
+      "visitScopeLabel": "Chùa Ông",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giá và điều kiện áp dụng."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giờ tham quan."
+          ]
+        }
+      },
+      "notes": []
+    },
+    {
+      "placeId": "can-tho/binh-thuy",
+      "visitScopeLabel": "Nhà cổ Bình Thủy",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giá và điều kiện áp dụng."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giờ tham quan."
+          ]
+        }
+      },
+      "notes": []
+    },
+    {
+      "placeId": "can-tho/con-son",
+      "visitScopeLabel": "Cồn Sơn",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giá và điều kiện áp dụng."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giờ tham quan."
+          ]
+        }
+      },
+      "notes": []
+    },
+    {
+      "placeId": "can-tho/bang-lang",
+      "visitScopeLabel": "Vườn cò Bằng Lăng",
+      "price": {
+        "status": "unverified",
+        "options": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giá và điều kiện áp dụng."
+          ]
+        }
+      },
+      "hours": {
+        "status": "unverified",
+        "rules": [],
+        "notes": [],
+        "evidence": {
+          "sourceIds": [],
+          "checkedAt": null,
+          "reviewState": "unverified",
+          "conditions": [],
+          "unresolvedIssues": [
+            "Chưa đối chiếu đủ nguồn giờ tham quan."
+          ]
+        }
+      },
+      "notes": []
+    }
+  ]
+}

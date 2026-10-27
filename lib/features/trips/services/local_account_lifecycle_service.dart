@@ -163,8 +163,13 @@ final class _Registry {
   }
 
   bool permits(_Subject? subject) =>
+      data['state'] == 'sealed' && _matches(subject);
+
+  bool matchesActive(_Subject? subject) =>
+      data['state'] == 'active' && _matches(subject);
+
+  bool _matches(_Subject? subject) =>
       subject != null &&
-      data['state'] == 'sealed' &&
       data['ownerId'] == subject.owner &&
       data['sessionFingerprint'] == subject.fingerprint &&
       data['expiresAt'] == subject.expiry;
@@ -209,10 +214,14 @@ class LocalAccountLifecycleService extends ChangeNotifier {
   int _epoch = 0;
   int _controls = 0;
   int _operations = 0;
+  Completer<void>? _operationsIdle;
   int _revocations = 0;
   bool _authMutation = false;
   bool _closed = false;
   bool _consumerFailed = false;
+  bool _attemptedAuthorization = false;
+  _Subject? _startupSubject;
+  _Subject? _pausingSubject;
   Timer? _deadline;
   _AccountTransitionPermit? _permit;
   LocalAccountLifecycleState _state = LocalAccountLifecycleState.denied;
@@ -281,6 +290,8 @@ class LocalAccountLifecycleService extends ChangeNotifier {
 
   void invalidateAccountContext() {
     _permit = null;
+    _startupSubject = null;
+    _pausingSubject = null;
     _epoch++;
     _deadline?.cancel();
     _deadline = null;
@@ -389,12 +400,17 @@ class LocalAccountLifecycleService extends ChangeNotifier {
   /// Must bracket every pending import/cache/network action, not only SQL awaits.
   VoidCallback beginAccountOperation(AccountSessionProof proof) {
     if (!isCurrentProof(proof)) throw StateError('Stale account operation.');
+    if (_operations == 0) _operationsIdle = Completer<void>();
     _operations++;
     var finished = false;
     return () {
       if (!finished) {
         finished = true;
         _operations--;
+        if (_operations == 0) {
+          _operationsIdle?.complete();
+          _operationsIdle = null;
+        }
       }
     };
   }
@@ -439,11 +455,26 @@ class LocalAccountLifecycleService extends ChangeNotifier {
     };
   }
 
-  Future<SessionHandle?> establishAccount({required bool freshAuthentication}) {
+  Future<SessionHandle?> establishAccount({
+    required bool freshAuthentication,
+  }) => _establishAccount(freshAuthentication: freshAuthentication);
+
+  Future<SessionHandle?> _establishAccount({
+    required bool freshAuthentication,
+    bool startupContinuation = false,
+  }) {
+    final firstAttempt = !_attemptedAuthorization || startupContinuation;
+    _attemptedAuthorization = true;
     final subject = _readSubject();
     invalidateAccountContext();
     final generation = _epoch;
     _lastSubject = subject ?? _lastSubject;
+    if (!freshAuthentication &&
+        firstAttempt &&
+        subject != null &&
+        _verifySubject != null) {
+      _startupSubject = subject;
+    }
     return _enqueue(() async {
       try {
         if (_closed || generation != _epoch) return null;
@@ -452,7 +483,26 @@ class LocalAccountLifecycleService extends ChangeNotifier {
         if (generation != _epoch || _closed) return null;
         final record = _Registry.parse(await _registry.read());
         if (generation != _epoch || _closed) return null;
-        if (!freshAuthentication && !_recordPermits(record, subject)) {
+        // An abrupt process death cannot seal its active checkpoint. Only a new
+        // service's first attempt may recover it, and only with server authority.
+        // This never grants offline access or reauthorizes an in-process denial.
+        final recoverActive =
+            !freshAuthentication &&
+            firstAttempt &&
+            _verifySubject != null &&
+            record?.matchesActive(subject) == true;
+        if (!freshAuthentication) {
+          final state = record?.data['state']?.toString() ?? 'invalid';
+          final sdkValid = subject != null;
+          debugPrint(
+            '[TravelGO restore] sdk_valid=$sdkValid '
+            'registry=$state '
+            'active_online=$recoverActive',
+          );
+        }
+        if (!freshAuthentication &&
+            !_recordPermits(record, subject) &&
+            !recoverActive) {
           await _write('revoking', generation, subject);
           await _purge(store);
           await _write('signedOut', generation, null);
@@ -465,6 +515,18 @@ class LocalAccountLifecycleService extends ChangeNotifier {
             _revocations > 0 ||
             _consumerFailed) {
           return null;
+        }
+        if (recoverActive || startupContinuation) {
+          final verify = _verifySubject;
+          if (verify == null) {
+            throw StateError('Startup verification unavailable.');
+          }
+          final verified = await verify(subject.token);
+          if (!_current(generation, subject)) return null;
+          if (verified != subject.owner) {
+            throw StateError('Cold restart subject verification failed.');
+          }
+          debugPrint('[TravelGO restore] active_server_verified=true');
         }
         await _write('active', generation, subject);
         if (!_current(generation, subject)) return null;
@@ -525,6 +587,8 @@ class LocalAccountLifecycleService extends ChangeNotifier {
         }
         return null;
       }
+    }).whenComplete(() {
+      if (identical(_startupSubject, subject)) _startupSubject = null;
     });
   }
 
@@ -595,7 +659,19 @@ class LocalAccountLifecycleService extends ChangeNotifier {
   }
 
   Future<void> suspendForegroundContext() {
-    if (_validPermit(_permit, 'live')) return Future.value();
+    if (_validPermit(_permit, 'live') ||
+        _validPermit(_permit, 'startupOnline') ||
+        (_pausingSubject != null && _pausingSubject!.matches(_readSubject()))) {
+      return Future.value();
+    }
+    final startup = _startupSubject;
+    final interruptedStartup =
+        startup != null &&
+        startup.matches(_readSubject()) &&
+        _verifySubject != null &&
+        !_authMutation &&
+        _revocations == 0 &&
+        !_consumerFailed;
     final subject = _authorizedSubject;
     final safe =
         handle != null &&
@@ -605,15 +681,89 @@ class LocalAccountLifecycleService extends ChangeNotifier {
         !_authMutation &&
         _revocations == 0 &&
         !_consumerFailed;
+    final onlineRecheck =
+        !safe &&
+        handle != null &&
+        subject != null &&
+        _controls == 0 &&
+        _operations > 0 &&
+        !_authMutation &&
+        _revocations == 0 &&
+        !_consumerFailed &&
+        _verifySubject != null;
+    assert(() {
+      final pendingOps = _operations > 0;
+      debugPrint(
+        '[TravelGO foreground] live_permit=$safe '
+        'pending_operations=$pendingOps '
+        'online_recheck=$onlineRecheck',
+      );
+      return true;
+    }());
     invalidateAccountContext();
     if (safe) {
       _permit = _AccountTransitionPermit(_issuer, subject, _epoch, 'live');
+    } else if (onlineRecheck) {
+      _permit = _AccountTransitionPermit(
+        _issuer,
+        subject,
+        _epoch,
+        'foregroundOnline',
+      );
+    } else if (interruptedStartup) {
+      // This retains a pending attempt, never account access or an offline seal.
+      _permit = _AccountTransitionPermit(
+        _issuer,
+        startup,
+        _epoch,
+        'startupOnline',
+      );
     }
     return Future.value();
   }
 
   Future<SessionHandle?> resumeForegroundContext() {
     final permit = _permit;
+    if (_validPermit(permit, 'startupOnline') && permit != null) {
+      if (!permit.subject.matches(_readSubject()) || _verifySubject == null) {
+        return revokeAccount().then((_) => null);
+      }
+      // Re-read the checkpoint and verify with the server again. Generic
+      // invalidation/Guest choice clears this private, epoch-bound continuation.
+      return _establishAccount(
+        freshAuthentication: false,
+        startupContinuation: true,
+      );
+    }
+    if (_validPermit(permit, 'foregroundOnline') && permit != null) {
+      if (!permit.subject.matches(_readSubject()) || _verifySubject == null) {
+        return revokeAccount().then((_) => null);
+      }
+      final pending = _operationsIdle?.future;
+      invalidateAccountContext();
+      final generation = _epoch;
+      return _enqueue(() async {
+        try {
+          if (pending != null) {
+            await pending.timeout(const Duration(seconds: 30));
+          }
+          if (!_current(generation, permit.subject)) return null;
+          return await _bindPreserving(
+            generation,
+            permit.subject,
+            verify: true,
+          );
+        } catch (_) {
+          if (generation == _epoch && !_closed) {
+            invalidateAccountContext();
+            _fail(
+              'Foreground operations did not finish; account remains locked.',
+            );
+          }
+          return null;
+        }
+      });
+    }
     if (!_validPermit(permit, 'live') || permit == null) return resumeAccount();
     if (!permit.subject.matches(_readSubject())) {
       return revokeAccount().then((_) => null);
@@ -746,6 +896,18 @@ class LocalAccountLifecycleService extends ChangeNotifier {
   }
 
   Future<bool> sealForPause() {
+    // Pending operations cannot earn an offline checkpoint. Only the captured
+    // in-memory transition may request fresh server verification after draining.
+    if (_validPermit(_permit, 'foregroundOnline') ||
+        _validPermit(_permit, 'startupOnline') ||
+        _startupSubject != null) {
+      return Future.value(false);
+    }
+    if (!_attemptedAuthorization &&
+        _state == LocalAccountLifecycleState.denied &&
+        _authorizedSubject == null) {
+      return Future.value(false);
+    }
     final live = _permit;
     final suspended = _validPermit(live, 'live');
     final subject = suspended ? live?.subject : _authorizedSubject;
@@ -758,6 +920,9 @@ class LocalAccountLifecycleService extends ChangeNotifier {
         !_consumerFailed;
     invalidateAccountContext();
     final generation = _epoch;
+    if (eligible && subject != null) {
+      _pausingSubject = subject;
+    }
     return _enqueue(() async {
       try {
         if (!eligible || subject == null || !_current(generation, subject)) {
@@ -792,6 +957,10 @@ class LocalAccountLifecycleService extends ChangeNotifier {
       } catch (_) {
         _fail('Pause checkpoint failed; offline restart is unavailable.');
         return false;
+      } finally {
+        if (identical(_pausingSubject, subject)) {
+          _pausingSubject = null;
+        }
       }
     });
   }

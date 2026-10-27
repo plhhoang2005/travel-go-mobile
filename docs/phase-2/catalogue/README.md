@@ -1,6 +1,7 @@
 # Catalogue readiness — 12 destinations
 
-Checked 2026-10-13. Source preparation only; not published to Supabase or wired
+Initial inventory checked 2026-10-13; P3.1 P0 identity update checked 2026-10-15.
+Source preparation only; not published to Supabase or wired
 into the Decision Engine. Canonical IDs match the twelve approved destination
 IDs in its existing data. No ranking, backend repo, Owner asset or app change.
 
@@ -68,3 +69,55 @@ open; reference depth preparation does not close the complete criterion.
 Lesson: validate provenance and identities separately from operational details.
 An official mention can support a place name while its price and availability
 remain unknown; the UI and adapters must preserve that distinction.
+
+## P3.1 P0 — editorial publication contract (2026-10-15)
+
+Owner authorized P3.1 implementation after approving design R2. P0 adds an
+explicit `sample.editorialReview` object to all twelve candidates. All twelve
+are **pending**; their historical day arrays remain in the source inventory,
+but must not be displayed as usable day-by-day schedules. The later runtime UI
+must show “Ví dụ đang được rà soát”. No corrected itinerary, Flutter asset,
+runtime integration or production publication is claimed by this data packet.
+
+| Field | Contract |
+| --- | --- |
+| `editorialReview.status` | `pending` or `reviewed_with_conditions` only. |
+| `reviewedAt` | Null for pending; real YYYY-MM-DD calendar date for reviewed. |
+| `sourceIds` | Empty for pending; nonempty, unique, existing source references for reviewed. |
+| `conditions` | Empty for pending; nonempty strings stating access/use limitations for reviewed. |
+| `reviewNotes` | Strings identifying unresolved work for pending; nonempty notes documenting the editorial reasoning/evidence for reviewed. |
+
+Missing editorialReview in legacy data means pending. An explicitly malformed
+object is rejected, not treated as publishable or silently repaired. Even a
+conditional editorial review retains `sample.status=not_feasibility_verified`
+and all warnings. Automated validation cannot decide whether human notes supply
+sufficient travel evidence; source/content review is a separate requirement.
+No record in this packet is promoted to reviewed. A one-day or multi-day example
+may use varying numbers of places; validation must not force two places per day,
+three days or all six places. Current historical candidates still have three days.
+
+Two names/source bindings were corrected while preserving place IDs:
+
+- `sa-pa/sapa-napro`: “SAPANAPRO, Tả Phìn”, now bound to `spe-operator`.
+  The prior `spe` tourism source stays in the inventory. The operator's
+  [identity/address page](https://sapanapro.com/tam-la-nguoi-dao-tri-thuc-ban-dia-khoa-hoc/)
+  supports its name and Tả Phìn association, not live bathhouse access.
+- `da-nang/lady-buddha`: “Tượng Quan Thế Âm — chùa Linh Ứng Bãi Bụt, Sơn Trà”,
+  now bound to `dn-linh-ung`; prior `dn` remains. The
+  [city tourism article](https://danangfantasticity.com/en/kham-pha/chua-linh-ung-bai-but-da-nang)
+  supports the statue/temple/peninsula relationship. This preserves the statue
+  reference rather than inventing another independent activity or a current
+  opening schedule. The article dates to 2018; no prices/hours are copied.
+
+The two new source records have their own check date, 2026-10-15. Original VNAT
+records and the root inventory retain 2026-10-13; no operational verification date
+is inferred. Source HTTPS host/publisher bindings are explicit in the validator;
+credentials, nonstandard ports, wildcard subdomains and nonexistent dates fail.
+Approved host set is vietnam.travel, www.vietnam.travel, sapanapro.com,
+danangfantasticity.com and halongbay.com.vn; allowing a host does not create a
+source record or confirm any claim. P0 adds only the two sources read above.
+
+The review register in `docs/phase-3/P3_1_CATALOGUE_REVIEW.md` records every
+pending sample and provenance delta. Prices/hours/coordinates/durations remain
+NULL, operationalStatus unknown, routingReady false and rights not_assigned.
+No update to the primary database, Decision Engine data or AI gateway is made.

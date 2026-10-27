@@ -1,4 +1,8 @@
-﻿# RULES 窶・TRAVELGO MOBILE (FLUTTER)
+> **Quyết định owner 24/10/2026 — phạm vi sản phẩm hiện hành:** Đọc [product-scope.md](product-scope.md) trước khi lập kế hoạch/code/review. TravelGO là đồ án app lập kế hoạch du lịch + AI tạo lịch, tư vấn và đề xuất sửa hoạt động; mọi thay đổi AI có preview/hủy/xác nhận. Giữ auth/OTP/recovery, tài khoản, khám phá, lịch thủ công, chuyến đi theo tài khoản, ngân sách và admin user/địa điểm. Giữ AI assistant cho tư vấn chuyến đi/đề xuất sửa hoạt động, không chatbot tổng quát. Loại bản đồ/định vị, dashboard Decision Intelligence, yêu thích và tiện ích ngoài scope. Những yêu cầu sản phẩm/ADR/roadmap cũ mâu thuẫn dưới đây là lịch sử, không được dùng để tái thêm chức năng bị loại. Các quy tắc an toàn dữ liệu, kiểm quyền, approval và bàn giao không mâu thuẫn vẫn giữ. Việc cập nhật tài liệu chưa xóa code hoặc chứng nhận demo ổn định.
+
+> **Thiết kế trợ lý AI hiện hành:** Đọc [ai-planner-design.md](ai-planner-design.md). Gemini qua backend, ưu tiên RAG catalogue; thiếu thì người dùng chọn tìm web có dẫn nguồn (Google Search Grounding), nhãn chưa được Admin kiểm duyệt, không tự nhập catalogue chung; kiểm tra kết quả bằng code, thay đổi lịch phải qua preview/hủy/xác nhận. Tái sử dụng code hiện có; không tự thêm vector database hoặc chatbot tổng quát.
+
+# RULES 窶・TRAVELGO MOBILE (FLUTTER)
 
 T蘯ｭp h盻｣p toﾃn b盻・cﾃ｡c quy chu蘯ｩn k盻ｹ thu蘯ｭt b蘯ｯt bu盻冂 tuﾃ｢n th盻ｧ ﾄ黛ｻ訴 v盻嬖 AI Coding Agent lﾃm vi盻㌘ trﾃｪn codebase TravelGO Mobile (Flutter/Dart).
 
@@ -12,7 +16,7 @@ T蘯ｭp h盻｣p toﾃn b盻・cﾃ｡c quy chu蘯ｩn k盻ｹ thu蘯ｭt b�
 - **Zero Guessing**: Tuyệt đối không tự ý giả định các trường dữ liệu DTO hoặc logic xử lý fallback.
 
 ### 1.2. Tối Thiểu Hóa Thay Đổi (Minimal Viable Change)
-- Chỉ sửa đúng các file và dòng code cần thiết để hoàn thành nhiệm vụ được giao (tối đa 5 file/task).
+- Chỉ sửa đúng các file và dòng code cần thiết để hoàn thành nhiệm vụ được giao. Không giới hạn số file hoặc số tool calls; cho phép sửa đồng bộ source, contract, test và tài liệu trong phạm vi đã duyệt.
 - Tuyệt đối không tự ý "tiện tay" refactor toàn bộ màn hình, format lại các file không liên quan, hoặc đổi tên biến ngoài phạm vi task.
 - Bảo toàn comment, docstring và các quy ước code hiện hữu trong file được chỉnh sửa.
 
@@ -213,20 +217,30 @@ Trﾆｰ盻嫩 khi xu蘯･t bﾃ｡o cﾃ｡o ho蘯ｷc t蘯｡o commit, Agent 
 <a id="owner-learning-rule"></a>
 ## 7. Giải thích để owner hiểu cách hệ thống hoạt động
 
+**Bổ sung owner — CONFIRMED 2026-10-27:** Sau mỗi đợt công việc có kết quả, luôn tóm tắt ngắn bằng tiếng Việt đơn giản cho owner, áp dụng cả code/sửa lỗi, review, lập kế hoạch, tài liệu và việc đang bị chặn; không chỉ khi task hoàn tất. Việc nhỏ 1–3 câu, việc lớn khoảng 3–5 dòng trước phần kỹ thuật. Nội dung phải trả lời:
+
+- **Vừa làm gì, để làm gì?** Nêu thay đổi hoặc kết quả chính bằng ngôn ngữ người dùng.
+- **Ảnh hưởng gì?** Chức năng, trải nghiệm hoặc dữ liệu nào thay đổi; nếu chỉ sửa tài liệu thì nói rõ app chưa đổi hành vi.
+- **Tình trạng hiện tại?** Đã kiểm tra gì, còn lỗi/rủi ro hoặc phần chưa chạy nào, và bước tiếp theo khi cần.
+
+Không thay phần giải thích bằng danh sách tên file, thuật ngữ hay số test. Giải thích thuật ngữ bắt buộc bằng một cụm ngắn; chỉ dẫn chi tiết kỹ thuật/bằng chứng sau phần tóm tắt khi hữu ích. Phân biệt rõ đã thực hiện với mới đề xuất, local với đã deploy, PASS với chưa kiểm chứng. Tích hợp tóm tắt vào handover hiện có để không lặp hai báo cáo; không thêm thủ tục phê duyệt hay báo cáo sau từng tool call. Giữ quy tắc này khi khôi phục context ở session mới qua AGENTS.md.
+
 **Owner preference — CONFIRMED 2026-10-08.** Sau mỗi lượt implementation/fix và code review, chủ động giải thích bằng tiếng Việt: luồng hoạt động, lỗi và ảnh hưởng, lý do chọn cách giải quyết, thay đổi trước/sau, cách kiểm chứng, kết quả cùng giới hạn. Dùng một tình huống thật của Travel-Go và rút ra 1–2 nguyên tắc có thể dùng ở chức năng khác.
 
 Không cần giảng từng dòng code hoặc thuật ngữ cú pháp. Nếu dùng thuật ngữ như Provider, RLS hoặc acknowledgement, giải thích ngắn bằng vai trò của nó. Nêu file/layer khi giúp định vị trách nhiệm; dùng sơ đồ mũi tên đơn giản khi hữu ích. Giữ phần giải thích vừa đủ theo độ phức tạp, không bắt owner làm bài tập hoặc trả lời câu hỏi để tiếp tục việc đã được authorize.
 
 Lead với kết luận review và lỗi cần xử lý; phần giải thích không che findings/bằng chứng. Phân biệt người sửa, người review, đề xuất chưa thực hiện, tests đã chạy và kiểm tra chưa chạy. Tests pass không tự đồng nghĩa feature đúng, code đã deploy hoặc database đã apply. Đối chiếu exact commit và evidence; không nhận lời bàn giao làm PASS.
 
-Dùng [workflow giải thích](workflow.md#owner-learning-workflow). Tích hợp vào Changed/Why/Testing/Problems/Lesson Candidate hiện có để tránh hai báo cáo lặp lại. Mặc định không sử dụng superpowers; chỉ dùng khi owner yêu cầu rõ ràng cho task hiện tại; quy tắc này không cấp quyền sửa code/database/merge ngoài task.
+Dùng [workflow giải thích](workflow.md#owner-learning-workflow). Tích hợp vào Changed/Why/Testing/Problems/Lesson Candidate hiện có để tránh hai báo cáo lặp lại. Áp dụng chính sách Superpowers mục 8: Antigravity coding dùng theo chỉ thị thường trực của owner; Codex chỉ dùng khi được yêu cầu cho task hiện tại. Quy tắc này không cấp quyền sửa code/database/merge ngoài task.
 
 <a id="explicit-superpowers-rule"></a>
 ## 8. Superpowers: explicit owner request only
 
-- Mặc định không đọc hoặc invoke skill thuộc superpowers, không tự kích hoạt theo mô tả skill như "MUST use before debugging/planning/review" hoặc "start conversation".
-- Chỉ dùng khi owner yêu cầu rõ ràng trong task hiện tại, ví dụ "sử dụng superpowers để tìm nguyên nhân". Nêu skill được dùng và mục đích.
-- Yêu cầu dùng ở task trước, prompt cũ hay transcript tham chiếu không tự cấp quyền cho task/session mới. "Không sử dụng superpowers" hiện tại ghi đè lời cho phép trước. Chỉ nhắc tên hoặc trao đổi về superpowers không phải yêu cầu invoke.
+- **Chỉ thị thường trực owner 25/10/2026:** Antigravity phải dùng Superpowers phù hợp khi triển khai code; Codex luôn ghi yêu cầu này trong prompt/handoff giao Antigravity code, gồm C3 và các task coding tiếp theo, cho tới khi owner thay đổi. Không hỏi lại quyền dùng skill cho các task này. Đây là yêu cầu tường minh, thay mặc định OFF đối với Antigravity coding.
+- Với Codex và công việc ngoài coding của Antigravity, mặc định không đọc hoặc invoke skill thuộc Superpowers, không tự kích hoạt theo mô tả skill như "MUST use before debugging/planning/review" hoặc "start conversation".
+- Ngoài chỉ thị thường trực trên, chỉ dùng khi owner yêu cầu rõ ràng trong task hiện tại, ví dụ "sử dụng superpowers để tìm nguyên nhân". Nêu skill được dùng và mục đích.
+- Yêu cầu dùng ở task trước, prompt cũ hay transcript tham chiếu không tự cấp quyền cho task/session mới ngoài chỉ thị thường trực. "Không sử dụng superpowers" hiện tại ghi đè lời cho phép trước. Chỉ nhắc tên hoặc trao đổi về Superpowers không phải yêu cầu invoke.
 - Không gọi superpowers gián tiếp qua subagent, workflow hoặc prompt thực thi khi owner chưa yêu cầu. Không cài/gỡ/sửa các skill đã cài để thực thi preference này.
 - Các skill khác không thuộc superpowers vẫn dùng theo nhu cầu task. Không bỏ phân tích nguyên nhân, kiểm thử hoặc evidence chỉ vì không dùng superpowers; không hỏi permission lặp lại để làm công việc đã được authorize.
 - Ghi preference này vào bàn giao khi đổi session. Nếu hướng dẫn skill mâu thuẫn, ưu tiên yêu cầu owner.
+- Dùng skill không mở rộng scope đã duyệt, không tự cấp quyền commit/push/merge/deploy/DB hoặc thay native/dependency. Không tạo approval gate lặp lại cho công việc đã được giao.

@@ -1,370 +1,241 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../../../core/theme/app_theme.dart';
-import '../../../home/models/destination_model.dart';
-import '../../../home/providers/home_catalog_provider.dart';
-import '../../../map/presentation/screens/trip_map_screen.dart';
+
+import '../../providers/discovery_provider.dart';
+import '../../providers/place_visit_details_provider.dart';
+import '../../providers/public_catalogue_provider.dart';
+import '../widgets/destination_reference_list_tile.dart';
+import 'destination_detail_screen.dart';
 
 class ExploreScreen extends StatefulWidget {
   const ExploreScreen({super.key});
-
   @override
   State<ExploreScreen> createState() => _ExploreScreenState();
 }
 
 class _ExploreScreenState extends State<ExploreScreen> {
-  String _selectedRegion = 'Tất cả';
-
-  final List<String> _regions = [
-    'Tất cả',
-    'Miền Bắc',
-    'Miền Trung',
-    'Miền Nam',
-    'Tây Nguyên',
-  ];
-
-  Color _getRegionColor(String region) {
-    if (region.contains('Bắc')) return const Color(0xFF0284C7);
-    if (region.contains('Trung')) return const Color(0xFF0D9488);
-    if (region.contains('Nam')) return const Color(0xFFF97316);
-    if (region.contains('Tây Nguyên')) return const Color(0xFF8B5CF6);
-    return AppTheme.primaryColor;
+  final _search = TextEditingController();
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_loadDiscovery());
+    });
   }
 
-  String _formatRegionLabel(String region) {
-    if (region == 'Bắc') return 'Miền Bắc';
-    if (region == 'Trung') return 'Miền Trung';
-    if (region == 'Nam') return 'Miền Nam';
-    return region;
+  Future<void> _loadDiscovery({bool force = false}) async {
+    final discovery = context.read<DiscoveryProvider>();
+    await discovery.load(force: force);
+    if (!mounted) return;
+    final catalogue = discovery.catalogue;
+    final visits = context.read<PlaceVisitDetailsProvider?>();
+    if (catalogue == null || visits == null) return;
+    await visits.load(catalogue);
+    if (force && mounted) await visits.refresh(force: true);
   }
 
-  bool _matchesRegion(String destRegion, String filter) {
-    if (filter == 'Tất cả') return true;
-    if (filter == 'Miền Bắc') return destRegion == 'Bắc' || destRegion == 'Miền Bắc';
-    if (filter == 'Miền Trung') return destRegion == 'Trung' || destRegion == 'Miền Trung';
-    if (filter == 'Miền Nam') return destRegion == 'Nam' || destRegion == 'Miền Nam';
-    if (filter == 'Tây Nguyên') return destRegion == 'Tây Nguyên';
-    return destRegion == filter;
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final catalog = context.watch<HomeCatalogProvider>();
-    final List<DestinationModel> allDestinations = catalog.destinations;
-    final filtered = allDestinations.where((d) => _matchesRegion(d.region, _selectedRegion)).toList();
-
+    final discovery = context.watch<DiscoveryProvider>();
+    PublicCatalogueProvider? publicCatalogue;
+    try {
+      publicCatalogue = context.watch<PublicCatalogueProvider>();
+    } catch (_) {}
+    if (_search.text != discovery.query) {
+      _search.value = TextEditingValue(
+        text: discovery.query,
+        selection: TextSelection.collapsed(offset: discovery.query.length),
+      );
+    }
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text('Khám Phá Việt Nam', style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.white,
-        elevation: 0,
+        title: const Text(
+          'Khám Phá Việt Nam',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
         actions: [
           IconButton(
-            tooltip: 'Bản Đồ OpenStreetMap & Radar',
-            icon: const Icon(Icons.map_outlined, color: AppTheme.primaryColor),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const TripMapScreen(),
-                ),
-              );
-            },
-          ),
-          IconButton(
-            tooltip: 'Làm mới',
-            icon: const Icon(Icons.refresh, color: AppTheme.slate600),
-            onPressed: () => catalog.fetchCatalog(forceRefresh: true),
+            tooltip: 'Đọc lại danh mục',
+            icon: const Icon(Icons.refresh),
+            onPressed: () => _loadDiscovery(force: true),
           ),
         ],
       ),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Filter Chips
-          Container(
-            color: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: _regions.map((region) {
-                  final isSelected = _selectedRegion == region;
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8.0),
-                    child: ChoiceChip(
-                      label: Text(region),
-                      selected: isSelected,
-                      selectedColor: AppTheme.primaryColor.withValues(alpha: 0.15),
-                      labelStyle: TextStyle(
-                        color: isSelected ? AppTheme.primaryColor : AppTheme.slate600,
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                      ),
-                      onSelected: (val) {
-                        if (val) setState(() => _selectedRegion = region);
-                      },
-                    ),
-                  );
-                }).toList(),
-              ),
-            ),
-          ),
-
-          // Offline fallback banner (Law 3: Zero Silent Fallbacks)
-          if (catalog.isFallback)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              color: Colors.amber.shade50,
-              child: Row(
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.wifi_off, size: 16, color: Colors.amber.shade900),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      '[Dữ liệu ngoại tuyến] Hiển thị danh mục điểm đến cục bộ.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.amber.shade900,
-                      ),
+                  if (MediaQuery.sizeOf(context).height -
+                          MediaQuery.viewInsetsOf(context).bottom >
+                      500)
+                    const Text('Danh mục tham khảo trong ứng dụng'),
+                  if (discovery.catalogue != null &&
+                      MediaQuery.sizeOf(context).height -
+                              MediaQuery.viewInsetsOf(context).bottom >
+                          500)
+                    Text(
+                      'Ngày kiểm nguồn ban đầu: ${discovery.catalogue!.checkedAt}',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    key: const ValueKey('destination-search'),
+                    controller: _search,
+                    textInputAction: TextInputAction.search,
+                    onSubmitted: (_) => FocusScope.of(context).unfocus(),
+                    onChanged: discovery.setQuery,
+                    decoration: InputDecoration(
+                      labelText: 'Tìm điểm đến hoặc địa điểm',
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: discovery.query.isEmpty
+                          ? null
+                          : IconButton(
+                              tooltip: 'Xóa tìm kiếm',
+                              icon: const Icon(Icons.close),
+                              onPressed: () {
+                                _search.clear();
+                                discovery.setQuery('');
+                              },
+                            ),
+                      border: const OutlineInputBorder(),
                     ),
                   ),
+                  const SizedBox(height: 8),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        for (final region in <String?>[
+                          null,
+                          'Bắc',
+                          'Trung',
+                          'Tây Nguyên',
+                          'Nam',
+                        ])
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: ChoiceChip(
+                              label: Text(region ?? 'Tất cả'),
+                              selected: discovery.region == region,
+                              onSelected: (_) => discovery.setRegion(region),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
                 ],
               ),
             ),
+            if (discovery.catalogue != null &&
+                (discovery.state == DiscoveryLoadState.error ||
+                    publicCatalogue?.error != null))
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    const Text(
+                      'Chưa thể cập nhật. Đang hiển thị danh mục đã tải trước đó.',
+                    ),
+                    TextButton(
+                      onPressed: () => _loadDiscovery(force: true),
+                      child: const Text('Thử lại'),
+                    ),
+                  ],
+                ),
+              ),
+            Expanded(child: _content(context, discovery)),
+          ],
+        ),
+      ),
+    );
+  }
 
-          const SizedBox(height: 8),
-
-          // Destinations List with Pull-to-refresh
-          Expanded(
-            child: catalog.isLoading && allDestinations.isEmpty
-                ? const Center(child: CircularProgressIndicator())
-                : filtered.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.location_off_outlined, size: 64, color: AppTheme.slate300),
-                            const SizedBox(height: 12),
-                            const Text(
-                              'Không có điểm đến nào trong khu vực này',
-                              style: TextStyle(fontSize: 14, color: AppTheme.slate600),
-                            ),
-                          ],
-                        ),
-                      )
-                    : RefreshIndicator(
-                        onRefresh: () => catalog.fetchCatalog(forceRefresh: true),
-                        child: ListView.builder(
-                          padding: const EdgeInsets.all(16),
-                          itemCount: filtered.length,
-                          itemBuilder: (context, index) {
-                            final dest = filtered[index];
-                            final color = _getRegionColor(dest.region);
-                            final regionLabel = _formatRegionLabel(dest.region);
-
-                            return Card(
-                              margin: const EdgeInsets.only(bottom: 16),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                              clipBehavior: Clip.antiAlias,
-                              elevation: 1,
-                              color: Colors.white,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  // Destination Image Header with badging
-                                  if (dest.imageUrl != null)
-                                    Stack(
-                                      children: [
-                                        Image.network(
-                                          dest.imageUrl!,
-                                          height: 140,
-                                          width: double.infinity,
-                                          fit: BoxFit.cover,
-                                          errorBuilder: (_, _, _) => Container(
-                                            height: 140,
-                                            color: color.withValues(alpha: 0.1),
-                                            child: Center(
-                                              child: Icon(Icons.photo_size_select_actual_outlined, color: color, size: 40),
-                                            ),
-                                          ),
-                                        ),
-                                        Positioned(
-                                          top: 12,
-                                          right: 12,
-                                          child: Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                            decoration: BoxDecoration(
-                                              color: Colors.black.withValues(alpha: 0.65),
-                                              borderRadius: BorderRadius.circular(20),
-                                            ),
-                                            child: Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Icon(
-                                                  catalog.getWeather(dest.id)?.weatherIcon ?? Icons.wb_sunny_rounded,
-                                                  color: Colors.amber,
-                                                  size: 14,
-                                                ),
-                                                const SizedBox(width: 4),
-                                                Text(
-                                                  '${(catalog.getWeather(dest.id)?.temperature ?? dest.weatherCachedTemp).toStringAsFixed(0)}°C',
-                                                  style: const TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 12,
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ),
-                                        Positioned(
-                                          top: 12,
-                                          left: 12,
-                                          child: Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                            decoration: BoxDecoration(
-                                              color: color,
-                                              borderRadius: BorderRadius.circular(20),
-                                            ),
-                                            child: Text(
-                                              regionLabel,
-                                              style: const TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 11,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-
-                                  // Body
-                                  Padding(
-                                    padding: const EdgeInsets.all(16.0),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
-                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            Expanded(
-                                              child: Text(
-                                                dest.name,
-                                                style: const TextStyle(
-                                                  fontSize: 18,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: AppTheme.slate900,
-                                                ),
-                                              ),
-                                            ),
-                                            if (dest.isPopular)
-                                              Container(
-                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                                decoration: BoxDecoration(
-                                                  color: Colors.red.shade50,
-                                                  borderRadius: BorderRadius.circular(8),
-                                                ),
-                                                child: Text(
-                                                  'Phổ biến',
-                                                  style: TextStyle(
-                                                    color: Colors.red.shade700,
-                                                    fontSize: 11,
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                ),
-                                              ),
-                                          ],
-                                        ),
-                                        if (dest.description != null && dest.description!.isNotEmpty) ...[
-                                          const SizedBox(height: 6),
-                                          Text(
-                                            dest.description!,
-                                            style: const TextStyle(
-                                              fontSize: 13,
-                                              color: AppTheme.slate600,
-                                              height: 1.4,
-                                            ),
-                                          ),
-                                        ],
-                                        Builder(
-                                          builder: (context) {
-                                            final liveWeather = catalog.getWeather(dest.id);
-                                            if (liveWeather == null) return const SizedBox.shrink();
-                                            return Padding(
-                                              padding: const EdgeInsets.only(top: 8.0),
-                                              child: Row(
-                                                children: [
-                                                  Icon(liveWeather.weatherIcon, size: 14, color: liveWeather.weatherColor),
-                                                  const SizedBox(width: 6),
-                                                  Expanded(
-                                                    child: Text(
-                                                      '${liveWeather.temperature.toStringAsFixed(1)}°C • ${liveWeather.weatherDescription} (Độ ẩm ${liveWeather.relativeHumidity}%)',
-                                                      style: const TextStyle(
-                                                        fontSize: 12,
-                                                        fontWeight: FontWeight.w600,
-                                                        color: AppTheme.slate700,
-                                                      ),
-                                                      maxLines: 1,
-                                                      overflow: TextOverflow.ellipsis,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            );
-                                          },
-                                        ),
-                                        const Divider(height: 24, color: AppTheme.slate100),
-                                        Row(
-                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            Row(
-                                              children: [
-                                                Icon(Icons.explore_outlined, size: 16, color: color),
-                                                const SizedBox(width: 6),
-                                                Text(
-                                                  'Khu vực $regionLabel',
-                                                  style: TextStyle(
-                                                    fontSize: 12,
-                                                    fontWeight: FontWeight.w600,
-                                                    color: color,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                            Row(
-                                              children: [
-                                                Text(
-                                                  'Lên kế hoạch',
-                                                  style: TextStyle(
-                                                    fontSize: 12,
-                                                    fontWeight: FontWeight.bold,
-                                                    color: AppTheme.primaryColor,
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 4),
-                                                Icon(Icons.arrow_forward_ios, size: 12, color: AppTheme.primaryColor),
-                                              ],
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                        ),
-                      ),
+  Widget _content(BuildContext context, DiscoveryProvider provider) {
+    if (provider.state == DiscoveryLoadState.loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (provider.state == DiscoveryLoadState.error &&
+        provider.catalogue == null) {
+      return Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error_outline),
+              const SizedBox(height: 8),
+              const Text('Không thể đọc danh mục tham khảo.'),
+              const SizedBox(height: 8),
+              OutlinedButton(
+                onPressed: () => _loadDiscovery(force: true),
+                child: const Text('Thử lại'),
+              ),
+            ],
           ),
-        ],
+        ),
+      );
+    }
+    final items = provider.visibleDestinations;
+    if (items.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Không tìm thấy điểm đến phù hợp.'),
+              if (provider.query.isNotEmpty || provider.region != null)
+                TextButton(
+                  onPressed: () {
+                    provider.setQuery('');
+                    provider.setRegion(null);
+                  },
+                  child: const Text('Xóa tìm kiếm và bộ lọc'),
+                ),
+            ],
+          ),
+        ),
+      );
+    }
+    final catalogue = provider.catalogue!;
+    return RefreshIndicator(
+      onRefresh: () => _loadDiscovery(force: true),
+      child: ListView.separated(
+        padding: const EdgeInsets.all(16),
+        physics: const AlwaysScrollableScrollPhysics(),
+        itemCount: items.length,
+        separatorBuilder: (_, _) => const SizedBox(height: 24),
+        itemBuilder: (context, index) => DestinationReferenceListTile(
+          destination: items[index],
+          matchingPlaces: provider.matchingPlaceNames(items[index]),
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute<void>(
+              builder: (_) => DestinationDetailScreen(
+                catalogue: catalogue,
+                destination: items[index],
+                visitProvider: context.read<PlaceVisitDetailsProvider?>(),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
 }
-

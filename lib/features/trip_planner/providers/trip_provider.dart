@@ -4,12 +4,15 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../explore/models/public_catalogue_snapshot.dart';
 import '../../trips/models/local_trip_records.dart';
 import '../../trips/models/trip_payload_codec.dart';
 import '../../trips/services/local_trip_store.dart';
+import '../models/planner_result_snapshot.dart';
 import '../models/trip_request.dart';
 import '../models/trip_response.dart';
 import '../services/trip_api_service.dart';
+import '../services/trip_date_policy.dart';
 
 class _PlannerWorkspace {
   final PlanTripRequest request;
@@ -65,6 +68,72 @@ class TripProvider extends ChangeNotifier {
 
   PlanTripRequest get currentRequest => _currentRequest;
   PlanTripResponse? get currentResponse => _currentResponse;
+  TripMetadataV1 get currentMetadata => _metadata;
+  bool get hasSelectedDestination => _metadata.destinationId != null;
+
+  PlannerResultSnapshot? captureResult() {
+    if (_disposed || _currentResponse == null) return null;
+    final effectiveRequest = hasSelectedDestination
+        ? _currentRequest.copyWith(
+            destinationId: _metadata.destinationId,
+            destinationName: _metadata.destinationName,
+            startDate: _metadata.startDate ?? _currentRequest.startDate,
+            endDate: _metadata.endDate ?? _currentRequest.endDate,
+          )
+        : _currentRequest;
+    return PlannerResultSnapshot(
+      request: TripPayloadCodec.deepFreezeRequest(effectiveRequest),
+      metadata: _metadata,
+      plan: _currentResponse!,
+      workspaceGeneration: _generation,
+    );
+  }
+
+  bool isCurrentResult(PlannerResultSnapshot snapshot) {
+    if (_disposed) return false;
+    return _generation == snapshot.workspaceGeneration &&
+        _currentResponse != null &&
+        _currentResponse!.winnerId == snapshot.plan.winnerId;
+  }
+
+  static const supportedAiDestinationIds = <String>{
+    'ha-noi',
+    'ha-long',
+    'sa-pa',
+    'ninh-binh',
+    'hue',
+    'da-nang',
+    'hoi-an',
+    'nha-trang',
+    'da-lat',
+    'ho-chi-minh',
+    'phu-quoc',
+    'can-tho',
+  };
+
+  static final RegExp destinationIdRegex =
+      RegExp(r'^[a-z0-9][a-z0-9/-]{0,119}$');
+
+  static bool isAiEligibleDestination(
+    String? id,
+    PublicCatalogueSnapshot snapshot,
+  ) {
+    if (id == null || !destinationIdRegex.hasMatch(id)) return false;
+    return snapshot.catalogue.destinations.any((d) => d.id == id);
+  }
+
+  bool get supportsSelectedDestinationAi {
+    final id = _metadata.destinationId;
+    if (id == null) return true;
+    return supportedAiDestinationIds.contains(id);
+  }
+  bool get isAccountWorkspace => !_guest && !_demo && _owner != null;
+  bool get canReplaceWorkspace =>
+      !_disposed &&
+      !_draftLoading &&
+      _saveFuture == null &&
+      !_demo &&
+      (_guest || _owner != null);
   bool get isLoading => _isLoading;
   bool get isBackendOnline => _isBackendOnline;
   String? get errorMessage => _errorMessage;
@@ -174,6 +243,7 @@ class TripProvider extends ChangeNotifier {
   }
 
   Future<void> init() async {
+    if (_disposed || hasSelectedDestination) return;
     final generation = _generation;
     try {
       final online = await _apiService.checkHealth();
@@ -189,12 +259,66 @@ class TripProvider extends ChangeNotifier {
     }
   }
 
+  void setCalendarRange(String startDate, String endDate) {
+    if (_disposed) return;
+    final range = TripDatePolicy.validate(startDate, endDate, maxDays: 30);
+    if (range == null) return;
+    final updatedRequest = _currentRequest.copyWith(
+      startDate: range.startDate,
+      endDate: range.endDate,
+      numDays: range.numDays,
+    );
+    updateRequest(updatedRequest);
+    _metadata = _metadata.copyWith(
+      startDate: range.startDate,
+      endDate: range.endDate,
+    );
+    _notify();
+  }
+
+  void setDuration(int numDays) {
+    if (_disposed) return;
+    if (numDays < 1 || numDays > 30) {
+      throw FormatException('Số ngày phải từ 1 đến 30 ngày (nhận được $numDays)');
+    }
+    String? newEndDate;
+    if (_currentRequest.startDate != null) {
+      newEndDate = TripDatePolicy.calculateEndDate(
+        _currentRequest.startDate!,
+        numDays,
+      );
+    }
+    final updatedRequest = _currentRequest.copyWith(
+      numDays: numDays,
+      endDate: newEndDate,
+    );
+    updateRequest(updatedRequest);
+    if (newEndDate != null) {
+      _metadata = _metadata.copyWith(endDate: newEndDate);
+    }
+    _notify();
+  }
+
   void updateRequest(PlanTripRequest newRequest) {
     if (_disposed) return;
     final frozen = TripPayloadCodec.deepFreezeRequest(newRequest);
     if (_hasInput &&
         jsonEncode(frozen.toJson()) == jsonEncode(_currentRequest.toJson())) {
       return;
+    }
+    if (frozen.startDate != null || frozen.endDate != null) {
+      final range = TripDatePolicy.validate(
+        frozen.startDate,
+        frozen.endDate,
+        expectedDays: frozen.numDays,
+        maxDays: 30,
+      );
+      if (range != null) {
+        _metadata = _metadata.copyWith(
+          startDate: range.startDate,
+          endDate: range.endDate,
+        );
+      }
     }
     _invalidate();
     _currentRequest = frozen;
@@ -220,7 +344,15 @@ class TripProvider extends ChangeNotifier {
     _invalidate();
     final generation = _generation;
     final operation = _planOperation;
-    final request = TripPayloadCodec.deepFreezeRequest(_currentRequest);
+    final outgoingRequest = hasSelectedDestination
+        ? _currentRequest.copyWith(
+            destinationId: _metadata.destinationId,
+            destinationName: _metadata.destinationName,
+            startDate: _metadata.startDate,
+            endDate: _metadata.endDate,
+          )
+        : _currentRequest;
+    final request = TripPayloadCodec.deepFreezeRequest(outgoingRequest);
     _currentResponse = null;
     _restored = false;
     _activity = true;
@@ -423,6 +555,72 @@ class TripProvider extends ChangeNotifier {
     }
     _invalidate();
     _resetWorkspace();
+    _notify();
+    return true;
+  }
+
+  bool prepareDestinationWorkspace({
+    required String destinationId,
+    required String destinationName,
+    required int expectedWorkspaceGeneration,
+    bool replaceDirty = false,
+  }) {
+    if (!RegExp(r'^[a-z0-9][a-z0-9/-]{0,119}$').hasMatch(destinationId) ||
+        destinationName.trim().isEmpty) {
+      return false;
+    }
+    TripMetadataV1 metadata;
+    try {
+      metadata = TripMetadataV1(
+        title: 'Chuyến đi $destinationName',
+        destinationId: destinationId,
+        destinationName: destinationName,
+      );
+    } on TripPayloadException {
+      return false;
+    }
+    return _replaceWorkspace(
+      metadata,
+      expectedWorkspaceGeneration,
+      replaceDirty,
+    );
+  }
+
+  bool useSuggestedDestination({
+    required int expectedWorkspaceGeneration,
+    bool replaceDirty = false,
+  }) => _replaceWorkspace(
+    TripMetadataV1(),
+    expectedWorkspaceGeneration,
+    replaceDirty,
+  );
+
+  bool _replaceWorkspace(
+    TripMetadataV1 metadata,
+    int expectedGeneration,
+    bool replaceDirty,
+  ) {
+    if (!canReplaceWorkspace ||
+        expectedGeneration != _generation ||
+        (isDraftDirty && !replaceDirty)) {
+      return false;
+    }
+    final request = TripPayloadCodec.deepFreezeRequest(
+      _hasInput ? _currentRequest : PlanTripRequest.presetMinh(),
+    );
+    _invalidate();
+    _currentRequest = request;
+    _metadata = metadata.copyWith(
+      startDate: request.startDate,
+      endDate: request.endDate,
+    );
+    _currentResponse = null;
+    _draftId = null;
+    _draftRevision = null;
+    _savedDigest = null;
+    _hasInput = true;
+    _restored = false;
+    _activity = true;
     _notify();
     return true;
   }

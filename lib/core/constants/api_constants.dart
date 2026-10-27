@@ -1,23 +1,26 @@
-import 'dart:io';
-import 'package:flutter/foundation.dart';
+import '../services/backend_api_config.dart';
 
 class ApiConstants {
+  static BackendApiConfig? _config;
+
   // Allow overriding baseUrl at runtime (e.g. for testing on physical devices via LAN IP)
   static String? overrideBaseUrl;
 
-  // Configured for local dev: 10.0.2.2 for Android Emulator, localhost for iOS/Web/Desktop
+  static void configure(BackendApiConfig config) {
+    _config = config;
+  }
+
   static String get baseUrl {
     if (overrideBaseUrl != null && overrideBaseUrl!.trim().isNotEmpty) {
       return overrideBaseUrl!.trim();
     }
-    if (kIsWeb) {
-      return 'http://localhost:8080/api/v1';
+    if (_config != null) {
+      return _config!.effectiveBaseUrl;
     }
-    if (Platform.isAndroid) {
-      return 'http://10.0.2.2:8080/api/v1';
-    }
-    return 'http://localhost:8080/api/v1';
+    return BackendApiConfig.defaultBaseUrl();
   }
+
+  static int get configRevision => _config?.revision ?? 0;
 
   static const String planTrip = '/plan-trip';
   static const String simulateSensitivity = '/simulate-sensitivity';

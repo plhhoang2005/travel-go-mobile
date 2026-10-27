@@ -8,10 +8,20 @@ import 'package:sqflite/sqflite.dart' as sqflite_lib;
 import 'package:travelgo_mobile/features/trips/models/local_trip_records.dart';
 import 'package:travelgo_mobile/features/trips/models/trip_payload_codec.dart';
 
+import '../../trip_planner/models/editable_trip_document.dart';
+import '../../trip_planner/services/editable_trip_validator.dart';
+import '../models/editable_local_records.dart';
+import '../models/editable_remote_records.dart';
+import '../models/editable_trip_codec.dart';
+import '../models/trip_evidence_codec.dart';
+import 'editable_local_schema.dart';
+
+part 'editable_local_store.dart';
+
 /// Local SQLite persistence store for guest drafts, authenticated trip snapshots,
 /// and import journal records, enforcing strict integrity and fail-closed safety.
 class LocalTripStore {
-  static const int databaseSchemaVersion = 1;
+  static const int databaseSchemaVersion = 2;
   static const String defaultDatabaseName = 'travel_go_local.db';
 
   final DatabaseFactory _databaseFactory;
@@ -48,6 +58,9 @@ class LocalTripStore {
 
   @visibleForTesting
   Future<void> Function(String step)? onActivationStepForTesting;
+
+  @visibleForTesting
+  Future<void> Function(String step)? onEditableStepForTesting;
 
   LocalTripStore({
     DatabaseFactory? databaseFactory,
@@ -136,6 +149,7 @@ class LocalTripStore {
           where: 'target_owner = ? AND state IN (?, ?)',
           whereArgs: [ownerId, 'staged', 'pending_ack'],
         );
+        await EditableLocalSchema.purge(txn, ownerId);
       });
 
       // Step 4 (Txn 3): Complete cleanup
@@ -166,11 +180,25 @@ class LocalTripStore {
           version: databaseSchemaVersion,
           onConfigure: (db) async =>
               await db.execute('PRAGMA foreign_keys = ON;'),
-          onCreate: (db, version) async => await _createSchema(db),
-          onUpgrade: (db, oldVersion, newVersion) async =>
-              throw const UnsupportedDatabaseVersionException(
-                'Unsupported upgrade.',
-              ),
+          onCreate: (db, version) async {
+            await _createSchema(db);
+            await EditableLocalSchema.create(
+              db,
+              onStep: onEditableStepForTesting,
+            );
+          },
+          onUpgrade: (db, oldVersion, newVersion) async {
+            if (oldVersion == 1 && newVersion == 2) {
+              await EditableLocalSchema.create(
+                db,
+                onStep: onEditableStepForTesting,
+              );
+              return;
+            }
+            throw const UnsupportedDatabaseVersionException(
+              'Unsupported upgrade.',
+            );
+          },
           onDowngrade: (db, oldVersion, newVersion) async =>
               throw const UnsupportedDatabaseVersionException(
                 'Unsupported downgrade.',
@@ -178,6 +206,7 @@ class LocalTripStore {
         ),
       );
       try {
+        await EditableLocalSchema.verify(_db!);
         await _recoverCommittedMarkersOnStartup(_db!);
         _isOpened = true;
       } catch (e, st) {
@@ -325,6 +354,9 @@ class LocalTripStore {
       for (final source in const [
         ('account_trip_snapshots', 'owner_id'),
         ('local_import_journal', 'target_owner'),
+        ('editable_trip_snapshots', 'owner_id'),
+        ('editable_import_journal', 'owner_id'),
+        ('editable_mutation_outbox', 'owner_id'),
       ]) {
         final rows = await db.query(
           source.$1,
@@ -2082,6 +2114,7 @@ class LocalTripStore {
           where: 'target_owner = ? AND state IN (?, ?)',
           whereArgs: [targetOwnerId, 'staged', 'pending_ack'],
         );
+        await EditableLocalSchema.purge(txn, targetOwnerId);
       });
       if (onPurgeStepForTesting != null) {
         await onPurgeStepForTesting!('after_purge_txn');

@@ -3775,9 +3775,10 @@ void main() {
       await runWithStore((ctx) async {
         await ctx.store.close();
 
-        // Open raw db and bump user_version to 2
+        // Always test an unsupported future version, even after a supported upgrade.
         final rawDb = await databaseFactoryFfi.openDatabase(ctx.dbPath);
-        await rawDb.execute('PRAGMA user_version = 2;');
+        final futureVersion = LocalTripStore.databaseSchemaVersion + 1;
+        await rawDb.execute('PRAGMA user_version = $futureVersion;');
         await rawDb.close();
 
         final futureStore = LocalTripStore(

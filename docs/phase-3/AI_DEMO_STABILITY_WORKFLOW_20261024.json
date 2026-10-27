@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "run_id": "travelgo-ai-demo-stability-20261024",
+  "status": "CANCELLED_BY_OWNER",
+  "scope": "demo_stability_S1_S2_S3",
+  "scope_selected_by_owner": true,
+  "owner_plan_approved": true,
+  "code_authorized": false,
+  "base_sha": "f8085a57305fc96a641db56f7f9a0b8b2318832c",
+  "owner_checkout": "D:/Travel-Go-Android/travel-go",
+  "workspace_path": "C:/Users/ASUS/.codex/worktrees/ai-demo-stability/travel-go",
+  "implementation_branch": "codex/ai-demo-stability",
+  "controller": "current_codex_chat",
+  "scheduler_created": false,
+  "max_repair_rounds": 2,
+  "repair_rounds_dispatched": 0,
+  "initial_implementation_dispatched": true,
+  "active_iteration": null,
+  "agy_conversation_id": "05507565-41fc-4ec4-8010-c711d2333dc4",
+  "agy_cli_version_verified": "1.4.2",
+  "agy_auth_verified": true,
+  "agy_superpowers_preflight_verified": true,
+  "approved_document_hashes": {
+    "docs/superpowers/specs/2026-10-24-ai-demo-stability-design.md": "B30BD64F801940B80A1B876CDB43F8676AFAFA76CE62F895C74C26748D34E2C1",
+    "docs/superpowers/plans/2026-10-24-ai-demo-stability-antigravity.md": "40E30206BEC24B1ED81BDA86C212020FD338829A1C2BFC1CECDE7C690043F798",
+    "docs/superpowers/plans/2026-10-24-ai-demo-stability-agy-handoff.md": "A59F9DD320EA5D606C5B4EBE68CEA5177C163FC35EB64753E730CAEE6623DBD0"
+  },
+  "source_candidate_sha": null,
+  "source_acceptance": "NOT_RUN",
+  "native_acceptance": "NOT_RUN",
+  "allow_push": false,
+  "allow_merge": false,
+  "allow_deploy": false,
+  "round_history": [
+    {
+      "iteration": 0,
+      "stage": "A1_RED",
+      "status": "dispatched",
+      "base_sha": "f8085a57305fc96a641db56f7f9a0b8b2318832c"
+    }
+  ],
+  "backlog": [
+    "budget_and_remaining_context",
+    "generation_date_origin_priority_context",
+    "catalogue_grounding_and_map_binding",
+    "verified_prices_hours_route_facts",
+    "existing_recovery_findings"
+  ],
+  "runtime_adaptations": [
+    "Exact hashed Superpowers content bundled inside worktree; original skills unchanged.",
+    "Codex brokers approved shell tests and Git; Antigravity edits only approved product/test files."
+  ],
+  "cancellation_note": "Owner cancelled workflow. A1 RED tests were written in isolated worktree but not executed. No production patch, commit, push, merge, deployment or scheduler was performed by this workflow. Preserve files; do not resume automatically."
+}

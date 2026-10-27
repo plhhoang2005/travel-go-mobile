@@ -1,9 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:travelgo_mobile/features/trip_planner/models/trip_response.dart';
-import 'package:travelgo_mobile/features/trip_planner/presentation/widgets/pareto_chart_widget.dart';
 
 void main() {
   const sampleLiveJson = {
@@ -133,86 +131,6 @@ void main() {
         'isParetoOptimal': null,
       });
       expect(optNull.isParetoOptimal, isFalse);
-    });
-  });
-
-  group('Production ParetoChartWidget Layout & Wrapping (DE-02)', () {
-    final liveOptions = [
-      TransportOption(
-        mode: 'may_bay',
-        displayName: 'Máy bay khứ hồi (Vietnam Airlines / Vietjet Air)',
-        priceTotalVnd: 1542492,
-        durationHours: 1.6,
-        comfortScore: 9,
-        isParetoOptimal: true,
-        tradeoffType: 'fastest',
-        recommendationReason: 'Nhanh nhất',
-      ),
-      TransportOption(
-        mode: 'tau_lua',
-        displayName: 'Tàu hỏa (Ghế mềm điều hòa Đường Sắt Việt Nam)',
-        priceTotalVnd: 601160,
-        durationHours: 10.1,
-        comfortScore: 8,
-        isParetoOptimal: true,
-        tradeoffType: 'balanced',
-        recommendationReason: 'Cân bằng',
-      ),
-      TransportOption(
-        mode: 'xe_khach',
-        displayName: 'Xe khách giường nằm Limousine cao cấp',
-        priceTotalVnd: 382662,
-        durationHours: 11.3,
-        comfortScore: 7,
-        isParetoOptimal: false,
-        tradeoffType: 'cheapest',
-        recommendationReason: 'Giá rẻ nhất',
-      ),
-    ];
-
-    testWidgets('renders cleanly on 390px phone width without RenderFlex overflow', (tester) async {
-      tester.view.physicalSize = const Size(390, 844);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: SingleChildScrollView(
-              child: ParetoChartWidget(transportOptions: liveOptions),
-            ),
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(tester.takeException(), isNull, reason: 'Must not produce RenderFlex overflow on 390px');
-      expect(find.text('Đánh Đổi Pareto (Thời Gian vs Chi Phí)'), findsOneWidget);
-      expect(find.textContaining('Vietnam Airlines / Vietjet Air'), findsOneWidget);
-      expect(find.textContaining('Đường Sắt Việt Nam'), findsOneWidget);
-      expect(find.textContaining('Limousine cao cấp'), findsOneWidget);
-    });
-
-    testWidgets('renders cleanly on narrow 360px phone width without RenderFlex overflow', (tester) async {
-      tester.view.physicalSize = const Size(360, 640);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: SingleChildScrollView(
-              child: ParetoChartWidget(transportOptions: liveOptions),
-            ),
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(tester.takeException(), isNull, reason: 'Must not produce RenderFlex overflow on narrow 360px');
-      expect(find.text('Đánh Đổi Pareto (Thời Gian vs Chi Phí)'), findsOneWidget);
     });
   });
 }
