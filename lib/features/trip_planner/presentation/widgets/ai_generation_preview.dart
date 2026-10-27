@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../trips/models/trip_evidence_envelope.dart';
+import '../../models/ai_grounded_proposal.dart';
 import '../../services/ai_generation_service.dart';
+import '../../services/editable_trip_validator.dart';
+import 'evidence_details_sheet.dart';
 
 class AiGenerationPreview extends StatefulWidget {
   final AiGenerationContext input;
-  final Future<AiPreparedProposal> Function(String requestId) generate;
+  final Future<Object> Function(String requestId) generate;
   final Listenable authority;
   final bool Function() isCurrent;
+
   const AiGenerationPreview({
     super.key,
     required this.input,
@@ -15,6 +20,7 @@ class AiGenerationPreview extends StatefulWidget {
     required this.authority,
     required this.isCurrent,
   });
+
   @override
   State<AiGenerationPreview> createState() => _AiGenerationPreviewState();
 }
@@ -22,7 +28,35 @@ class AiGenerationPreview extends StatefulWidget {
 class _AiGenerationPreviewState extends State<AiGenerationPreview> {
   bool _consent = false, _loading = false, _closing = false;
   String? _requestId, _error;
-  AiPreparedProposal? _prepared;
+  Object? _prepared;
+
+  AiItineraryProposal? get _proposal {
+    final p = _prepared;
+    if (p is AiGroundedProposal) return p.proposal;
+    if (p is AiPreparedProposal) return p.proposal;
+    return null;
+  }
+
+  bool get _canApply {
+    final p = _prepared;
+    if (p is AiGroundedProposal) return p.canApply;
+    if (p is AiPreparedProposal) return p.canApply;
+    return false;
+  }
+
+  List<EditableValidationIssue> get _issues {
+    final p = _prepared;
+    if (p is AiGroundedProposal) return p.issues;
+    if (p is AiPreparedProposal) return p.issues;
+    return const [];
+  }
+
+  TripEvidenceEnvelope? get _envelope {
+    final p = _prepared;
+    if (p is AiGroundedProposal) return p.envelope;
+    return null;
+  }
+
   Future<void> _generate() async {
     if (!_consent || _loading || !widget.isCurrent()) {
       return;
@@ -59,6 +93,7 @@ class _AiGenerationPreviewState extends State<AiGenerationPreview> {
   String _clock(int? minute) => minute == null
       ? 'chưa rõ'
       : '${(minute ~/ 60).toString().padLeft(2, '0')}:${(minute % 60).toString().padLeft(2, '0')}';
+
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: widget.authority,
@@ -75,7 +110,9 @@ class _AiGenerationPreviewState extends State<AiGenerationPreview> {
         }
         return const SizedBox.shrink();
       }
-      final prepared = _prepared;
+      final proposal = _proposal;
+      final envelope = _envelope;
+
       return AlertDialog(
         title: const Text('Đề xuất lịch từ AI'),
         scrollable: true,
@@ -99,7 +136,7 @@ class _AiGenerationPreviewState extends State<AiGenerationPreview> {
               const Text(
                 'Kết quả AI được lưu tạm trên máy chủ tối đa 24 giờ để kiểm tra lại yêu cầu. Gemini xử lý thông tin bạn đồng ý gửi.',
               ),
-              if (prepared == null) ...[
+              if (proposal == null) ...[
                 CheckboxListTile(
                   key: const ValueKey('ai-consent'),
                   contentPadding: EdgeInsets.zero,
@@ -142,13 +179,72 @@ class _AiGenerationPreviewState extends State<AiGenerationPreview> {
                     ),
                   ),
                 ),
-              if (prepared != null) ...[
+              if (proposal != null) ...[
                 const Divider(height: 24),
-                Text(prepared.proposal.summary),
-                const Text(
-                  'Chưa xác minh giá, địa điểm, giờ mở cửa, đường đi và thời tiết. Kiểm tra trước khi sử dụng.',
-                ),
-                ...prepared.proposal.activities.map(
+                Text(proposal.summary),
+                const SizedBox(height: 4),
+                if (envelope != null) ...[
+                  if (envelope.evidence.any((e) => e.origin == EvidenceOrigin.web)) ...[
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.amber.shade400),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.public, size: 18, color: Colors.amber.shade900),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Thông tin từ Internet, chưa được Admin kiểm duyệt (${envelope.evidence.length} nguồn)',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.amber.shade900,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                  ] else ...[
+                    Row(
+                      children: [
+                        const Icon(Icons.verified, size: 16, color: Colors.green),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Đã đối chiếu Catalogue (${envelope.evidence.length} nguồn)',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                  ],
+                  OutlinedButton.icon(
+                    key: const ValueKey('ai-view-evidence'),
+                    icon: Icon(
+                      envelope.evidence.any((e) => e.origin == EvidenceOrigin.web)
+                          ? Icons.public
+                          : Icons.verified_outlined,
+                      size: 16,
+                    ),
+                    label: Text('Xem căn cứ (${envelope.evidence.length})'),
+                    onPressed: () => showTripEvidence(
+                      context,
+                      envelope,
+                      authority: widget.authority,
+                      isCurrent: widget.isCurrent,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                ] else
+                  const Text(
+                    'Chưa xác minh giá, địa điểm, giờ mở cửa, đường đi và thời tiết. Kiểm tra trước khi sử dụng.',
+                  ),
+                ...proposal.activities.map(
                   (a) => Padding(
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     child: Text(
@@ -156,13 +252,13 @@ class _AiGenerationPreviewState extends State<AiGenerationPreview> {
                     ),
                   ),
                 ),
-                ...prepared.proposal.warnings.map(
+                ...proposal.warnings.map(
                   (w) => Padding(
                     padding: const EdgeInsets.only(bottom: 8),
                     child: Text(w),
                   ),
                 ),
-                ...prepared.issues
+                ..._issues
                     .take(12)
                     .map(
                       (i) => Text(
@@ -174,7 +270,7 @@ class _AiGenerationPreviewState extends State<AiGenerationPreview> {
                         ),
                       ),
                     ),
-                if (!prepared.canApply)
+                if (!_canApply)
                   const Text(
                     'Đề xuất còn lỗi chặn. Hủy để chỉnh lịch hiện tại rồi tạo đề xuất mới.',
                   ),
@@ -188,11 +284,11 @@ class _AiGenerationPreviewState extends State<AiGenerationPreview> {
             onPressed: () => Navigator.of(context).pop(),
             child: const Text('Hủy'),
           ),
-          if (prepared != null)
+          if (proposal != null)
             FilledButton(
               key: const ValueKey('ai-apply'),
-              onPressed: prepared.canApply
-                  ? () => Navigator.of(context).pop(prepared)
+              onPressed: _canApply
+                  ? () => Navigator.of(context).pop(_prepared)
                   : null,
               child: const Text('Xác nhận thêm vào bản nháp'),
             ),

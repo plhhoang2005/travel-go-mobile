@@ -13,6 +13,7 @@ import '../../trip_planner/services/editable_trip_validator.dart';
 import '../models/editable_local_records.dart';
 import '../models/editable_remote_records.dart';
 import '../models/editable_trip_codec.dart';
+import '../models/trip_evidence_codec.dart';
 import 'editable_local_schema.dart';
 
 part 'editable_local_store.dart';

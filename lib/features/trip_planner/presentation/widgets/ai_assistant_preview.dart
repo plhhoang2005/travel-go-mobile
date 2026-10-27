@@ -2,8 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../models/ai_context_grounding.dart';
+import '../../models/ai_grounded_assistant.dart';
 import '../../services/ai_assistant_service.dart';
 import '../../services/ai_generation_service.dart';
+import '../../../trips/models/trip_evidence_envelope.dart';
+import 'evidence_details_sheet.dart';
+export 'web_advice_sheet.dart';
 
 class AiAssistantPreview extends StatefulWidget {
   final AiAssistantContext input;
@@ -28,7 +32,27 @@ class _AiAssistantPreviewState extends State<AiAssistantPreview> {
   List<Map<String, Object?>>? _requestHistory;
   final List<Map<String, Object?>> _history = [];
   bool _consent = false, _loading = false, _closing = false, _estimateReviewAck = false;
-  AiAssistantReply? _reply;
+  Object? _reply;
+
+  AiAssistantResult? get _assistantResult {
+    final r = _reply;
+    if (r is AiGroundedAssistantReply) return r.result;
+    if (r is AiAssistantReply) return r.result;
+    return null;
+  }
+
+  AiModificationPreview? get _modification {
+    final r = _reply;
+    if (r is AiGroundedAssistantReply) return r.modification;
+    if (r is AiAssistantReply) return r.modification;
+    return null;
+  }
+
+  TripEvidenceEnvelope? get _envelope {
+    final r = _reply;
+    if (r is AiGroundedAssistantReply) return r.envelope;
+    return null;
+  }
   String _source(AiRecommendation recommendation) {
     final reference = widget.input.places
         .where((p) => p['id'] == recommendation.placeId)
@@ -92,13 +116,20 @@ class _AiAssistantPreviewState extends State<AiAssistantPreview> {
       if (!mounted || !widget.isCurrent()) {
         return;
       }
+      final result = reply is AiGroundedAssistantReply
+          ? reply.result
+          : (reply as AiAssistantReply).result;
+      final modification = reply is AiGroundedAssistantReply
+          ? reply.modification
+          : (reply as AiAssistantReply).modification;
+
       setState(() {
         _reply = reply;
         _estimateReviewAck = false;
-        if (reply.modification == null) {
+        if (modification == null) {
           _history.addAll([
             {'role': 'user', 'text': prompt},
-            {'role': 'model', 'text': reply.result.summary},
+            {'role': 'model', 'text': result.summary},
           ]);
           while (_history.length > 4) {
             _history.removeRange(0, 2);
@@ -148,7 +179,7 @@ class _AiAssistantPreviewState extends State<AiAssistantPreview> {
         }
         return const SizedBox.shrink();
       }
-      final modification = _reply?.modification, body = widget.input.toJson();
+      final modification = _modification, result = _assistantResult, envelope = _envelope, body = widget.input.toJson();
       final editable = !_loading && _requestId == null && modification == null;
       return AlertDialog(
         title: Text('AI cho ngày ${widget.input.selectedDay}'),
@@ -270,15 +301,40 @@ class _AiAssistantPreviewState extends State<AiAssistantPreview> {
                     '${h['role'] == 'user' ? 'Bạn' : 'AI · chưa xác minh'}: ${h['text']}',
                   ),
                 ),
-              if (_reply != null) ...[
+              if (result != null) ...[
                 const Divider(height: 24),
-                if (modification != null) Text(_reply!.result.summary),
-                for (final r in _reply!.result.recommendations)
+                if (modification != null) Text(result.summary),
+                if (envelope != null && envelope.evidence.isNotEmpty) ...[
+                  Row(
+                    children: [
+                      const Icon(Icons.verified, size: 16, color: Colors.green),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Đã đối chiếu Catalogue (${envelope.evidence.length} nguồn)',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  OutlinedButton.icon(
+                    key: const ValueKey('ai-assistant-view-evidence'),
+                    icon: const Icon(Icons.verified_outlined, size: 16),
+                    label: Text('Xem căn cứ (${envelope.evidence.length})'),
+                    onPressed: () => showTripEvidence(
+                      context,
+                      envelope,
+                      authority: widget.authority,
+                      isCurrent: widget.isCurrent,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+                for (final r in result.recommendations)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     child: Text('${r.title}\n${r.reason}\n${_source(r)}'),
                   ),
-                for (final w in _reply!.result.warnings)
+                for (final w in result.warnings)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 8),
                     child: Text(w),
@@ -348,7 +404,7 @@ class _AiAssistantPreviewState extends State<AiAssistantPreview> {
               onPressed: (modification.canApply &&
                       (!modification.requiresEstimateReview ||
                           _estimateReviewAck))
-                  ? () => Navigator.of(context).pop(modification)
+                  ? () => Navigator.of(context).pop(_reply is AiGroundedAssistantReply ? _reply : modification)
                   : null,
               child: const Text('Xác nhận chỉnh bản nháp'),
             ),

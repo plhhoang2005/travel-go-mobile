@@ -1,4 +1,7 @@
 import 'dart:async';
+import '../models/ai_evidence_context.dart';
+import '../models/ai_grounded_proposal.dart';
+import '../../explore/models/public_catalogue_snapshot.dart';
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
@@ -7,6 +10,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../explore/models/catalogue_reference.dart' as catalogue;
 import '../../trips/models/editable_trip_codec.dart';
+import '../../trips/models/trip_evidence_codec.dart';
+import '../../trips/models/trip_evidence_envelope.dart';
 import '../../../core/constants/supabase_constants.dart';
 import '../models/editable_trip_command.dart';
 import '../models/editable_trip_document.dart';
@@ -125,14 +130,22 @@ class AiProposedActivity {
     this.startMinute,
     this.endMinute,
     this.costVnd,
-    this.category,
-  );
+    this.category, {
+    this.externalPlaceName,
+  });
+  final String? externalPlaceName;
 }
 
 class AiItineraryProposal {
   final String summary;
   final List<AiProposedActivity> activities;
   final List<String> warnings;
+  AiItineraryProposal({
+    required this.summary,
+    required List<AiProposedActivity> activities,
+    required List<String> warnings,
+  }) : activities = List.unmodifiable(activities),
+       warnings = List.unmodifiable(warnings);
   AiItineraryProposal._(
     this.summary,
     List<AiProposedActivity> activities,
@@ -376,6 +389,179 @@ AiPreparedProposal prepareAiProposal(
     after,
     commands,
     issues,
+  );
+}
+
+class AiPreparedExternalProposal {
+  final AiItineraryProposal proposal;
+  final EditableTripDocumentV2 document;
+  final List<EditableCommand> commands;
+  final List<ExternalItemBinding> externalBindings;
+  final List<ExternalPlaceRecord> externalPlaces;
+  final List<EditableValidationIssue> issues;
+
+  AiPreparedExternalProposal({
+    required this.proposal,
+    required this.document,
+    required List<EditableCommand> commands,
+    required List<ExternalItemBinding> externalBindings,
+    required List<ExternalPlaceRecord> externalPlaces,
+    required List<EditableValidationIssue> issues,
+  }) : commands = List.unmodifiable(commands),
+       externalBindings = List.unmodifiable(externalBindings),
+       externalPlaces = List.unmodifiable(externalPlaces),
+       issues = List.unmodifiable(issues);
+
+  bool get canApply => !issues.any((i) => i.isBlocking);
+}
+
+AiPreparedExternalProposal prepareExternalAiProposal({
+  required EditableTripDocumentV2 before,
+  required AiItineraryProposal proposal,
+  required List<ExternalPlaceRecord> externalPlaces,
+  required List<EvidenceRecord> evidence,
+  required String Function() newId,
+}) {
+  final commands = <EditableCommand>[];
+  final externalBindings = <ExternalItemBinding>[];
+  final resolvedPlaces = <ExternalPlaceRecord>[...externalPlaces];
+  final seenPlaceIds = {for (final p in externalPlaces) p.id};
+
+  final allEvidenceIds = evidence.map((e) => e.id).toList();
+  final defaultEvidenceIds = allEvidenceIds.isNotEmpty
+      ? [allEvidenceIds.first]
+      : ['web:unverified'];
+
+  final positions = {
+    for (final d in before.days)
+      d.id: before.items.where((i) => i.dayId == d.id).length,
+  };
+
+  for (final a in proposal.activities) {
+    if (a.day < 1 || a.day > before.days.length) continue;
+    final day = before.days[a.day - 1];
+    final itemId = newId();
+
+    final placeName = a.externalPlaceName ?? a.title;
+    ExternalPlaceRecord? extRecord;
+    for (final p in resolvedPlaces) {
+      if (p.name.trim().toLowerCase() == placeName.trim().toLowerCase()) {
+        extRecord = p;
+        break;
+      }
+    }
+    if (extRecord == null) {
+      final slug = 'ext-${placeName.trim().toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-').replaceAll(RegExp(r'^-+|-+$'), '')}';
+      final safeId = slug.isEmpty ? 'ext-${newId().substring(0, 8)}' : slug;
+      final finalId = seenPlaceIds.contains(safeId) ? '$safeId-${newId().substring(0, 4)}' : safeId;
+      seenPlaceIds.add(finalId);
+      extRecord = ExternalPlaceRecord(
+        id: finalId,
+        name: placeName,
+        destinationName: (before.input.destinationName?.isNotEmpty == true)
+            ? before.input.destinationName!
+            : (before.input.destinationId ?? 'Việt Nam'),
+        evidenceIds: defaultEvidenceIds,
+      );
+      resolvedPlaces.add(extRecord);
+    }
+
+    externalBindings.add(
+      ExternalItemBinding(itemId: itemId, externalPlaceId: extRecord.id),
+    );
+
+    final itemRefs = extRecord.evidenceIds.isNotEmpty ? extRecord.evidenceIds : defaultEvidenceIds;
+
+    commands.add(
+      AddItemCommand(
+        TripItem(
+          id: itemId,
+          dayId: day.id,
+          position: positions[day.id]!,
+          title: a.title,
+          placeId: null,
+          startMinute: a.startMinute,
+          endMinute: a.endMinute,
+          notes: 'Thông tin từ Internet, chưa được Admin kiểm duyệt.',
+          provenance: FieldProvenance(
+            quality: 'unknown',
+            sourceRefs: itemRefs,
+            observedAt: null,
+          ),
+        ),
+      ),
+    );
+    positions[day.id] = positions[day.id]! + 1;
+
+    commands.add(
+      PutEstimateCommand(
+        EstimatedExpense(
+          id: newId(),
+          itemId: itemId,
+          category: a.category,
+          unitAmountVnd: a.costVnd,
+          basis: 'trip_total',
+          customQuantity: null,
+          active: true,
+          description: 'Ước tính AI (Web): ${a.title}',
+          provenance: FieldProvenance(
+            quality: a.costVnd == null ? 'unknown' : 'estimated',
+            sourceRefs: itemRefs,
+            observedAt: null,
+          ),
+        ),
+      ),
+    );
+  }
+
+  final candidate = EditableTripMutator.apply(before, commands);
+  for (final day in before.days) {
+    final dayItems =
+        candidate.items.where((i) => i.dayId == day.id).toList()
+          ..sort((a, b) => a.position.compareTo(b.position));
+    final known =
+        dayItems
+            .where((i) => i.startMinute != null && i.endMinute != null)
+            .toList()
+          ..sort((a, b) {
+            final startCmp = a.startMinute!.compareTo(b.startMinute!);
+            if (startCmp != 0) return startCmp;
+            final endCmp = a.endMinute!.compareTo(b.endMinute!);
+            if (endCmp != 0) return endCmp;
+            return a.position.compareTo(b.position);
+          });
+    final unknown =
+        dayItems
+            .where((i) => i.startMinute == null || i.endMinute == null)
+            .toList()
+          ..sort((a, b) => a.position.compareTo(b.position));
+    final ordered = [...known, ...unknown];
+    final orderedIds = ordered.map((i) => i.id).toList();
+    final currentIds = dayItems.map((i) => i.id).toList();
+    var changed = false;
+    if (orderedIds.length == currentIds.length) {
+      for (var i = 0; i < orderedIds.length; i++) {
+        if (orderedIds[i] != currentIds[i]) {
+          changed = true;
+          break;
+        }
+      }
+    }
+    if (changed) {
+      commands.add(ReorderDayCommand(day.id, orderedIds));
+    }
+  }
+
+  final after = EditableTripMutator.apply(before, commands);
+  final issues = EditableTripValidator.validate(after, mode: ValidationMode.draft);
+
+  return AiPreparedExternalProposal(
+    proposal: proposal,
+    document: after,
+    commands: commands,
+    externalBindings: externalBindings,
+    externalPlaces: resolvedPlaces,
+    issues: issues,
   );
 }
 
@@ -624,6 +810,7 @@ Future<Map<String, Object?>> requestAiForDraft({
   required Map<String, Object?> payload,
   required bool Function() workspaceCurrent,
   AiGatewayClient? gateway,
+  Future<String> Function()? credential,
 }) async {
   final epoch = auth.authEpoch,
       owner = auth.currentUser?.id,
@@ -637,14 +824,22 @@ Future<Map<String, Object?>> requestAiForDraft({
   if (!current() || (!guest && owner == null)) {
     throw const AiGenerationFailure('unauthorized');
   }
-  Future<String> credential() async {
+  Future<String> defaultCredential() async {
     if (!current()) {
       throw const AiGenerationFailure('stale');
+    }
+    if (credential != null) {
+      return credential();
     }
     if (guest) {
       return GuestAiIdentity.shared.access();
     }
-    final session = Supabase.instance.client.auth.currentSession;
+    Session? session;
+    try {
+      session = Supabase.instance.client.auth.currentSession;
+    } catch (_) {
+      throw const AiGenerationFailure('unauthorized');
+    }
     if (session == null ||
         session.user.id != owner ||
         session.user.isAnonymous == true ||
@@ -659,7 +854,7 @@ Future<Map<String, Object?>> requestAiForDraft({
   try {
     final result = await client.request(
       payload,
-      credential: credential,
+      credential: defaultCredential,
       isCurrent: current,
     );
     if (!current()) {
@@ -681,6 +876,7 @@ Future<AiPreparedProposal> generateAiForDraft({
   required bool Function() workspaceCurrent,
   catalogue.DestinationReference? destination,
   AiGatewayClient? gateway,
+  Future<String> Function()? credential,
 }) async {
   final context = AiGenerationContext.fromDocument(
     document,
@@ -697,12 +893,136 @@ Future<AiPreparedProposal> generateAiForDraft({
     },
     workspaceCurrent: workspaceCurrent,
     gateway: gateway,
+    credential: credential,
   );
   try {
     return prepareAiProposal(
       document,
       AiItineraryProposal.fromJson(raw, context),
       newId,
+    );
+  } on Object {
+    throw const AiGenerationFailure('invalid_result');
+  }
+}
+
+
+/// Builds the opt-in A3 wire without enabling evidence generation in the UI.
+Map<String, Object?> catalogueGenerationRequest(AiEvidenceContext context, String requestId) =>
+    context.request(intent: 'generate', requestId: requestId);
+
+/// Enforces that AI generation of a whole trip is only allowed when the document is empty.
+bool canGenerateWholeTrip(EditableTripDocumentV2 document) => document.items.isEmpty;
+
+const aiItineraryEvidenceContract = 'travelgo.itinerary.evidence.v1';
+
+/// Generates a whole trip proposal grounded by server-side catalogue evidence.
+Future<AiGroundedProposal> generateAiWithEvidence({
+  required AuthProvider auth,
+  required EditableTripDocumentV2 document,
+  required PublicCatalogueSnapshot snapshot,
+  required String requestId,
+  required String Function() newId,
+  required bool Function() workspaceCurrent,
+  AiGatewayClient? gateway,
+  Future<String> Function()? credential,
+}) async {
+  if (!canGenerateWholeTrip(document)) {
+    throw const AiGenerationFailure('nonempty_document_blocked');
+  }
+  final evidenceContext = AiEvidenceContext.fromDocument(
+    document,
+    snapshot: snapshot,
+    scope: 'trip',
+  );
+  final generationContext = AiGenerationContext.fromDocument(
+    document,
+    destination: snapshot.catalogue.destinations
+        .where((d) => d.id == document.input.destinationId)
+        .firstOrNull,
+  );
+  final payload = evidenceContext.request(
+    intent: 'generate',
+    requestId: requestId,
+  );
+  final raw = await requestAiForDraft(
+    auth: auth,
+    payload: payload,
+    workspaceCurrent: workspaceCurrent,
+    gateway: gateway,
+    credential: credential,
+  );
+  try {
+    return AiGroundedProposal.fromReceipt(
+      before: document,
+      receipt: raw,
+      context: generationContext,
+      newId: newId,
+    );
+  } on Object {
+    throw const AiGenerationFailure('invalid_result');
+  }
+}
+
+const aiItineraryWebProposalContract = 'travelgo.web.proposal.v1';
+
+/// Generates a whole trip proposal grounded by live Google Search evidence.
+Future<AiGroundedProposal> generateAiWithWebProposal({
+  required AuthProvider auth,
+  required EditableTripDocumentV2 document,
+  required String requestId,
+  required String Function() newId,
+  required bool Function() workspaceCurrent,
+  String? prompt,
+  AiGatewayClient? gateway,
+  Future<String> Function()? credential,
+}) async {
+  if (!canGenerateWholeTrip(document)) {
+    throw const AiGenerationFailure('nonempty_document_blocked');
+  }
+  final baseDigest = TripEvidenceCodec.digest(
+    TripEvidenceEnvelope(document: document),
+  );
+  final destName = document.input.destinationName?.trim();
+  final destinationName = (destName != null && destName.isNotEmpty)
+      ? destName
+      : (document.input.destinationId?.isNotEmpty == true ? document.input.destinationId! : 'Việt Nam');
+
+  final dates = document.days
+      .map((d) => d.date)
+      .whereType<String>()
+      .toList();
+
+  final payload = {
+    'contract': aiItineraryWebProposalContract,
+    'requestId': requestId,
+    'consent': true,
+    'webConsent': true,
+    'prompt': prompt ?? 'Gợi ý lịch trình tham quan $destinationName ${document.days.length} ngày',
+    'context': {
+      'destinationName': destinationName,
+      'dates': dates.isNotEmpty ? dates : ['2026-11-20'],
+      'numPeople': document.input.travelerCount,
+      'budgetVnd': document.input.totalBudgetVnd,
+      'interests': document.input.interests,
+      'scope': 'whole_trip',
+      'baseDigest': baseDigest,
+    },
+  };
+
+  final raw = await requestAiForDraft(
+    auth: auth,
+    payload: payload,
+    workspaceCurrent: workspaceCurrent,
+    gateway: gateway,
+    credential: credential,
+  );
+
+  try {
+    return AiGroundedProposal.fromWebReceipt(
+      before: document,
+      receipt: raw,
+      newId: newId,
     );
   } on Object {
     throw const AiGenerationFailure('invalid_result');

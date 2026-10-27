@@ -105,6 +105,8 @@ M盻擁 khi hoﾃn thﾃnh m盻冲 nhi盻㍊ v盻･, Agent b蘯ｯt bu盻
 
 ## 7. Giải thích coding và review cho owner (bắt buộc)
 
+**Bổ sung owner 27/10/2026 — luôn tóm tắt đơn giản:** Sau mỗi đợt công việc có kết quả (code, sửa lỗi, review, lập kế hoạch, cập nhật tài liệu hoặc báo bị chặn), Codex và Antigravity phải mở đầu bàn giao bằng vài câu tiếng Việt dễ hiểu: **vừa làm gì; để làm gì; ảnh hưởng gì tới ứng dụng/người dùng/dữ liệu; đã kiểm tra tới đâu và còn gì chưa xong**. Việc nhỏ dùng 1–3 câu, việc lớn khoảng 3–5 dòng rồi mới dẫn báo cáo kỹ thuật. Không chỉ liệt kê tên file, thuật ngữ và số test; không yêu cầu owner tự suy ra ảnh hưởng. Nếu chỉ sửa tài liệu thì nói rõ hành vi app chưa đổi. Phân biệt đã làm với mới đề xuất, local với đã deploy. Tích hợp vào handover hiện có để tránh hai báo cáo lặp lại; không cần tóm tắt sau từng tool call. Quy tắc này phải được đọc và giữ khi tiếp tục ở session khác.
+
 Owner muốn hiểu luồng hoạt động, cách giải quyết vấn đề và bằng chứng review; không cần học từng dòng code. Áp dụng sau mỗi lần Antigravity sửa và mỗi lần Codex review, kể cả review chưa đạt hoặc task bị chặn. Áp dụng chính sách Superpowers ở đầu tài liệu: Antigravity coding dùng theo chỉ thị thường trực; Codex chỉ dùng khi được yêu cầu cho task hiện tại.
 
 Đọc và thực hiện [quy tắc giải thích](.agent/rules.md#owner-learning-rule) và [workflow giải thích](.agent/workflow.md#owner-learning-workflow). Antigravity giải thích phần mình sửa; Codex giải thích phần mình kiểm tra/tìm lỗi, phân biệt đã sửa với mới đề xuất. Đây là bổ sung cho handover hiện có, không thêm approval gate hoặc thay phạm vi triển khai.

@@ -1,5 +1,7 @@
 # TravelGO Catalogue AI R2 Implementation Plan
 
+> **Điều phối mới 27/10/2026:** owner tự làm toàn bộ A3 resolver/context/gateway/receipt, không giao resolver cho coder 2. A1/A2 đã được owner duyệt local; dùng [plan hợp nhất](2026-10-27-team-owner.md) và [report A2](../../phase-3/A2_CODEX_IMPLEMENTATION_20261027.md) cho trạng thái mới nhất. Checkboxes/mốc lập plan bên dưới không thay bằng chứng hoàn thành sau này; không làm lại A1/A2. Dependencies/contract A3–A5 giữ nguyên.
+
 > **For agentic workers:** ĐÃ ĐƯỢC OWNER DUYỆT. Thực thi từng task bằng checkbox theo phương thức owner chọn. Chỉ dùng Superpowers cho execution khi owner yêu cầu task đó; không mặc định spawn/commit/deploy.
 
 **Goal:** Trợ lý tạo/tư vấn/sửa lịch dựa trên catalogue, có căn cứ xem được và giữ qua save/read.

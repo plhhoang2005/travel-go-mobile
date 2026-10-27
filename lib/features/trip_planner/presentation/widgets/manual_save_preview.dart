@@ -13,6 +13,7 @@ import '../../services/editable_trip_validator.dart';
 import 'manual_budget_panel.dart';
 import 'manual_expense_form.dart';
 import 'manual_itinerary_timeline.dart';
+import 'evidence_details_sheet.dart';
 
 class ManualSavePreview extends StatefulWidget {
   final ManualPlannerProvider planner;
@@ -45,7 +46,7 @@ class _ManualSavePreviewState extends State<ManualSavePreview> {
   bool get _current =>
       _workspace &&
       planner.editorGeneration == preview.generation &&
-      EditableTripCodec.digest(planner.document!) == preview.digest;
+      planner.contentDigest == preview.digest;
   @override
   void initState() {
     super.initState();
@@ -207,6 +208,19 @@ class _ManualSavePreviewState extends State<ManualSavePreview> {
         appBar: AppBar(
           leading: BackButton(onPressed: _back),
           title: const Text('Xem lại chuyến đi'),
+          actions: [
+            if (preview.evidenceEnvelope != null)
+              IconButton(
+                tooltip: 'Xem căn cứ',
+                icon: const Icon(Icons.source_outlined),
+                onPressed: () => showTripEvidence(
+                  context,
+                  preview.evidenceEnvelope!,
+                  authority: planner,
+                  isCurrent: () => _current,
+                ),
+              ),
+          ],
         ),
         body: SafeArea(child: _PreviewBody(state: this)),
       );

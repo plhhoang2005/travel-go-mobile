@@ -6,6 +6,7 @@ const handle=createItineraryGateway({
  serviceKey:Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'),
  geminiKey:Deno.env.get('GEMINI_API_KEY'),
  enabled:Deno.env.get('TRAVELGO_ITINERARY_ENABLED')==='true',
+ catalogueEvidenceEnabled:Deno.env.get('TRAVELGO_CATALOGUE_EVIDENCE_ENABLED')==='true',
  realContextAllowed:Deno.env.get('TRAVELGO_ITINERARY_REAL_CONTEXT_ALLOWED')==='true',
  allowAnonymousGuests:Deno.env.get('TRAVELGO_ITINERARY_ALLOW_ANONYMOUS_GUESTS')==='true',
  allowedSubjects:(Deno.env.get('TRAVELGO_ITINERARY_ALLOWED_SUBJECTS')??'').split(',').map(v=>v.trim()).filter(Boolean),

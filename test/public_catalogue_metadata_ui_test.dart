@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
+import 'package:travelgo_mobile/features/explore/presentation/widgets/place_visit_details_widget.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:travelgo_mobile/features/auth/models/user_model.dart';
@@ -176,4 +177,16 @@ void main() {
     expect(find.text('Thành phố với những cây cầu nổi tiếng'), findsOneWidget);
     expect(find.text('Ví dụ đang được rà soát'), findsOneWidget);
   });
+  for (final date in ['', '2026-10-20']) {
+    testWidgets('source check date uses explicit unknown or supplied date: $date', (tester) async {
+      await tester.pumpWidget(MaterialApp(home:Scaffold(body:SingleChildScrollView(child:PlaceVisitDetailsWidget(
+        place:const PlaceReference(id:'audit/place',name:'Audit place',sourceId:'src'),
+        details:null,snapshot:null,showReleaseInfo:false,
+        referenceSource:SourceReference(id:'src',title:'Audit',url:'https://example.test',publisher:'Audit',checkedAt:date),
+      )))));
+      await tester.tap(find.byKey(const ValueKey('visit-source-audit/place')));
+      await tester.pumpAndSettle();
+      expect(find.text('Ngày kiểm tên/nguồn: ${date.isEmpty ? 'Chưa rõ' : date}'), findsOneWidget);
+    });
+  }
 }

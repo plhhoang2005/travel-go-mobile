@@ -63,7 +63,7 @@ class PublicCatalogueParser {
           title: s['title'] as String? ?? '',
           publisher: s['publisher'] as String? ?? '',
           url: s['url'] as String? ?? '',
-          checkedAt: s['checkedAt'] as String? ?? preparedAt,
+          checkedAt: s['checkedAt'] as String? ?? '',
         ));
       }
     }

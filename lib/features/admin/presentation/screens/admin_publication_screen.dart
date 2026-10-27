@@ -100,6 +100,15 @@ class _AdminPublicationScreenState extends State<AdminPublicationScreen> {
                       const SizedBox(height: 16),
                     ],
 
+                    if (preview == null && error != null)
+                      OutlinedButton(
+                        key: const Key('reload_publication_preview_button'),
+                        onPressed: isPublishing
+                            ? null
+                            : () => provider.loadPreview(widget.draftRevision),
+                        child: const Text('Tải lại bản xem trước'),
+                      ),
+
                     if (preview != null) ...[
                       // Version & Summary card
                       Container(

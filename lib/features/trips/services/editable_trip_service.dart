@@ -22,6 +22,40 @@ class EditableTripService {
   final String _publicKey;
   final bool Function(AccountSessionProof) isCurrentProof;
   final DateTime Function() _clock;
+  String? _capabilityOwner;
+  int? _capabilityEpoch;
+  bool? _evidenceSupported;
+
+  Future<bool> supportsEvidence({required AccountSessionProof proof}) async {
+    _check(proof);
+    if (_capabilityOwner == proof.ownerId &&
+        _capabilityEpoch == proof.epoch &&
+        _evidenceSupported != null) {
+      return _evidenceSupported!;
+    }
+    bool supported;
+    try {
+      final reply = await _rpc(proof, 'get_trip_capabilities_v1', {});
+      supported = _decode(() {
+        EditableRecordCodec.keys(reply, 'evidenceV1 ownedListV3');
+        if (reply['evidenceV1'] is! bool || reply['ownedListV3'] is! bool) {
+          _bad();
+        }
+        return reply['evidenceV1'] == true && reply['ownedListV3'] == true;
+      });
+    } on EditableRemoteException catch (e) {
+      if (e.kind != EditableRemoteFailure.deploymentBlocked ||
+          e.code != 'rpc_missing') {
+        rethrow;
+      }
+      supported = false;
+    }
+    _check(proof);
+    _capabilityOwner = proof.ownerId;
+    _capabilityEpoch = proof.epoch;
+    _evidenceSupported = supported;
+    return supported;
+  }
 
   EditableTripService({
     required String projectUrl,
@@ -136,9 +170,11 @@ class EditableTripService {
         }
       }
       if ({'PGRST202', '42883', '42P01', 'PGRST205'}.contains(code)) {
-        throw const EditableRemoteException(
+        throw EditableRemoteException(
           EditableRemoteFailure.deploymentBlocked,
-          'editable_schema_unavailable',
+          {'PGRST202', '42883'}.contains(code)
+              ? 'rpc_missing'
+              : 'editable_schema_unavailable',
         );
       }
       const safeCodes = {
@@ -150,6 +186,11 @@ class EditableTripService {
         'source_unavailable',
         'trip_unavailable',
         'unauthorized',
+        'evidence_expired',
+        'evidence_untrusted',
+        'evidence_immutable',
+        'evidence_stale_citation',
+        'unsupported_schema',
       };
       final safe = safeCodes.contains(message)
           ? message!
@@ -240,15 +281,28 @@ class EditableTripService {
     if (attempt.ownerId != proof.ownerId || attempt.operation != operation) {
       _bad();
     }
-    final json = await _rpc(proof, '${operation}_editable_trip_v2', {
-      if (operation != 'create') 'p_trip_id': attempt.tripId,
-      if (operation != 'create') 'p_expected_version': attempt.expectedVersion,
-      'p_request_id': attempt.requestId,
-      if (operation != 'delete') 'p_request_text': attempt.requestText,
-      if (operation != 'delete') 'p_request_digest': attempt.requestDigest,
-    });
+    final json = await _rpc(
+      proof,
+      attempt.isEvidence
+          ? '${operation}_evidence_trip_v1'
+          : '${operation}_editable_trip_v2',
+      {
+        if (operation != 'create') 'p_trip_id': attempt.tripId,
+        if (operation != 'create')
+          'p_expected_version': attempt.expectedVersion,
+        'p_request_id': attempt.requestId,
+        if (operation != 'delete') 'p_request_text': attempt.requestText,
+        if (operation != 'delete') 'p_request_digest': attempt.requestDigest,
+      },
+    );
     _check(proof);
-    return _reply(json, proof, attempt.requestId, attempt: attempt);
+    final reply = _reply(json, proof, attempt.requestId, attempt: attempt);
+    if (attempt.isEvidence &&
+        reply.head != null &&
+        reply.head!.evidenceEnvelope == null) {
+      _bad();
+    }
+    return reply;
   }
 
   Future<EditableMutationReply> create({
@@ -267,12 +321,15 @@ class EditableTripService {
   Future<EditableHead?> read({
     required AccountSessionProof proof,
     required String tripId,
+    bool evidence = false,
   }) async {
     _check(proof);
     _decode(() => EditableRecordCodec.id(tripId));
-    final json = await _rpc(proof, 'get_editable_trip_v2', {
-      'p_trip_id': tripId,
-    });
+    final json = await _rpc(
+      proof,
+      evidence ? 'get_evidence_trip_v1' : 'get_editable_trip_v2',
+      {'p_trip_id': tripId},
+    );
     _check(proof);
     return _decode(() {
       EditableRecordCodec.keys(json, 'status head');
@@ -281,7 +338,11 @@ class EditableTripService {
       final head = EditableRecordCodec.head(
         EditableRecordCodec.object(json['head']),
       );
-      if (head.tripId != tripId || head.ownerId != proof.ownerId) _bad();
+      if (head.tripId != tripId ||
+          head.ownerId != proof.ownerId ||
+          (evidence && head.evidenceEnvelope == null)) {
+        _bad();
+      }
       return head;
     });
   }
@@ -289,14 +350,23 @@ class EditableTripService {
   Future<EditableMutationReply> lookup({
     required AccountSessionProof proof,
     required String requestId,
+    bool evidence = false,
   }) async {
     _check(proof);
     _decode(() => EditableRecordCodec.id(requestId));
-    final json = await _rpc(proof, 'get_editable_mutation_v2', {
-      'p_request_id': requestId,
-    });
+    final json = await _rpc(
+      proof,
+      evidence ? 'get_evidence_mutation_v1' : 'get_editable_mutation_v2',
+      {'p_request_id': requestId},
+    );
     _check(proof);
-    return _reply(json, proof, requestId, allowMissing: true);
+    final reply = _reply(json, proof, requestId, allowMissing: true);
+    if (evidence &&
+        reply.head != null &&
+        reply.head!.evidenceEnvelope == null) {
+      _bad();
+    }
+    return reply;
   }
 
   static bool _older(OwnedTripCursor a, OwnedTripCursor b) =>
@@ -313,11 +383,19 @@ class EditableTripService {
       throw ArgumentError('Page limit must be 1..50.');
     }
     if (cursor != null) _decode(() => EditableRecordCodec.id(cursor.id));
-    final json = await _rpc(proof, 'list_owned_trips_v2', {
-      'p_before_created_at': cursor?.createdAt.toUtc().toIso8601String(),
-      'p_before_id': cursor?.id,
-      'p_limit': limit,
-    });
+    final evidence =
+        _capabilityOwner == proof.ownerId &&
+        _capabilityEpoch == proof.epoch &&
+        _evidenceSupported == true;
+    final json = await _rpc(
+      proof,
+      evidence ? 'list_owned_trips_v3' : 'list_owned_trips_v2',
+      {
+        'p_before_created_at': cursor?.createdAt.toUtc().toIso8601String(),
+        'p_before_id': cursor?.id,
+        'p_limit': limit,
+      },
+    );
     _check(proof);
     return _decode(() {
       EditableRecordCodec.keys(json, 'items nextCursor');
@@ -335,12 +413,13 @@ class EditableTripService {
         final kind = switch (row['kind']) {
           'legacy_v1' => OwnedTripKind.legacyV1,
           'editable_v2' => OwnedTripKind.editableV2,
+          'evidence_v1' when evidence => OwnedTripKind.evidenceV1,
           _ => _bad(),
         };
         final id = EditableRecordCodec.id(row['tripId']);
         final owner = EditableRecordCodec.id(row['ownerId']);
         final date = EditableRecordCodec.utc(row['createdAt']);
-        final version = kind == OwnedTripKind.editableV2
+        final version = kind != OwnedTripKind.legacyV1
             ? EditableRecordCodec.positive(row['version'])
             : null;
         if (owner != proof.ownerId ||
@@ -386,4 +465,33 @@ class EditableTripService {
   }
 
   void close() => _dio.close(force: true);
+
+  Future<EditableHead?> readEvidence({
+    required AccountSessionProof proof,
+    required String tripId,
+  }) => read(proof: proof, tripId: tripId, evidence: true);
+  Future<EditableMutationReply> lookupEvidence({
+    required AccountSessionProof proof,
+    required String requestId,
+  }) => lookup(proof: proof, requestId: requestId, evidence: true);
+  Future<EditableMutationReply> createEvidence({
+    required AccountSessionProof proof,
+    required EditablePendingAttempt attempt,
+  }) => _evidenceMutation('create', proof, attempt);
+  Future<EditableMutationReply> updateEvidence({
+    required AccountSessionProof proof,
+    required EditablePendingAttempt attempt,
+  }) => _evidenceMutation('update', proof, attempt);
+  Future<EditableMutationReply> deleteEvidence({
+    required AccountSessionProof proof,
+    required EditablePendingAttempt attempt,
+  }) => _evidenceMutation('delete', proof, attempt);
+  Future<EditableMutationReply> _evidenceMutation(
+    String op,
+    AccountSessionProof proof,
+    EditablePendingAttempt attempt,
+  ) {
+    if (!attempt.isEvidence) _bad();
+    return _mutate(op, proof, attempt);
+  }
 }

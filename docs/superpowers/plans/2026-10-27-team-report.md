@@ -1,5 +1,7 @@
 # TravelGO — packet báo cáo và thuyết trình
 
+> **Phân công cập nhật 27/10/2026:** dùng [plan hợp nhất một người](2026-10-27-team-owner.md) cho tiến độ. Owner tự coding và có thể tự làm báo cáo hoặc giao người hỗ trợ; không ghi coder 2 là người đang thực hiện C7/A3. Giữ đúng nguồn evidence và phân biệt self-review với kiểm độc lập; checklist nội dung bên dưới không thay đổi scope sản phẩm.
+
 > **For agentic workers:** Chỉ author tài liệu trong phạm vi giao; không sửa source, luật dự án hoặc kết quả test. Không tự gửi/publish/chia sẻ tài liệu ra ngoài. Dùng skill tài liệu/presentation phù hợp khi tạo artifact thực tế; chưa tạo deck/Word trong lượt lập plan.
 
 **Goal:** Báo cáo và thuyết trình giải thích được TravelGO, có minh chứng đúng phiên bản và demo làm lại được.

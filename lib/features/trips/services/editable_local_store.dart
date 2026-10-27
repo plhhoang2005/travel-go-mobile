@@ -206,6 +206,11 @@ extension EditableLocalOperations on LocalTripStore {
       EditableRecordCodec.headJson(incoming),
     );
     if (checked.ownerId != owner ||
+        (checked.evidenceEnvelope == null) !=
+            (incoming.evidenceEnvelope == null) ||
+        (checked.evidenceEnvelope != null &&
+            TripEvidenceCodec.encode(checked.evidenceEnvelope!) !=
+                TripEvidenceCodec.encode(incoming.evidenceEnvelope!)) ||
         EditableTripCodec.encode(checked.document) !=
             EditableTripCodec.encode(incoming.document)) {
       throw const ReceiptBindingMismatchException(
@@ -472,6 +477,27 @@ extension EditableLocalOperations on LocalTripStore {
         'Rejected update identity mismatch.',
       );
     }
+    return _discardStagedEditableAttempt(handle: handle, attempt: attempt);
+  }
+
+  Future<void> discardRejectedEvidenceAttempt({
+    required SessionHandle handle,
+    required EditablePendingAttempt attempt,
+  }) {
+    EditableRecordCodec.validateAttempt(attempt);
+    if (!attempt.isEvidence ||
+        attempt.ownerId != handle.ownerId ||
+        !{'create', 'update'}.contains(attempt.operation) ||
+        attempt.sourceBinding != null) {
+      throw const ImportAttemptConflictException('Rejected evidence identity mismatch.');
+    }
+    return _discardStagedEditableAttempt(handle: handle, attempt: attempt);
+  }
+
+  Future<void> _discardStagedEditableAttempt({
+    required SessionHandle handle,
+    required EditablePendingAttempt attempt,
+  }) {
     final serialized = EditableTripCodec.canonicalJson(
       EditableRecordCodec.attemptJson(attempt),
     );
@@ -498,6 +524,7 @@ extension EditableLocalOperations on LocalTripStore {
           'Rejected update changed during cleanup.',
         );
       }
+      await onEditableStepForTesting?.call('rejected_attempt_removed');
     });
   }
 

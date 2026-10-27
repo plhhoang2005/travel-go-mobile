@@ -251,10 +251,16 @@ class AdminPublicationService {
         ),
       );
 
+      if (!lifecycle.isCurrentProof(proof)) {
+        throw const AdminFailure(code: 'stale_session', message: 'Phiên đã thay đổi');
+      }
       final data = response.data as Map<String, dynamic>;
       final opData = data['operation'] as Map<String, dynamic>? ?? const {};
       return PublicationOperation.fromJson(opData);
     } on DioException catch (e) {
+      if (!lifecycle.isCurrentProof(proof)) {
+        throw const AdminFailure(code: 'stale_session', message: 'Phiên đã thay đổi');
+      }
       throw _mapDioError(e);
     }
   }

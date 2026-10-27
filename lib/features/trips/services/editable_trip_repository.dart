@@ -6,10 +6,18 @@ import '../../trip_planner/services/editable_trip_mutator.dart';
 import '../models/editable_local_records.dart';
 import '../models/editable_remote_records.dart';
 import '../models/editable_trip_codec.dart';
+import '../models/trip_evidence_codec.dart';
+import '../models/trip_evidence_envelope.dart';
 import '../models/local_trip_records.dart';
 import 'editable_trip_service.dart';
 import 'local_account_lifecycle_service.dart';
 import 'local_trip_store.dart';
+
+// Only this repository can signal that exact staged-attempt cleanup succeeded.
+class EvidenceSaveRejectedException extends EditableRemoteException {
+  const EvidenceSaveRejectedException._(String code)
+    : super(EditableRemoteFailure.rejected, code);
+}
 
 class _EditableAccountContext {
   final AccountSessionProof proof;
@@ -99,8 +107,14 @@ class EditableTripRepository {
     required List<EditableCommand> commands,
     EditableHead? base,
     SourceBinding? source,
+    TripEvidenceEnvelope? envelope,
   }) {
-    final text = EditableTripCodec.encode(document);
+    if (base?.evidenceEnvelope != null && envelope == null) {
+      throw const EditableMutationException('evidence_downgrade');
+    }
+    final text = envelope == null
+        ? EditableTripCodec.encode(document)
+        : TripEvidenceCodec.encode(envelope);
     final digest = EditableTripCodec.digestText(text);
     EditableRecordCodec.accountDocument(text, digest);
     if (base != null) {
@@ -109,7 +123,8 @@ class EditableTripRepository {
         throw const EditableMutationException('account_base_mismatch');
       }
       final replay = EditableTripMutator.apply(base.document, commands);
-      if (EditableTripCodec.encode(replay) != text) {
+      if (EditableTripCodec.encode(replay) !=
+          EditableTripCodec.encode(document)) {
         throw const EditableMutationException('command_candidate_mismatch');
       }
     }
@@ -120,6 +135,7 @@ class EditableTripRepository {
       if (base != null) 'commands': commands.map((c) => c.toJson()).toList(),
     });
     final attempt = EditablePendingAttempt(
+      payloadKind: envelope == null ? 'editable_v2' : 'evidence_v1',
       requestId: requestId,
       ownerId: owner,
       operation: base == null ? 'create' : 'update',
@@ -153,6 +169,38 @@ class EditableTripRepository {
       );
       return await _submit(context, attempt);
     });
+  }
+
+  Future<EditableMutationReply> saveEvidenceAccount({
+    required TripEvidenceEnvelope envelope,
+    required List<EditableCommand> commands,
+    EditableHead? base,
+    String? requestId,
+  }) {
+    final frozen = List<EditableCommand>.unmodifiable(commands);
+    return _account((context) async {
+      await _requireEvidence(context);
+      return await _submit(
+        context,
+        _freeze(
+          owner: context.proof.ownerId,
+          requestId: requestId ?? _newId(),
+          document: envelope.document,
+          envelope: envelope,
+          commands: frozen,
+          base: base,
+        ),
+      );
+    });
+  }
+
+  Future<void> _requireEvidence(_EditableAccountContext context) async {
+    if (!await context.wait(service.supportsEvidence(proof: context.proof))) {
+      throw const EditableRemoteException(
+        EditableRemoteFailure.deploymentBlocked,
+        'evidence_schema_unavailable',
+      );
+    }
   }
 
   Future<EditableMutationReply> importGuest(
@@ -196,13 +244,18 @@ class EditableTripRepository {
     EditablePendingAttempt attempt,
   ) async {
     context.check();
+    if (attempt.isEvidence) await _requireEvidence(context);
     final staged = await context.wait(
       store.stageEditableAttempt(handle: context.handle, attempt: attempt),
     );
     // An absent receipt is not evidence of rollback. Resend only the exact same
     // request key and bytes; the server decides its idempotent result atomically.
     var reply = await context.wait(
-      service.lookup(proof: context.proof, requestId: attempt.requestId),
+      service.lookup(
+        proof: context.proof,
+        requestId: attempt.requestId,
+        evidence: attempt.isEvidence,
+      ),
     );
     if (reply.status == EditableMutationStatus.notFound) {
       if (staged.state == 'committed') {
@@ -219,6 +272,23 @@ class EditableTripRepository {
           _ => throw const EditableMutationException('invalid_operation'),
         });
       } on EditableRemoteException catch (error) {
+        if (attempt.isEvidence &&
+            {'create', 'update'}.contains(attempt.operation) &&
+            error.kind == EditableRemoteFailure.rejected &&
+            {
+              'evidence_expired',
+              'evidence_untrusted',
+              'evidence_immutable',
+              'evidence_stale_citation',
+            }.contains(error.code)) {
+          await context.wait(
+            store.discardRejectedEvidenceAttempt(
+              handle: context.handle,
+              attempt: attempt,
+            ),
+          );
+          throw EvidenceSaveRejectedException._(error.code);
+        }
         if (attempt.operation == 'update' &&
             error.kind == EditableRemoteFailure.rejected &&
             error.code == 'version_conflict') {
@@ -268,11 +338,16 @@ class EditableTripRepository {
   Future<EditableTripView> readTrip(
     String tripId, {
     bool allowCached = true,
+    OwnedTripKind? kind,
   }) => _account((context) async {
     EditableHead? head;
     try {
       head = await context.wait(
-        service.read(proof: context.proof, tripId: tripId),
+        service.read(
+          proof: context.proof,
+          tripId: tripId,
+          evidence: kind == OwnedTripKind.evidenceV1,
+        ),
       );
     } on EditableRemoteException catch (error) {
       if (!allowCached || error.kind != EditableRemoteFailure.uncertain) {
@@ -299,6 +374,7 @@ class EditableTripRepository {
 
   Future<OwnedTripPage> listOwned({OwnedTripCursor? cursor}) =>
       _account((context) async {
+        await context.wait(service.supportsEvidence(proof: context.proof));
         return await context.wait(
           service.list(proof: context.proof, cursor: cursor),
         );
@@ -316,6 +392,9 @@ class EditableTripRepository {
           'expectedVersion': base.version,
         });
         final attempt = EditablePendingAttempt(
+          payloadKind: base.evidenceEnvelope == null
+              ? 'editable_v2'
+              : 'evidence_v1',
           requestId: _newId(),
           ownerId: base.ownerId,
           operation: 'delete',

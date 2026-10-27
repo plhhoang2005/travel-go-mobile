@@ -1,5 +1,7 @@
 # TravelGO Coursework R2 Implementation Plan
 
+> **Điều phối hiện hành 27/10/2026:** owner tự làm toàn bộ coding; coder 2 đã nghỉ. Đọc [plan hợp nhất Owner](2026-10-27-team-owner.md) và [lộ trình một người](2026-10-27-team-delivery-plan.md). A1/A2 đã được owner duyệt local; bước kế tiếp là audit C7 → A3. Thứ tự/phân công cũ bên dưới là lịch sử, không yêu cầu làm lại A1/A2 hoặc chờ coder 2; contract R2 và gates vẫn giữ.
+
 > **For agentic workers:** R2 ĐÃ ĐƯỢC OWNER DUYỆT; chuyển sang handoff thực thi theo phân công dự án. Khi owner cấp quyền thực thi và quyền dùng Superpowers cho task thực thi, dùng `superpowers:executing-plans` (native) hoặc `superpowers:subagent-driven-development` nếu owner chọn delegation. Không coi lần yêu cầu skill để lập plan này là quyền cho mọi session sau. Steps trong các plan con dùng checkbox.
 
 > **Cập nhật owner 25/10/2026:** Antigravity phải dùng Superpowers phù hợp khi code, gồm C3 và các task coding tiếp theo; Codex ghi rõ yêu cầu trong handoff. Chỉ thị thường trực này thay trạng thái Superpowers OFF cho Antigravity coding ở các checkpoint trước. Codex review/planning vẫn chỉ dùng khi được yêu cầu; scope và các quyền khác giữ nguyên.

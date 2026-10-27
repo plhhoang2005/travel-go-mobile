@@ -90,7 +90,8 @@ try {
     }
     if ($Mode -in @('Ai', 'Full')) {
         Invoke-Check 'node-contracts' $nodeExecutable @('--test', 'test/ai_gateway_test.mjs',
-            'test/itinerary_gateway_test.mjs', 'test/catalogue_readiness_test.mjs')
+            'test/itinerary_gateway_test.mjs', 'test/catalogue_readiness_test.mjs',
+            'test/catalogue_evidence_resolver_test.mjs','test/catalogue_receipt_test.mjs','test/catalogue_gateway_test.mjs')
     }
 } finally {
     Pop-Location

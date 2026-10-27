@@ -154,8 +154,11 @@ class _MixedRepository extends EditableTripRepository {
   @override
   Future<OwnedTripPage> listOwned({OwnedTripCursor? cursor}) => onList!(cursor);
   @override
-  Future<EditableTripView> readTrip(String tripId, {bool allowCached = true}) =>
-      onRead!(tripId, allowCached);
+  Future<EditableTripView> readTrip(
+    String tripId, {
+    bool allowCached = true,
+    OwnedTripKind? kind,
+  }) => onRead!(tripId, allowCached);
 }
 
 OwnedTripSummary _summary(String id, OwnedTripKind kind) => OwnedTripSummary(

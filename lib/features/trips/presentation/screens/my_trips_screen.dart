@@ -127,10 +127,7 @@ class _MyTripsScreenState extends State<MyTripsScreen>
           // Tab 1: Sắp/đang đi
           _withAccountRefresh(
             isGuest
-                ? _buildEmptyState(
-                    context,
-                    'Chưa có chuyến đi sắp tới',
-                  )
+                ? _buildEmptyState(context, 'Chưa có chuyến đi sắp tới')
                 : _buildTabContent(
                     context,
                     trips: upcomingTrips,
@@ -162,7 +159,10 @@ class _MyTripsScreenState extends State<MyTripsScreen>
           // Tab 3: Chưa đủ thông tin
           _withAccountRefresh(
             isGuest
-                ? _buildEmptyState(context, 'Không có chuyến đi thiếu thông tin')
+                ? _buildEmptyState(
+                    context,
+                    'Không có chuyến đi thiếu thông tin',
+                  )
                 : _buildTabContent(
                     context,
                     trips: insufficientTrips,
@@ -206,10 +206,7 @@ class _MyTripsScreenState extends State<MyTripsScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                provider.cacheErrorMessage!,
-                textAlign: TextAlign.center,
-              ),
+              Text(provider.cacheErrorMessage!, textAlign: TextAlign.center),
               const SizedBox(height: 12),
               TextButton(
                 onPressed: provider.isLoading
@@ -249,7 +246,9 @@ class _MyTripsScreenState extends State<MyTripsScreen>
             Center(
               child: TextButton(
                 onPressed: provider.isLoading ? null : provider.loadMoreTrips,
-                child: Text(provider.isLoading ? 'Đang tải…' : 'Xem thêm chuyến đi'),
+                child: Text(
+                  provider.isLoading ? 'Đang tải…' : 'Xem thêm chuyến đi',
+                ),
               ),
             ),
           ],
@@ -324,7 +323,7 @@ class _MyTripsScreenState extends State<MyTripsScreen>
           );
         }
         final summary = trips[index];
-        if (summary.kind == OwnedTripKind.editableV2) {
+        if (summary.kind != OwnedTripKind.legacyV1) {
           return _EditableTripRow(summary: summary, status: statusLabel);
         }
         final matches = provider.trips.where(
@@ -613,6 +612,7 @@ class _EditableTripRow extends StatelessWidget {
                 builder: (_) => EditableTripDetailScreen(
                   tripId: summary.tripId,
                   expectedOwnerId: summary.ownerId,
+                  kind: summary.kind,
                 ),
               ),
             );

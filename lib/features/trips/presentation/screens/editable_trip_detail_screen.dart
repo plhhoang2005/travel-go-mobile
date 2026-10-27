@@ -16,6 +16,7 @@ import '../../../trip_planner/models/editable_trip_document.dart';
 import '../../../trip_planner/models/trip_request.dart';
 import '../../../trip_planner/presentation/screens/manual_planner_screen.dart';
 import '../../../trip_planner/presentation/widgets/manual_expense_form.dart';
+import '../../../trip_planner/presentation/widgets/evidence_details_sheet.dart';
 import '../../../trip_planner/providers/manual_planner_provider.dart';
 import '../../../trip_planner/services/budget_calculator.dart';
 import '../../models/editable_remote_records.dart';
@@ -72,11 +73,13 @@ Future<bool> confirmManualReplacement(
 }
 
 class EditableTripDetailScreen extends StatefulWidget {
+  final OwnedTripKind? kind;
   final String tripId, expectedOwnerId;
   const EditableTripDetailScreen({
     super.key,
     required this.tripId,
     required this.expectedOwnerId,
+    this.kind,
   });
   @override
   State<EditableTripDetailScreen> createState() =>
@@ -128,7 +131,10 @@ class _EditableTripDetailScreenState extends State<EditableTripDetailScreen> {
         _resources = bundle;
         _proof = proof;
       });
-      final view = await bundle.repository.readTrip(widget.tripId);
+      final view = await bundle.repository.readTrip(
+        widget.tripId,
+        kind: widget.kind,
+      );
       if (!_current || generation != _generation) return;
       if (view.head != null &&
           (view.head!.ownerId != proof.ownerId ||
@@ -178,7 +184,10 @@ class _EditableTripDetailScreenState extends State<EditableTripDetailScreen> {
     try {
       PublicCatalogueSnapshot? snapshot;
       try {
-        final pub = Provider.of<PublicCatalogueProvider>(context, listen: false);
+        final pub = Provider.of<PublicCatalogueProvider>(
+          context,
+          listen: false,
+        );
         if (pub.snapshot == null) await pub.load();
         snapshot = pub.snapshot;
       } catch (_) {}
@@ -361,6 +370,17 @@ class _EditableTripDetailScreenState extends State<EditableTripDetailScreen> {
                     onPressed: _busy ? null : _load,
                     child: Text(_busy ? 'Đang xử lý…' : 'Kiểm tra lại'),
                   ),
+                  if (view.evidenceEnvelope != null)
+                    TextButton.icon(
+                      onPressed: () => showTripEvidence(
+                        context,
+                        view.evidenceEnvelope!,
+                        authority: _resources?.repository.lifecycle,
+                        isCurrent: () => _current && identical(_view, view),
+                      ),
+                      icon: const Icon(Icons.source_outlined),
+                      label: const Text('Xem căn cứ'),
+                    ),
                 ],
               ),
             ],
@@ -674,7 +694,10 @@ class _LegacyTripCopyScreenState extends State<LegacyTripCopyScreen> {
       if (proof.ownerId != widget.snapshot.ownerId) return;
       PublicCatalogueSnapshot? snapshot;
       try {
-        final pub = Provider.of<PublicCatalogueProvider>(context, listen: false);
+        final pub = Provider.of<PublicCatalogueProvider>(
+          context,
+          listen: false,
+        );
         if (pub.snapshot == null) await pub.load();
         snapshot = pub.snapshot;
       } catch (_) {}

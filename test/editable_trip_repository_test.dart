@@ -38,6 +38,9 @@ class Server {
     if (missing) return transport.jsonReply({'code': 'PGRST202'}, 404);
     final args = Map<String, Object?>.from(options.data as Map);
     final rpc = options.uri.path.split('/').last;
+    if (rpc == 'get_trip_capabilities_v1') {
+      return transport.jsonReply({'code': 'PGRST202'}, 404);
+    }
     if (rpc == 'get_editable_mutation_v2') {
       return transport.jsonReply(
         replies[args['p_request_id']] ??

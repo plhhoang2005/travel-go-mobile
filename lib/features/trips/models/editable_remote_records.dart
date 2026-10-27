@@ -1,4 +1,5 @@
 import '../../trip_planner/models/editable_trip_document.dart';
+import 'trip_evidence_envelope.dart';
 
 class SourceBinding {
   final String kind;
@@ -40,6 +41,7 @@ class EditableHead {
   final int version;
   final DateTime fetchedAt;
   final EditableTripDocumentV2 document;
+  final TripEvidenceEnvelope? evidenceEnvelope;
   const EditableHead({
     required this.tripId,
     required this.ownerId,
@@ -48,6 +50,7 @@ class EditableHead {
     required this.contentDigest,
     required this.fetchedAt,
     required this.document,
+    this.evidenceEnvelope,
   });
 }
 
@@ -80,11 +83,14 @@ class EditableMutationReply {
 }
 
 class EditablePendingAttempt {
+  final String payloadKind;
+  bool get isEvidence => payloadKind == 'evidence_v1';
   final String requestId, ownerId, operation, requestText, requestDigest;
   final String? tripId, contentDigest;
   final int? expectedVersion;
   final SourceBinding? sourceBinding;
   const EditablePendingAttempt({
+    this.payloadKind = 'editable_v2',
     required this.requestId,
     required this.ownerId,
     required this.operation,
@@ -103,7 +109,7 @@ class OwnedTripCursor {
   const OwnedTripCursor(this.createdAt, this.id);
 }
 
-enum OwnedTripKind { legacyV1, editableV2 }
+enum OwnedTripKind { legacyV1, editableV2, evidenceV1 }
 
 class OwnedTripSummary {
   final OwnedTripKind kind;
@@ -170,5 +176,6 @@ enum EditableTripViewState { online, cachedReadOnly, unavailable }
 class EditableTripView {
   final EditableTripViewState state;
   final EditableHead? head;
+  TripEvidenceEnvelope? get evidenceEnvelope => head?.evidenceEnvelope;
   const EditableTripView(this.state, [this.head]);
 }

@@ -1,6 +1,7 @@
 // Widget and invariant tests for AdminPublicationScreen.
 
 import 'package:flutter/material.dart';
+import 'package:travelgo_mobile/features/admin/models/admin_account_models.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:travelgo_mobile/core/theme/app_theme.dart';
@@ -12,6 +13,8 @@ import 'package:travelgo_mobile/features/auth/providers/auth_provider.dart';
 
 class FakeAdminPublicationService implements AdminPublicationService {
   final List<String> sentPublishRequestIds = [];
+  final List<String> previewRequestIds = [];
+  AdminFailure? publishFailure;
   PublicationPreview? defaultPreview;
   PublicationOperation? defaultOperation;
 
@@ -23,6 +26,7 @@ class FakeAdminPublicationService implements AdminPublicationService {
     required String requestId,
     required int draftRevision,
   }) async {
+    previewRequestIds.add(requestId);
     return defaultPreview ??
         PublicationPreview(
           previewId: 'prev-1234',
@@ -44,6 +48,7 @@ class FakeAdminPublicationService implements AdminPublicationService {
     required int expectedActiveVersion,
   }) async {
     sentPublishRequestIds.add(requestId);
+    if (publishFailure != null) throw publishFailure!;
     return defaultOperation ??
         const PublicationOperation(
           id: 'op-1234',
@@ -174,4 +179,23 @@ void main() {
 
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('rejected publication offers fresh preview and can publish again', (tester) async {
+    fakeService.publishFailure = const AdminFailure(code:'candidate_expired',message:'Bản xem trước đã hết hạn');
+    await tester.pumpWidget(buildScreen()); await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('confirm_publish_button')));
+    await tester.pumpAndSettle();
+    expect(find.text('Bản xem trước đã hết hạn'),findsOneWidget);
+    expect(find.byKey(const Key('confirm_publish_button')),findsNothing);
+    final retry = find.byKey(const Key('reload_publication_preview_button'));
+    expect(retry,findsOneWidget);
+    await tester.tap(retry); await tester.pumpAndSettle();
+    expect(fakeService.previewRequestIds.toSet(),hasLength(2));
+    fakeService.publishFailure = null;
+    await tester.tap(find.byKey(const Key('confirm_publish_button')));
+    await tester.pumpAndSettle();
+    expect(find.text('Xuất bản thành công phiên bản v1!'),findsOneWidget);
+    expect(fakeService.sentPublishRequestIds.toSet(),hasLength(2));
+  });
+
 }

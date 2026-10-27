@@ -599,7 +599,7 @@ GRANT ALL ON ALL TABLES IN SCHEMA auth TO anon,authenticated,service_role;
     # Publication Mode
     if ($Mode -in @('Publication', 'All')) {
         Write-Host "`n--- [Mode: Publication] Verification ---"
-        $pubNodeTests = @()
+        $pubNodeTests = @('test/admin_publication_storage_test.mjs')
         if (Test-Path (Join-Path $repoRoot 'test/discovery_public_bundle_test.mjs')) {
             $pubNodeTests += 'test/discovery_public_bundle_test.mjs'
         }
@@ -672,6 +672,11 @@ GRANT ALL ON ALL TABLES IN SCHEMA auth TO anon,authenticated,service_role;
                 if ($pubMigration) {
                     Invoke-Sql 'discovery_publication_v2 migration' -File $pubMigration.FullName -Connection $conn
                 }
+
+                $c7RetryMigration = Get-ChildItem -LiteralPath (Join-Path $repoRoot 'supabase/migrations') -Filter '*_coursework_catalogue_publication_retry.sql'
+                if (@($c7RetryMigration).Count -ne 1) { throw 'Expected exactly one C7 publication retry migration' }
+                Invoke-Sql 'C7 retry migration' -File $c7RetryMigration.FullName -Connection $conn
+                Invoke-Sql 'coursework_catalogue_publication_retry.sql' -File (Join-Path $repoRoot 'supabase/tests/coursework_catalogue_publication_retry.sql') -Connection $conn
 
                 $tripIdsMigration = Get-ChildItem -Path (Join-Path $repoRoot 'supabase/migrations') -Filter '*_manual_dynamic_destination_ids.sql' -ErrorAction SilentlyContinue | Select-Object -First 1
                 if ($tripIdsMigration) {

@@ -155,7 +155,7 @@ class PlaceVisitDetailsWidget extends StatelessWidget {
                         'Nguồn tên địa điểm: ${source.title} · ${source.publisher}',
                       ),
                       SelectableText(source.url),
-                      Text('Ngày kiểm tên/nguồn: ${source.checkedAt}'),
+                      Text('Ngày kiểm tên/nguồn: ${source.checkedAt.trim().isEmpty ? 'Chưa rõ' : source.checkedAt}'),
                       const SizedBox(height: 8),
                     ],
                   ),

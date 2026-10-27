@@ -14,6 +14,7 @@ class AdminPublicationProvider extends ChangeNotifier {
     required this.service,
     required this.authProvider,
   }) {
+    _currentAuthEpoch = authProvider.authEpoch;
     _currentOwnerId = authProvider.currentUser?.id;
     _currentRole = authProvider.currentUser?.role.name;
     authProvider.addListener(_handleAuthChange);
@@ -22,6 +23,9 @@ class AdminPublicationProvider extends ChangeNotifier {
   String? _currentOwnerId;
   String? _currentRole;
   int _generation = 0;
+  int? _currentAuthEpoch;
+  String? _previewRequestId;
+  int? _previewRevision;
   bool _disposed = false;
 
   PublicationPreview? _preview;
@@ -38,11 +42,28 @@ class AdminPublicationProvider extends ChangeNotifier {
   AdminFailure? get error => _error;
   bool get hasBlockers => _preview?.hasBlockers ?? false;
 
+  void _finishRejectedPublication(AdminFailure failure) {
+    // The server has rejected this attempt. Fence any outstanding outcome read,
+    // retain the error, and require a fresh preview before another publication.
+    _generation++;
+    _previewRequestId = null;
+    _previewRevision = null;
+    _preview = null;
+    _operation = null;
+    _currentPublishRequestId = null;
+    _isLoadingPreview = false;
+    _isPublishing = false;
+    _error = failure;
+    if (!_disposed) notifyListeners();
+  }
+
   void _handleAuthChange() {
     final newOwnerId = authProvider.currentUser?.id;
     final newRole = authProvider.currentUser?.role.name;
 
-    if (newOwnerId != _currentOwnerId || newRole != _currentRole) {
+    if (newOwnerId != _currentOwnerId || newRole != _currentRole ||
+        _currentAuthEpoch != authProvider.authEpoch) {
+      _currentAuthEpoch = authProvider.authEpoch;
       _currentOwnerId = newOwnerId;
       _currentRole = newRole;
       invalidate();
@@ -52,6 +73,8 @@ class AdminPublicationProvider extends ChangeNotifier {
   void invalidate() {
     _generation++;
     _preview = null;
+    _previewRequestId = null;
+    _previewRevision = null;
     _operation = null;
     _currentPublishRequestId = null;
     _isLoadingPreview = false;
@@ -70,14 +93,21 @@ class AdminPublicationProvider extends ChangeNotifier {
   }
 
   Future<void> loadPreview(int revision) async {
+    if (_isPublishing || _currentPublishRequestId != null) return;
+    if (_previewRevision != revision) {
+      _previewRequestId = null;
+      _preview = null;
+      _operation = null;
+    }
+    _previewRevision = revision;
+    _previewRequestId ??= _mintRequestId();
     final gen = ++_generation;
     _isLoadingPreview = true;
     _error = null;
     notifyListeners();
 
     try {
-      final reqId = _mintRequestId();
-      final p = await service.preview(requestId: reqId, draftRevision: revision);
+      final p = await service.preview(requestId: _previewRequestId!, draftRevision: revision);
       if (gen != _generation || _disposed) return;
       _preview = p;
     } on AdminFailure catch (f) {
@@ -96,7 +126,10 @@ class AdminPublicationProvider extends ChangeNotifier {
 
   Future<bool> confirmPublish() async {
     if (_isPublishing) return false;
-    if (_preview == null || hasBlockers) return false;
+    if (_preview == null || hasBlockers || _isLoadingPreview) return false;
+    if (_operation?.isCompleted == true) return true;
+    final gen = _generation;
+    final frozenPreview = _preview!;
 
     _isPublishing = true;
     _error = null;
@@ -108,35 +141,58 @@ class AdminPublicationProvider extends ChangeNotifier {
     try {
       final op = await service.publish(
         requestId: _currentPublishRequestId!,
-        preview: _preview!,
-        expectedDraftRevision: _preview!.sourceRevision,
-        expectedActiveVersion: _preview!.expectedActiveVersion,
+        preview: frozenPreview,
+        expectedDraftRevision: frozenPreview.sourceRevision,
+        expectedActiveVersion: frozenPreview.expectedActiveVersion,
       );
 
+      if (gen != _generation || _disposed) return false;
+      if (op.isConflict) {
+        _finishRejectedPublication(const AdminFailure(
+          code: 'conflict',
+          message: 'Danh mục đã thay đổi. Hãy tải lại bản xem trước.',
+        ));
+        return false;
+      }
       _operation = op;
       if (op.isCompleted) {
         _currentPublishRequestId = null; // Clear on success
       }
       return op.isCompleted;
     } on AdminFailure catch (f) {
+      if (gen != _generation || _disposed) return false;
       _error = f;
+      if (!f.outcomeUncertain) _finishRejectedPublication(f);
       return false;
     } catch (e) {
+      if (gen != _generation || _disposed) return false;
       _error = AdminFailure(code: 'unknown', message: e.toString());
       return false;
     } finally {
-      _isPublishing = false;
-      if (!_disposed) notifyListeners();
+      if (gen == _generation && !_disposed) {
+        _isPublishing = false;
+        notifyListeners();
+      }
     }
   }
 
   Future<bool> checkOutcome() async {
     final opId = _operation?.id;
     if (opId == null) return false;
+    final gen = _generation;
 
     try {
       final op = await service.operation(opId);
+      if (gen != _generation || _disposed) return false;
+      if (op.isConflict) {
+        _finishRejectedPublication(const AdminFailure(
+          code: 'conflict',
+          message: 'Danh mục đã thay đổi. Hãy tải lại bản xem trước.',
+        ));
+        return false;
+      }
       _operation = op;
+      if (op.isCompleted) _currentPublishRequestId = null;
       notifyListeners();
       return op.isCompleted;
     } catch (e) {

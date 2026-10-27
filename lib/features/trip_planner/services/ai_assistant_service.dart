@@ -1,4 +1,11 @@
 import 'dart:convert';
+import '../models/ai_evidence_context.dart';
+import '../models/ai_grounded_assistant.dart';
+import '../models/ai_web_advice.dart';
+export '../models/ai_web_advice.dart';
+import '../../explore/models/public_catalogue_snapshot.dart';
+import '../../trips/models/trip_evidence_codec.dart';
+import '../../trips/models/trip_evidence_envelope.dart';
 
 import '../../auth/providers/auth_provider.dart';
 import '../../explore/models/catalogue_reference.dart' as catalogue;
@@ -523,6 +530,7 @@ class AiModificationPreview {
       estimateReviewItemIds = List.unmodifiable(estimateReviewItemIds),
       beforeBudget = BudgetCalculator.calculate(before),
       afterBudget = BudgetCalculator.calculate(document);
+  EditableTripDocumentV2 get after => document;
   bool get canApply => !issues.any((i) => i.isBlocking);
   bool get requiresEstimateReview => estimateReviewItemIds.isNotEmpty;
 }
@@ -712,7 +720,7 @@ class AiAssistantReply {
   const AiAssistantReply(this.result, [this.modification]);
 }
 
-typedef AiAssistantGenerator = Future<AiAssistantReply> Function(
+typedef AiAssistantGenerator = Future<Object?> Function(
   String intent,
   String prompt,
   List<Map<String, Object?>> history,
@@ -753,6 +761,139 @@ Future<AiAssistantReply> askAiForDraft({
     );
   } on AiGenerationFailure {
     rethrow;
+  } on Object {
+    throw const AiGenerationFailure('invalid_result');
+  }
+}
+
+/// Builds catalogue evidence advice/modify wire; A5 owns preview/apply UI.
+Map<String, Object?> catalogueAssistantRequest(AiEvidenceContext context, String intent,
+    String prompt, List<Map<String, Object?>> history, String requestId) =>
+    context.request(intent: intent, requestId: requestId, prompt: prompt, history: history);
+
+
+/// Asks the assistant with grounded catalogue evidence (A5).
+Future<AiGroundedAssistantReply> askAiWithEvidence({
+  required AuthProvider auth,
+  required EditableTripDocumentV2 document,
+  required PublicCatalogueSnapshot snapshot,
+  required String intent,
+  required String prompt,
+  required String requestId,
+  required String Function() newId,
+  required bool Function() workspaceCurrent,
+  int? selectedDay,
+  String scope = 'day',
+  List<Map<String, Object?>> history = const [],
+  TripEvidenceEnvelope? evidenceEnvelope,
+  AiGatewayClient? gateway,
+  Future<String> Function()? credential,
+}) async {
+  final effectiveScope = intent == 'modify' ? 'day' : scope;
+  final effectiveSelectedDay = effectiveScope == 'day' ? (selectedDay ?? 1) : null;
+
+  if (isOutOfDomainQuery(prompt)) {
+    final assistantContext = AiAssistantContext.fromDocument(
+      document,
+      selectedDay: effectiveSelectedDay ?? 1,
+    );
+    final pivot = AiAssistantResult.outOfDomainPivot(assistantContext, prompt);
+    final baseDigest = evidenceEnvelope != null
+        ? TripEvidenceCodec.digest(evidenceEnvelope)
+        : EditableTripCodec.digest(document);
+    return AiGroundedAssistantReply(
+      result: pivot,
+      modification: null,
+      evidence: const [],
+      claims: const [],
+      baseDigest: baseDigest,
+      catalogueVersion: snapshot.version.toString(),
+      catalogueDigest: snapshot.sha256,
+      envelope: evidenceEnvelope,
+    );
+  }
+
+  final evidenceContext = AiEvidenceContext.fromDocument(
+    document,
+    snapshot: snapshot,
+    scope: effectiveScope,
+    selectedDay: effectiveSelectedDay,
+    evidenceEnvelope: evidenceEnvelope,
+  );
+
+  final payload = evidenceContext.request(
+    intent: intent,
+    requestId: requestId,
+    prompt: prompt,
+    history: history,
+  );
+
+  final raw = await requestAiForDraft(
+    auth: auth,
+    payload: payload,
+    workspaceCurrent: workspaceCurrent,
+    gateway: gateway,
+    credential: credential,
+  );
+
+  final destination = snapshot.catalogue.destinations
+      .where((d) => d.id == document.input.destinationId)
+      .firstOrNull;
+  final assistantContext = AiAssistantContext.fromDocument(
+    document,
+    destination: destination,
+    selectedDay: effectiveSelectedDay ?? 1,
+    places: (destination?.places ?? const []).take(12).toList(),
+  );
+
+  try {
+    return AiGroundedAssistantReply.fromReceipt(
+      before: document,
+      receipt: raw,
+      intent: intent,
+      selectedDay: effectiveSelectedDay ?? 1,
+      newId: newId,
+      beforeEnvelope: evidenceEnvelope,
+      assistantContext: assistantContext,
+    );
+  } on AiGenerationFailure {
+    rethrow;
+  } on Object {
+    throw const AiGenerationFailure('invalid_result');
+  }
+}
+
+/// Dispatches travelgo.web.advice.v1 request to obtain Google Search grounded advice.
+Future<AiWebAdviceReply> requestWebAdvice({
+  required AuthProvider auth,
+  required EditableTripDocumentV2 document,
+  required String prompt,
+  required String requestId,
+  required bool Function() workspaceCurrent,
+  int? selectedDay,
+  AiGatewayClient? gateway,
+  Future<String> Function()? credential,
+}) async {
+  final context = AiWebAdviceContext.fromDocument(document, selectedDay: selectedDay);
+  final payload = {
+    'contract': 'travelgo.web.advice.v1',
+    'requestId': requestId,
+    'consent': true,
+    'webConsent': true,
+    'prompt': prompt,
+    'context': context.toJson(),
+  };
+
+  final raw = await requestAiForDraft(
+    auth: auth,
+    payload: payload,
+    workspaceCurrent: workspaceCurrent,
+    gateway: gateway,
+    credential: credential,
+  );
+
+  try {
+    return AiWebAdviceReply.fromJson(raw);
   } on Object {
     throw const AiGenerationFailure('invalid_result');
   }

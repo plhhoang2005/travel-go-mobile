@@ -189,3 +189,52 @@ test('successful publish completes storage upload, verified readback and activat
   assert.equal(data.operation.state, 'completed');
   assert.equal(data.operation.version, 2);
 });
+
+test('completed publication replay performs neither upload nor activation',async()=>{
+  const gateway=createPublicationGateway({
+    verifyCaller:async()=>({id:'admin',role:'admin'}),
+    callAsCaller:async()=>({operationId:'op-replay',state:'completed',candidateVersion:2,sourceRevision:3}),
+    callAsWorker:async()=>{assert.fail('completed replay activated again');},
+    storage:{uploadOnce:async()=>assert.fail('completed replay uploaded again')},
+  });
+  const res=await gateway(makeRequest({contract:'travelgo.admin.publication.v1',action:'publish',request:{
+    requestId:'same',previewId:'prev',previewDigest:'digest',expectedDraftRevision:3,expectedActiveVersion:1,
+  }}));
+  assert.equal(res.status,200); assert.equal((await res.json()).operation.id,'op-replay');
+});
+test('preview replay projects identical bytes from server frozen time',async()=>{
+  const payloads=[];
+  let time=0;
+  const gateway=createPublicationGateway({
+    now:()=>new Date(1000*(++time)),verifyCaller:async()=>({id:'admin',role:'admin'}),
+    callAsCaller:async()=>({previewId:'same',sourceRevision:1,expectedActiveVersion:0,candidateVersion:1,
+      previewDigest:'digest',expiresAt:'2026-10-27T10:00:00Z',preparedAt:'2026-10-27T09:00:00Z',
+      frozenDraft:{inventory:{destinations:[],places:[]}}}),
+    callAsWorker:async(_,args)=>{payloads.push(args.p_payload_text);return {};},
+  });
+  const req=()=>makeRequest({contract:'travelgo.admin.publication.v1',action:'preview',request:{requestId:'same',draftRevision:1}});
+  assert.equal((await gateway(req())).status,200); assert.equal((await gateway(req())).status,200);
+  assert.equal(payloads.length,2); assert.equal(payloads[0],payloads[1]);
+});
+
+test('blocked preview is not staged for a direct publish bypass',async()=>{
+  let staged=0;
+  const gateway=createPublicationGateway({
+    verifyCaller:async()=>({id:'admin',role:'admin'}),
+    callAsCaller:async()=>({previewId:'blocked',sourceRevision:1,candidateVersion:1,expectedActiveVersion:0,
+      preparedAt:'2026-10-27T09:00:00Z',previewDigest:'d',expiresAt:'2026-10-27T10:00:00Z',
+      frozenDraft:{inventory:{destinations:[{id:'d',name:'D',slug:'d',region:'Miền Trung',isActive:true}],
+        places:[{id:'d/p',destinationId:'d',name:'P',latitude:16,longitude:null,isActive:true}]}}}),
+    callAsWorker:async()=>{staged++;},
+  });
+  const res=await gateway(makeRequest({contract:'travelgo.admin.publication.v1',action:'preview',request:{requestId:'r',draftRevision:1}}));
+  assert.equal(res.status,200); assert.ok((await res.json()).preview.blockers.length>0);
+  assert.equal(staged,0);
+});
+test('expired candidate is a definite rejection rather than uncertain upstream failure',async()=>{
+  const gateway=createPublicationGateway({verifyCaller:async()=>({id:'a',role:'admin'}),
+    callAsCaller:async()=>{throw new Error('RPC failed: candidate_expired');}});
+  const res=await gateway(makeRequest({contract:'travelgo.admin.publication.v1',action:'publish',request:{
+    requestId:'r',previewId:'p',previewDigest:'d',expectedDraftRevision:1,expectedActiveVersion:0}}));
+  assert.equal(res.status,422); assert.equal((await res.json()).code,'candidate_expired');
+});

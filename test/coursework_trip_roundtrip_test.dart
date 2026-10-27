@@ -283,7 +283,8 @@ void main() {
             expect(ctx.server.creates, 1);
             expect(ctx.server.updates, 1);
             expect(ctx.server.deletes, 1);
-            expect(calls.every((rpc) => rpc.endsWith('_v2')), isTrue);
+            expect(calls.where((rpc) => rpc == 'get_trip_capabilities_v1'), hasLength(1));
+            expect(calls.where((rpc) => rpc != 'get_trip_capabilities_v1').every((rpc) => rpc.endsWith('_v2')), isTrue);
           } finally {
             planner.dispose();
           }

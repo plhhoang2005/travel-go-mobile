@@ -3,6 +3,7 @@
 // Auto-chains save draft -> preview -> publish for customer catalogue visibility (D4).
 
 import 'dart:math';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:travelgo_mobile/features/admin/models/admin_account_models.dart';
 import 'package:travelgo_mobile/features/admin/models/admin_catalogue_models.dart';
@@ -27,6 +28,7 @@ class AdminCatalogueProvider extends ChangeNotifier {
   String? _currentOwnerId;
   String? _currentRole;
   bool _disposed = false;
+  int? _currentAuthEpoch;
 
   AdminCatalogueSnapshot? _snapshot;
   bool _isLoading = false;
@@ -39,6 +41,19 @@ class AdminCatalogueProvider extends ChangeNotifier {
   int _loadGeneration = 0;
   int _mutationGeneration = 0;
   Map<String, dynamic>? _pendingCommandArgs;
+  String? _commandFingerprint;
+  String? _previewRequestId;
+  String? _publishRequestId;
+  PublicationPreview? _publicationPreview;
+  PublicationOperation? _publicationOperation;
+  bool _outcomeUncertain = false;
+
+  void _clearPublicationAttempt() {
+    _previewRequestId = null;
+    _publishRequestId = null;
+    _publicationPreview = null;
+    _publicationOperation = null;
+  }
 
   AdminCatalogueProvider({
     required this.service,
@@ -46,6 +61,7 @@ class AdminCatalogueProvider extends ChangeNotifier {
     required this.authProvider,
     this.onPublished,
   }) {
+    _currentAuthEpoch = authProvider.authEpoch;
     _currentOwnerId = authProvider.currentUser?.id;
     _currentRole = authProvider.currentUser?.role.name;
     authProvider.addListener(_handleAuthChange);
@@ -68,7 +84,9 @@ class AdminCatalogueProvider extends ChangeNotifier {
     final newOwnerId = authProvider.currentUser?.id;
     final newRole = authProvider.currentUser?.role.name;
 
-    if (newOwnerId != _currentOwnerId || newRole != _currentRole) {
+    if (newOwnerId != _currentOwnerId || newRole != _currentRole ||
+        _currentAuthEpoch != authProvider.authEpoch) {
+      _currentAuthEpoch = authProvider.authEpoch;
       _currentOwnerId = newOwnerId;
       _currentRole = newRole;
       invalidate();
@@ -80,6 +98,9 @@ class AdminCatalogueProvider extends ChangeNotifier {
     _mutationGeneration++;
     _snapshot = null;
     _pendingCommandArgs = null;
+    _commandFingerprint = null;
+    _outcomeUncertain = false;
+    _clearPublicationAttempt();
     _savedRevision = null;
     _savePhase = AdminCatalogueSavePhase.idle;
     _error = null;
@@ -157,11 +178,23 @@ class AdminCatalogueProvider extends ChangeNotifier {
   }
 
   Future<bool> _dispatchCommand(Map<String, dynamic> command, String reason) {
+    if (_isSaving) return Future.value(false);
+    final fingerprint = jsonEncode({'command': command, 'reason': reason});
+    if (_outcomeUncertain) {
+      if (_commandFingerprint == fingerprint) return _executePendingCommand();
+      _error = const AdminFailure(code: 'publication_pending',
+          message: 'Cần xác nhận kết quả lần lưu trước trước khi gửi thay đổi khác');
+      _lastErrorMessage = _error!.message;
+      notifyListeners();
+      return Future.value(false);
+    }
+    _clearPublicationAttempt();
+    _commandFingerprint = fingerprint;
     final reqId = _mintRequestId();
     _pendingCommandArgs = {
       'requestId': reqId,
       'expectedRevision': currentRevision,
-      'command': command,
+      'command': jsonDecode(jsonEncode(command)) as Map<String, dynamic>,
       'reason': reason,
     };
     _savedRevision = null;
@@ -211,15 +244,16 @@ class AdminCatalogueProvider extends ChangeNotifier {
       _savePhase = AdminCatalogueSavePhase.publishing;
       notifyListeners();
 
-      final previewReqId = _mintRequestId();
-      final preview = await publicationService.preview(
-        requestId: previewReqId,
+      _previewRequestId ??= _mintRequestId();
+      final preview = _publicationPreview ?? await publicationService.preview(
+        requestId: _previewRequestId!,
         draftRevision: targetRevision,
       );
-
       if (gen != _mutationGeneration || _disposed) return false;
+      _publicationPreview = preview;
 
       if (preview.hasBlockers) {
+        _clearPublicationAttempt();
         _savePhase = AdminCatalogueSavePhase.savedNotPublished;
         final blockerMsgs = preview.blockers.map((b) => b.message).join('; ');
         _lastErrorMessage = 'Đã lưu, chưa xuất bản: $blockerMsgs';
@@ -228,6 +262,7 @@ class AdminCatalogueProvider extends ChangeNotifier {
       }
 
       if (preview.sourceRevision != targetRevision) {
+        _clearPublicationAttempt();
         _savePhase = AdminCatalogueSavePhase.savedNotPublished;
         _lastErrorMessage = 'Đã lưu, chưa xuất bản: revision không khớp';
         _error = AdminFailure(code: 'revision_mismatch', message: _lastErrorMessage!);
@@ -235,18 +270,28 @@ class AdminCatalogueProvider extends ChangeNotifier {
       }
 
       // Step 3: Publish
-      final publishReqId = _mintRequestId();
-      final operation = await publicationService.publish(
-        requestId: publishReqId,
+      _publishRequestId ??= _mintRequestId();
+      _outcomeUncertain = true;
+      PublicationOperation? operation;
+      if (_publicationOperation != null) {
+        operation = await publicationService.operation(_publicationOperation!.id);
+        if (gen != _mutationGeneration || _disposed) return false;
+      }
+      if (operation?.isCompleted != true) {
+        operation = await publicationService.publish(
+        requestId: _publishRequestId!,
         preview: preview,
         expectedDraftRevision: targetRevision,
         expectedActiveVersion: preview.expectedActiveVersion,
-      );
-
+        );
+      }
       if (gen != _mutationGeneration || _disposed) return false;
+      _publicationOperation = operation;
 
-      if (operation.isCompleted && operation.sourceRevision == targetRevision && operation.version != null) {
+      if (operation!.isCompleted && operation.sourceRevision == targetRevision && operation.version != null) {
         _savePhase = AdminCatalogueSavePhase.published;
+        _outcomeUncertain = false;
+        _clearPublicationAttempt();
         _savedRevision = null; // Successfully published; clear saved revision
         _lastErrorMessage = null;
 
@@ -256,10 +301,15 @@ class AdminCatalogueProvider extends ChangeNotifier {
           }
         } catch (e) {
           // Local refresh error must not fail publication that already completed on server
+          if (gen != _mutationGeneration || _disposed) return false;
           _lastErrorMessage = 'Đã lưu và xuất bản, nhưng đồng bộ nội bộ gặp lỗi: $e';
         }
-        return true;
+        return gen == _mutationGeneration && !_disposed;
       } else {
+        if (operation.isConflict) {
+          _outcomeUncertain = false;
+          _clearPublicationAttempt();
+        }
         _savePhase = AdminCatalogueSavePhase.savedNotPublished;
         _lastErrorMessage = 'Đã lưu, xuất bản chưa hoàn tất (${operation.state})';
         _error = AdminFailure(code: 'publish_not_completed', message: _lastErrorMessage!);
@@ -268,6 +318,11 @@ class AdminCatalogueProvider extends ChangeNotifier {
     } on AdminFailure catch (f) {
       if (gen != _mutationGeneration || _disposed) return false;
       _error = f;
+      _outcomeUncertain = f.outcomeUncertain;
+      if (!f.outcomeUncertain) {
+        _clearPublicationAttempt();
+        _pendingCommandArgs = null;
+      }
       if (_savedRevision != null) {
         _savePhase = AdminCatalogueSavePhase.savedNotPublished;
         _lastErrorMessage = 'Đã lưu, chưa xuất bản: ${f.message}';
@@ -278,7 +333,8 @@ class AdminCatalogueProvider extends ChangeNotifier {
       return false;
     } catch (e) {
       if (gen != _mutationGeneration || _disposed) return false;
-      final f = AdminFailure(code: 'unknown', message: e.toString());
+      _outcomeUncertain = true;
+      final f = AdminFailure(code: 'unknown', message: e.toString(), outcomeUncertain: true);
       _error = f;
       if (_savedRevision != null) {
         _savePhase = AdminCatalogueSavePhase.savedNotPublished;

@@ -1,6 +1,7 @@
 // Edge Function Entry: admin-publication
 // Contract: travelgo.admin.publication.v1
 import { createPublicationGateway } from './gateway.mjs';
+import { createPublicationStorage } from './storage.mjs';
 
 declare const Deno: {
   env: {
@@ -48,40 +49,7 @@ async function callRpc(name: string, params: Record<string, unknown>, token: str
   return await res.json();
 }
 
-const storage = {
-  async uploadOnce(bucket: string, objectKey: string, bytes: Uint8Array, opts: { contentType: string }) {
-    const res = await fetch(`${projectUrl}/storage/v1/object/${bucket}/${objectKey}`, {
-      method: 'POST',
-      headers: {
-        apikey: serviceKey,
-        Authorization: `Bearer ${serviceKey}`,
-        'Content-Type': opts.contentType,
-      },
-      body: bytes,
-    });
-    if (!res.ok) {
-      const err = await res.text();
-      throw new Error(`Storage upload failed: ${err}`);
-    }
-    return true;
-  },
-  async readback(bucket: string, objectKey: string) {
-    const res = await fetch(`${projectUrl}/storage/v1/object/${bucket}/${objectKey}`, {
-      headers: {
-        apikey: serviceKey,
-        Authorization: `Bearer ${serviceKey}`,
-      },
-    });
-    if (!res.ok) throw new Error('Storage readback failed');
-    const buf = await res.arrayBuffer();
-    const bytes = new Uint8Array(buf);
-    const hashBuf = await crypto.subtle.digest('SHA-256', bytes);
-    const hashHex = Array.from(new Uint8Array(hashBuf))
-      .map((b) => b.toString(16).padStart(2, '0'))
-      .join('');
-    return { bytes, sha256: hashHex, byteLength: bytes.byteLength };
-  },
-};
+const storage = createPublicationStorage({projectUrl,serviceKey});
 
 const handle = createPublicationGateway({
   verifyCaller,

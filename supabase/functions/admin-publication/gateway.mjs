@@ -97,6 +97,11 @@ export function createPublicationGateway(deps = {}) {
       if (msg.includes('concurrency_conflict') || msg.includes('revision_mismatch')) {
         return jsonResponse({ code: 'conflict', message: msg }, 409);
       }
+      for (const code of ['candidate_expired','candidate_not_staged','candidate_not_found','request_payload_mismatch','preview_digest_mismatch','active_version_mismatch','candidate_immutable','legacy_preview_replay_unavailable']) {
+        if (msg.includes(code)) {
+          return jsonResponse({code,message:msg},code==='candidate_expired' || code==='candidate_not_staged' ? 422 : 409);
+        }
+      }
       return jsonResponse({ code: 'internal_error', message: msg }, 500);
     }
   };
@@ -128,12 +133,12 @@ async function handlePreview({ actionReq, callerToken, callAsCaller, callAsWorke
   const { bundle, blockers, warnings } = validateAndProjectPublicBundle({
     frozenDraft,
     version: candidateVersion,
-    preparedAt: now().toISOString(),
+    preparedAt: prepRes.preparedAt || now().toISOString(),
   });
 
   // 3. Deterministically encode and stage candidate bytes via worker
   const { payloadText } = encodePublicBundle(bundle);
-  await callAsWorker('stage_discovery_candidate', {
+  if (blockers.length === 0) await callAsWorker('stage_discovery_candidate', {
     p_preview_id: previewId,
     p_worker_token: '00000000-0000-0000-0000-000000000000',
     p_payload_text: payloadText,
@@ -177,6 +182,14 @@ async function handlePublish({ actionReq, callerToken, callAsCaller, callAsWorke
   }, callerToken);
 
   const { operationId, workerToken, candidateVersion, objectKey, payloadText, sha256, byteLength } = beginRes;
+
+  // Completed retries do not upload or activate again. The caller RPC owns replay/CAS authority.
+  if (beginRes.state === 'completed' || beginRes.state === 'conflict') {
+    return jsonResponse({contract:'travelgo.admin.publication.v1',action:'publish',operation:{
+      id:operationId,state:beginRes.state,version:candidateVersion,
+      sourceRevision:beginRes.sourceRevision ?? expectedDraftRevision,
+    }},200);
+  }
 
   // 2. Upload immutable object to Storage
   const payloadBytes = Buffer.from(payloadText, 'utf8');

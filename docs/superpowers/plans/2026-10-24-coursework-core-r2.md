@@ -1,5 +1,7 @@
 # TravelGO Core R2 Implementation Plan
 
+> **Cập nhật tổ chức 27/10/2026:** owner tiếp quản toàn C7 theo [plan hợp nhất](2026-10-27-team-owner.md#s1--owner-tiếp-quản-c7-trọn-luồng), không còn chờ coder 2. A1/A2 đã duyệt local bằng fixtures; C7 cung cấp contract catalogue cho A3 và nghiệm thu tích hợp, không bắt làm lại A1/A2. Checklist kỹ thuật C7 và lịch sử review bên dưới vẫn giữ.
+
 > **For agentic workers:** ĐÃ ĐƯỢC OWNER DUYỆT; thực thi từng task bằng checkbox. Khi owner cho phép dùng Superpowers để thực thi, chọn executing-plans hoặc subagent-driven-development theo phương thức owner chọn. Không tự dùng skill cho session sau, không tự commit/deploy.
 
 > **Cập nhật owner 25/10/2026:** Antigravity phải dùng Superpowers phù hợp khi code, gồm C3 và các task coding tiếp theo; Codex ghi rõ yêu cầu trong handoff. Chỉ thị thường trực này thay trạng thái Superpowers OFF cho Antigravity coding ở các checkpoint trước. Codex review/planning vẫn chỉ dùng khi được yêu cầu; scope và các quyền khác giữ nguyên.
@@ -95,7 +97,7 @@ Các signatures ghi NEW là quyết định đã duyệt cho implementation, kh�
 
 ## C7 — Admin publish → User refresh
 
-**Depends:** C6; cần cho A2.
+**Depends:** C6; cung cấp contract public catalogue cho A3 và tích hợp nguồn thật. A1/A2 đã duyệt local bằng fixtures; không làm lại A2 vì C7 chưa nghiệm thu.
 **Files:** `lib/features/admin/providers/admin_catalogue_provider.dart`, admin forms/services/publication UI; public catalogue repo/parser/cache/sync; `supabase/functions/admin-publication/{gateway,bundle}.mjs`.
 **Tests:** `test/admin_catalogue_publish_flow_test.dart`, `admin_catalogue_provider_test.dart`, `catalogue_sync_coordinator_test.dart`, `public_catalogue_consumers_test.dart`; admin Publication mode.
 **Interfaces:** save ACK→preview revision R→publish R→consumer atomic snapshot. Giữ `savedNotPublished` khi publish fail; source builder A2 tiêu thụ exact version/digest này.
@@ -104,7 +106,7 @@ Các signatures ghi NEW là quyết định đã duyệt cho implementation, kh�
 - [ ] Run targeted provider/flow + `./tool/verify-flutter-admin.ps1 -Mode Publication -FlutterRoot D:/flutter/flutter` theo runbook flags/fixture, required integration không skip. Source đã nối pipeline không cần viết lại.
 - [ ] GREEN: chỉ vá gap producer/schema/consumer được chứng minh, giữ last-known-good atomic snapshot khi refresh lỗi. Không tự publish live từ việc sửa code.
 - [ ] Verify Public catalogue/SQL dynamic integration, không trộn bản cũ/mới; Account customer denied và admin positive control. Full khi chốt source.
-- [ ] Review/checkpoint: suggested `fix(catalogue): verify admin to customer publication`; local PASS và live admin publish/refresh ghi riêng. Sau đây mở A1/A2; W1 có thể kiểm sớm theo quyền owner.
+- [ ] Review/checkpoint: suggested `fix(catalogue): verify admin to customer publication`; local PASS và live admin publish/refresh ghi riêng. Theo trạng thái mới A1/A2 đã duyệt, sau C7 chuyển A3; W1 có thể kiểm sớm theo quyền owner.
 
 ## Handover Core
 

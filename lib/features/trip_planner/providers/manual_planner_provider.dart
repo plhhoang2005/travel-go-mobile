@@ -5,6 +5,8 @@ import 'package:uuid/uuid.dart' show Uuid;
 import '../../trips/models/editable_local_records.dart';
 import '../../trips/models/editable_remote_records.dart';
 import '../../trips/models/editable_trip_codec.dart';
+import '../../trips/models/trip_evidence_codec.dart';
+import '../../trips/models/trip_evidence_envelope.dart';
 import '../../trips/services/editable_trip_repository.dart';
 import '../../trips/services/editable_trip_service.dart';
 import '../../trips/services/local_account_lifecycle_service.dart';
@@ -26,6 +28,7 @@ enum ManualPlannerState {
 }
 
 class SavePreview {
+  final TripEvidenceEnvelope? evidenceEnvelope;
   final EditableTripDocumentV2 document;
   final EditableTripDocumentV2? beforeDocument;
   final EditableHead? base;
@@ -38,6 +41,7 @@ class SavePreview {
   final int? draftRevision;
   final AccountSessionProof? proof;
   SavePreview({
+    this.evidenceEnvelope,
     required this.document,
     required this.beforeDocument,
     required this.base,
@@ -73,6 +77,14 @@ class ManualPlannerProvider extends ChangeNotifier {
   final String Function() _newId;
   VoidCallback? _unregister;
   EditableTripDocumentV2? _document, _savedDocument;
+  TripEvidenceEnvelope? _evidenceEnvelope;
+  TripEvidenceEnvelope? get evidenceEnvelope =>
+      document == null ? null : _evidenceEnvelope;
+  String? get contentDigest => document == null
+      ? null
+      : _evidenceEnvelope == null
+      ? EditableTripCodec.digest(_document!)
+      : TripEvidenceCodec.digest(_evidenceEnvelope!);
   EditableHead? _base;
   SourceBinding? _source;
   AccountSessionProof? _proof;
@@ -130,9 +142,7 @@ class ManualPlannerProvider extends ChangeNotifier {
       document != null &&
       _state != ManualPlannerState.readOnly &&
       _state != ManualPlannerState.unavailable;
-  bool get dirty =>
-      document != null &&
-      EditableTripCodec.digest(_document!) != _baselineDigest;
+  bool get dirty => document != null && contentDigest != _baselineDigest;
   BudgetTotals? get totals =>
       document == null ? null : BudgetCalculator.calculate(_document!);
   List<EditableValidationIssue> get issues => document == null
@@ -158,6 +168,7 @@ class ManualPlannerProvider extends ChangeNotifier {
     _workspaceGeneration++;
     _editorGeneration++;
     _document = null;
+    _evidenceEnvelope = null;
     _savedDocument = null;
     _base = null;
     _proof = null;
@@ -231,7 +242,8 @@ class ManualPlannerProvider extends ChangeNotifier {
     EditableRecordCodec.head(EditableRecordCodec.headJson(head));
     _open(head.document);
     _base = head;
-    _baselineDigest = EditableTripCodec.digest(head.document);
+    _evidenceEnvelope = head.evidenceEnvelope;
+    _baselineDigest = head.contentDigest;
     _savedDocument = head.document;
     _state = view.state == EditableTripViewState.cachedReadOnly
         ? ManualPlannerState.readOnly
@@ -243,8 +255,11 @@ class ManualPlannerProvider extends ChangeNotifier {
   void dispatchAll(List<EditableCommand> commands) {
     if (!isEditable) throw StateError('Editor is read only or unavailable.');
     final changed = EditableTripMutator.apply(_document!, commands);
-    _document = changed;
-    _commands.addAll(commands);
+    final extraCommands = <EditableCommand>[];
+    _document = _evidenceEnvelope == null
+        ? changed
+        : _rebindEvidence(changed, extraCommands);
+    _commands.addAll([...commands, ...extraCommands]);
     _editorGeneration++;
     _preview = null;
     if (!_saving && _pending == null && _state != ManualPlannerState.conflict) {
@@ -264,13 +279,14 @@ class ManualPlannerProvider extends ChangeNotifier {
     final candidate = _document!;
     final value = SavePreview(
       document: candidate,
+      evidenceEnvelope: _evidenceEnvelope,
       beforeDocument: _savedDocument,
       base: _base,
       source: _source,
       commands: _commands,
       issues: issues,
       totals: BudgetCalculator.calculate(candidate),
-      digest: EditableTripCodec.digest(candidate),
+      digest: contentDigest!,
       requestId: _newId(),
       generation: _editorGeneration,
       workspaceGeneration: _workspaceGeneration,
@@ -304,7 +320,7 @@ class ManualPlannerProvider extends ChangeNotifier {
         _saving ||
         !value.canConfirm ||
         value.generation != _editorGeneration ||
-        value.digest != EditableTripCodec.digest(_document!)) {
+        value.digest != contentDigest) {
       return false;
     }
     _preview = null;
@@ -341,13 +357,20 @@ class ManualPlannerProvider extends ChangeNotifier {
         if (!_current(value)) return false;
         _draftRevision = record.revision;
       } else {
-        final reply = await repository.saveAccount(
-          document: value.document,
-          commands: value.commands,
-          base: value.base,
-          source: value.source,
-          requestId: value.requestId,
-        );
+        final reply = value.evidenceEnvelope != null
+            ? await repository.saveEvidenceAccount(
+                envelope: value.evidenceEnvelope!,
+                commands: value.commands,
+                base: value.base,
+                requestId: value.requestId,
+              )
+            : await repository.saveAccount(
+                document: value.document,
+                commands: value.commands,
+                base: value.base,
+                source: value.source,
+                requestId: value.requestId,
+              );
         if (!_current(value)) return false;
         final head = reply.head;
         final receipt = reply.receipt;
@@ -376,7 +399,13 @@ class ManualPlannerProvider extends ChangeNotifier {
     } catch (error) {
       if (!_current(value)) return false;
       _saving = false;
-      if (error is EditableRemoteException &&
+      if (error is EvidenceSaveRejectedException) {
+        _pending = null;
+        _state = ManualPlannerState.error;
+        _error = error.code == 'evidence_expired'
+            ? 'Thông tin căn cứ đã hết hạn. Lịch vẫn được giữ; hãy cập nhật căn cứ rồi xem lại trước khi lưu.'
+            : 'Máy chủ chưa chấp nhận căn cứ này. Lịch vẫn được giữ; hãy kiểm tra căn cứ rồi xem lại trước khi lưu.';
+      } else if (error is EditableRemoteException &&
           error.kind == EditableRemoteFailure.rejected &&
           error.code == 'version_conflict' &&
           value.base != null) {
@@ -408,6 +437,7 @@ class ManualPlannerProvider extends ChangeNotifier {
     _unregister?.call();
     _unregister = null;
     _document = null;
+    _evidenceEnvelope = null;
     _savedDocument = null;
     _base = null;
     _proof = null;
@@ -415,5 +445,107 @@ class ManualPlannerProvider extends ChangeNotifier {
     _preview = null;
     _commands.clear();
     super.dispose();
+  }
+
+  void replaceEvidence(TripEvidenceEnvelope envelope) {
+    if (!isEditable ||
+        !isAccount ||
+        EditableTripCodec.encode(envelope.document) !=
+            EditableTripCodec.encode(_document!)) {
+      throw StateError('Evidence must belong to the current account document.');
+    }
+    TripEvidenceCodec.encode(envelope);
+    _evidenceEnvelope = envelope;
+    _editorGeneration++;
+    _preview = null;
+    _notify();
+  }
+
+  EditableTripDocumentV2 _rebindEvidence(
+    EditableTripDocumentV2 candidate,
+    List<EditableCommand> extraCommands,
+  ) {
+    final before = _evidenceEnvelope!;
+    final raw = candidate.toJson();
+    final old = before.document.toJson();
+    final changedPlaces = <String>{};
+    for (final key in ['items', 'estimates']) {
+      final previous = {
+        for (final row in old[key] as List) (row as Map)['id']: row,
+      };
+      final fields = key == 'items'
+          ? ['title', 'placeId', 'startMinute', 'endMinute']
+          : ['unitAmountVnd', 'basis', 'customQuantity', 'category'];
+      for (final value in raw[key] as List) {
+        final row = value as Map<String, Object?>;
+        final prior = previous[row['id']];
+        if (prior == null) continue;
+        if (key == 'items' &&
+            (prior['title'] != row['title'] ||
+                prior['placeId'] != row['placeId'])) {
+          changedPlaces.add(row['id'] as String);
+        }
+        if (!fields.any((f) => prior[f] != row[f])) continue;
+        final provenance = Map<String, Object?>.from(row['provenance'] as Map);
+        if ((provenance['sourceRefs'] as List).isEmpty) continue;
+        row['provenance'] = {
+          ...provenance,
+          'sourceRefs': <String>[],
+          'quality': 'unknown',
+        };
+        // Keep deterministic command replay equal to the sanitized document.
+        extraCommands.add(
+          key == 'items'
+              ? EditItemCommand.fromItem(TripItem.fromJson(row))
+              : PutEstimateCommand(EstimatedExpense.fromJson(row)),
+        );
+      }
+    }
+    final document = EditableTripDocumentV2.fromJson(raw);
+    final itemIds = document.items.map((i) => i.id).toSet();
+    final bindings = before.externalBindings
+        .where(
+          (b) =>
+              itemIds.contains(b.itemId) && !changedPlaces.contains(b.itemId),
+        )
+        .toList();
+    final externalIds = bindings.map((b) => b.externalPlaceId).toSet();
+    final places = before.externalPlaces
+        .where((p) => externalIds.contains(p.id))
+        .toList();
+    Set<String> documentRefs(EditableTripDocumentV2 d) => {
+      ...d.items.expand((i) => i.provenance.sourceRefs),
+      ...d.estimates.expand((e) => e.provenance.sourceRefs),
+      ...d.actualExpenses.expand((e) => e.provenance.sourceRefs),
+    };
+    final retained = {
+      ...documentRefs(document),
+      ...places.expand((p) => p.evidenceIds),
+    };
+    final lost = documentRefs(before.document).difference(retained);
+    final claims = before.claims
+        .map(
+          (c) => c.evidenceIds.any(lost.contains)
+              ? EvidenceClaim(
+                  id: c.id,
+                  text: 'Căn cứ đã được gỡ sau khi chỉnh sửa lịch.',
+                  kind: ClaimKind.unknown,
+                  evidenceIds: c.evidenceIds
+                      .where((id) => !lost.contains(id))
+                      .toList(),
+                )
+              : c,
+        )
+        .toList();
+    final envelope = TripEvidenceEnvelope(
+      document: document,
+      evidence: before.evidence.where((e) => !lost.contains(e.id)).toList(),
+      claims: claims,
+      externalPlaces: places,
+      externalBindings: bindings,
+    );
+    TripEvidenceCodec.encode(envelope);
+    _evidenceEnvelope = envelope;
+    return document;
   }
 }

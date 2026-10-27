@@ -14,6 +14,8 @@ import '../../providers/manual_planner_provider.dart';
 import '../../providers/planner_input_provider.dart';
 import '../../services/editable_trip_validator.dart';
 import '../../services/ai_generation_service.dart';
+import '../../models/ai_grounded_proposal.dart';
+import '../../models/ai_grounded_assistant.dart';
 import '../../services/ai_assistant_service.dart';
 import '../widgets/ai_generation_preview.dart';
 import '../widgets/ai_assistant_preview.dart';
@@ -246,29 +248,57 @@ class _ManualPlannerScreenState extends State<ManualPlannerScreen> {
         auth.isGuest == authGuest &&
         auth.isDemoSession == authDemo &&
         stamp.current(planner);
-    final result = await _route<AiPreparedProposal>(
+    if (!canGenerateWholeTrip(snapshot)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'AI tạo lịch tự động chỉ áp dụng khi chuyến đi chưa có hoạt động nào. Hãy dùng "Trợ giúp AI" để được tư vấn hoặc đề xuất sửa đổi.',
+          ),
+        ),
+      );
+      return;
+    }
+    final result = await _route<Object>(
       AiGenerationPreview(
         input: input,
         authority: Listenable.merge([planner, auth]),
         isCurrent: current,
         generate: (requestId) =>
             widget.generateAi?.call(snapshot, requestId) ??
-            generateAiForDraft(
-              auth: auth,
-              document: snapshot,
-              requestId: requestId,
-              newId: _newId,
-              workspaceCurrent: current,
-              destination: dest,
-            ),
+            (widget.snapshot != null
+                ? generateAiWithEvidence(
+                    auth: auth,
+                    document: snapshot,
+                    snapshot: widget.snapshot!,
+                    requestId: requestId,
+                    newId: _newId,
+                    workspaceCurrent: current,
+                  )
+                : generateAiForDraft(
+                    auth: auth,
+                    document: snapshot,
+                    requestId: requestId,
+                    newId: _newId,
+                    workspaceCurrent: current,
+                    destination: dest,
+                  )),
       ),
       dialog: true,
     );
-    if (result == null || !current() || !result.canApply) {
+    if (result == null || !current()) {
       return;
     }
     try {
-      planner.dispatchAll(result.commands);
+      if (result is AiGroundedProposal) {
+        if (!result.canApply) return;
+        planner.dispatchAll(result.commands);
+        if (planner.isAccount) {
+          planner.replaceEvidence(result.envelope);
+        }
+      } else if (result is AiPreparedProposal) {
+        if (!result.canApply) return;
+        planner.dispatchAll(result.commands);
+      }
     } on Object {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -351,32 +381,58 @@ class _ManualPlannerScreenState extends State<ManualPlannerScreen> {
       );
       return;
     }
-    final result = await _route<AiModificationPreview>(
+    final result = await _route<Object>(
       AiAssistantPreview(
         input: input,
         authority: Listenable.merge([planner, auth]),
         isCurrent: current,
         generate:
             widget.assistantGenerate ??
-            (intent, prompt, history, requestId) => askAiForDraft(
-              auth: auth,
-              document: snapshot,
-              context: input,
-              intent: intent,
-              prompt: prompt,
-              history: history,
-              requestId: requestId,
-              newId: _newId,
-              workspaceCurrent: current,
-            ),
+            (intent, prompt, history, requestId) {
+              if (widget.snapshot != null) {
+                return askAiWithEvidence(
+                  auth: auth,
+                  document: snapshot,
+                  snapshot: widget.snapshot!,
+                  intent: intent,
+                  prompt: prompt,
+                  history: history,
+                  requestId: requestId,
+                  newId: _newId,
+                  workspaceCurrent: current,
+                  selectedDay: _ordinal,
+                  evidenceEnvelope: planner.evidenceEnvelope,
+                );
+              }
+              return askAiForDraft(
+                auth: auth,
+                document: snapshot,
+                context: input,
+                intent: intent,
+                prompt: prompt,
+                history: history,
+                requestId: requestId,
+                newId: _newId,
+                workspaceCurrent: current,
+              );
+            },
       ),
       dialog: true,
     );
-    if (result == null || !current() || !result.canApply) {
+    if (result == null || !current()) {
       return;
     }
     try {
-      planner.dispatchAll(result.commands);
+      if (result is AiGroundedAssistantReply) {
+        if (!result.canApply) return;
+        planner.dispatchAll(result.commands);
+        if (result.envelope != null) {
+          planner.replaceEvidence(result.envelope!);
+        }
+      } else if (result is AiModificationPreview) {
+        if (!result.canApply) return;
+        planner.dispatchAll(result.commands);
+      }
     } on Object {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

@@ -98,7 +98,9 @@ class SavedTripsProvider extends ChangeNotifier {
   }) {
     final input = head.document.input;
     return OwnedTripSummary(
-      kind: OwnedTripKind.editableV2,
+      kind: head.evidenceEnvelope == null
+          ? OwnedTripKind.editableV2
+          : OwnedTripKind.evidenceV1,
       tripId: head.tripId,
       ownerId: head.ownerId,
       title: input.title,
@@ -346,12 +348,16 @@ class SavedTripsProvider extends ChangeNotifier {
       final editableCache = await store.listEditableSnapshots(handle: handle);
       if (!_currentAccount(owner, epoch, proof)) return;
       for (final row in page.items.where(
-        (t) => t.kind == OwnedTripKind.editableV2,
+        (t) => t.kind != OwnedTripKind.legacyV1,
       )) {
         if (legacyCache.any((cached) => cached.tripId == row.tripId)) {
           throw const SnapshotRejectedException('Cached trip kind changed.');
         }
-        final view = await repository.readTrip(row.tripId, allowCached: false);
+        final view = await repository.readTrip(
+          row.tripId,
+          allowCached: false,
+          kind: row.kind,
+        );
         if (!_currentAccount(owner, epoch, proof)) return;
         if (view.head == null) {
           summaries.remove(row.tripId);
@@ -400,6 +406,9 @@ class SavedTripsProvider extends ChangeNotifier {
         final view = await repository.readTrip(
           cached.head.tripId,
           allowCached: false,
+          kind: cached.head.evidenceEnvelope == null
+              ? OwnedTripKind.editableV2
+              : OwnedTripKind.evidenceV1,
         );
         if (!_currentAccount(owner, epoch, proof)) return;
         if (view.head == null) {

@@ -5,6 +5,7 @@ import 'editable_remote_records.dart';
 import 'editable_trip_codec.dart';
 import 'local_trip_records.dart';
 import 'trip_payload_codec.dart';
+import 'trip_evidence_codec.dart';
 
 class EditableDraftConflictException extends LocalTripStoreException {
   const EditableDraftConflictException(super.message);
@@ -141,7 +142,7 @@ class EditableRecordCodec {
     if (EditableTripCodec.digestText(raw) != expectedDigest) {
       bad();
     }
-    final document = EditableTripCodec.decode(raw);
+    final document = TripEvidenceCodec.decode(raw).document;
     if (EditableTripValidator.validate(
       document,
       mode: ValidationMode.accountSave,
@@ -166,6 +167,9 @@ class EditableRecordCodec {
       contentDigest: hash,
       fetchedAt: utc(json['fetchedAt']),
       document: accountDocument(raw, hash),
+      evidenceEnvelope: isEvidencePayload(raw)
+          ? TripEvidenceCodec.decode(raw)
+          : null,
     );
   }
 
@@ -221,6 +225,7 @@ class EditableRecordCodec {
     'sourceBinding': value.sourceBinding?.toJson(),
   };
   static Map<String, Object?> attemptJson(EditablePendingAttempt value) => {
+    if (value.isEvidence) 'payloadKind': value.payloadKind,
     'requestId': value.requestId,
     'ownerId': value.ownerId,
     'operation': value.operation,
@@ -234,13 +239,14 @@ class EditableRecordCodec {
   static EditablePendingAttempt attempt(Map<String, Object?> json) {
     keys(
       json,
-      'requestId ownerId operation requestText requestDigest tripId contentDigest expectedVersion sourceBinding',
+      'requestId ownerId operation requestText requestDigest tripId contentDigest expectedVersion sourceBinding${json.containsKey('payloadKind') ? ' payloadKind' : ''}',
     );
     final raw = json['requestText'];
     if (raw is! String) {
       bad();
     }
     final value = EditablePendingAttempt(
+      payloadKind: json['payloadKind'] as String? ?? 'editable_v2',
       requestId: id(json['requestId']),
       ownerId: id(json['ownerId']),
       operation: text(json['operation']),
@@ -260,6 +266,7 @@ class EditableRecordCodec {
   }
 
   static void validateAttempt(EditablePendingAttempt value) {
+    if (!{'editable_v2', 'evidence_v1'}.contains(value.payloadKind)) bad();
     id(value.requestId);
     id(value.ownerId);
     digest(value.requestDigest);
@@ -297,6 +304,7 @@ class EditableRecordCodec {
       bad();
     }
     accountDocument(payload, digest(value.contentDigest));
+    if (isEvidencePayload(payload) != value.isEvidence) bad();
     if (value.operation == 'create') {
       if (value.tripId != null ||
           value.expectedVersion != null ||
@@ -321,4 +329,7 @@ class EditableRecordCodec {
       }
     }
   }
+
+  static bool isEvidencePayload(String raw) =>
+      object(EditableTripCodec.parseStrict(raw)).containsKey('contract');
 }

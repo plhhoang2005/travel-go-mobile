@@ -1,0 +1,35 @@
+BEGIN;
+CREATE FUNCTION pg_temp.a3_assert(ok boolean,label text) RETURNS void LANGUAGE plpgsql AS $$
+BEGIN IF ok IS DISTINCT FROM true THEN RAISE EXCEPTION 'A3 lookup: %',label; END IF; END $$;
+DO $$ DECLARE binding uuid:='a3000000-0000-4000-8000-000000000001'; req uuid:='a3000000-0000-4000-8000-000000000002';
+ r jsonb; before_requests jsonb; before_usage jsonb; before_global jsonb;
+BEGIN
+ SELECT coalesce(jsonb_agg(t), '[]'::jsonb) INTO before_usage FROM (SELECT * FROM private_ai.usage ORDER BY subject,accepted_day)t;
+ SELECT coalesce(jsonb_agg(t), '[]'::jsonb) INTO before_global FROM (SELECT * FROM private_ai.global_attempts ORDER BY accepted_day)t;
+ PERFORM pg_temp.a3_assert(public.lookup_ai_request_v1(binding,false,req,repeat('a',64))='{"status":"not_found"}'::jsonb,'not found');
+ PERFORM pg_temp.a3_assert(NOT EXISTS(SELECT 1 FROM private_ai.requests WHERE subject=binding),'no request created');
+ PERFORM pg_temp.a3_assert(before_usage=(SELECT coalesce(jsonb_agg(t),'[]'::jsonb) FROM(SELECT * FROM private_ai.usage ORDER BY subject,accepted_day)t),'no usage created');
+ PERFORM pg_temp.a3_assert(before_global=(SELECT coalesce(jsonb_agg(t),'[]'::jsonb) FROM(SELECT * FROM private_ai.global_attempts ORDER BY accepted_day)t),'no global attempt created');
+ r:=public.reserve_ai_request_v1(binding,false,req,repeat('a',64));
+ SELECT to_jsonb(t) INTO before_requests FROM private_ai.requests t WHERE subject=binding AND request_id=req;
+ SET LOCAL ROLE service_role;
+ r:=public.lookup_ai_request_v1(binding,false,req,repeat('a',64));
+ RESET ROLE;
+ PERFORM pg_temp.a3_assert(r->>'status'='reserved' AND r->'workerToken'='null'::jsonb,'pending lookup hides worker');
+ PERFORM pg_temp.a3_assert(before_requests=(SELECT to_jsonb(t) FROM private_ai.requests t WHERE subject=binding AND request_id=req),'pending unchanged');
+ BEGIN PERFORM public.lookup_ai_request_v1(binding,false,req,repeat('b',64)); RAISE EXCEPTION 'expected conflict';
+ EXCEPTION WHEN invalid_parameter_value THEN NULL; END;
+ r:=public.finalize_ai_request_v1(binding,req,(before_requests->>'worker')::uuid,repeat('a',64),true,'{"fixture":true}');
+ PERFORM pg_temp.a3_assert(public.lookup_ai_request_v1(binding,false,req,repeat('a',64))->>'status'='succeeded','successful replay');
+ UPDATE private_ai.requests SET result_expires_at=now()-interval '1 hour' WHERE subject=binding;
+ PERFORM pg_temp.a3_assert(public.lookup_ai_request_v1(binding,false,req,repeat('a',64))#>>'{status}'='result_expired','expired result');
+ PERFORM pg_temp.a3_assert(public.lookup_ai_request_v1(binding,false,req,repeat('a',64))->'result'='null'::jsonb,'expired result hidden');
+ PERFORM pg_temp.a3_assert(EXISTS(SELECT 1 FROM private_ai.requests WHERE subject=binding AND result IS NOT NULL),'lookup did not maintain or delete');
+ SET LOCAL ROLE authenticated;
+ BEGIN PERFORM public.lookup_ai_request_v1(binding,false,req,repeat('a',64)); RAISE EXCEPTION 'client access'; EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+ RESET ROLE;
+ SET LOCAL ROLE anon;
+ BEGIN PERFORM public.lookup_ai_request_v1(binding,false,req,repeat('a',64)); RAISE EXCEPTION 'anon access'; EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+ RESET ROLE;
+END $$;
+ROLLBACK;

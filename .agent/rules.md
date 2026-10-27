@@ -217,6 +217,14 @@ Trﾆｰ盻嫩 khi xu蘯･t bﾃ｡o cﾃ｡o ho蘯ｷc t蘯｡o commit, Agent 
 <a id="owner-learning-rule"></a>
 ## 7. Giải thích để owner hiểu cách hệ thống hoạt động
 
+**Bổ sung owner — CONFIRMED 2026-10-27:** Sau mỗi đợt công việc có kết quả, luôn tóm tắt ngắn bằng tiếng Việt đơn giản cho owner, áp dụng cả code/sửa lỗi, review, lập kế hoạch, tài liệu và việc đang bị chặn; không chỉ khi task hoàn tất. Việc nhỏ 1–3 câu, việc lớn khoảng 3–5 dòng trước phần kỹ thuật. Nội dung phải trả lời:
+
+- **Vừa làm gì, để làm gì?** Nêu thay đổi hoặc kết quả chính bằng ngôn ngữ người dùng.
+- **Ảnh hưởng gì?** Chức năng, trải nghiệm hoặc dữ liệu nào thay đổi; nếu chỉ sửa tài liệu thì nói rõ app chưa đổi hành vi.
+- **Tình trạng hiện tại?** Đã kiểm tra gì, còn lỗi/rủi ro hoặc phần chưa chạy nào, và bước tiếp theo khi cần.
+
+Không thay phần giải thích bằng danh sách tên file, thuật ngữ hay số test. Giải thích thuật ngữ bắt buộc bằng một cụm ngắn; chỉ dẫn chi tiết kỹ thuật/bằng chứng sau phần tóm tắt khi hữu ích. Phân biệt rõ đã thực hiện với mới đề xuất, local với đã deploy, PASS với chưa kiểm chứng. Tích hợp tóm tắt vào handover hiện có để không lặp hai báo cáo; không thêm thủ tục phê duyệt hay báo cáo sau từng tool call. Giữ quy tắc này khi khôi phục context ở session mới qua AGENTS.md.
+
 **Owner preference — CONFIRMED 2026-10-08.** Sau mỗi lượt implementation/fix và code review, chủ động giải thích bằng tiếng Việt: luồng hoạt động, lỗi và ảnh hưởng, lý do chọn cách giải quyết, thay đổi trước/sau, cách kiểm chứng, kết quả cùng giới hạn. Dùng một tình huống thật của Travel-Go và rút ra 1–2 nguyên tắc có thể dùng ở chức năng khác.
 
 Không cần giảng từng dòng code hoặc thuật ngữ cú pháp. Nếu dùng thuật ngữ như Provider, RLS hoặc acknowledgement, giải thích ngắn bằng vai trò của nó. Nêu file/layer khi giúp định vị trách nhiệm; dùng sơ đồ mũi tên đơn giản khi hữu ích. Giữ phần giải thích vừa đủ theo độ phức tạp, không bắt owner làm bài tập hoặc trả lời câu hỏi để tiếp tục việc đã được authorize.
