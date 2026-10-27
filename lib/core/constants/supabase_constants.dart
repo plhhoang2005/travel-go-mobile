@@ -5,12 +5,15 @@ class SupabaseConstants {
   static const String _productionUrl =
       'https://oavbymauorhmrjcustzw.supabase.co';
   static const String _stagingUrl = 'https://bkocylxbuyvdgxccpixx.supabase.co';
+  static const String _defaultStagingPublishableKey =
+      'sb_publishable_Rs5bXpcVG848C2bxgWZVRQ_x8g-rSK-';
   static const String _target = String.fromEnvironment(
     'TRAVELGO_ENV',
-    defaultValue: 'production',
+    defaultValue: 'staging',
   );
   static const String _stagingPublishableKey = String.fromEnvironment(
     'TRAVELGO_STAGING_PUBLISHABLE_KEY',
+    defaultValue: _defaultStagingPublishableKey,
   );
 
   static bool get isStaging => _target == 'staging';

@@ -5,10 +5,11 @@ void main() {
   test('build target selects one project and never borrows the other key', () {
     const target = String.fromEnvironment(
       'TRAVELGO_ENV',
-      defaultValue: 'production',
+      defaultValue: 'staging',
     );
     const stagingKey = String.fromEnvironment(
       'TRAVELGO_STAGING_PUBLISHABLE_KEY',
+      defaultValue: 'sb_publishable_Rs5bXpcVG848C2bxgWZVRQ_x8g-rSK-',
     );
     switch (target) {
       case 'production':
