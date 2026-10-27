@@ -502,6 +502,13 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void clearError() {
+    if (_errorMessage != null) {
+      _errorMessage = null;
+      notifyListeners();
+    }
+  }
+
   /// Real Supabase Email & Password Login without any mock bypasses
   Future<bool> login(String email, String password) async {
     if (_isRecovering || _currentRecoveryIntentId != null || _recoveryCleanupPending) {
@@ -1176,9 +1183,12 @@ class AuthProvider extends ChangeNotifier {
     _authSubscription =
         (_authStateChanges ?? _supabaseClient?.auth.onAuthStateChange)?.listen(
           _observeSdk,
-          onError: (_) {
+          onError: (e) {
+            debugPrint('[TravelGO auth] onAuthStateChange stream error: $e');
             if (!_credentialBusy && !_disposed) {
-              _errorMessage = 'Không thể kiểm tra phiên đăng nhập.';
+              if (_currentUser != null && !_isGuest) {
+                _errorMessage = 'Không thể kiểm tra phiên đăng nhập.';
+              }
               _denyObservedSession();
             }
           },
@@ -1196,8 +1206,10 @@ class AuthProvider extends ChangeNotifier {
       } catch (_) {
         if (!_disposed && generation == _requestGeneration) {
           onLocalAccountInvalidated();
-          _errorMessage =
-              'Chưa thể kiểm tra dữ liệu tài khoản; bạn vẫn có thể dùng Guest.';
+          if (_currentUser != null && !_isGuest) {
+            _errorMessage =
+                'Chưa thể kiểm tra dữ liệu tài khoản; bạn vẫn có thể dùng Guest.';
+          }
         }
       } finally {
         _initializing = false;
@@ -1240,7 +1252,9 @@ class AuthProvider extends ChangeNotifier {
         try {
           await (await _getLifecycle()).revokeAccount();
         } catch (_) {
-          _errorMessage = 'Cần kiểm tra lại phiên và dọn dữ liệu tài khoản.';
+          if (_currentUser != null && !_isGuest) {
+            _errorMessage = 'Cần kiểm tra lại phiên và dọn dữ liệu tài khoản.';
+          }
         }
         _notifyDeferred();
       }),
