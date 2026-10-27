@@ -2,6 +2,7 @@
 // Consumes POST /functions/v1/admin-control under contract travelgo.admin.v1.
 
 import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:travelgo_mobile/features/admin/models/admin_account_models.dart';
 import 'package:travelgo_mobile/features/trips/services/local_account_lifecycle_service.dart';
@@ -11,12 +12,14 @@ class AdminAccountService {
   final Uri projectOrigin;
   final String publicKey;
   final Future<LocalAccountLifecycleService> Function() lifecycleLoader;
+  final ({String? ownerId, int epoch}) Function()? callerContext;
 
   AdminAccountService({
     required this.dio,
     required this.projectOrigin,
     required this.publicKey,
     required this.lifecycleLoader,
+    this.callerContext,
   });
 
   Uri get _endpoint => projectOrigin.resolve('/functions/v1/admin-control');
@@ -27,8 +30,22 @@ class AdminAccountService {
     required T Function(dynamic data) mapper,
     bool isMutation = false,
   }) async {
+    final caller = callerContext?.call();
     final lifecycle = await lifecycleLoader();
+    if (caller != null &&
+        (caller != callerContext?.call() || caller.ownerId == null)) {
+      throw const AdminFailure(
+        code: 'stale_session',
+        message: 'Caller changed before dispatch',
+      );
+    }
     final proof = lifecycle.captureProof();
+    if (caller != null && proof.ownerId != caller.ownerId) {
+      throw const AdminFailure(
+        code: 'stale_session',
+        message: 'Wrong caller proof',
+      );
+    }
     final releaseOp = lifecycle.beginAccountOperation(proof);
 
     try {
@@ -48,7 +65,8 @@ class AdminAccountService {
             'apikey': publicKey,
             'Content-Type': 'application/json',
           },
-          validateStatus: (status) => status != null && status >= 200 && status < 300,
+          validateStatus: (status) =>
+              status != null && status >= 200 && status < 300,
         ),
       );
 
@@ -78,7 +96,11 @@ class AdminAccountService {
         );
       }
 
-      return mapper(body['data']);
+      final result = mapper(body['data']);
+      if (result is AdminAccess && result.subjectId != proof.ownerId) {
+        throw const FormatException('Wrong access subject');
+      }
+      return result;
     } on DioException catch (dioErr) {
       if (!lifecycle.isCurrentProof(proof)) {
         throw const AdminFailure(
@@ -126,13 +148,16 @@ class AdminAccountService {
           field: errorField,
           message: 'Invalid admin request field',
         );
-      } else if (statusCode == 503 ||
+      } else if ((statusCode != null && statusCode >= 500) ||
+          dioErr.type == DioExceptionType.connectionError ||
           dioErr.type == DioExceptionType.connectionTimeout ||
           dioErr.type == DioExceptionType.receiveTimeout ||
           dioErr.type == DioExceptionType.sendTimeout ||
           dioErr.type == DioExceptionType.unknown) {
         throw AdminFailure(
-          code: statusCode == 503 ? 'upstream_unavailable' : 'network_error',
+          code: statusCode != null && statusCode >= 500
+              ? 'upstream_unavailable'
+              : 'network_error',
           field: errorField,
           outcomeUncertain: isMutation,
           message: isMutation
@@ -145,6 +170,18 @@ class AdminAccountService {
         code: errorCode,
         field: errorField,
         message: 'Admin request failed with HTTP $statusCode',
+      );
+    } on FormatException {
+      throw AdminFailure(
+        code: 'invalid_response',
+        outcomeUncertain: isMutation,
+        message: 'Invalid admin response',
+      );
+    } on TypeError {
+      throw AdminFailure(
+        code: 'invalid_response',
+        outcomeUncertain: isMutation,
+        message: 'Invalid admin response',
       );
     } finally {
       releaseOp();
@@ -165,10 +202,7 @@ class AdminAccountService {
     String? state,
     UserCursor? cursor,
   }) {
-    final req = <String, dynamic>{
-      'query': query,
-      'limit': 25,
-    };
+    final req = <String, dynamic>{'query': query, 'limit': 25};
     if (role != null) req['role'] = role;
     if (state != null) req['state'] = state;
     if (cursor != null) req['cursor'] = cursor.toJson();
@@ -184,7 +218,11 @@ class AdminAccountService {
     return _execute(
       action: 'user',
       requestData: {'targetId': targetId},
-      mapper: (data) => UserDetail.fromJson(data as Map<String, dynamic>),
+      mapper: (data) {
+        final detail = UserDetail.fromJson(data as Map<String, dynamic>);
+        if (detail.id != targetId) throw const FormatException('Wrong user');
+        return detail;
+      },
     );
   }
 
@@ -192,7 +230,8 @@ class AdminAccountService {
     return _execute(
       action: 'dashboard',
       requestData: {'days': days},
-      mapper: (data) => DashboardSnapshot.fromJson(data as Map<String, dynamic>),
+      mapper: (data) =>
+          DashboardSnapshot.fromJson(data as Map<String, dynamic>),
     );
   }
 
@@ -213,7 +252,16 @@ class AdminAccountService {
         'reason': reason,
       },
       isMutation: true,
-      mapper: (data) => AccountOperation.fromJson(data as Map<String, dynamic>),
+      mapper: (data) {
+        final op = AccountOperation.fromJson(data as Map<String, dynamic>);
+        if (op.id != requestId ||
+            op.targetId != targetId ||
+            op.action != action ||
+            op.targetRevision != expectedRevision + 1) {
+          throw const FormatException('Wrong operation');
+        }
+        return op;
+      },
     );
   }
 
@@ -221,7 +269,15 @@ class AdminAccountService {
     return _execute(
       action: 'operation',
       requestData: {'operationId': operationId},
-      mapper: (data) => AccountOperation.fromJson(data as Map<String, dynamic>),
+      mapper: (data) {
+        final operation = AccountOperation.fromJson(
+          data as Map<String, dynamic>,
+        );
+        if (operation.id != operationId) {
+          throw const FormatException('Wrong receipt');
+        }
+        return operation;
+      },
     );
   }
 
@@ -240,7 +296,16 @@ class AdminAccountService {
         'reason': reason,
       },
       isMutation: true,
-      mapper: (data) => AccountOperation.fromJson(data as Map<String, dynamic>),
+      mapper: (data) {
+        final operation = AccountOperation.fromJson(
+          data as Map<String, dynamic>,
+        );
+        if (operation.id != operationId ||
+            operation.targetRevision != expectedRevision) {
+          throw const FormatException('Wrong reconcile receipt');
+        }
+        return operation;
+      },
     );
   }
 }

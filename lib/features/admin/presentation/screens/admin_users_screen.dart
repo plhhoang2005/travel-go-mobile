@@ -24,6 +24,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     super.initState();
     _scrollController.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       final provider = context.read<AdminAccountProvider>();
       if (provider.users.isEmpty && !provider.isLoadingUsers) {
         provider.loadUsers(nextPage: false);
@@ -52,6 +53,12 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final provider = context.watch<AdminAccountProvider>();
+    if (_searchController.text != provider.query) {
+      _searchController.value = TextEditingValue(
+        text: provider.query,
+        selection: TextSelection.collapsed(offset: provider.query.length),
+      );
+    }
     final users = provider.users;
     final isLoading = provider.isLoadingUsers;
     final error = provider.error;
@@ -63,7 +70,9 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Làm mới',
-            onPressed: isLoading ? null : () => provider.loadUsers(nextPage: false),
+            onPressed: isLoading
+                ? null
+                : () => provider.loadUsers(nextPage: false),
           ),
         ],
       ),
@@ -72,22 +81,28 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
           children: [
             // Search Bar & Filter Chips
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16.0,
+                vertical: 8.0,
+              ),
               child: TextField(
                 controller: _searchController,
                 decoration: InputDecoration(
-                  hintText: 'Tìm theo tên hoặc email...',
+                  labelText: 'Tìm theo tên hoặc email',
                   prefixIcon: const Icon(Icons.search),
                   suffixIcon: _searchController.text.isNotEmpty
                       ? IconButton(
                           icon: const Icon(Icons.clear),
+                          tooltip: 'Xóa tìm kiếm',
                           onPressed: () {
                             _searchController.clear();
                             provider.setFilter(query: '');
                           },
                         )
                       : null,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   contentPadding: const EdgeInsets.symmetric(vertical: 12.0),
                 ),
                 onChanged: (text) => provider.setFilter(query: text),
@@ -150,7 +165,10 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
 
             if (error != null)
               Container(
-                margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                margin: const EdgeInsets.symmetric(
+                  horizontal: 16.0,
+                  vertical: 8.0,
+                ),
                 padding: const EdgeInsets.all(12.0),
                 decoration: BoxDecoration(
                   color: theme.colorScheme.errorContainer,
@@ -162,12 +180,16 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Lỗi: ${error.message} (${error.code})',
-                        style: TextStyle(color: theme.colorScheme.onErrorContainer),
+                        error.userMessage,
+                        style: TextStyle(
+                          color: theme.colorScheme.onErrorContainer,
+                        ),
                       ),
                     ),
                     TextButton(
-                      onPressed: () => provider.loadUsers(nextPage: false),
+                      onPressed: () => provider.loadUsers(
+                        nextPage: users.isNotEmpty && provider.hasMoreUsers,
+                      ),
                       child: const Text('Thử lại'),
                     ),
                   ],
@@ -178,7 +200,13 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
             Expanded(
               child: RefreshIndicator(
                 onRefresh: () => provider.loadUsers(nextPage: false),
-                child: users.isEmpty && !isLoading
+                child: users.isEmpty && isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : users.isEmpty && error != null
+                    ? const Center(
+                        child: Text('Chưa tải được danh sách người dùng.'),
+                      )
+                    : users.isEmpty && !isLoading
                     ? const Center(
                         child: Text(
                           'Không tìm thấy người dùng nào phù hợp',
@@ -189,13 +217,22 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                         controller: _scrollController,
                         physics: const AlwaysScrollableScrollPhysics(),
                         padding: const EdgeInsets.symmetric(vertical: 8.0),
-                        itemCount: users.length + (provider.hasMoreUsers ? 1 : 0),
+                        itemCount:
+                            users.length + (provider.hasMoreUsers ? 1 : 0),
                         separatorBuilder: (_, _) => const Divider(height: 1),
                         itemBuilder: (context, index) {
                           if (index >= users.length) {
-                            return const Padding(
+                            return Padding(
                               padding: EdgeInsets.all(16.0),
-                              child: Center(child: CircularProgressIndicator()),
+                              child: Center(
+                                child: isLoading
+                                    ? const CircularProgressIndicator()
+                                    : TextButton(
+                                        onPressed: () =>
+                                            provider.loadUsers(nextPage: true),
+                                        child: const Text('Tải thêm'),
+                                      ),
+                              ),
                             );
                           }
                           final user = users[index];
@@ -260,9 +297,14 @@ class _UserTile extends StatelessWidget {
     }
 
     return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: 16.0,
+        vertical: 4.0,
+      ),
       leading: CircleAvatar(
-        backgroundColor: user.isAdmin ? AppTheme.primaryColor : Colors.grey.shade300,
+        backgroundColor: user.isAdmin
+            ? AppTheme.primaryColor
+            : Colors.grey.shade300,
         foregroundColor: user.isAdmin ? Colors.white : Colors.black87,
         child: Icon(user.isAdmin ? Icons.admin_panel_settings : Icons.person),
       ),
@@ -279,7 +321,9 @@ class _UserTile extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
             decoration: BoxDecoration(
-              color: user.isAdmin ? AppTheme.primaryColor.withValues(alpha: 0.15) : Colors.grey.shade200,
+              color: user.isAdmin
+                  ? AppTheme.primaryColor.withValues(alpha: 0.15)
+                  : Colors.grey.shade200,
               borderRadius: BorderRadius.circular(4),
             ),
             child: Text(
@@ -287,7 +331,9 @@ class _UserTile extends StatelessWidget {
               style: TextStyle(
                 fontSize: 10,
                 fontWeight: FontWeight.bold,
-                color: user.isAdmin ? AppTheme.primaryColor : Colors.grey.shade700,
+                color: user.isAdmin
+                    ? AppTheme.primaryColor
+                    : Colors.grey.shade700,
               ),
             ),
           ),
@@ -299,17 +345,27 @@ class _UserTile extends StatelessWidget {
           const SizedBox(height: 2),
           Text(user.email, maxLines: 1, overflow: TextOverflow.ellipsis),
           const SizedBox(height: 2),
-          Row(
+          Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 4,
+            runSpacing: 4,
             children: [
               Container(
                 width: 8,
                 height: 8,
-                decoration: BoxDecoration(color: stateColor, shape: BoxShape.circle),
+                decoration: BoxDecoration(
+                  color: stateColor,
+                  shape: BoxShape.circle,
+                ),
               ),
               const SizedBox(width: 4),
               Text(
                 stateLabel,
-                style: TextStyle(fontSize: 12, color: stateColor, fontWeight: FontWeight.w600),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: stateColor,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               const SizedBox(width: 8),
               Text('• $lastSignInText', style: const TextStyle(fontSize: 12)),
@@ -317,7 +373,10 @@ class _UserTile extends StatelessWidget {
                 const SizedBox(width: 6),
                 const Icon(Icons.sync_problem, size: 14, color: Colors.amber),
                 const SizedBox(width: 2),
-                const Text('Chờ Auth', style: TextStyle(fontSize: 11, color: Colors.amber)),
+                const Text(
+                  'Chưa đồng bộ xác thực',
+                  style: TextStyle(fontSize: 11),
+                ),
               ],
             ],
           ),
@@ -325,9 +384,13 @@ class _UserTile extends StatelessWidget {
       ),
       trailing: const Icon(Icons.chevron_right),
       onTap: () {
+        final accountProvider = context.read<AdminAccountProvider>();
         Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (_) => AdminUserDetailScreen(userId: user.id),
+            builder: (_) => ChangeNotifierProvider<AdminAccountProvider>.value(
+              value: accountProvider,
+              child: AdminUserDetailScreen(userId: user.id),
+            ),
           ),
         );
       },

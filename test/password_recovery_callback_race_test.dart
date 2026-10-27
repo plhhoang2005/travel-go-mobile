@@ -25,6 +25,9 @@ class MockAsyncStorage extends GotrueAsyncStorage {
 
 class BlockingStore extends RecoveryIntentStore {
   Completer<void>? readBlocker;
+  final Map<RecoveryPhase, Completer<void>> gates = {};
+  final Map<RecoveryPhase, int> entered = {};
+
   BlockingStore(super.prefs, {super.projectNamespace = 'test_race'});
 
   @override
@@ -34,6 +37,27 @@ class BlockingStore extends RecoveryIntentStore {
     }
     return super.read();
   }
+
+  @override
+  Future<void> write(PendingRecovery next) async {
+    entered.update(next.phase, (n) => n + 1, ifAbsent: () => 1);
+    final gate = gates[next.phase];
+    if (gate != null) await gate.future;
+    await super.write(next);
+  }
+}
+
+Future<void> spinUntil(bool Function() condition) async {
+  for (var i = 0; i < 100 && !condition(); i++) {
+    await Future<void>.delayed(Duration.zero);
+  }
+  if (!condition()) throw StateError('Condition not met within spin limit');
+}
+
+String syntheticJwt(String id) {
+  String encode(Object value) =>
+      base64Url.encode(utf8.encode(jsonEncode(value))).replaceAll('=', '');
+  return '${encode({'alg': 'none'})}.${encode({'sub': id, 'exp': DateTime.now().millisecondsSinceEpoch ~/ 1000 + 3600})}.synthetic';
 }
 
 void main() {
@@ -103,6 +127,24 @@ void main() {
                 headers: {'content-type': 'application/json'},
               );
             }
+          }
+          if (path.contains('/recover')) {
+            return http.Response('{}', 200);
+          }
+          if (path.endsWith('/user') && request.method == 'GET') {
+            final token = request.headers['authorization']!.split(' ').last;
+            final claims = jsonDecode(
+              utf8.decode(
+                base64Url.decode(base64Url.normalize(token.split('.')[1])),
+              ),
+            ) as Map<String, dynamic>;
+            return http.Response(
+              jsonEncode({
+                'id': claims['sub'],
+                'email': 'fixture@example.invalid',
+              }),
+              200,
+            );
           }
           if (path.contains('/logout')) {
             return http.Response('{}', 204);
@@ -278,6 +320,177 @@ void main() {
         expect(res, isFalse, reason: 'URI $badUri should be rejected');
       }
       expect(exchangeCalls, 0);
+    });
+
+    test('F01_F02_stale_mutation_A_never_overwrites_or_clears_intent_B', () async {
+      final sessionJson = jsonEncode({
+        'access_token': syntheticJwt('usr-recovery-A'),
+        'token_type': 'bearer',
+        'expires_in': 3600,
+        'refresh_token': 'recovery-refresh-A',
+        'user': {
+          'id': 'usr-recovery-A',
+          'aud': 'authenticated',
+          'role': 'authenticated',
+          'email': 'recoveryA@travelgo.vn',
+          'created_at': DateTime.now().toIso8601String(),
+          'updated_at': DateTime.now().toIso8601String(),
+        },
+      });
+      await client.auth.recoverSession(sessionJson);
+
+      final intentA = PendingRecovery(
+        intentId: 'intent-A',
+        requestedAt: DateTime.now().toUtc(),
+        phase: RecoveryPhase.ready,
+        verifiedUserId: 'usr-recovery-A',
+      );
+      await store.write(intentA);
+      await provider.initializeFromStore();
+      expect(provider.isReady, isTrue);
+
+      final intentB = PendingRecovery(
+        intentId: 'intent-B',
+        requestedAt: DateTime.now().toUtc(),
+        phase: RecoveryPhase.sent,
+      );
+      await auth.beginRecovery('intent-B');
+      await store.write(intentB);
+
+      await provider.retryCleanup();
+
+      final current = await store.read();
+      expect(current?.intentId, 'intent-B', reason: 'Stale A cleanup must not clear marker B');
+      expect(auth.isCurrentRecoveryIntent('intent-B'), isTrue);
+    });
+
+    test('X1_pending_ready_write_A_cannot_overwrite_newly_requested_B_marker', () async {
+      final intentA = PendingRecovery(
+        intentId: 'intent-A',
+        requestedAt: DateTime.now().toUtc(),
+        phase: RecoveryPhase.sent,
+      );
+      await store.write(intentA);
+      await provider.initializeFromStore();
+      await asyncStorage.setItem(
+        key: 'supabase.auth.token-code-verifier',
+        value: 'mock-verifier/passwordRecovery',
+      );
+
+      final gate = store.gates[RecoveryPhase.ready] = Completer<void>();
+      final callbackA = provider.handleCallback(
+        Uri.parse('io.supabase.travelgo://login-callback?flow=recovery&code=code-A'),
+      );
+
+      await spinUntil(() => (store.entered[RecoveryPhase.ready] ?? 0) == 1);
+      final cancel = provider.cancel();
+      final next = provider.requestEmail('account-B@travelgo.vn');
+      await Future<void>.delayed(Duration.zero);
+      expect(store.entered[RecoveryPhase.requesting] ?? 0, 0,
+          reason: 'successor commit must wait for old write and cleanup');
+      gate.complete();
+      await Future.wait([callbackA, cancel, next]);
+      final intentB = provider.currentIntent!;
+      expect(intentB.intentId, isNot('intent-A'));
+      expect((await store.read())?.intentId, intentB.intentId);
+      expect(auth.isCurrentRecoveryIntent(intentB.intentId), isTrue);
+    });
+
+    test('R2_repair_write_from_A_cannot_revive_B_after_B_was_cancelled', () async {
+      final intentA = PendingRecovery(
+        intentId: 'intent-A',
+        requestedAt: DateTime.now().toUtc(),
+        phase: RecoveryPhase.sent,
+      );
+      await store.write(intentA);
+      await provider.initializeFromStore();
+      await asyncStorage.setItem(
+        key: 'supabase.auth.token-code-verifier',
+        value: 'mock-verifier/passwordRecovery',
+      );
+
+      final aReady = store.gates[RecoveryPhase.ready] = Completer<void>();
+      final callbackA = provider.handleCallback(
+        Uri.parse('io.supabase.travelgo://login-callback?flow=recovery&code=code-A'),
+      );
+      await spinUntil(() => (store.entered[RecoveryPhase.ready] ?? 0) == 1);
+      final cancelA = provider.cancel();
+      final requestB = provider.requestEmail('account-B@travelgo.vn');
+      final cancelB = provider.cancel();
+      aReady.complete();
+      await Future.wait([callbackA, cancelA, requestB, cancelB]);
+      expect(await store.read(), isNull,
+          reason: 'cancel B drains queued writes; no repair can revive it');
+      expect(auth.isRecovering, isFalse);
+      expect(provider.currentIntent, isNull);
+    });
+
+    test('R3_pending_B_repair_cannot_erase_newer_C_after_cancel_B', () async {
+      final intentA = PendingRecovery(
+        intentId: 'intent-A',
+        requestedAt: DateTime.now().toUtc(),
+        phase: RecoveryPhase.sent,
+      );
+      await store.write(intentA);
+      await provider.initializeFromStore();
+      await asyncStorage.setItem(
+        key: 'supabase.auth.token-code-verifier',
+        value: 'mock-verifier/passwordRecovery',
+      );
+
+      final aReady = store.gates[RecoveryPhase.ready] = Completer<void>();
+      final callbackA = provider.handleCallback(
+        Uri.parse('io.supabase.travelgo://login-callback?flow=recovery&code=code-A'),
+      );
+      await spinUntil(() => (store.entered[RecoveryPhase.ready] ?? 0) == 1);
+      final cancelA = provider.cancel();
+      final requestB = provider.requestEmail('account-B@travelgo.vn');
+      final cancelB = provider.cancel();
+      final requestC = provider.requestEmail('account-C@travelgo.vn');
+      aReady.complete();
+      await Future.wait([callbackA, cancelA, requestB, cancelB, requestC]);
+      final cId = provider.currentIntent!.intentId;
+      expect((await store.read())?.intentId, cId,
+          reason: 'queued stale mutations cannot erase successor C');
+      expect(auth.isCurrentRecoveryIntent(cId), isTrue);
+    });
+
+    test('slot_callback_A_finally_does_not_reset_in_flight_slot_of_B', () async {
+      final intentA = PendingRecovery(
+        intentId: 'intent-A',
+        requestedAt: DateTime.now().toUtc(),
+        phase: RecoveryPhase.sent,
+      );
+      await store.write(intentA);
+      await provider.initializeFromStore();
+      await asyncStorage.setItem(
+        key: 'supabase.auth.token-code-verifier',
+        value: 'mock-verifier/passwordRecovery',
+      );
+
+      exchangeEntered = Completer<void>();
+      exchangeRelease = Completer<void>();
+
+      final callbackFutureA = provider.handleCallback(
+        Uri.parse('io.supabase.travelgo://login-callback?flow=recovery&code=code-A'),
+      );
+
+      await exchangeEntered!.future;
+      final cancelA = provider.cancel();
+
+      final intentB = PendingRecovery(
+        intentId: 'intent-B',
+        requestedAt: DateTime.now().toUtc(),
+        phase: RecoveryPhase.sent,
+      );
+      await store.write(intentB);
+      await auth.beginRecovery('intent-B');
+
+      // Release callback A while intent B is active
+      exchangeRelease!.complete();
+      await Future.wait([callbackFutureA, cancelA]);
+
+      expect(auth.isCurrentRecoveryIntent('intent-B'), isTrue);
     });
   });
 }

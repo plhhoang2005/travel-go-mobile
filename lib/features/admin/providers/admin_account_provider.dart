@@ -3,6 +3,7 @@
 
 import 'dart:async';
 import 'dart:math';
+
 import 'package:flutter/foundation.dart';
 import 'package:travelgo_mobile/features/admin/models/admin_account_models.dart';
 import 'package:travelgo_mobile/features/admin/services/admin_account_service.dart';
@@ -14,6 +15,9 @@ class AdminAccountProvider extends ChangeNotifier {
 
   String? _currentOwnerId;
   String? _currentRole;
+  int _authEpoch = 0;
+  int _contextGeneration = 0;
+  int _accessGeneration = 0;
   bool _disposed = false;
 
   // RAM-only administrative data
@@ -44,13 +48,16 @@ class AdminAccountProvider extends ChangeNotifier {
 
   // Track pending mutation arguments for idempotent retries with same requestId
   Map<String, dynamic>? _pendingMutationArgs;
+  Map<String, dynamic>? _reconcileArgs;
+  bool _readbackNeeded = false;
+  bool get hasRetryableOperation => _pendingMutationArgs != null;
+  bool get needsReadback => _readbackNeeded;
+  String? get pendingTargetId => _pendingMutationArgs?['targetId'] as String?;
 
-  AdminAccountProvider({
-    required this.service,
-    required this.authProvider,
-  }) {
+  AdminAccountProvider({required this.service, required this.authProvider}) {
     _currentOwnerId = authProvider.currentUser?.id;
     _currentRole = authProvider.currentUser?.role.name;
+    _authEpoch = authProvider.authEpoch;
     authProvider.addListener(_handleAuthChange);
   }
 
@@ -76,14 +83,21 @@ class AdminAccountProvider extends ChangeNotifier {
     final newOwnerId = authProvider.currentUser?.id;
     final newRole = authProvider.currentUser?.role.name;
 
-    if (newOwnerId != _currentOwnerId || newRole != _currentRole) {
+    if (newOwnerId != _currentOwnerId ||
+        newRole != _currentRole ||
+        _authEpoch != authProvider.authEpoch ||
+        authProvider.isLoggingOut ||
+        authProvider.isDemoSession) {
       _currentOwnerId = newOwnerId;
       _currentRole = newRole;
+      _authEpoch = authProvider.authEpoch;
       invalidate();
     }
   }
 
   void invalidate() {
+    _contextGeneration++;
+    _accessGeneration++;
     _debounceTimer?.cancel();
     _debounceTimer = null;
 
@@ -99,12 +113,17 @@ class AdminAccountProvider extends ChangeNotifier {
     _dashboardSnapshot = null;
     _pendingOperation = null;
     _pendingMutationArgs = null;
+    _reconcileArgs = null;
+    _readbackNeeded = false;
     _error = null;
 
     _isLoadingUsers = false;
     _isLoadingDetail = false;
     _isLoadingDashboard = false;
     _isMutating = false;
+    _query = '';
+    _roleFilter = null;
+    _stateFilter = null;
 
     if (!_disposed) {
       notifyListeners();
@@ -112,47 +131,98 @@ class AdminAccountProvider extends ChangeNotifier {
   }
 
   Future<void> enter() async {
+    final gen = ++_accessGeneration;
+    final context = _contextGeneration;
     _error = null;
+    if (_currentOwnerId == null ||
+        _currentRole != 'admin' ||
+        authProvider.isDemoSession ||
+        authProvider.isLoggingOut) {
+      invalidate();
+      return;
+    }
     try {
       final access = await service.access();
-      _hasAdminAccess = access.allowed && access.role == 'admin';
+      if (!_isCurrent(context) || gen != _accessGeneration) return;
+      _hasAdminAccess =
+          access.allowed &&
+          access.role == 'admin' &&
+          access.subjectId == _currentOwnerId;
     } on AdminFailure catch (f) {
+      if (!_isCurrent(context) || gen != _accessGeneration) return;
       _hasAdminAccess = false;
       _error = f;
     } catch (e) {
+      if (!_isCurrent(context) || gen != _accessGeneration) return;
       _hasAdminAccess = false;
       _error = AdminFailure(code: 'unknown', message: e.toString());
     } finally {
-      if (!_disposed) notifyListeners();
+      if (_isCurrent(context) && gen == _accessGeneration) notifyListeners();
     }
   }
 
-  void setFilter({String? query, String? role, String? state}) {
+  bool _isCurrent(int context) =>
+      !_disposed &&
+      context == _contextGeneration &&
+      _authEpoch == authProvider.authEpoch &&
+      _currentOwnerId == authProvider.currentUser?.id &&
+      _currentRole == authProvider.currentUser?.role.name;
+
+  void _fail(AdminFailure failure) {
+    if (const {
+      'unauthorized',
+      'forbidden',
+      'admin_required',
+      'account_locked',
+      'stale_session',
+      'invalid_session',
+    }.contains(failure.code)) {
+      invalidate();
+    }
+    _error = failure;
+  }
+
+  static const _unchanged = Object();
+  void setFilter({
+    String? query,
+    Object? role = _unchanged,
+    Object? state = _unchanged,
+  }) {
     var changed = false;
     if (query != null && query != _query) {
       _query = query;
       changed = true;
     }
-    if (role != _roleFilter) {
-      _roleFilter = role;
+    if (!identical(role, _unchanged) && role != _roleFilter) {
+      _roleFilter = role as String?;
       changed = true;
     }
-    if (state != _stateFilter) {
-      _stateFilter = state;
+    if (!identical(state, _unchanged) && state != _stateFilter) {
+      _stateFilter = state as String?;
       changed = true;
     }
 
     if (changed) {
+      _usersGeneration++;
+      _users = const [];
+      _nextCursor = null;
+      _isLoadingUsers = false;
+      _error = null;
+      _isLoadingUsers = true;
       _debounceTimer?.cancel();
       _debounceTimer = Timer(const Duration(milliseconds: 300), () {
         loadUsers(nextPage: false);
       });
+      notifyListeners();
     }
   }
 
   Future<void> loadUsers({bool nextPage = false}) async {
-    if (_isLoadingUsers && !nextPage) return;
+    if (_disposed) return;
+    if (_isLoadingUsers && nextPage) return;
     if (nextPage && _nextCursor == null) return;
+    _debounceTimer?.cancel();
+    final context = _contextGeneration;
 
     final gen = ++_usersGeneration;
     _isLoadingUsers = true;
@@ -168,22 +238,26 @@ class AdminAccountProvider extends ChangeNotifier {
       );
 
       // Verify generation matches current epoch
-      if (gen != _usersGeneration || _disposed) return;
+      if (gen != _usersGeneration || !_isCurrent(context)) return;
 
       if (nextPage) {
-        _users = [..._users, ...page.items];
+        final byId = {
+          for (final user in _users) user.id: user,
+          for (final user in page.items) user.id: user,
+        };
+        _users = byId.values.toList(growable: false);
       } else {
         _users = page.items;
       }
       _nextCursor = page.nextCursor;
     } on AdminFailure catch (f) {
-      if (gen != _usersGeneration || _disposed) return;
-      _error = f;
+      if (gen != _usersGeneration || !_isCurrent(context)) return;
+      _fail(f);
     } catch (e) {
-      if (gen != _usersGeneration || _disposed) return;
+      if (gen != _usersGeneration || !_isCurrent(context)) return;
       _error = AdminFailure(code: 'unknown', message: e.toString());
     } finally {
-      if (gen == _usersGeneration && !_disposed) {
+      if (gen == _usersGeneration && _isCurrent(context)) {
         _isLoadingUsers = false;
         notifyListeners();
       }
@@ -191,6 +265,7 @@ class AdminAccountProvider extends ChangeNotifier {
   }
 
   Future<void> selectUser(String id) async {
+    final context = _contextGeneration;
     final gen = ++_detailGeneration;
     _selectedUser = null;
     _isLoadingDetail = true;
@@ -199,16 +274,41 @@ class AdminAccountProvider extends ChangeNotifier {
 
     try {
       final detail = await service.getUser(id);
-      if (gen != _detailGeneration || _disposed) return;
+      if (gen != _detailGeneration || !_isCurrent(context)) return;
+      if (detail.id != id) {
+        throw const AdminFailure(
+          code: 'invalid_response',
+          message: 'Wrong user',
+        );
+      }
       _selectedUser = detail;
+      final pending = detail.pendingOperation;
+      if (_pendingMutationArgs == null &&
+          pending != null &&
+          pending.targetId == detail.id &&
+          pending.targetRevision == detail.revision &&
+          !pending.isCompleted) {
+        _pendingOperation = pending;
+        final audit = detail.audit
+            .where((event) => event.operationId == pending.id)
+            .firstOrNull;
+        _pendingMutationArgs = {
+          'requestId': pending.id,
+          'targetId': pending.targetId,
+          'expectedRevision': pending.targetRevision - 1,
+          'action': pending.action,
+          'reason': audit?.reason ?? 'Đồng bộ lại xác thực',
+        };
+        _readbackNeeded = false;
+      }
     } on AdminFailure catch (f) {
-      if (gen != _detailGeneration || _disposed) return;
-      _error = f;
+      if (gen != _detailGeneration || !_isCurrent(context)) return;
+      _fail(f);
     } catch (e) {
-      if (gen != _detailGeneration || _disposed) return;
+      if (gen != _detailGeneration || !_isCurrent(context)) return;
       _error = AdminFailure(code: 'unknown', message: e.toString());
     } finally {
-      if (gen == _detailGeneration && !_disposed) {
+      if (gen == _detailGeneration && _isCurrent(context)) {
         _isLoadingDetail = false;
         notifyListeners();
       }
@@ -216,6 +316,7 @@ class AdminAccountProvider extends ChangeNotifier {
   }
 
   Future<void> loadDashboard(int days) async {
+    final context = _contextGeneration;
     final gen = ++_dashboardGeneration;
     _isLoadingDashboard = true;
     _error = null;
@@ -223,16 +324,16 @@ class AdminAccountProvider extends ChangeNotifier {
 
     try {
       final snapshot = await service.dashboard(days: days);
-      if (gen != _dashboardGeneration || _disposed) return;
+      if (gen != _dashboardGeneration || !_isCurrent(context)) return;
       _dashboardSnapshot = snapshot;
     } on AdminFailure catch (f) {
-      if (gen != _dashboardGeneration || _disposed) return;
-      _error = f;
+      if (gen != _dashboardGeneration || !_isCurrent(context)) return;
+      _fail(f);
     } catch (e) {
-      if (gen != _dashboardGeneration || _disposed) return;
+      if (gen != _dashboardGeneration || !_isCurrent(context)) return;
       _error = AdminFailure(code: 'unknown', message: e.toString());
     } finally {
-      if (gen == _dashboardGeneration && !_disposed) {
+      if (gen == _dashboardGeneration && _isCurrent(context)) {
         _isLoadingDashboard = false;
         notifyListeners();
       }
@@ -254,7 +355,12 @@ class AdminAccountProvider extends ChangeNotifier {
     required String action,
     required String reason,
   }) async {
-    if (_isMutating) return false;
+    if (_isMutating || _disposed) return false;
+    if (_pendingMutationArgs != null) return retryOperation();
+
+    _pendingOperation = null;
+    _reconcileArgs = null;
+    _readbackNeeded = false;
 
     final requestId = _mintRequestId();
     _pendingMutationArgs = {
@@ -273,80 +379,128 @@ class AdminAccountProvider extends ChangeNotifier {
     if (_pendingMutationArgs == null) return false;
 
     // Retry sending exact same requestId and arguments
-    return _dispatchMutation(_pendingMutationArgs!);
+    return _dispatchMutation(_pendingMutationArgs!, retry: true);
   }
 
-  Future<bool> _dispatchMutation(Map<String, dynamic> args) async {
+  Future<bool> _dispatchMutation(
+    Map<String, dynamic> args, {
+    bool retry = false,
+  }) async {
+    final context = _contextGeneration;
+    final selectedId = _selectedUser?.id;
+    final detailGen = _detailGeneration;
     _isMutating = true;
     _error = null;
     notifyListeners();
 
     try {
-      final op = await service.mutate(
-        requestId: args['requestId'] as String,
-        targetId: args['targetId'] as String,
-        expectedRevision: args['expectedRevision'] as int,
-        action: args['action'] as String,
-        reason: args['reason'] as String,
-      );
-
-      _pendingOperation = op;
-
-      // Update user state in memory if matches
-      final targetId = args['targetId'] as String;
-      final action = args['action'] as String;
-      final nextState = action == 'lock'
-          ? 'locked'
-          : (action == 'unlock' ? 'unlocking' : null);
-      final nextRole = action == 'promote'
-          ? 'admin'
-          : (action == 'demote' ? 'customer' : null);
-
-      if (_selectedUser != null && _selectedUser!.id == targetId) {
-        _selectedUser = UserDetail(
-          summary: UserSummary(
-            id: _selectedUser!.id,
-            fullName: _selectedUser!.fullName,
-            email: _selectedUser!.email,
-            role: nextRole ?? _selectedUser!.role,
-            state: nextState ?? _selectedUser!.state,
-            revision: op.targetRevision,
-            createdAt: _selectedUser!.createdAt,
-            lastSignInAt: _selectedUser!.lastSignInAt,
-            authSynced: op.authSynced,
-          ),
-          audit: _selectedUser!.audit,
-        );
-      }
-
-      // Update user in list
-      _users = _users.map((u) {
-        if (u.id == targetId) {
-          return UserSummary(
-            id: u.id,
-            fullName: u.fullName,
-            email: u.email,
-            role: nextRole ?? u.role,
-            state: nextState ?? u.state,
-            revision: op.targetRevision,
-            createdAt: u.createdAt,
-            lastSignInAt: u.lastSignInAt,
-            authSynced: op.authSynced,
+      AccountOperation op;
+      if (_readbackNeeded && _pendingOperation?.isCompleted == true) {
+        op = _pendingOperation!;
+      } else if (retry && _pendingOperation != null) {
+        op = await service.operation(_pendingOperation!.id);
+        if (!_isCurrent(context)) return false;
+        _checkOperation(op, args);
+        if (!op.isCompleted) {
+          _reconcileArgs ??= {
+            'requestId': _mintRequestId(),
+            'operationId': op.id,
+            'expectedRevision': op.targetRevision,
+            'reason': args['reason'],
+          };
+          op = await service.reconcile(
+            requestId: _reconcileArgs!['requestId'] as String,
+            operationId: _reconcileArgs!['operationId'] as String,
+            expectedRevision: _reconcileArgs!['expectedRevision'] as int,
+            reason: _reconcileArgs!['reason'] as String,
           );
         }
-        return u;
-      }).toList(growable: false);
-
+      } else {
+        op = await service.mutate(
+          requestId: args['requestId'] as String,
+          targetId: args['targetId'] as String,
+          expectedRevision: args['expectedRevision'] as int,
+          action: args['action'] as String,
+          reason: args['reason'] as String,
+        );
+      }
+      if (!_isCurrent(context)) return false;
+      _checkOperation(op, args);
+      _pendingOperation = op;
+      final targetId = args['targetId'] as String;
+      _readbackNeeded = true;
+      final detail = await service.getUser(targetId);
+      if (!_isCurrent(context)) return false;
+      if (detail.id != targetId || detail.revision < op.targetRevision) {
+        throw const AdminFailure(
+          code: 'invalid_response',
+          message: 'Wrong readback',
+        );
+      }
+      if (_detailGeneration == detailGen &&
+          (selectedId == null || selectedId == targetId)) {
+        _selectedUser = detail;
+      }
+      _users = _users
+          .map((u) => u.id == targetId ? detail.summary : u)
+          .where(
+            (u) =>
+                (_roleFilter == null || u.role == _roleFilter) &&
+                (_stateFilter == null || u.state == _stateFilter),
+          )
+          .toList(growable: false);
+      _readbackNeeded = false;
+      if (op.isCompleted) {
+        _pendingMutationArgs = null;
+        _reconcileArgs = null;
+      } else if (_reconcileArgs != null) {
+        // A received reconcile receipt ends that attempt; the next deliberate
+        // retry can start a new one. Lost responses retain the frozen identity.
+        _reconcileArgs = null;
+      }
       return true;
     } on AdminFailure catch (f) {
-      _error = f;
+      if (!_isCurrent(context)) return false;
+      _fail(f);
+      if (f.code == 'revision_conflict' ||
+          f.code == 'revision_mismatch' ||
+          !f.outcomeUncertain &&
+              _pendingOperation == null &&
+              f.code != 'network_error' &&
+              f.code != 'upstream_unavailable' &&
+              f.code != 'invalid_response') {
+        _pendingMutationArgs = null;
+        _pendingOperation = null;
+        _reconcileArgs = null;
+        if ((f.code == 'revision_conflict' || f.code == 'revision_mismatch') &&
+            _isCurrent(context)) {
+          // Preserve the reason in the dialog; refresh requires another explicit confirmation.
+          await selectUser(args['targetId'] as String);
+          if (_isCurrent(context)) _error = f;
+        }
+      }
       return false;
     } catch (e) {
+      if (!_isCurrent(context)) return false;
       _error = AdminFailure(code: 'unknown', message: e.toString());
       return false;
     } finally {
-      _isMutating = false;
-      if (!_disposed) notifyListeners();
+      if (_isCurrent(context)) {
+        _isMutating = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  void _checkOperation(AccountOperation op, Map<String, dynamic> args) {
+    if (op.targetId != args['targetId'] ||
+        op.action != args['action'] ||
+        op.targetRevision != (args['expectedRevision'] as int) + 1) {
+      throw const AdminFailure(
+        code: 'invalid_response',
+        outcomeUncertain: true,
+        message: 'Wrong operation acknowledgement',
+      );
     }
   }
 

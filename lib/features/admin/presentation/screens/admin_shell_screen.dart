@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:travelgo_mobile/core/constants/supabase_constants.dart';
 import 'package:travelgo_mobile/features/admin/presentation/screens/admin_catalogue_screen.dart';
-import 'package:travelgo_mobile/features/admin/presentation/screens/admin_dashboard_screen.dart';
 import 'package:travelgo_mobile/features/admin/presentation/screens/admin_draft_history_screen.dart';
 import 'package:travelgo_mobile/features/admin/presentation/screens/admin_users_screen.dart';
 import 'package:travelgo_mobile/features/admin/providers/admin_account_provider.dart';
@@ -63,9 +62,11 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
     final auth = context.read<AuthProvider>();
     Future<LocalAccountLifecycleService> Function()? lifecycleLoader;
     try {
-      lifecycleLoader = context.read<Future<LocalAccountLifecycleService> Function()>();
+      lifecycleLoader = context
+          .read<Future<LocalAccountLifecycleService> Function()>();
     } catch (_) {
-      lifecycleLoader = () => Future.error(StateError('Lifecycle loader not found in context.'));
+      lifecycleLoader = () =>
+          Future.error(StateError('Lifecycle loader not found in context.'));
     }
 
     final service = AdminAccountService(
@@ -73,12 +74,11 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
       projectOrigin: Uri.parse(SupabaseConstants.projectUrl),
       publicKey: SupabaseConstants.publishableKey,
       lifecycleLoader: lifecycleLoader,
+      callerContext: () =>
+          (ownerId: auth.currentUser?.id, epoch: auth.authEpoch),
     );
 
-    _ownedProvider = AdminAccountProvider(
-      service: service,
-      authProvider: auth,
-    );
+    _ownedProvider = AdminAccountProvider(service: service, authProvider: auth);
     return _ownedProvider!;
   }
 
@@ -89,9 +89,11 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
     final auth = context.read<AuthProvider>();
     Future<LocalAccountLifecycleService> Function()? lifecycleLoader;
     try {
-      lifecycleLoader = context.read<Future<LocalAccountLifecycleService> Function()>();
+      lifecycleLoader = context
+          .read<Future<LocalAccountLifecycleService> Function()>();
     } catch (_) {
-      lifecycleLoader = () => Future.error(StateError('Lifecycle loader not found in context.'));
+      lifecycleLoader = () =>
+          Future.error(StateError('Lifecycle loader not found in context.'));
     }
 
     final service = AdminCatalogueService(
@@ -115,14 +117,6 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
         } catch (e) {
           debugPrint('Local public catalogue refresh error: $e');
         }
-        try {
-          if (mounted) {
-            final accountProvider = _getEffectiveProvider();
-            await accountProvider.loadDashboard(7);
-          }
-        } catch (e) {
-          debugPrint('Dashboard refresh error: $e');
-        }
       },
     );
     return _ownedCatalogueProvider!;
@@ -135,9 +129,11 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
     final auth = context.read<AuthProvider>();
     Future<LocalAccountLifecycleService> Function()? lifecycleLoader;
     try {
-      lifecycleLoader = context.read<Future<LocalAccountLifecycleService> Function()>();
+      lifecycleLoader = context
+          .read<Future<LocalAccountLifecycleService> Function()>();
     } catch (_) {
-      lifecycleLoader = () => Future.error(StateError('Lifecycle loader not found in context.'));
+      lifecycleLoader = () =>
+          Future.error(StateError('Lifecycle loader not found in context.'));
     }
 
     final service = AdminPublicationService(
@@ -170,9 +166,15 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
 
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider<AdminAccountProvider>.value(value: effectiveProvider),
-        ChangeNotifierProvider<AdminCatalogueProvider>.value(value: effectiveCatalogueProvider),
-        ChangeNotifierProvider<AdminPublicationProvider>.value(value: effectivePublicationProvider),
+        ChangeNotifierProvider<AdminAccountProvider>.value(
+          value: effectiveProvider,
+        ),
+        ChangeNotifierProvider<AdminCatalogueProvider>.value(
+          value: effectiveCatalogueProvider,
+        ),
+        ChangeNotifierProvider<AdminPublicationProvider>.value(
+          value: effectivePublicationProvider,
+        ),
       ],
       child: Consumer<AdminAccountProvider>(
         builder: (context, provider, _) {
@@ -201,23 +203,29 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.gpp_bad_outlined, size: 64, color: Colors.red.shade700),
+                      Icon(
+                        Icons.gpp_bad_outlined,
+                        size: 64,
+                        color: Colors.red.shade700,
+                      ),
                       const SizedBox(height: 16),
                       const Text(
                         'Truy cập bị từ chối',
-                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        error != null
-                            ? 'Lỗi máy chủ (${error.code}): ${error.message}'
-                            : 'Tài khoản của bạn không có quyền quản trị hoặc phiên đăng nhập không hợp lệ.',
+                        error != null ? error.userMessage : 'Tài khoản của bạn không có quyền quản trị hoặc phiên đăng nhập không hợp lệ.',
                         textAlign: TextAlign.center,
                         style: TextStyle(color: Colors.grey.shade700),
                       ),
                       const SizedBox(height: 24),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                      Wrap(
+                        alignment: WrapAlignment.center,
+                        spacing: 12,
                         children: [
                           OutlinedButton(
                             onPressed: () => Navigator.of(context).pop(),
@@ -242,7 +250,6 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
           final isWide = width >= 840;
 
           final screens = const [
-            AdminDashboardScreen(),
             AdminUsersScreen(),
             AdminCatalogueScreen(),
             AdminDraftHistoryScreen(),
@@ -254,7 +261,8 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
                 children: [
                   NavigationRail(
                     selectedIndex: _selectedIndex,
-                    onDestinationSelected: (idx) => setState(() => _selectedIndex = idx),
+                    onDestinationSelected: (idx) =>
+                        setState(() => _selectedIndex = idx),
                     labelType: NavigationRailLabelType.all,
                     leading: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 16.0),
@@ -265,11 +273,6 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
                       ),
                     ),
                     destinations: const [
-                      NavigationRailDestination(
-                        icon: Icon(Icons.dashboard_outlined),
-                        selectedIcon: Icon(Icons.dashboard),
-                        label: Text('Tổng quan'),
-                      ),
                       NavigationRailDestination(
                         icon: Icon(Icons.people_alt_outlined),
                         selectedIcon: Icon(Icons.people_alt),
@@ -298,13 +301,9 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
             body: screens[_selectedIndex],
             bottomNavigationBar: NavigationBar(
               selectedIndex: _selectedIndex,
-              onDestinationSelected: (idx) => setState(() => _selectedIndex = idx),
+              onDestinationSelected: (idx) =>
+                  setState(() => _selectedIndex = idx),
               destinations: const [
-                NavigationDestination(
-                  icon: Icon(Icons.dashboard_outlined),
-                  selectedIcon: Icon(Icons.dashboard),
-                  label: 'Tổng quan',
-                ),
                 NavigationDestination(
                   icon: Icon(Icons.people_alt_outlined),
                   selectedIcon: Icon(Icons.people_alt),

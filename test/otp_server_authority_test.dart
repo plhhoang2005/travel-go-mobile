@@ -1,13 +1,113 @@
 // ignore_for_file: depend_on_referenced_packages
 import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:travelgo_mobile/features/auth/models/user_model.dart';
 import 'package:travelgo_mobile/features/auth/providers/auth_provider.dart';
+import 'package:travelgo_mobile/features/trips/services/local_account_lifecycle_service.dart';
+
+import 'local_trip_store_test.dart' as local_fixtures;
+import 'password_recovery_authority_test.dart' show syntheticJwt;
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  sqfliteFfiInit();
+  for (final outcome in [
+    'valid',
+    'wrong',
+    'expired',
+    'offline',
+    'no-session',
+  ]) {
+    test('lifecycle signup OTP $outcome obeys server authority', () async {
+      await local_fixtures.runWithStore((ctx) async {
+        const owner = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+        final user = {
+          'id': owner,
+          'aud': 'authenticated',
+          'email': 'fixture@example.invalid',
+          'created_at': '2026-10-25T00:00:00Z',
+        };
+        var verifies = 0;
+        var serverChecks = 0;
+        final client = SupabaseClient(
+          'https://synthetic.invalid',
+          'synthetic-public',
+          authOptions: const AuthClientOptions(autoRefreshToken: false),
+          httpClient: MockClient((request) async {
+            if (request.url.path.endsWith('/verify')) {
+              verifies++;
+              final payload = jsonDecode(request.body) as Map;
+              expect(payload['type'], 'signup');
+              expect(payload['email'], 'fixture@example.invalid');
+              if (outcome == 'offline') {
+                throw http.ClientException('synthetic offline');
+              }
+              if (outcome == 'wrong' || outcome == 'expired') {
+                return http.Response('{"msg":"invalid or expired OTP"}', 403);
+              }
+              return http.Response(
+                jsonEncode({
+                  if (outcome != 'no-session') ...{
+                    'access_token': syntheticJwt(owner),
+                    'refresh_token': 'synthetic-refresh',
+                    'token_type': 'bearer',
+                    'expires_in': 3600,
+                  },
+                  'user': user,
+                }),
+                200,
+              );
+            }
+            if (request.url.path.endsWith('/user')) {
+              serverChecks++;
+              return http.Response(jsonEncode(user), 200);
+            }
+            return http.Response('{}', 204);
+          }),
+        );
+        final lifecycle = LocalAccountLifecycleService(
+          storeLoader: () async => ctx.store,
+          sessionReader: () => client.auth.currentSession,
+          registryPath: '${ctx.tempDir.path}/account_cache_lifecycle_v1.json',
+          verifySubject: (token) async =>
+              (await client.auth.getUser(token)).user!.id,
+        );
+        final auth = AuthProvider(
+          client: client,
+          lifecycleLoader: () async => lifecycle,
+          trustedRoleFetcher: (_) async => 'customer',
+        );
+        try {
+          await auth.initialization;
+          expect(
+            await auth.verifyOtp('123456', email: 'fixture@example.invalid'),
+            outcome == 'valid',
+          );
+          expect(verifies, 1);
+          expect(auth.isAuthenticated, outcome == 'valid');
+          expect(
+            lifecycle.handle?.ownerId,
+            outcome == 'valid' ? owner : isNull,
+          );
+          if (outcome == 'valid') {
+            expect(serverChecks, greaterThanOrEqualTo(1));
+            expect(auth.currentUser?.role, UserRole.customer);
+          } else {
+            expect(auth.currentUser, isNull);
+          }
+        } finally {
+          auth.dispose();
+          await lifecycle.close();
+          await client.dispose();
+        }
+      });
+    });
+  }
   group('Task R2: OTP Server Authority Verification', () {
     test('rejects non-6-digit tokens without dispatching network or mutating state', () async {
       int requestCount = 0;

@@ -98,10 +98,7 @@ export function createAdminControl(config = {}, fetchImpl = fetch) {
       if (!rpcRes.ok) {
         const errJson = await rpcRes.json().catch(() => ({}));
         const status = rpcRes.status >= 400 && rpcRes.status < 600 ? rpcRes.status : 500;
-        return jsonResponse({
-          status: 'error',
-          code: errJson.code || 'rpc_error'
-        }, status);
+      return rpcError(errJson, status);
       }
 
       const rpcData = await rpcRes.json();
@@ -134,10 +131,7 @@ async function handleMutation(projectUrl, serviceKey, callerToken, action, actio
   if (!mutateRes.ok) {
     const errJson = await mutateRes.json().catch(() => ({}));
     const status = mutateRes.status >= 400 && mutateRes.status < 600 ? mutateRes.status : 500;
-    return jsonResponse({
-      status: 'error',
-      code: errJson.code || 'mutation_failed'
-    }, status);
+    return rpcError(errJson, status);
   }
 
   const op = await mutateRes.json();
@@ -146,6 +140,22 @@ async function handleMutation(projectUrl, serviceKey, callerToken, action, actio
   const targetRevision = op.targetRevision;
   const workerToken = op.workerToken;
   const opAction = op.action;
+
+  if (!validOperation(op) || targetId !== actionRequest.targetId && action === 'mutate' ||
+      action === 'mutate' && (opId !== actionRequest.requestId || opAction !== actionRequest.action)) {
+    return jsonError('invalid_response', 503);
+  }
+  // A replay is a receipt. Only SQL can grant a fresh dispatch for this worker,
+  // after rechecking the actor, target revision and operation state.
+  if (op.state !== 'pending') return jsonResponse({ status: 'ok', data: sanitizeOutput(op) });
+  const claimRes = await fetchImpl(`${projectUrl}/rest/v1/rpc/admin_accounts`, {
+    method: 'POST', headers: { apikey: serviceKey, Authorization: `Bearer ${callerToken}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ p_action: 'dispatch', p_request: { operationId: opId, workerToken, expectedRevision: targetRevision } }),
+    signal: AbortSignal.timeout(10000)
+  });
+  if (!claimRes.ok) return rpcError(await claimRes.json().catch(() => ({})), claimRes.status);
+  const claim = await claimRes.json();
+  if (claim.dispatch !== true) return jsonResponse({ status: 'pending', data: sanitizeOutput(op) });
 
   // Step 2: Handle Auth Sync based on operation action
   let authSynced = false;
@@ -195,7 +205,8 @@ async function handleMutation(projectUrl, serviceKey, callerToken, action, actio
         });
         if (getRes.ok) {
           const userMeta = await getRes.json();
-          if (!userMeta.banned && !userMeta.banned_until) {
+          if (userMeta.id === targetId && !userMeta.banned &&
+              (!userMeta.banned_until || Date.parse(userMeta.banned_until) <= Date.now())) {
             authSynced = true;
           }
         }
@@ -225,9 +236,12 @@ async function handleMutation(projectUrl, serviceKey, callerToken, action, actio
 
     if (completeRes.ok) {
       const completeData = await completeRes.json();
-      if (completeData && completeData.state) {
-        finalState = completeData.state;
+      if (!validOperation(completeData) || completeData.id !== opId || completeData.targetId !== targetId ||
+          completeData.action !== opAction || completeData.targetRevision !== targetRevision) {
+        return jsonError('invalid_response', 503);
       }
+      finalState = completeData.state;
+      authSynced = completeData.authSynced;
     } else {
       authSynced = false;
       finalState = op.state;
@@ -258,6 +272,21 @@ function sanitizeOutput(data) {
   delete copy.workerToken;
   delete copy.worker_token;
   return copy;
+}
+
+function validOperation(op) {
+  return op && typeof op.id === 'string' && typeof op.targetId === 'string' &&
+    ['lock', 'unlock', 'promote', 'demote'].includes(op.action) &&
+    ['pending', 'completed', 'needs_retry'].includes(op.state) &&
+    Number.isSafeInteger(op.targetRevision) && op.targetRevision >= 1 && typeof op.authSynced === 'boolean';
+}
+
+function rpcError(error, status) {
+  const known = ['admin_required', 'account_locked', 'invalid_session', 'unauthorized',
+    'revision_conflict', 'request_identity_conflict', 'self_change_denied', 'last_admin_preserved',
+    'operation_not_found', 'operation_in_progress', 'invalid_worker_token', 'revision_mismatch'];
+  const code = known.find(code => error.code === code || String(error.message ?? '').startsWith(code)) ?? 'rpc_error';
+  return jsonError(code, status);
 }
 
 function jsonResponse(obj, status = 200) {

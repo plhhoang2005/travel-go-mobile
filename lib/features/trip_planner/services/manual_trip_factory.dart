@@ -56,7 +56,11 @@ class ManualTripFactory {
     final destId = metadata.destinationId;
     final isValidId = destId != null &&
         RegExp(r'^[a-z0-9][a-z0-9/-]{0,119}$').hasMatch(destId);
-    final name = isValidId ? metadata.destinationName : null;
+    if (destId != null && !isValidId) {
+      throw const EditableCodecException('invalid_input', 'destinationId');
+    }
+    final enteredName = metadata.destinationName?.trim();
+    final name = enteredName == null || enteredName.isEmpty ? null : enteredName;
     final document = EditableTripDocumentV2(
       input: TripInput(
         title:

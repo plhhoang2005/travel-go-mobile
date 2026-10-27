@@ -8,11 +8,14 @@ import '../../../../core/presentation/travel_media.dart';
 import '../../models/catalogue_reference.dart';
 import '../../providers/place_visit_details_provider.dart';
 import '../widgets/place_visit_details_widget.dart';
+import '../../../trip_planner/providers/planner_input_provider.dart';
 import '../../../trip_planner/providers/trip_provider.dart';
 import '../../../trip_planner/presentation/screens/home_planner_screen.dart';
 import '../../../trip_planner/presentation/screens/manual_planner_entry_screen.dart';
 import '../../../trip_planner/presentation/widgets/planner_workspace_actions.dart';
 import '../../providers/public_catalogue_provider.dart';
+import '../../models/public_catalogue_snapshot.dart';
+import '../../services/place_visit_details_repository.dart';
 
 class DestinationDetailScreen extends StatefulWidget {
   final CatalogueReference catalogue;
@@ -30,13 +33,28 @@ class DestinationDetailScreen extends StatefulWidget {
 }
 
 class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
-  CatalogueReference get catalogue => widget.catalogue;
-  DestinationReference get destination => widget.destination;
+  String? _openedVisitDigest;
+  PublicCatalogueSnapshot? get _currentSnapshot {
+    try {
+      return context.read<PublicCatalogueProvider>().snapshot;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  CatalogueReference get catalogue =>
+      _currentSnapshot?.catalogue ?? widget.catalogue;
+  DestinationReference get destination =>
+      catalogue.destinations
+          .where((item) => item.id == widget.destination.id)
+          .firstOrNull ??
+      widget.destination;
   PlaceVisitDetailsProvider? get visitProvider => widget.visitProvider;
 
   @override
   void initState() {
     super.initState();
+    _openedVisitDigest = visitProvider?.snapshot?.sha256;
     visitProvider?.addListener(_visitChanged);
     _scheduleVisitLoad();
   }
@@ -62,6 +80,7 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
     }
     if (oldWidget.visitProvider != visitProvider ||
         oldWidget.catalogue != catalogue) {
+      _openedVisitDigest = visitProvider?.snapshot?.sha256;
       _scheduleVisitLoad();
     }
   }
@@ -84,16 +103,67 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final trip = context.watch<TripProvider>();
+    PlannerInputProvider? input;
+    try {
+      input = context.watch<PlannerInputProvider>();
+    } catch (_) {}
+    TripProvider? legacyTrip;
+    if (input == null) {
+      try {
+        legacyTrip = context.watch<TripProvider>();
+      } catch (_) {}
+    }
+    final canReplace =
+        input?.canReplaceWorkspace ?? legacyTrip?.canReplaceWorkspace ?? true;
     PublicCatalogueProvider? pubProvider;
     try {
       pubProvider = context.watch<PublicCatalogueProvider>();
     } catch (_) {}
     final snapshot = pubProvider?.snapshot;
+    if (snapshot == null &&
+        visitProvider?.isBoundToV2 == true &&
+        _openedVisitDigest != visitProvider?.snapshot?.sha256) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Thông tin đã thay đổi')),
+        body: const SafeArea(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Text(
+              'Danh mục đã thay đổi. Hãy quay lại Khám phá để mở thông tin mới.',
+            ),
+          ),
+        ),
+      );
+    }
+    if (snapshot != null &&
+        !snapshot.catalogue.destinations.any(
+          (d) => d.id == widget.destination.id,
+        )) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Thông tin đã thay đổi')),
+        body: const SafeArea(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Text(
+              'Điểm đến này không còn trong danh mục hiện tại. Hãy quay lại Khám phá để chọn điểm đến khác.',
+            ),
+          ),
+        ),
+      );
+    }
+    final visitSnapshot = snapshot == null
+        ? visitProvider?.snapshot
+        : VisitSnapshot(
+            catalogue: snapshot.visits,
+            origin: snapshot.origin,
+            sha256: snapshot.sha256,
+            lastFetchedAt: snapshot.fetchedAt,
+          );
+    final hasVisits = snapshot != null || visitProvider != null;
     final isAiEligible = snapshot != null
-        ? TripProvider.isAiEligibleDestination(destination.id, snapshot)
-        : (TripProvider.destinationIdRegex.hasMatch(destination.id) &&
-            catalogue.destinations.any((d) => d.id == destination.id));
+        ? PlannerInputProvider.isAiEligibleDestination(destination.id, snapshot)
+        : (PlannerInputProvider.destinationIdRegex.hasMatch(destination.id) &&
+              catalogue.destinations.any((d) => d.id == destination.id));
     return Scaffold(
       appBar: AppBar(title: Text(destination.name)),
       body: SingleChildScrollView(
@@ -102,7 +172,8 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             TravelImage(
-              media: TravelMediaCatalog.fromPublished(
+              media:
+                  TravelMediaCatalog.fromPublished(
                     imageUrl: destination.imageUrl,
                     rights: destination.imageRights,
                     caption: destination.name,
@@ -112,7 +183,8 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
               height: 200,
             ),
             const SizedBox(height: 16),
-            if (destination.description != null && destination.description!.isNotEmpty) ...[
+            if (destination.description != null &&
+                destination.description!.isNotEmpty) ...[
               Text(
                 destination.description!,
                 style: Theme.of(context).textTheme.bodyMedium,
@@ -124,7 +196,7 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 8),
-            if (visitProvider == null)
+            if (!hasVisits)
               const Text(
                 'Tên và nguồn địa điểm để bạn tìm hiểu. Giá, giờ mở cửa, thời lượng và vị trí chính xác: Chưa xác minh.',
               )
@@ -134,16 +206,20 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
               ),
               const SizedBox(height: 8),
               VisitCatalogueStatus(
-                snapshot: visitProvider!.snapshot,
+                snapshot: visitSnapshot,
                 isRefreshing:
-                    visitProvider!.isLoading || visitProvider!.isRefreshing,
-                errorCode: visitProvider!.errorCode,
-                onRefresh: _refreshVisit,
+                    pubProvider?.isLoading == true ||
+                    visitProvider?.isLoading == true ||
+                    visitProvider?.isRefreshing == true,
+                errorCode: pubProvider?.error ?? visitProvider?.errorCode,
+                onRefresh: pubProvider != null
+                    ? () => pubProvider!.refresh(force: true)
+                    : _refreshVisit,
               ),
             ],
             const SizedBox(height: 16),
             OutlinedButton.icon(
-              onPressed: trip.canReplaceWorkspace && isAiEligible
+              onPressed: canReplace && isAiEligible
                   ? () async {
                       final accepted = await replacePlannerWorkspace(
                         context,
@@ -175,7 +251,7 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
               ),
             const SizedBox(height: 16),
             for (final place in destination.places)
-              if (visitProvider == null)
+              if (!hasVisits)
                 _PlaceSource(
                   place: place,
                   source: catalogue.source(place.sourceId),
@@ -185,8 +261,8 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
                   key: ValueKey('visit-place-${place.id}'),
                   place: place,
                   referenceSource: catalogue.source(place.sourceId),
-                  details: visitProvider!.snapshot?.catalogue.places[place.id],
-                  snapshot: visitProvider!.snapshot,
+                  details: visitSnapshot?.catalogue.places[place.id],
+                  snapshot: visitSnapshot,
                   showReleaseInfo: false,
                 ),
           ],
@@ -196,7 +272,7 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
         top: false,
         minimum: const EdgeInsets.all(16),
         child: FilledButton.icon(
-          onPressed: trip.canReplaceWorkspace
+          onPressed: canReplace
               ? () async {
                   final accepted = await replacePlannerWorkspace(
                     context,

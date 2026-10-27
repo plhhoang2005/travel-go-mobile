@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -42,6 +43,34 @@ ResponseBody jsonResponse(Map<String, dynamic> body, int status) {
 
 void main() {
   group('AdminAccount Models Parsing & Validation', () {
+    test(
+      'SQL generated vectors parse with distinct operation and account states',
+      () {
+        final fixture = jsonDecode(
+          File('test/fixtures/coursework_admin_account_vectors.json')
+              .readAsStringSync(),
+        ) as Map<String, dynamic>;
+        for (final vector in fixture['vectors'] as List) {
+          final op = AccountOperation.fromJson(
+            vector['operation'] as Map<String, dynamic>,
+          );
+          final user = UserSummary.fromJson(
+            vector['user'] as Map<String, dynamic>,
+          );
+          expect(op.targetId, user.id);
+          expect(op.targetRevision, user.revision);
+          expect(op.authSynced, op.isCompleted);
+          expect(user.authSynced, op.authSynced);
+          expect(user.isEnabled, op.action == 'unlock' && op.isCompleted);
+          final invalid = Map<String, dynamic>.from(vector['operation'] as Map)
+            ..['state'] = user.state;
+          expect(
+            () => AccountOperation.fromJson(invalid),
+            throwsFormatException,
+          );
+        }
+      },
+    );
     test('AdminAccess.fromJson parses valid admin and rejects invalid', () {
       final valid = AdminAccess.fromJson({
         'subjectId': 'user-123',
@@ -55,19 +84,39 @@ void main() {
       expect(valid.allowed, isTrue);
 
       expect(
-        () => AdminAccess.fromJson({'subjectId': '', 'role': 'admin', 'accountRevision': 1, 'allowed': true}),
+        () => AdminAccess.fromJson({
+          'subjectId': '',
+          'role': 'admin',
+          'accountRevision': 1,
+          'allowed': true,
+        }),
         throwsFormatException,
       );
       expect(
-        () => AdminAccess.fromJson({'subjectId': 'u1', 'role': 'customer', 'accountRevision': 1, 'allowed': true}),
+        () => AdminAccess.fromJson({
+          'subjectId': 'u1',
+          'role': 'customer',
+          'accountRevision': 1,
+          'allowed': true,
+        }),
         throwsFormatException,
       );
       expect(
-        () => AdminAccess.fromJson({'subjectId': 'u1', 'role': 'admin', 'accountRevision': 0, 'allowed': true}),
+        () => AdminAccess.fromJson({
+          'subjectId': 'u1',
+          'role': 'admin',
+          'accountRevision': 0,
+          'allowed': true,
+        }),
         throwsFormatException,
       );
       expect(
-        () => AdminAccess.fromJson({'subjectId': 'u1', 'role': 'admin', 'accountRevision': 1, 'allowed': false}),
+        () => AdminAccess.fromJson({
+          'subjectId': 'u1',
+          'role': 'admin',
+          'accountRevision': 1,
+          'allowed': false,
+        }),
         throwsFormatException,
       );
     });
@@ -146,7 +195,7 @@ void main() {
         'lockedUsers': 2,
         'activeAdmins': 3,
         'registrations': [
-          {'date': '2026-10-23', 'count': 5}
+          {'date': '2026-10-23', 'count': 5},
         ],
         'draft': {
           'revision': 4,
@@ -279,93 +328,167 @@ void main() {
       } catch (_) {}
     });
 
-    test('access() dispatches valid contract envelope and parses response', () async {
-      adapter.handler = (opts) async {
-        expect(opts.uri.toString(), 'https://example.supabase.co/functions/v1/admin-control');
-        expect(opts.headers['Authorization'], 'Bearer valid.token.test');
-        expect(opts.headers['apikey'], 'anon-key-test');
-        expect(opts.data['contract'], 'travelgo.admin.v1');
-        expect(opts.data['action'], 'access');
+    test(
+      'real service parses the same SQL operation and readback vectors',
+      () async {
+        final fixture = jsonDecode(
+          File('test/fixtures/coursework_admin_account_vectors.json')
+              .readAsStringSync(),
+        ) as Map<String, dynamic>;
+        for (final vector in fixture['vectors'] as List) {
+          final op = vector['operation'] as Map<String, dynamic>;
+          adapter.handler = (options) async => jsonResponse({
+            'status': 'ok',
+            'data': options.data['action'] == 'user'
+                ? {
+                    ...vector['user'] as Map<String, dynamic>,
+                    'audit': [],
+                    'pendingOperation': op['state'] == 'completed' ? null : op,
+                  }
+                : op,
+          }, 200);
+          final result = await service.mutate(
+            requestId: op['id'] as String,
+            targetId: op['targetId'] as String,
+            expectedRevision: (op['targetRevision'] as int) - 1,
+            action: op['action'] as String,
+            reason: 'test',
+          );
+          final user = await service.getUser(op['targetId'] as String);
+          expect(user.revision, result.targetRevision);
+          expect(user.authSynced, result.authSynced);
+          expect(
+            user.pendingOperation?.id,
+            result.isCompleted ? isNull : result.id,
+          );
+        }
+      },
+    );
 
-        return jsonResponse({
-          'status': 'ok',
-          'data': {
-            'subjectId': '11111111-1111-4111-8111-111111111111',
-            'role': 'admin',
-            'accountRevision': 2,
-            'allowed': true,
-          },
-        }, 200);
+    test(
+      'access() dispatches valid contract envelope and parses response',
+      () async {
+        adapter.handler = (opts) async {
+          expect(
+            opts.uri.toString(),
+            'https://example.supabase.co/functions/v1/admin-control',
+          );
+          expect(opts.headers['Authorization'], 'Bearer valid.token.test');
+          expect(opts.headers['apikey'], 'anon-key-test');
+          expect(opts.data['contract'], 'travelgo.admin.v1');
+          expect(opts.data['action'], 'access');
+
+          return jsonResponse({
+            'status': 'ok',
+            'data': {
+              'subjectId': '11111111-1111-4111-8111-111111111111',
+              'role': 'admin',
+              'accountRevision': 2,
+              'allowed': true,
+            },
+          }, 200);
+        };
+
+        final access = await service.access();
+        expect(access.subjectId, '11111111-1111-4111-8111-111111111111');
+        expect(access.role, 'admin');
+        expect(access.allowed, isTrue);
+      },
+    );
+
+    test('authority changes while lazy lifecycle loads must dispatch zero requests', () async {
+      var epoch = 1;
+      var calls = 0;
+      final held = Completer<LocalAccountLifecycleService>();
+      adapter.handler = (_) async {
+        calls++;
+        return jsonResponse({'status': 'ok', 'data': {}}, 200);
       };
-
-      final access = await service.access();
-      expect(access.subjectId, '11111111-1111-4111-8111-111111111111');
-      expect(access.role, 'admin');
-      expect(access.allowed, isTrue);
+      final guarded = AdminAccountService(
+        dio: dio,
+        projectOrigin: service.projectOrigin,
+        publicKey: service.publicKey,
+        lifecycleLoader: () => held.future,
+        callerContext: () => (ownerId: lifecycle.handle?.ownerId, epoch: epoch),
+      );
+      final request = guarded.mutate(
+        requestId: 'req',
+        targetId: 'target',
+        expectedRevision: 1,
+        action: 'lock',
+        reason: 'test',
+      );
+      final checked = expectLater(request, throwsA(isA<AdminFailure>()));
+      epoch++;
+      held.complete(lifecycle);
+      await checked;
+      expect(calls, 0);
     });
 
     test('401 response throws AdminFailure unauthorized', () async {
       adapter.handler = (opts) async {
-        return jsonResponse({
-          'status': 'error',
-          'code': 'unauthorized',
-        }, 401);
+        return jsonResponse({'status': 'error', 'code': 'unauthorized'}, 401);
       };
 
       expect(
         () => service.access(),
-        throwsA(isA<AdminFailure>().having((f) => f.code, 'code', 'unauthorized')),
+        throwsA(
+          isA<AdminFailure>().having((f) => f.code, 'code', 'unauthorized'),
+        ),
       );
     });
 
     test('403 account_locked throws AdminFailure account_locked', () async {
       adapter.handler = (opts) async {
-        return jsonResponse({
-          'status': 'error',
-          'code': 'account_locked',
-        }, 403);
+        return jsonResponse({'status': 'error', 'code': 'account_locked'}, 403);
       };
 
       expect(
         () => service.access(),
-        throwsA(isA<AdminFailure>().having((f) => f.code, 'code', 'account_locked')),
+        throwsA(
+          isA<AdminFailure>().having((f) => f.code, 'code', 'account_locked'),
+        ),
       );
     });
 
     test('403 admin_required throws AdminFailure admin_required', () async {
       adapter.handler = (opts) async {
-        return jsonResponse({
-          'status': 'error',
-          'code': 'admin_required',
-        }, 403);
+        return jsonResponse({'status': 'error', 'code': 'admin_required'}, 403);
       };
 
       expect(
         () => service.access(),
-        throwsA(isA<AdminFailure>().having((f) => f.code, 'code', 'admin_required')),
-      );
-    });
-
-    test('503 or network timeout on mutate marks outcomeUncertain true', () async {
-      adapter.handler = (opts) async {
-        return jsonResponse({
-          'status': 'error',
-          'code': 'upstream_unavailable',
-        }, 503);
-      };
-
-      expect(
-        () => service.mutate(
-          requestId: 'req-1',
-          targetId: 'user-2',
-          expectedRevision: 1,
-          action: 'lock',
-          reason: 'Test lock',
+        throwsA(
+          isA<AdminFailure>().having((f) => f.code, 'code', 'admin_required'),
         ),
-        throwsA(isA<AdminFailure>()
-            .having((f) => f.code, 'code', 'upstream_unavailable')
-            .having((f) => f.outcomeUncertain, 'outcomeUncertain', isTrue)),
       );
     });
+
+    test(
+      '503 or network timeout on mutate marks outcomeUncertain true',
+      () async {
+        adapter.handler = (opts) async {
+          return jsonResponse({
+            'status': 'error',
+            'code': 'upstream_unavailable',
+          }, 503);
+        };
+
+        expect(
+          () => service.mutate(
+            requestId: 'req-1',
+            targetId: 'user-2',
+            expectedRevision: 1,
+            action: 'lock',
+            reason: 'Test lock',
+          ),
+          throwsA(
+            isA<AdminFailure>()
+                .having((f) => f.code, 'code', 'upstream_unavailable')
+                .having((f) => f.outcomeUncertain, 'outcomeUncertain', isTrue),
+          ),
+        );
+      },
+    );
   });
 }

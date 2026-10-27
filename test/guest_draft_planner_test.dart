@@ -14,7 +14,8 @@ import 'package:travelgo_mobile/features/trip_planner/models/trip_response.dart'
 import 'package:travelgo_mobile/features/trip_planner/providers/trip_provider.dart';
 import 'package:travelgo_mobile/features/trip_planner/services/trip_api_service.dart';
 import 'package:travelgo_mobile/features/trip_planner/presentation/screens/home_planner_screen.dart';
-import 'package:travelgo_mobile/features/trip_planner/presentation/screens/dashboard_result_screen.dart';
+// dashboard_result_screen removed
+import 'package:travelgo_mobile/features/trip_planner/presentation/widgets/planner_workspace_actions.dart';
 import 'package:travelgo_mobile/features/trips/models/trip_payload_codec.dart';
 
 import 'local_trip_store_test.dart' as fixtures;
@@ -99,7 +100,10 @@ void main() {
               return ctx.store;
             },
           );
-          await tester.pumpWidget(TravelGoApp(localStoreRuntime: runtime));
+          final legacyTrip = TripProvider(localStoreLoader: runtime.getStore);
+          await tester.pumpWidget(
+            TravelGoApp(localStoreRuntime: runtime, legacyTrip: legacyTrip),
+          );
           final context = tester.element(find.byType(SplashScreen));
           final auth = context.read<AuthProvider>();
           final trip = context.read<TripProvider>();
@@ -652,8 +656,13 @@ void main() {
           addTearDown(tester.view.resetPhysicalSize);
           addTearDown(tester.view.resetDevicePixelRatio);
           await pumpPlanner(tester, trip, textScale: 1.3);
-          expect(find.text('Bản nháp trên máy'), findsOneWidget);
-          expect(find.text('Lưu bản nháp trên máy'), findsOneWidget);
+          // In C1: guest draft persistence buttons removed from HomePlannerScreen
+          expect(find.text('Bản nháp trên máy'), findsNothing);
+          expect(find.text('Lưu bản nháp trên máy'), findsNothing);
+          expect(
+            find.widgetWithText(ElevatedButton, 'Bắt đầu lập lịch trình'),
+            findsOneWidget,
+          );
           expect(tester.takeException(), isNull);
           expect(trip.currentRequest.numDays, 10);
           await tester.pumpWidget(const SizedBox());
@@ -677,46 +686,18 @@ void main() {
           addTearDown(trip.dispose);
           trip.applyPreset(3);
           await pumpPlanner(tester, trip);
-          await tester.ensureVisible(find.text('Bản nháp trên máy'));
-          await tester.tap(find.text('Bản nháp trên máy'));
-          while (trip.isLoadingDraft) {
-            await Future<void>.delayed(const Duration(milliseconds: 5));
-          }
+          // In C1: guest draft button is removed from HomePlannerScreen
+          expect(find.text('Bản nháp trên máy'), findsNothing);
+          // Cancel dirty replacement keeps current input
+          final replaceFuture = replacePlannerWorkspace(
+            tester.element(find.byType(HomePlannerScreen)),
+          );
           await tester.pumpAndSettle();
-          await tester.tap(find.text('Draft để mở'));
-          await tester.pumpAndSettle();
-          expect(find.text('Thay nội dung chưa lưu?'), findsOneWidget);
+          expect(find.text('Tạo chuyến đi mới?'), findsOneWidget);
           await tester.tap(find.text('Hủy'));
           await tester.pumpAndSettle();
+          expect(await replaceFuture, isFalse);
           expect(trip.currentRequest.numDays, 2);
-          await tester.pumpWidget(const SizedBox());
-        }),
-      );
-    },
-  );
-  testWidgets(
-    'T14 dashboard Guest action is local and restored result labeled',
-    (tester) async {
-      await tester.runAsync(
-        () => fixtures.runWithStore((ctx) async {
-          await ctx.store.saveDraftRevision(
-            draftId: 'result',
-            payload: fixtures.createValidPayload(),
-          );
-          final trip = planner(ctx, DraftApi());
-          addTearDown(trip.dispose);
-          await trip.openGuestDraft(
-            draftId: 'result',
-            revision: 1,
-            expectedWorkspaceGeneration: trip.workspaceGeneration,
-          );
-          await pumpPlanner(
-            tester,
-            trip,
-            screen: const DashboardResultScreen(),
-          );
-          expect(find.text('Bản nháp trên máy'), findsOneWidget);
-          expect(find.text('Lưu bản nháp trên máy'), findsOneWidget);
           await tester.pumpWidget(const SizedBox());
         }),
       );
@@ -730,8 +711,18 @@ void main() {
           final api = DraftApi();
           final trip = planner(ctx, api);
           addTearDown(trip.dispose);
-          await pumpPlanner(tester, trip);
-          await tester.ensureVisible(find.text('Lưu bản nháp trên máy'));
+          await pumpPlanner(
+            tester,
+            trip,
+            screen: Scaffold(
+              body: Builder(
+                builder: (bCtx) => ElevatedButton(
+                  onPressed: () => showGuestDraftSaveDialog(bCtx),
+                  child: const Text('Lưu bản nháp trên máy'),
+                ),
+              ),
+            ),
+          );
           await tester.tap(find.text('Lưu bản nháp trên máy'));
           await tester.pumpAndSettle();
           await tester.enterText(find.byType(TextField), 'Bản nháp Huế');
@@ -776,8 +767,18 @@ void main() {
             entered.complete();
             await release.future;
           };
-          await pumpPlanner(tester, trip);
-          await tester.ensureVisible(find.text('Lưu bản nháp trên máy'));
+          await pumpPlanner(
+            tester,
+            trip,
+            screen: Scaffold(
+              body: Builder(
+                builder: (bCtx) => ElevatedButton(
+                  onPressed: () => showGuestDraftSaveDialog(bCtx),
+                  child: const Text('Lưu bản nháp trên máy'),
+                ),
+              ),
+            ),
+          );
           await tester.tap(find.text('Lưu bản nháp trên máy'));
           await tester.pumpAndSettle();
           await tester.tap(find.text('Lưu'));

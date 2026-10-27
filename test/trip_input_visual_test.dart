@@ -94,7 +94,7 @@ void main() {
       expect(trip.currentRequest.numDays, 4);
       expect(trip.currentRequest.budgetVnd, 8000000);
       await tester.scrollUntilVisible(
-        find.text('Xem gợi ý chuyến đi'),
+        find.text('Bắt đầu lập lịch trình'),
         250,
         scrollable: find.byType(Scrollable).first,
       );

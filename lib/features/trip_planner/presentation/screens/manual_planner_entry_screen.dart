@@ -9,6 +9,7 @@ import '../../../explore/services/catalogue_repository.dart';
 import '../../../trips/models/trip_payload_codec.dart';
 import '../../models/trip_request.dart';
 import '../../providers/manual_planner_provider.dart';
+import '../../providers/planner_input_provider.dart';
 import '../../providers/trip_provider.dart';
 import '../../../../main.dart';
 import '../../services/manual_trip_factory.dart';
@@ -32,36 +33,46 @@ class ManualPlannerEntryScreen extends StatefulWidget {
 }
 
 class _ManualPlannerEntryScreenState extends State<ManualPlannerEntryScreen> {
-  late final TripProvider _trip;
+  PlannerInputProvider? _input;
+  TripProvider? _legacyTrip;
   late final PlanTripRequest _request;
   late final TripMetadataV1 _metadata;
   late final int _generation;
-  late final String? _draftId;
-  late final int? _revision;
   ManualPlannerProvider? _planner;
   PublicCatalogueSnapshot? _snapshot;
   List<catalogue.DestinationReference>? _destinations;
   bool _loading = true, _confirming = false;
   String? _error;
 
-  bool get _current =>
-      mounted &&
-      _trip.canReplaceWorkspace &&
-      _trip.workspaceGeneration == _generation &&
-      identical(_request, _trip.currentRequest) &&
-      identical(_metadata, _trip.currentMetadata) &&
-      _trip.activeDraftId == _draftId &&
-      _trip.activeDraftRevision == _revision;
+  bool get _current {
+    if (!mounted) return false;
+    if (_input != null) {
+      return _input!.workspaceGeneration == _generation &&
+          identical(_request, _input!.currentRequest) &&
+          identical(_metadata, _input!.currentMetadata);
+    }
+    if (_legacyTrip != null) {
+      return _legacyTrip!.workspaceGeneration == _generation &&
+          identical(_request, _legacyTrip!.currentRequest) &&
+          identical(_metadata, _legacyTrip!.currentMetadata);
+    }
+    return true;
+  }
 
   @override
   void initState() {
     super.initState();
-    _trip = context.read<TripProvider>();
-    _request = _trip.currentRequest;
-    _metadata = _trip.currentMetadata;
-    _generation = _trip.workspaceGeneration;
-    _draftId = _trip.activeDraftId;
-    _revision = _trip.activeDraftRevision;
+    try {
+      _input = context.read<PlannerInputProvider>();
+    } catch (_) {}
+    if (_input == null) {
+      try {
+        _legacyTrip = context.read<TripProvider>();
+      } catch (_) {}
+    }
+    _request = _input?.currentRequest ?? _legacyTrip?.currentRequest ?? PlanTripRequest.presetMinh();
+    _metadata = _input?.currentMetadata ?? _legacyTrip?.currentMetadata ?? TripMetadataV1();
+    _generation = _input?.workspaceGeneration ?? _legacyTrip?.workspaceGeneration ?? 0;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _start();
     });
@@ -202,8 +213,23 @@ class _ManualPlannerEntryScreenState extends State<ManualPlannerEntryScreen> {
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-        listenable: _trip,
+        listenable: _input ?? _legacyTrip ?? ChangeNotifier(),
         builder: (context, _) {
+          if (!_current) {
+            return Scaffold(
+              appBar: AppBar(title: const Text('Tự lập lịch trình')),
+              body: const SafeArea(
+                child: Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Text(
+                      'Thông tin hoặc phiên đã thay đổi. Quay lại và mở lại lịch trình.',
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }
           final planner = _planner;
           final destinations = _destinations;
           if (planner != null && destinations != null) {
@@ -212,6 +238,7 @@ class _ManualPlannerEntryScreenState extends State<ManualPlannerEntryScreen> {
               destinations: destinations,
               snapshot: _snapshot,
               enableBudget: true,
+              accountSaveOnly: true,
               openAssistantOnReady:
                   widget.intent == ManualPlannerEntryIntent.aiAssistant,
             );
@@ -225,11 +252,7 @@ class _ManualPlannerEntryScreenState extends State<ManualPlannerEntryScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      if (!_current)
-                        const Text(
-                          'Thông tin hoặc phiên đã thay đổi. Quay lại và mở lại lịch trình.',
-                        )
-                      else if (_confirming)
+                      if (_confirming)
                         const Text('Chờ xác nhận thay bản chỉnh sửa.')
                       else if (_loading) ...[
                         const CircularProgressIndicator(),

@@ -21,7 +21,7 @@ import 'package:travelgo_mobile/core/theme/app_theme.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:travelgo_mobile/core/constants/supabase_constants.dart';
-import 'package:travelgo_mobile/features/favorites/providers/favorites_provider.dart';
+import 'package:travelgo_mobile/features/trip_planner/providers/planner_input_provider.dart';
 import 'package:travelgo_mobile/features/trips/models/saved_trip_model.dart';
 import 'package:travelgo_mobile/features/trips/providers/saved_trips_provider.dart';
 import 'package:travelgo_mobile/features/trips/services/trips_service.dart';
@@ -164,7 +164,7 @@ void main() {
 
   group('Navigation Shell Widget Tests', () {
     testWidgets(
-      'MainNavigationShell renders 5 bottom destinations and switches tabs',
+      'MainNavigationShell renders 4 bottom destinations and switches tabs',
       (WidgetTester tester) async {
         final authProvider = AuthProvider()..continueAsGuest();
         final tripProvider = TripProvider();
@@ -174,7 +174,7 @@ void main() {
             providers: [
               ChangeNotifierProvider.value(value: authProvider),
               ChangeNotifierProvider.value(value: tripProvider),
-              ChangeNotifierProvider(create: (_) => FavoritesProvider()),
+              ChangeNotifierProvider(create: (_) => PlannerInputProvider()),
               ChangeNotifierProvider(create: (_) => SavedTripsProvider()),
               ChangeNotifierProvider(create: (_) => HomeCatalogProvider()),
               ChangeNotifierProvider(create: (_) => DiscoveryProvider()),
@@ -204,7 +204,7 @@ void main() {
         );
         expect(
           find.descendant(of: navBar, matching: find.text('Yêu thích')),
-          findsOneWidget,
+          findsNothing,
         );
         expect(
           find.descendant(of: navBar, matching: find.text('Cá nhân')),
@@ -229,11 +229,6 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.text('Chuyến Đi Của Tôi'), findsOneWidget);
 
-        // Switch to Favorites tab
-        await tester.tap(find.text('Yêu thích'));
-        await tester.pumpAndSettle();
-        expect(find.text('Danh Sách Yêu Thích'), findsOneWidget);
-
         // Switch to Profile tab
         await tester.tap(find.text('Cá nhân'));
         await tester.pumpAndSettle();
@@ -257,7 +252,7 @@ void main() {
             providers: [
               ChangeNotifierProvider.value(value: authProvider),
               ChangeNotifierProvider.value(value: tripProvider),
-              ChangeNotifierProvider(create: (_) => FavoritesProvider()),
+              ChangeNotifierProvider(create: (_) => PlannerInputProvider()),
               ChangeNotifierProxyProvider<AuthProvider, SavedTripsProvider>(
                 create: (_) => savedTripsProvider,
                 update: (_, auth, savedTrips) => updateSavedTripsFromAuth(
@@ -1155,7 +1150,10 @@ void _b62AuthTests() {
               context,
               listen: false,
             );
-            final trip = Provider.of<TripProvider>(context, listen: false);
+            final input = Provider.of<PlannerInputProvider>(
+              context,
+              listen: false,
+            );
             expect(saved.currentUserId, sdk.owner);
             final manual = await Provider.of<ManualPlannerRuntime>(
               context,
@@ -1163,8 +1161,8 @@ void _b62AuthTests() {
             ).getResources();
             manual.planner.openNew(
               ManualTripFactory().fromInput(
-                trip.currentRequest,
-                trip.currentMetadata,
+                input.currentRequest,
+                input.currentMetadata,
               ),
             );
             expect(manual.planner.currentOwnerId, sdk.owner);
@@ -1174,7 +1172,7 @@ void _b62AuthTests() {
             expect(manual.drafts.selected, isEmpty);
             expect(saved.currentUserId, isNull);
             expect(saved.trips, isEmpty);
-            expect(trip.canPersistGuestDraft, isTrue);
+            expect(input.canReplaceWorkspace, isTrue);
             expect(await logout, isTrue);
             await tester.pumpWidget(const SizedBox.shrink());
             await auth.close();
@@ -2008,7 +2006,7 @@ Widget _authUi(AuthProvider auth, Widget screen, {bool large = false}) =>
       providers: [
         ChangeNotifierProvider.value(value: auth),
         ChangeNotifierProvider(create: (_) => TripProvider()),
-        ChangeNotifierProvider(create: (_) => FavoritesProvider()),
+        ChangeNotifierProvider(create: (_) => PlannerInputProvider()),
         ChangeNotifierProvider(create: (_) => SavedTripsProvider()),
         ChangeNotifierProvider(create: (_) => HomeCatalogProvider()),
         ChangeNotifierProvider(create: (_) => DiscoveryProvider()),

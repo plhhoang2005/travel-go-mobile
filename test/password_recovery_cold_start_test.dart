@@ -39,6 +39,12 @@ void main() {
         'mock-anon-key',
         authOptions: const AuthClientOptions(autoRefreshToken: false),
         httpClient: MockClient((request) async {
+          if (request.url.path.endsWith('/user') && request.method == 'GET') {
+            return http.Response(
+              jsonEncode({'id': 'usr-cold-1', 'email': 'cold1@travelgo.vn'}),
+              200,
+            );
+          }
           return http.Response('{}', 200);
         }),
       );

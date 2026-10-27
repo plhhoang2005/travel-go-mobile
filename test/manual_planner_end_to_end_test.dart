@@ -47,6 +47,21 @@ void main() {
             trips,
             runtime,
           );
+          // In C1: guest draft banner is removed from MyTripsScreen
+          expect(find.text('Mở bản nháp tự lập'), findsNothing);
+
+          // Use EditableGuestDraftList standalone (retained until C2) to open draft
+          final initialBundle = await runtime.getResources();
+          await initialBundle.drafts.load();
+          await pumpDraftUi(
+            tester,
+            const Scaffold(
+              body: EditableGuestDraftList(fallback: SizedBox.shrink()),
+            ),
+            auth,
+            trips,
+            runtime,
+          );
           await tapText(tester, 'Mở bản nháp tự lập');
           await waitForEditor(tester, runtime);
           var planner = (await runtime.getResources()).planner;
@@ -78,6 +93,21 @@ void main() {
           await pumpDraftUi(
             tester,
             const MyTripsScreen(),
+            auth,
+            trips,
+            runtime,
+          );
+          // In C1: guest draft banner is removed from MyTripsScreen
+          expect(find.text('Mở bản nháp tự lập'), findsNothing);
+
+          // Use EditableGuestDraftList standalone (retained until C2) to reopen draft
+          final reopenedBundle = await runtime.getResources();
+          await reopenedBundle.drafts.load();
+          await pumpDraftUi(
+            tester,
+            const Scaffold(
+              body: EditableGuestDraftList(fallback: SizedBox.shrink()),
+            ),
             auth,
             trips,
             runtime,

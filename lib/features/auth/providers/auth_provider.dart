@@ -74,9 +74,16 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> beginRecovery(String intentId) async {
+  bool _recoveryCleanupPending = false;
+  String? _recoverySessionIntentId;
+
+  Future<void> beginRecovery(String intentId, {String? verifiedUserId}) async {
     _isRecovering = true;
     _currentRecoveryIntentId = intentId;
+    if (verifiedUserId != null && _sdkSession()?.user.id == verifiedUserId) {
+      _recoverySessionIntentId = intentId;
+    }
+    _recoveryCleanupPending = false;
     _requestGeneration++;
     _lifecycle?.invalidateAccountContext();
     onLocalAccountInvalidated();
@@ -84,60 +91,157 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> finishRecovery(String intentId) async {
-    if (_currentRecoveryIntentId == intentId) {
+    if (_currentRecoveryIntentId == intentId ||
+        (_currentRecoveryIntentId == null && _isRecovering)) {
       _isRecovering = false;
+      _currentRecoveryIntentId = null;
+      _recoveryCleanupPending = false;
+      notifyListeners();
+    }
+  }
+
+  void revokeRecoveryAuthority([String? intentId]) {
+    if (intentId == null || _currentRecoveryIntentId == intentId) {
+      _requestGeneration++;
       _currentRecoveryIntentId = null;
       notifyListeners();
     }
+  }
+
+  Future<bool> performRecoverySignOut({
+    required String intentId,
+    required String? verifiedUserId,
+  }) {
+    return _enqueueCredential(() async {
+      final client = _supabaseClient;
+      if (client == null) return true;
+
+      // 1. If an account is already authenticated in AuthProvider,
+      // this session belongs to a legitimate user login (User B or new login of User A).
+      // Recovery cleanup NEVER owns or logs out an authenticated account.
+      if (_currentUser != null) {
+        return true;
+      }
+
+      // SDK exchange can finish before the ready marker is persisted.
+      // The queue records that session owner independently of marker phase.
+      final sessionOwner = _recoverySessionIntentId;
+      if (sessionOwner != null && sessionOwner != intentId) return true;
+      if (verifiedUserId == null && sessionOwner != intentId) {
+        return true;
+      }
+
+      // 3. Inspect current SDK session
+      final session = _sdkSession();
+      if (session == null) {
+        if (_recoverySessionIntentId == intentId) _recoverySessionIntentId = null;
+        return true;
+      }
+
+      // 4. If the SDK session does not match verifiedUserId,
+      // it does not belong to this recovery operation.
+      if (verifiedUserId != null && session.user.id != verifiedUserId) {
+        return true;
+      }
+
+      // 5. If another recovery intent is currently active in AuthProvider,
+      // this session belongs to that newer recovery operation!
+      // An old/cancelled recovery intent NEVER owns or signs out a newer recovery session.
+      if (sessionOwner == null && _isRecovering &&
+          _currentRecoveryIntentId != null &&
+          _currentRecoveryIntentId != intentId) {
+        return true;
+      }
+
+      // 6. Clean up the recovery session
+      try {
+        await client.auth.signOut(scope: SignOutScope.local);
+        if (_recoverySessionIntentId == intentId) _recoverySessionIntentId = null;
+        return true;
+      } catch (_) {
+        return false;
+      }
+    });
   }
 
   bool isCurrentRecoveryIntent(String intentId) =>
       _isRecovering && _currentRecoveryIntentId == intentId;
 
   final List<Future<void> Function()> _recoveryInvalidators = [];
+  final List<void Function(bool success)> _recoveryCleanupResultListeners = [];
 
   VoidCallback registerRecoveryInvalidator(Future<void> Function() invalidate) {
     _recoveryInvalidators.add(invalidate);
     return () => _recoveryInvalidators.remove(invalidate);
   }
 
+  VoidCallback registerRecoveryCleanupResultListener(
+      void Function(bool success) listener) {
+    _recoveryCleanupResultListeners.add(listener);
+    return () => _recoveryCleanupResultListeners.remove(listener);
+  }
+
   void _handleRecoveryCancellation() {
     if (_isRecovering || _currentRecoveryIntentId != null) {
-      _requestGeneration++;
+      revokeRecoveryAuthority();
+      _isRecovering = false;
+      _recoveryCleanupPending = true;
+      notifyListeners();
+      unawaited(_drainAndCleanupRecovery().catchError((_) => false));
+    }
+  }
+
+  Future<bool> _drainAndCleanupRecovery() async {
+    revokeRecoveryAuthority();
+    _recoveryCleanupPending = true;
+    bool invalidatorsSuccess = true;
+    for (final inv in List.of(_recoveryInvalidators)) {
+      try {
+        await inv();
+      } catch (_) {
+        invalidatorsSuccess = false;
+      }
+    }
+
+    bool signOutSuccess = true;
+    final client = _supabaseClient;
+    if (client != null) {
+      await _enqueueCredential(() async {
+        try {
+          // Do not sign out if a new authenticated user was already established
+          if (_currentUser == null) {
+            await client.auth.signOut(scope: SignOutScope.local);
+          }
+        } catch (_) {
+          signOutSuccess = false;
+        }
+      });
+    }
+
+    final totalSuccess = invalidatorsSuccess && signOutSuccess;
+    for (final cb in List.of(_recoveryCleanupResultListeners)) {
+      try {
+        cb(totalSuccess);
+      } catch (_) {}
+    }
+
+    if (totalSuccess) {
       _isRecovering = false;
       _currentRecoveryIntentId = null;
+      _recoveryCleanupPending = false;
       notifyListeners();
-      for (final inv in List.of(_recoveryInvalidators)) {
-        unawaited(inv());
-      }
-      final client = _supabaseClient;
-      if (client != null) {
-        _enqueueCredential(() async {
-          try {
-            await client.auth.signOut(scope: SignOutScope.local);
-          } catch (_) {}
-        });
-      }
+      return true;
+    } else {
+      _recoveryCleanupPending = true;
+      notifyListeners();
+      return false;
     }
   }
 
   Future<void> cancelRecovery(String intentId) async {
-    if (_currentRecoveryIntentId == intentId || (_currentRecoveryIntentId == null && _isRecovering)) {
-      _requestGeneration++;
-      _isRecovering = false;
-      _currentRecoveryIntentId = null;
-      notifyListeners();
-      for (final inv in List.of(_recoveryInvalidators)) {
-        await inv();
-      }
-      final client = _supabaseClient;
-      if (client != null) {
-        await _enqueueCredential(() async {
-          try {
-            await client.auth.signOut(scope: SignOutScope.local);
-          } catch (_) {}
-        });
-      }
+    if (_currentRecoveryIntentId == intentId ||
+        (_currentRecoveryIntentId == null && _isRecovering)) {
+      await _drainAndCleanupRecovery();
     }
   }
 
@@ -164,7 +268,13 @@ class AuthProvider extends ChangeNotifier {
         if (_disposed ||
             capturedGeneration != _requestGeneration ||
             !isCurrentRecoveryIntent(intentId)) {
+          try {
+            await client.auth.signOut(scope: SignOutScope.local);
+          } catch (_) {}
           throw RecoveryIntentCancelledException();
+        }
+        if (result is AuthSessionUrlResponse) {
+          _recoverySessionIntentId = intentId;
         }
         return result;
       } finally {
@@ -394,7 +504,15 @@ class AuthProvider extends ChangeNotifier {
 
   /// Real Supabase Email & Password Login without any mock bypasses
   Future<bool> login(String email, String password) async {
-    _handleRecoveryCancellation();
+    if (_isRecovering || _currentRecoveryIntentId != null || _recoveryCleanupPending) {
+      final cleaned = await _drainAndCleanupRecovery();
+      if (!cleaned) {
+        _errorMessage = 'Không thể đăng nhập do phiên khôi phục mật khẩu trước đó chưa hoàn tất dọn dẹp.';
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+    }
     _userChoseGuest = false;
     if (_lifecycleLoader != null) {
       return _guardedMutation(
@@ -454,7 +572,10 @@ class AuthProvider extends ChangeNotifier {
 
   /// Real Supabase OAuth Sign-In (Google & Facebook)
   Future<bool> signInWithOAuth(OAuthProvider provider) async {
-    _handleRecoveryCancellation();
+    if (_isRecovering || _currentRecoveryIntentId != null || _recoveryCleanupPending) {
+      final cleaned = await _drainAndCleanupRecovery();
+      if (!cleaned) return false;
+    }
     _userChoseGuest = false;
     if (_lifecycleLoader != null) return _guardedOAuth(provider);
     _isLoading = true;
@@ -568,7 +689,10 @@ class AuthProvider extends ChangeNotifier {
     required String phone,
     required String password,
   }) async {
-    _handleRecoveryCancellation();
+    if (_isRecovering || _currentRecoveryIntentId != null || _recoveryCleanupPending) {
+      final cleaned = await _drainAndCleanupRecovery();
+      if (!cleaned) return false;
+    }
     _userChoseGuest = false;
     if (_lifecycleLoader != null) {
       return _guardedMutation(
@@ -644,7 +768,10 @@ class AuthProvider extends ChangeNotifier {
 
   /// OTP verification via Supabase verifyOTP
   Future<bool> verifyOtp(String code, {String? email}) async {
-    _handleRecoveryCancellation();
+    if (_isRecovering || _currentRecoveryIntentId != null || _recoveryCleanupPending) {
+      final cleaned = await _drainAndCleanupRecovery();
+      if (!cleaned) return false;
+    }
     final trimmedCode = code.trim();
     if (!RegExp(r'^\d{6}$').hasMatch(trimmedCode)) {
       _errorMessage = 'Mã xác thực phải gồm đúng 6 chữ số.';
@@ -989,8 +1116,10 @@ class AuthProvider extends ChangeNotifier {
   }
 
   void onLocalAccountInvalidated() {
-    final guestAvailable =
-        _isGuest || _currentUser != null || _sdkSession() != null;
+    final guestAvailable = _userChoseGuest ||
+        (!_isRecovering &&
+            _currentRecoveryIntentId == null &&
+            (_isGuest || _currentUser != null || _loggingOut));
     _authEpoch++;
     _currentUser = null;
     _isGuest = guestAvailable;

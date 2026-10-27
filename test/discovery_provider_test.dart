@@ -6,8 +6,70 @@ import 'package:travelgo_mobile/features/explore/providers/discovery_provider.da
 import 'package:travelgo_mobile/features/explore/services/catalogue_repository.dart';
 
 import 'catalogue_parser_test.dart' show catalogueData;
+import 'public_catalogue_consumers_test.dart' show createSnapshot;
 
 void main() {
+  test(
+    'dynamic place search folds accents and applies UI and V2 region labels',
+    () {
+      final provider = DiscoveryProvider();
+      addTearDown(provider.dispose);
+      provider.bindPublicSnapshot(
+        createSnapshot(
+          destinations: [
+            {
+              'id': 'coursework-phu-yen',
+              'name': 'Phú Yên thử nghiệm',
+              'region': 'Miền Trung',
+              'places': [
+                {
+                  'id': 'coursework-phu-yen/dam-o-loan',
+                  'destinationId': 'coursework-phu-yen',
+                  'name': 'Đầm Ô Loan',
+                  'sourceRefs': ['src-01'],
+                },
+              ],
+            },
+          ],
+        ),
+      );
+      for (final query in [
+        'dam o loan',
+        'ĐẦM Ô LOAN',
+        'Đa\u0302\u0300m O\u0302 Loan',
+      ]) {
+        provider.setQuery(query);
+        provider.setRegion('Trung');
+        expect(provider.visibleDestinations.single.id, 'coursework-phu-yen');
+        provider.setRegion('Miền Trung');
+        expect(provider.visibleDestinations.single.name, 'Phú Yên thử nghiệm');
+        provider.setRegion('Bắc');
+        expect(provider.visibleDestinations, isEmpty);
+      }
+      provider.bindPublicSnapshot(createSnapshot(version: 2));
+      provider.setRegion(null);
+      provider.setQuery('');
+      expect(provider.visibleDestinations, isEmpty);
+    },
+  );
+
+  test('failed refresh keeps catalogue with an explicit error state', () async {
+    var fail = false;
+    final provider = DiscoveryProvider(
+      publicSnapshotLoader: (_) async {
+        if (fail) throw StateError('offline');
+        return createSnapshot();
+      },
+    );
+    addTearDown(provider.dispose);
+    await provider.load();
+    final before = provider.catalogue;
+    fail = true;
+    await provider.load(force: true);
+    expect(provider.catalogue, same(before));
+    expect(provider.state, DiscoveryLoadState.error);
+  });
+
   test(
     'search folds accents, combining marks, case, trim and preserves region',
     () async {

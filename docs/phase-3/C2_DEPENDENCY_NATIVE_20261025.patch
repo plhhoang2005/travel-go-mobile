@@ -1,0 +1,69 @@
+--- a/pubspec.yaml
++++ b/pubspec.yaml
+@@ -41,9 +41,6 @@
+   flutter_animate: ^4.5.2
+   supabase_flutter: ^2.8.4
+   app_links: 7.2.1
+-  flutter_map: ^7.0.2
+-  latlong2: ^0.9.1
+-  geolocator: ^13.0.2
+   sqflite: 2.4.4+1
+   crypto: 3.0.7
+   uuid: 4.6.0
+--- a/android/app/src/main/AndroidManifest.xml
++++ b/android/app/src/main/AndroidManifest.xml
+@@ -1,8 +1,6 @@
+ <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+     <uses-permission android:name="android.permission.INTERNET"/>
+     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+ 
+     <application
+         android:label="TravelGO"
+--- a/lib/features/explore/services/manual_place_locations.dart
++++ b/lib/features/explore/services/manual_place_locations.dart
+@@ -1,10 +1,15 @@
+-import 'package:latlong2/latlong.dart';
+ import '../models/public_catalogue_snapshot.dart';
++
++class GeoPoint {
++  final double latitude;
++  final double longitude;
++  const GeoPoint(this.latitude, this.longitude);
++}
+ 
+ /// Presentation-only reference positions; never serialized into a trip.
+ class ManualPlaceLocation {
+   final String placeId, sourceUrl, checkedAt, note;
+-  final LatLng position;
++  final GeoPoint position;
+   const ManualPlaceLocation({
+     required this.placeId,
+     required this.position,
+@@ -21,14 +26,14 @@
+   static const _locations = {
+     'ha-noi/hoan-kiem': ManualPlaceLocation(
+       placeId: 'ha-noi/hoan-kiem',
+-      position: LatLng(21.028888888889, 105.8525),
++      position: GeoPoint(21.028888888889, 105.8525),
+       sourceUrl: 'https://www.wikidata.org/w/index.php?title=Q1151254&oldid=2519101846',
+       checkedAt: '2026-10-17',
+       note: 'Vị trí tham khảo của hồ; chưa xác minh lối tiếp cận.',
+     ),
+     'hue/citadel': ManualPlaceLocation(
+       placeId: 'hue/citadel',
+-      position: LatLng(16.469444444444, 107.57777777778),
++      position: GeoPoint(16.469444444444, 107.57777777778),
+       sourceUrl: 'https://www.wikidata.org/w/index.php?title=Q10769129&oldid=2521036693',
+       checkedAt: '2026-10-17',
+       note: 'Vị trí tham khảo khu Hoàng thành bên trong Kinh thành; chưa xác minh cổng vào.',
+@@ -63,7 +68,7 @@
+               final checkedAt = snapshot.manifest.publishedAt.toIso8601String().substring(0, 10);
+               return ManualPlaceLocation(
+                 placeId: place.id,
+-                position: LatLng(lat, lng),
++                position: GeoPoint(lat, lng),
+                 sourceUrl: sourceUrl,
+                 checkedAt: checkedAt,
+                 note: 'Tọa độ tham khảo từ danh mục phát hành; chưa xác minh lối tiếp cận.',

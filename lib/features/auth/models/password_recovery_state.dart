@@ -11,6 +11,8 @@ enum RecoveryState {
   sending,
   emailRequested,
   exchanging,
+  verifying,
+  verificationFailed,
   ready,
   updating,
   cleanupRequired,

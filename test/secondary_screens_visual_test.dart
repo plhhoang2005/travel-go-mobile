@@ -10,29 +10,12 @@ import 'package:travelgo_mobile/features/auth/providers/auth_provider.dart';
 import 'package:travelgo_mobile/features/auth/presentation/screens/login_screen.dart';
 import 'package:travelgo_mobile/features/auth/presentation/screens/onboarding_screen.dart';
 import 'package:travelgo_mobile/features/auth/presentation/screens/splash_screen.dart';
-import 'package:travelgo_mobile/features/favorites/models/favorite_item_model.dart';
-import 'package:travelgo_mobile/features/favorites/providers/favorites_provider.dart';
-import 'package:travelgo_mobile/features/favorites/presentation/screens/favorites_screen.dart';
 import 'package:travelgo_mobile/features/profile/presentation/screens/profile_screen.dart';
 
 class PendingAuth extends AuthProvider {
   final ready = Completer<void>();
   @override
   Future<void> get initialization => ready.future;
-}
-
-class FixtureFavorites extends FavoritesProvider {
-  List<FavoriteItem> rows = [];
-  int toggles = 0;
-  @override
-  List<FavoriteItem> get items => rows;
-  @override
-  Future<bool> toggleFavorite(FavoriteItem item) async {
-    toggles++;
-    rows.remove(item);
-    notifyListeners();
-    return true;
-  }
 }
 
 User user(String id) => User(
@@ -43,24 +26,14 @@ User user(String id) => User(
   aud: 'authenticated',
   createdAt: '2026-10-17T00:00:00Z',
 );
-FavoriteItem favorite(String id, String owner) => FavoriteItem(
-  id: id,
-  userId: owner,
-  itemId: id,
-  title: 'Mục của $owner',
-  imageUrl: 'https://fixture.invalid/image.jpg',
-  createdAt: DateTime.utc(2026, 10, 17),
-);
+
 Widget app(
   AuthProvider auth,
   Widget screen, {
-  FavoritesProvider? favorites,
   bool large = false,
 }) => MultiProvider(
   providers: [
     ChangeNotifierProvider.value(value: auth),
-    if (favorites != null)
-      ChangeNotifierProvider<FavoritesProvider>.value(value: favorites),
   ],
   child: MaterialApp(
     theme: AppTheme.lightTheme,
@@ -74,6 +47,7 @@ Widget app(
     ),
   ),
 );
+
 void narrow(WidgetTester tester) {
   tester.view.physicalSize = const Size(360, 800);
   tester.view.devicePixelRatio = 1;
@@ -82,42 +56,6 @@ void narrow(WidgetTester tester) {
 }
 
 void main() {
-  testWidgets(
-    'favorites_image_failure_preserves_actions_and_hides_other_owners',
-    (tester) async {
-      narrow(tester);
-      final auth = AuthProvider(trustedRoleFetcher: (_) async => 'customer');
-      final favorites = FixtureFavorites()
-        ..rows = [favorite('1', 'a'), favorite('2', 'b')];
-      addTearDown(auth.dispose);
-      addTearDown(favorites.dispose);
-      auth.simulateSupabaseUser(user('a'));
-      await tester.pumpWidget(
-        app(auth, const FavoritesScreen(), favorites: favorites, large: true),
-      );
-      await tester.pumpAndSettle();
-      expect(find.text('Mục của a'), findsOneWidget);
-      expect(find.text('Mục của b'), findsNothing);
-      expect(find.text('Ảnh chưa tải được'), findsOneWidget);
-      expect(
-        find.text('5.0'),
-        findsNothing,
-      ); // Unknown review provenance never becomes a rating.
-      await tester.ensureVisible(find.text('Bỏ yêu thích'));
-      await tester.tap(find.text('Bỏ yêu thích'));
-      await tester.pumpAndSettle();
-      expect(favorites.toggles, 1);
-      auth.simulateSupabaseUser(user('b'));
-      await tester.pumpAndSettle();
-      expect(find.text('Mục của b'), findsOneWidget);
-      auth.continueAsGuest();
-      await tester.pumpAndSettle();
-      expect(find.text('Mục của b'), findsNothing);
-      expect(find.text('Chưa có mục yêu thích nào'), findsOneWidget);
-      expect(tester.takeException(), isNull);
-    },
-  );
-
   testWidgets('guest_and_account_secondary_actions_keep_identity_boundary', (
     tester,
   ) async {

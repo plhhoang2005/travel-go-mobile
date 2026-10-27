@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart' show Uuid;
 import 'package:provider/provider.dart';
 
-import '../../../map/presentation/screens/manual_day_map_screen.dart';
 import '../../../auth/providers/auth_provider.dart';
 import '../../../explore/models/public_catalogue_snapshot.dart';
 import '../../../explore/models/place_visit_details.dart';
@@ -12,7 +11,7 @@ import '../../../trips/models/editable_trip_codec.dart';
 import '../../models/editable_trip_command.dart';
 import '../../models/editable_trip_document.dart';
 import '../../providers/manual_planner_provider.dart';
-import '../../providers/trip_provider.dart';
+import '../../providers/planner_input_provider.dart';
 import '../../services/editable_trip_validator.dart';
 import '../../services/ai_generation_service.dart';
 import '../../services/ai_assistant_service.dart';
@@ -31,6 +30,8 @@ class ManualPlannerScreen extends StatefulWidget {
   final PublicCatalogueSnapshot? snapshot;
   final String Function()? newId;
   final bool enableBudget;
+  // Product routes require account saves; legacy draft readers stay compatible.
+  final bool accountSaveOnly;
   final bool enableMapNetworkTiles;
   final Widget Function(BuildContext, ManualPlannerProvider)? budgetBuilder;
   final Future<void> Function(BuildContext, ManualPlannerProvider)?
@@ -46,6 +47,7 @@ class ManualPlannerScreen extends StatefulWidget {
     this.snapshot,
     this.newId,
     this.enableBudget = false,
+    this.accountSaveOnly = false,
     this.enableMapNetworkTiles = true,
     this.budgetBuilder,
     this.onReviewSave,
@@ -100,13 +102,13 @@ class _ManualPlannerScreenState extends State<ManualPlannerScreen> {
     final destId = planner.document?.input.destinationId;
     if (destId == null) return false;
     if (widget.snapshot != null) {
-      return TripProvider.isAiEligibleDestination(destId, widget.snapshot!);
+      return PlannerInputProvider.isAiEligibleDestination(destId, widget.snapshot!);
     }
     if (widget.destinations.isNotEmpty) {
-      return TripProvider.destinationIdRegex.hasMatch(destId) &&
+      return PlannerInputProvider.destinationIdRegex.hasMatch(destId) &&
           widget.destinations.any((d) => d.id == destId);
     }
-    return TripProvider.supportedAiDestinationIds.contains(destId);
+    return PlannerInputProvider.supportedAiDestinationIds.contains(destId);
   }
 
   catalogue.DestinationReference? get _currentDestination {
@@ -118,7 +120,7 @@ class _ManualPlannerScreenState extends State<ManualPlannerScreen> {
     final found = list.where((d) => d.id == destId).firstOrNull;
     if (found != null) return found;
     final inputName = doc.input.destinationName;
-    if (TripProvider.supportedAiDestinationIds.contains(destId)) {
+    if (PlannerInputProvider.supportedAiDestinationIds.contains(destId)) {
       return catalogue.DestinationReference(
         id: destId,
         name: inputName?.isNotEmpty == true ? inputName! : destId,
@@ -155,8 +157,7 @@ class _ManualPlannerScreenState extends State<ManualPlannerScreen> {
 
   Future<T?> _route<T>(Widget child, {bool dialog = false}) async {
     if (!planner.isEditable &&
-        child is! _DayPicker &&
-        child is! ManualDayMapScreen) {
+        child is! _DayPicker) {
       return null;
     }
     if (planner.document == null) return null;
@@ -188,26 +189,12 @@ class _ManualPlannerScreenState extends State<ManualPlannerScreen> {
     }
   }
 
-  Future<void> _map() async {
-    final doc = planner.document;
-    if (doc == null) return;
-    final day = doc.days.firstWhere((d) => d.ordinal == _ordinal);
-    await _route<void>(
-      ManualDayMapScreen(
-        document: doc,
-        dayId: day.id,
-        enableNetworkTiles: widget.enableMapNetworkTiles,
-        snapshot: widget.snapshot,
-      ),
-    );
-  }
-
   Future<void> _aiHelp() async {
     if (!supportsAi) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Tính năng AI chưa khả dụng cho điểm đến này. Bạn có thể tự chỉnh hoạt động và xem vị trí tham khảo.',
+            'Tính năng AI chưa khả dụng cho điểm đến này. Bạn có thể tự chỉnh hoạt động.',
           ),
         ),
       );
@@ -493,6 +480,12 @@ class _ManualPlannerScreenState extends State<ManualPlannerScreen> {
         planner.state == ManualPlannerState.conflict) {
       return;
     }
+    if (widget.accountSaveOnly && !planner.isAccount) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Đăng nhập để lưu chuyến đi vào tài khoản.')),
+      );
+      return;
+    }
     final preview = planner.previewSave();
     EditableValidationIssue? resolution;
     await _route<void>(
@@ -704,7 +697,6 @@ class _EditorSections extends StatelessWidget {
                           _EditorHeader(
                             planner: planner,
                             onInput: screen._input,
-                            onMap: () => run(screen._map),
                             onAiHelp: screen._aiHelp,
                             supportsAi: screen.supportsAi,
                           ),
@@ -718,7 +710,6 @@ class _EditorSections extends StatelessWidget {
                         header: _EditorHeader(
                           planner: planner,
                           onInput: screen._input,
-                          onMap: () => run(screen._map),
                           onAiHelp: screen._aiHelp,
                           supportsAi: screen.supportsAi,
                         ),
@@ -729,7 +720,6 @@ class _EditorSections extends StatelessWidget {
                   header: _EditorHeader(
                     planner: planner,
                     onInput: screen._input,
-                    onMap: () => run(screen._map),
                     onAiHelp: screen._aiHelp,
                     supportsAi: screen.supportsAi,
                   ),
@@ -801,13 +791,11 @@ class _EditorModes extends StatelessWidget {
 class _EditorHeader extends StatelessWidget {
   final ManualPlannerProvider planner;
   final VoidCallback onInput;
-  final VoidCallback? onMap;
   final VoidCallback? onAiHelp;
   final bool supportsAi;
   const _EditorHeader({
     required this.planner,
     required this.onInput,
-    this.onMap,
     this.onAiHelp,
     this.supportsAi = false,
   });
@@ -877,12 +865,6 @@ class _EditorHeader extends StatelessWidget {
                 onPressed: planner.isEditable ? onInput : null,
                 child: const Text('Sửa thông tin'),
               ),
-              if (onMap != null)
-                TextButton.icon(
-                  onPressed: onMap,
-                  icon: const Icon(Icons.map_outlined),
-                  label: const Text('Bản đồ ngày này'),
-                ),
               if (onAiHelp != null)
                 TextButton.icon(
                   onPressed: supportsAi ? onAiHelp : null,

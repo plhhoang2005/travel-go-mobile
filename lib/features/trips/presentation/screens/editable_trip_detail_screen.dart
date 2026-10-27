@@ -200,6 +200,7 @@ class _EditableTripDetailScreenState extends State<EditableTripDetailScreen> {
         context,
         MaterialPageRoute(
           builder: (_) => ManualPlannerScreen(
+            accountSaveOnly: true,
             planner: bundle.planner,
             destinations: catalogue.destinations,
             snapshot: snapshot,
@@ -753,6 +754,7 @@ class _LegacyTripCopyScreenState extends State<LegacyTripCopyScreen> {
         context,
         MaterialPageRoute(
           builder: (_) => ManualPlannerScreen(
+            accountSaveOnly: true,
             planner: bundle.planner,
             destinations: _catalogue!.destinations,
             snapshot: _snapshot,

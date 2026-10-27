@@ -329,9 +329,25 @@ void main() {
     'Guest list opens exact V2 draft without account write or V1 decoding',
     (tester) async {
       await withDraftUi(tester, (ctx, auth, trips, runtime) async {
+        // In C1: guest import banner is removed from MyTripsScreen
         await pumpDraftUi(tester, const MyTripsScreen(), auth, trips, runtime);
+        expect(find.text('Bản nháp tự lập trên máy'), findsNothing);
+        expect(find.text('Mở bản nháp tự lập'), findsNothing);
+
+        // Verify standalone EditableGuestDraftList module retained until C2
+        final bundle = await runtime.getResources();
+        await bundle.drafts.load();
+        final source = bundle.drafts.drafts.last;
+        await pumpDraftUi(
+          tester,
+          const Scaffold(
+            body: EditableGuestDraftList(fallback: SizedBox.shrink()),
+          ),
+          auth,
+          trips,
+          runtime,
+        );
         expect(find.text('Bản nháp tự lập trên máy'), findsOneWidget);
-        final source = (await runtime.getResources()).drafts.drafts.last;
         await tapText(tester, 'Mở bản nháp tự lập');
         for (
           var i = 0;

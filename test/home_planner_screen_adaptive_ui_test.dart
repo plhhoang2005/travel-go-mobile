@@ -3,13 +3,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:travelgo_mobile/core/theme/app_theme.dart';
 import 'package:travelgo_mobile/features/trip_planner/presentation/screens/home_planner_screen.dart';
-import 'package:travelgo_mobile/features/trip_planner/providers/trip_provider.dart';
+import 'package:travelgo_mobile/features/trip_planner/providers/planner_input_provider.dart';
 
 void main() {
-  Widget buildTestScreen(TripProvider provider) {
+  Widget buildTestScreen(PlannerInputProvider provider) {
     return MaterialApp(
       theme: AppTheme.lightTheme,
-      home: ChangeNotifierProvider<TripProvider>.value(
+      home: ChangeNotifierProvider<PlannerInputProvider>.value(
         value: provider,
         child: const HomePlannerScreen(),
       ),
@@ -18,7 +18,7 @@ void main() {
 
   group('HomePlannerScreen - Adaptive UI Controls', () {
     testWidgets('renders Origin quick chips and updates origin', (tester) async {
-      final provider = TripProvider();
+      final provider = PlannerInputProvider();
       addTearDown(provider.dispose);
 
       await tester.pumpWidget(buildTestScreen(provider));
@@ -35,7 +35,7 @@ void main() {
     });
 
     testWidgets('renders Companion Type choice chips and updates companionType', (tester) async {
-      final provider = TripProvider();
+      final provider = PlannerInputProvider();
       addTearDown(provider.dispose);
 
       await tester.pumpWidget(buildTestScreen(provider));
@@ -52,7 +52,7 @@ void main() {
     });
 
     testWidgets('allows adding custom interest chip', (tester) async {
-      final provider = TripProvider();
+      final provider = PlannerInputProvider();
       addTearDown(provider.dispose);
 
       await tester.pumpWidget(buildTestScreen(provider));
@@ -79,7 +79,7 @@ void main() {
     });
 
     testWidgets('enables submit button when destination is selected', (tester) async {
-      final provider = TripProvider();
+      final provider = PlannerInputProvider();
       addTearDown(provider.dispose);
 
       provider.prepareDestinationWorkspace(
@@ -92,7 +92,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Button should be ENABLED and labeled with destination name
-      final submitBtn = find.widgetWithText(ElevatedButton, 'Xem gợi ý cho Nha Trang');
+      final submitBtn = find.widgetWithText(ElevatedButton, 'Lập lịch trình cho Nha Trang');
       expect(submitBtn, findsOneWidget);
 
       final buttonWidget = tester.widget<ElevatedButton>(submitBtn);

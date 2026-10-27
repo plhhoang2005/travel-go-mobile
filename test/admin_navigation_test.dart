@@ -9,8 +9,11 @@ import 'package:travelgo_mobile/features/auth/models/user_model.dart';
 import 'package:travelgo_mobile/features/auth/providers/auth_provider.dart';
 import 'package:travelgo_mobile/features/profile/presentation/screens/profile_screen.dart';
 
+import 'coursework_admin_account_flow_test.dart' show CourseworkAdminAuth;
+
 class FakeNavAdminService implements AdminAccountService {
   bool allowAccess = true;
+  List<UserSummary> items = [];
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -24,7 +27,7 @@ class FakeNavAdminService implements AdminAccountService {
       );
     }
     return const AdminAccess(
-      subjectId: 'admin-subject',
+      subjectId: 'admin-1',
       role: 'admin',
       accountRevision: 1,
       allowed: true,
@@ -58,8 +61,14 @@ class FakeNavAdminService implements AdminAccountService {
     String? state,
     UserCursor? cursor,
   }) async {
-    return const UserPage(items: [], nextCursor: null);
+    return UserPage(items: items, nextCursor: null);
   }
+
+  @override
+  Future<UserDetail> getUser(String targetId) async => UserDetail(
+    summary: items.singleWhere((item) => item.id == targetId),
+    audit: const [],
+  );
 }
 
 Widget _wrapWithAuth({
@@ -71,11 +80,11 @@ Widget _wrapWithAuth({
     providers: [
       ChangeNotifierProvider<AuthProvider>.value(value: auth),
       if (adminProvider != null)
-        ChangeNotifierProvider<AdminAccountProvider>.value(value: adminProvider),
+        ChangeNotifierProvider<AdminAccountProvider>.value(
+          value: adminProvider,
+        ),
     ],
-    child: MaterialApp(
-      home: child,
-    ),
+    child: MaterialApp(home: child),
   );
 }
 
@@ -101,72 +110,131 @@ void main() {
   });
 
   group('Admin Navigation & Gatekeeper Tests (Task F3)', () {
-    testWidgets('demo_badge_cannot_enter_admin: Guest, customer, demo cannot see Quản trị entry', (tester) async {
-      // 1. Guest mode: Quản trị tile MUST NOT be visible
-      authProvider.continueAsGuest();
-      await tester.pumpWidget(_wrapWithAuth(
-        child: const CustomerProfileScreen(),
-        auth: authProvider,
-        adminProvider: adminProvider,
-      ));
-      await tester.pumpAndSettle();
-      expect(find.text('Quản trị'), findsNothing);
+    testWidgets(
+      'shell scoped provider follows user detail route without a global admin provider',
+      (tester) async {
+        adminProvider.dispose();
+        authProvider.dispose();
+        authProvider = CourseworkAdminAuth();
+        adminProvider = AdminAccountProvider(
+          service: fakeService,
+          authProvider: authProvider,
+        );
+        fakeService.items = [
+          UserSummary(
+            id: 'target',
+            fullName: 'Target route',
+            email: 'target@example.invalid',
+            role: 'customer',
+            state: 'enabled',
+            revision: 1,
+            createdAt: DateTime.utc(2026),
+            authSynced: true,
+          ),
+        ];
+        await tester.pumpWidget(
+          _wrapWithAuth(
+            child: AdminShellScreen(provider: adminProvider),
+            auth: authProvider,
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Target route'));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        expect(find.text('Chi tiết người dùng'), findsOneWidget);
+        expect(find.text('target@example.invalid'), findsOneWidget);
+      },
+    );
+    testWidgets(
+      'demo_badge_cannot_enter_admin: Guest, customer, demo cannot see Quản trị entry',
+      (tester) async {
+        // 1. Guest mode: Quản trị tile MUST NOT be visible
+        authProvider.continueAsGuest();
+        await tester.pumpWidget(
+          _wrapWithAuth(
+            child: const CustomerProfileScreen(),
+            auth: authProvider,
+            adminProvider: adminProvider,
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Quản trị'), findsNothing);
 
-      // 2. Demo session with admin badge: demo session MUST NOT display Quản trị entry
-      final demoLogin = authProvider.quickDemoLogin(UserRole.admin);
-      await tester.pump(const Duration(milliseconds: 200));
-      await demoLogin;
-      await tester.pumpWidget(_wrapWithAuth(
-        child: const CustomerProfileScreen(),
-        auth: authProvider,
-        adminProvider: adminProvider,
-      ));
-      await tester.pumpAndSettle();
-      expect(find.text('Quản trị'), findsNothing);
-    });
+        // 2. Demo session with admin badge: demo session MUST NOT display Quản trị entry
+        final demoLogin = authProvider.quickDemoLogin(UserRole.admin);
+        await tester.pump(const Duration(milliseconds: 200));
+        await demoLogin;
+        await tester.pumpWidget(
+          _wrapWithAuth(
+            child: const CustomerProfileScreen(),
+            auth: authProvider,
+            adminProvider: adminProvider,
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Quản trị'), findsNothing);
+      },
+    );
 
-    testWidgets('direct_route_to_admin_shell_denies_access_when_server_refuses', (tester) async {
-      fakeService.allowAccess = false; // Server denies access
+    testWidgets(
+      'direct_route_to_admin_shell_denies_access_when_server_refuses',
+      (tester) async {
+        fakeService.allowAccess = false; // Server denies access
 
-      await tester.pumpWidget(_wrapWithAuth(
-        child: AdminShellScreen(provider: adminProvider),
-        auth: authProvider,
-        adminProvider: adminProvider,
-      ));
-      await tester.pumpAndSettle();
+        await tester.pumpWidget(
+          _wrapWithAuth(
+            child: AdminShellScreen(provider: adminProvider),
+            auth: authProvider,
+            adminProvider: adminProvider,
+          ),
+        );
+        await tester.pumpAndSettle();
 
-      // Access denied UI is rendered
-      expect(find.text('Truy cập bị từ chối'), findsOneWidget);
-      expect(find.text('Quay lại'), findsOneWidget);
-      expect(adminProvider.hasAdminAccess, isFalse);
-      expect(adminProvider.users, isEmpty);
-    });
+        // Access denied UI is rendered
+        expect(find.text('Truy cập bị từ chối'), findsOneWidget);
+        expect(find.text('Quay lại'), findsOneWidget);
+        expect(adminProvider.hasAdminAccess, isFalse);
+        expect(adminProvider.users, isEmpty);
+      },
+    );
 
-    testWidgets('verified_admin_enters_shell_and_back_pops_route', (tester) async {
+    testWidgets('verified_admin_enters_shell_and_back_pops_route', (
+      tester,
+    ) async {
+      adminProvider.dispose();
+      authProvider.dispose();
+      authProvider = CourseworkAdminAuth();
+      adminProvider = AdminAccountProvider(
+        service: fakeService,
+        authProvider: authProvider,
+      );
       fakeService.allowAccess = true;
 
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: Builder(
-            builder: (context) {
-              return ElevatedButton(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => _wrapWithAuth(
-                        child: AdminShellScreen(provider: adminProvider),
-                        auth: authProvider,
-                        adminProvider: adminProvider,
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) {
+                return ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => _wrapWithAuth(
+                          child: AdminShellScreen(provider: adminProvider),
+                          auth: authProvider,
+                          adminProvider: adminProvider,
+                        ),
                       ),
-                    ),
-                  );
-                },
-                child: const Text('Open Admin'),
-              );
-            },
+                    );
+                  },
+                  child: const Text('Open Admin'),
+                );
+              },
+            ),
           ),
         ),
-      ));
+      );
       await tester.pumpAndSettle();
 
       // Tap to open admin
@@ -175,7 +243,7 @@ void main() {
 
       // Verified admin accesses shell
       expect(adminProvider.hasAdminAccess, isTrue);
-      expect(find.text('Tổng quan hệ thống'), findsOneWidget);
+      expect(find.text('Quản lý người dùng'), findsOneWidget);
 
       // Tap back button
       final backButton = find.byTooltip('Quay lại');
@@ -186,18 +254,30 @@ void main() {
       }
     });
 
-    testWidgets('verified_admin_navigates_across_all_four_shell_sections', (tester) async {
+    testWidgets('verified_admin_navigates_across_three_coursework_sections', (
+      tester,
+    ) async {
+      adminProvider.dispose();
+      authProvider.dispose();
+      authProvider = CourseworkAdminAuth();
+      adminProvider = AdminAccountProvider(
+        service: fakeService,
+        authProvider: authProvider,
+      );
       fakeService.allowAccess = true;
 
-      await tester.pumpWidget(_wrapWithAuth(
-        child: AdminShellScreen(provider: adminProvider),
-        auth: authProvider,
-        adminProvider: adminProvider,
-      ));
+      await tester.pumpWidget(
+        _wrapWithAuth(
+          child: AdminShellScreen(provider: adminProvider),
+          auth: authProvider,
+          adminProvider: adminProvider,
+        ),
+      );
       await tester.pumpAndSettle();
 
-      // Tab 0: Tổng quan
-      expect(find.text('Tổng quan hệ thống'), findsOneWidget);
+      // User management is the entry point; overview is outside coursework scope.
+      expect(find.text('Quản lý người dùng'), findsOneWidget);
+      expect(find.text('Tổng quan'), findsNothing);
 
       // Tab 1: Người dùng
       await tester.tap(find.text('Người dùng'));

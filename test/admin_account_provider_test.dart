@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:travelgo_mobile/features/admin/models/admin_account_models.dart';
 import 'package:travelgo_mobile/features/admin/providers/admin_account_provider.dart';
@@ -12,6 +13,7 @@ class FakeAdminAccountService implements AdminAccountService {
   Completer<AccountOperation>? mutateCompleter;
 
   final List<String> sentMutationRequestIds = [];
+  int readRevision = 1;
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -66,7 +68,7 @@ class FakeAdminAccountService implements AdminAccountService {
         email: '$targetId@example.com',
         role: 'customer',
         state: 'enabled',
-        revision: 1,
+        revision: readRevision,
         createdAt: DateTime.parse('2026-10-23T10:00:00Z'),
         lastSignInAt: null,
         authSynced: true,
@@ -85,7 +87,9 @@ class FakeAdminAccountService implements AdminAccountService {
   }) async {
     sentMutationRequestIds.add(requestId);
     if (mutateCompleter != null) {
-      return mutateCompleter!.future;
+      final operation = await mutateCompleter!.future;
+      readRevision = operation.targetRevision;
+      return operation;
     }
     return AccountOperation(
       id: 'op-1',
@@ -136,22 +140,24 @@ void main() {
       expect(provider.hasAdminAccess, isFalse);
 
       // 3. Resolve the held response now
-      fakeService.listUsersCompleter!.complete(UserPage(
-        items: [
-          UserSummary(
-            id: 'late-user-1',
-            fullName: 'Late User',
-            email: 'late@example.com',
-            role: 'customer',
-            state: 'enabled',
-            revision: 1,
-            createdAt: DateTime.parse('2026-10-23T10:00:00Z'),
-            lastSignInAt: null,
-            authSynced: true,
-          ),
-        ],
-        nextCursor: null,
-      ));
+      fakeService.listUsersCompleter!.complete(
+        UserPage(
+          items: [
+            UserSummary(
+              id: 'late-user-1',
+              fullName: 'Late User',
+              email: 'late@example.com',
+              role: 'customer',
+              state: 'enabled',
+              revision: 1,
+              createdAt: DateTime.parse('2026-10-23T10:00:00Z'),
+              lastSignInAt: null,
+              authSynced: true,
+            ),
+          ],
+          nextCursor: null,
+        ),
+      );
       await loadFuture;
 
       // Invariant: provider.users must REMAIN empty after resolving held response (late response discarded)
@@ -171,40 +177,44 @@ void main() {
       final futureB = provider.selectUser('user-B');
 
       // Now complete A first
-      compA.complete(UserDetail(
-        summary: UserSummary(
-          id: 'user-A',
-          fullName: 'User A',
-          email: 'a@example.com',
-          role: 'customer',
-          state: 'enabled',
-          revision: 1,
-          createdAt: DateTime.parse('2026-10-23T10:00:00Z'),
-          lastSignInAt: null,
-          authSynced: true,
+      compA.complete(
+        UserDetail(
+          summary: UserSummary(
+            id: 'user-A',
+            fullName: 'User A',
+            email: 'a@example.com',
+            role: 'customer',
+            state: 'enabled',
+            revision: 1,
+            createdAt: DateTime.parse('2026-10-23T10:00:00Z'),
+            lastSignInAt: null,
+            authSynced: true,
+          ),
+          audit: const [],
         ),
-        audit: const [],
-      ));
+      );
       await futureA;
 
       // Assert user A did NOT overwrite the current selection
       expect(provider.selectedUser, isNull);
 
       // Now complete B
-      compB.complete(UserDetail(
-        summary: UserSummary(
-          id: 'user-B',
-          fullName: 'User B',
-          email: 'b@example.com',
-          role: 'customer',
-          state: 'enabled',
-          revision: 1,
-          createdAt: DateTime.parse('2026-10-23T10:00:00Z'),
-          lastSignInAt: null,
-          authSynced: true,
+      compB.complete(
+        UserDetail(
+          summary: UserSummary(
+            id: 'user-B',
+            fullName: 'User B',
+            email: 'b@example.com',
+            role: 'customer',
+            state: 'enabled',
+            revision: 1,
+            createdAt: DateTime.parse('2026-10-23T10:00:00Z'),
+            lastSignInAt: null,
+            authSynced: true,
+          ),
+          audit: const [],
         ),
-        audit: const [],
-      ));
+      );
       await futureB;
 
       // User B is selected
@@ -214,11 +224,13 @@ void main() {
     test('retry_same_action_asserts_sentIds_toSet_length_is_1', () async {
       // First attempt fails with uncertain outcome or 503
       fakeService.mutateCompleter = Completer<AccountOperation>()
-        ..completeError(const AdminFailure(
-          code: 'upstream_unavailable',
-          outcomeUncertain: true,
-          message: 'Server timeout',
-        ));
+        ..completeError(
+          const AdminFailure(
+            code: 'upstream_unavailable',
+            outcomeUncertain: true,
+            message: 'Server timeout',
+          ),
+        );
 
       final firstSuccess = await provider.confirmMutation(
         targetId: 'target-1',
@@ -232,14 +244,16 @@ void main() {
 
       // Now retry the operation
       fakeService.mutateCompleter = Completer<AccountOperation>()
-        ..complete(const AccountOperation(
-          id: 'op-1',
-          targetId: 'target-1',
-          action: 'lock',
-          state: 'completed',
-          targetRevision: 3,
-          authSynced: true,
-        ));
+        ..complete(
+          const AccountOperation(
+            id: 'op-1',
+            targetId: 'target-1',
+            action: 'lock',
+            state: 'completed',
+            targetRevision: 3,
+            authSynced: true,
+          ),
+        );
 
       final retrySuccess = await provider.retryOperation();
       expect(retrySuccess, isTrue);

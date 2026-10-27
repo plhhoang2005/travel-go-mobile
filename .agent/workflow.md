@@ -1,4 +1,8 @@
-﻿# WORKFLOW 窶・TRAVELGO MOBILE (FLUTTER)
+> **Quyết định owner 24/10/2026 — phạm vi sản phẩm hiện hành:** Đọc [product-scope.md](product-scope.md) trước khi lập kế hoạch/code/review. TravelGO là đồ án app lập kế hoạch du lịch + AI tạo lịch, tư vấn và đề xuất sửa hoạt động; mọi thay đổi AI có preview/hủy/xác nhận. Giữ auth/OTP/recovery, tài khoản, khám phá, lịch thủ công, chuyến đi theo tài khoản, ngân sách và admin user/địa điểm. Giữ AI assistant cho tư vấn chuyến đi/đề xuất sửa hoạt động, không chatbot tổng quát. Loại bản đồ/định vị, dashboard Decision Intelligence, yêu thích và tiện ích ngoài scope. Những yêu cầu sản phẩm/ADR/roadmap cũ mâu thuẫn dưới đây là lịch sử, không được dùng để tái thêm chức năng bị loại. Các quy tắc an toàn dữ liệu, kiểm quyền, approval và bàn giao không mâu thuẫn vẫn giữ. Việc cập nhật tài liệu chưa xóa code hoặc chứng nhận demo ổn định.
+
+> **Thiết kế trợ lý AI hiện hành:** Đọc [ai-planner-design.md](ai-planner-design.md). Gemini qua backend, ưu tiên RAG catalogue; thiếu thì người dùng chọn tìm web có dẫn nguồn (Google Search Grounding), nhãn chưa được Admin kiểm duyệt, không tự nhập catalogue chung; kiểm tra kết quả bằng code, thay đổi lịch phải qua preview/hủy/xác nhận. Tái sử dụng code hiện có; không tự thêm vector database hoặc chatbot tổng quát.
+
+# WORKFLOW 窶・TRAVELGO MOBILE (FLUTTER)
 
 Quy trﾃｬnh v蘯ｭn hﾃnh tiﾃｪu chu蘯ｩn (SOP) cho **Autonomous AI Coding Pipeline (Level 2.8)** trﾃｪn 盻ｩng d盻･ng di ﾄ黛ｻ冢g TravelGO Flutter, tﾃｭch h盻｣p **Prompt Gatekeeper**, **Workflow Budget Guard**, **Bounded Retry**, **Git Automation**, vﾃ **Final Quality Gate**.
 
@@ -241,7 +245,7 @@ Nguyên tắc: **xóa dữ liệu cũ đang có và ngăn dữ liệu cũ quay l
 <a id="session-context-workflow"></a>
 ## 8. Khởi đầu và bàn giao khi đổi session/project
 
-1. Đọc AGENTS.md và rules trước khi route skill. Mặc định superpowers OFF; chỉ kích hoạt khi owner yêu cầu rõ ràng cho task hiện tại. Không kế thừa quyền dùng superpowers từ session/task cũ.
+1. Đọc AGENTS.md và rules trước khi route skill. Chỉ thị thường trực owner 25/10/2026: khi Antigravity code, dùng Superpowers phù hợp; Codex luôn ghi yêu cầu đó trong prompt/handoff coding cho Antigravity, không hỏi lại quyền dùng skill. Với Codex và công việc khác, mặc định OFF trừ khi owner yêu cầu rõ ràng cho task hiện tại. Không kế thừa lời gọi cũ ngoài chỉ thị thường trực này; giữ scope/approval hiện có.
 2. Xác minh repo/checkout, branch, actual HEAD và dirty files; đọc tài liệu phase, kế hoạch thực thi, báo cáo review/bàn giao mới nhất có sẵn. Cùng tên project không chứng minh cùng checkout hoặc đầy đủ lịch sử.
 3. Không giả định session mới nhớ toàn bộ transcript hoặc truy cập được đường dẫn local. Nếu file bàn giao chưa có trong project/context, yêu cầu nội dung cần thiết; tiếp tục các kiểm tra độc lập có thể làm.
 4. Phân biệt sự kiện đã kiểm chứng, thông tin author-reported, đề xuất chưa làm và blockers. Kiểm tra head PR hiện tại; review head cũ không tự phê duyệt head mới.

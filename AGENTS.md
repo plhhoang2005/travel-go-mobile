@@ -1,47 +1,44 @@
-﻿# AGENTS.md 窶・TravelGO Mobile Autonomous Agent Constitution & Guidelines
+# AGENTS.md 窶・TravelGO Mobile Autonomous Agent Constitution & Guidelines
 
 <a id="explicit-superpowers-policy"></a>
 ## Quy tắc owner: superpowers chỉ khi được yêu cầu
 
-Mặc định không sử dụng superpowers. Chỉ đọc/invoke các skill thuộc superpowers khi owner yêu cầu rõ ràng cho task hiện tại. Không tự kích hoạt vì task là debugging, planning, review, coding hoặc bắt đầu session; lời gọi trước đây không tự cấp quyền cho task/session tiếp theo. Không dùng superpowers gián tiếp qua agent hay workflow. Thực hiện công việc bình thường bằng code, tài liệu và tools phù hợp khi không được yêu cầu dùng superpowers.
+**Cập nhật owner 25/10/2026:** Khi Antigravity triển khai code, luôn yêu cầu và sử dụng Superpowers phù hợp với task. Đây là chỉ thị thường trực cho các task coding của Antigravity, gồm C3 và các lần giao code tiếp theo, cho tới khi owner thay đổi. Codex phải ghi yêu cầu này trong prompt/handoff giao Antigravity code; không cần hỏi lại quyền dùng skill.
+
+Với Codex và các công việc ngoài coding của Antigravity, mặc định không sử dụng Superpowers; chỉ đọc/invoke khi owner yêu cầu rõ ràng cho task hiện tại. Không tự kích hoạt từ mô tả skill hoặc lời gọi cũ ngoài chỉ thị thường trực nêu trên. Thực hiện công việc bình thường bằng code, tài liệu và tools phù hợp khi không được yêu cầu dùng Superpowers.
 
 Đọc [rules](.agent/rules.md#explicit-superpowers-rule) và [workflow](.agent/workflow.md#session-context-workflow) để xử lý yêu cầu skill và bàn giao session. Quy tắc này áp dụng cho Codex và Antigravity, không tắt các skill khác cần thiết và không thêm approval gate cho công việc đã được giao.
 
 
-## 1. Project Context & Vision
-- **Project Name**: TravelGO Mobile (Smart Travel & Mobility Decision Intelligence System for Android/iOS)
-- **Tech Stack**: Flutter 3.x, Dart 3.x, Provider, Dio, fl_chart, flutter_animate, flutter_lints.
-- **Scope**: Production-Ready Mobile Client within the TravelGO Decision Intelligence ecosystem.
-- **Core Value Proposition**: Tr盻｣ lﾃｽ di ﾄ黛ｻ冢g h盻・tr盻｣ ra quy蘯ｿt ﾄ黛ｻ杵h du l盻議h thﾃｴng minh ("ﾄ進 ﾄ妥｢u? ﾄ進 b蘯ｱng gﾃｬ? L盻議h trﾃｬnh th蘯ｿ nﾃo? Phﾃ｢n b盻・ngﾃ｢n sﾃ｡ch ra sao?") d盻ｱa trﾃｪn cﾃ｡c mﾃｴ hﾃｬnh toﾃ｡n h盻皇 t蘯･t ﾄ黛ｻ杵h (MCDA, Pareto, Greedy) k蘯ｿt h盻｣p Dashboard tﾆｰﾆ｡ng tﾃ｡c di ﾄ黛ｻ冢g tr盻ｱc quan vﾃ t蘯ｧng thuy蘯ｿt minh AI minh b蘯｡ch.
-- **Target Persona**: Minh (25 tu盻品, nhﾃ｢n viﾃｪn CNTT t蘯｡i TP.HCM, ngﾃ｢n sﾃ｡ch 3-5 tri盻㎡ VNﾄ・ngﾆｰ盻拱, chuy蘯ｿn ﾄ訴 2-4 ngﾃy v盻嬖 nhﾃｳm b蘯｡n/gia ﾄ妥ｬnh).
+## 1. Phạm vi sản phẩm hiện hành — owner chốt ngày 24/10/2026
 
----
+TravelGO là đồ án môn học ứng dụng di động: app thiết kế kế hoạch du lịch, có AI tạo lịch trình, tư vấn và đề xuất sửa hoạt động. Không đặt mục tiêu nền tảng Decision Intelligence hoặc sản phẩm quy mô doanh nghiệp.
 
-## 2. Five Immutable Architecture Laws (5 Lu蘯ｭt B蘯･t Bi蘯ｿn cho Mobile)
+**Bắt buộc đọc [phạm vi hiện hành](.agent/product-scope.md) trước khi lập kế hoạch, code hoặc review.** Tài liệu này quy định chức năng giữ lại, loại bỏ, hiện trạng có bằng chứng và tiêu chí nghiệm thu. Quyết định owner này thay thế các yêu cầu sản phẩm cũ mâu thuẫn trong rules, knowledge, workflow, skill dự án và roadmap/báo cáo lịch sử. Báo cáo cũ vẫn là bằng chứng tại phiên bản được ghi, không phải yêu cầu tiếp tục mở rộng.
 
-### 圷 Law 1 窶・Avoid the Chatbot Trap (Trﾃ｡nh B蘯ｫy Chatbot)
-- 盻ｨng d盻･ng di ﾄ黛ｻ冢g **tuy盻㏄ ﾄ黛ｻ訴 khﾃｴng ph蘯｣i lﾃ chatbot h盻淑-ﾄ妥｡p vﾄハ b蘯｣n ﾄ柁｡n thu蘯ｧn**.
-- Tr蘯｣i nghi盻㍊ c盻奏 lﾃｵi lﾃ **Interactive Mobile Dashboard**:
-  - Giao di盻㌻ g盻杜 thanh trﾆｰ盻｣t c蘯･u hﾃｬnh tr盻肱g s盻・& ngﾃ｢n sﾃ｡ch ([`home_planner_screen.dart`](file:///d:/Travel-Go-Android/travel-go/lib/features/trip_planner/presentation/screens/home_planner_screen.dart)).
-  - Th蘯ｻ ﾄ訴盻ノ s盻・& bi盻ブ ﾄ黛ｻ・ﾄ妥｡nh ﾄ黛ｻ品 ﾄ疎 m盻･c tiﾃｪu Pareto b蘯ｱng **`fl_chart`** ([`pareto_chart_widget.dart`](file:///d:/Travel-Go-Android/travel-go/lib/features/trip_planner/presentation/widgets/pareto_chart_widget.dart)).
-  - Bi盻ブ ﾄ黛ｻ・trﾃｲn phﾃ｢n b盻・ngﾃ｢n sﾃ｡ch b蘯ｱng **`fl_chart`** ([`budget_donut_chart.dart`](file:///d:/Travel-Go-Android/travel-go/lib/features/trip_planner/presentation/widgets/budget_donut_chart.dart)).
-  - Timeline l盻議h trﾃｬnh tr盻ｱc quan theo t盻ｫng ngﾃy ([`itinerary_timeline_widget.dart`](file:///d:/Travel-Go-Android/travel-go/lib/features/trip_planner/presentation/widgets/itinerary_timeline_widget.dart)).
-- T蘯ｧng thuy蘯ｿt minh AI (LLM Explainer) ch盻・ﾄ妥ｳng vai trﾃｲ ph盻･ tr盻｣ tﾃｳm t蘯ｯt lﾃｽ do.
+**Thiết kế AI đã chốt:** đọc [Trợ lý lập lịch trình AI](.agent/ai-planner-design.md): Gemini + truy xuất catalogue có cấu trúc (RAG đơn giản); thiếu dữ liệu thì người dùng chọn tìm web có dẫn chứng qua Google Search Grounding + validation bằng code + preview/hủy/xác nhận; tái sử dụng pipeline hiện có.
 
-### 識 Law 2 窶・Backend Single Source of Truth for Decision Logic
-- Toﾃn b盻・logic tﾃｭnh toﾃ｡n ﾄ訴盻ノ s盻・(MCDA), l盻皇 phﾆｰﾆ｡ng ti盻㌻ t盻訴 ﾆｰu (Pareto), s蘯ｯp x蘯ｿp l盻議h trﾃｬnh (Greedy), vﾃ mﾃｴ ph盻熟g ﾄ黛ｻ・nh蘯｡y ngﾃ｢n sﾃ｡ch (Sensitivity) lﾃ trﾃ｡ch nhi盻㍊ c盻ｧa Decision Engine.
-- 盻ｨng d盻･ng Flutter ﾄ妥ｳng vai trﾃｲ client nh蘯ｭn DTO t盻ｫ Backend qua REST API (`/api/v1/plan-trip`) vﾃ hi盻ハ th盻・lﾃｪn giao di盻㌻.
-- Tuy盻㏄ ﾄ黛ｻ訴 khﾃｴng t盻ｱ ﾃｽ tﾃｭnh toﾃ｡n l蘯｡i cﾃ｡c cﾃｴng th盻ｩc toﾃ｡n h盻皇 n蘯ｷng ho蘯ｷc lﾃm sai l盻㌘h k蘯ｿt qu蘯｣ x蘯ｿp h蘯｡ng DTO t蘯｡i t蘯ｧng UI mobile.
+Stack hiện có: Flutter/Dart, Provider, Dio và backend hiện có. Tái sử dụng code phù hợp; không đổi kiến trúc hoặc thêm dependency chỉ để thu gọn scope.
 
-### 孱・・Law 3 窶・Zero Silent Fallbacks & Data Transparency (Minh B蘯｡ch D盻ｯ Li盻㎡ Ngo蘯｡i Tuy蘯ｿn)
-- Khi k蘯ｿt n盻訴 Backend g蘯ｷp l盻擁 (m蘯･t m蘯｡ng, server down, timeout):
-  - Ph蘯｣i b蘯ｯt `DioException` an toﾃn vﾃ tr蘯｣ v盻・d盻ｯ li盻㎡ fallback d盻ｱ phﾃｲng ([`trip_api_service.dart`](file:///d:/Travel-Go-Android/travel-go/lib/features/trip_planner/services/trip_api_service.dart)).
-  - B蘯ｯt bu盻冂 g蘯ｯn c盻・minh b蘯｡ch `isFallback: true` trong DTO.
-  - UI Flutter b蘯ｯt bu盻冂 hi盻ハ th盻・nhﾃ｣n `[FALLBACK]` ho蘯ｷc `[D盻ｯ li盻㎡ ngo蘯｡i tuy蘯ｿn]` mﾃu cam/ﾄ黛ｻ・n盻品 b蘯ｭt ﾄ黛ｻ・ngﾆｰ盻拱 dﾃｹng nh蘯ｭn bi蘯ｿt rﾃｵ rﾃng. C蘯･m ﾃ｢m th蘯ｧm hi盻ハ th盻・d盻ｯ li盻㎡ gi蘯｣ ﾄ黛ｻ杵h mﾃ khﾃｴng bﾃ｡o cho ngﾆｰ盻拱 dﾃｹng.
+## 2. Các nguyên tắc kiến trúc hiện hành
 
-### 笞呻ｸ・Law 4 窶・Non-Blocking & Asynchronous UI Rendering
-- T蘯ｧng sinh l盻拱 gi蘯｣i thﾃｭch b蘯ｱng AI (ho蘯ｷc cﾃ｡c tﾃ｡c v盻･ m蘯｡ng ch蘯ｭm) khﾃｴng bao gi盻・ﾄ柁ｰ盻｣c phﾃｩp lﾃm ﾄ柁｡ gi蘯ｭt UI (ch蘯ｷn Main Thread / UI Thread c盻ｧa Flutter).
-- S盻ｭ d盻･ng ﾄ妥ｺng lu盻渡g b蘯･t ﾄ黛ｻ渡g b盻・(`async`/`await`), hi盻ハ th盻・`CircularProgressIndicator` ho蘯ｷc `Shimmer`, khﾃｴng ch蘯ｷn vi盻㌘ tﾆｰﾆ｡ng tﾃ｡c v盻嬖 cﾃ｡c thﾃnh ph蘯ｧn khﾃ｡c.
+### Law 1 — Luồng lập kế hoạch là trải nghiệm chính
+- Khám phá → tự lập lịch hoặc AI tạo đề xuất → xem trước → chỉnh sửa lịch/ngân sách → lưu theo tài khoản → mở lại.
+- AI trong scope gồm tạo lịch, tư vấn theo ngữ cảnh chuyến đi và đề xuất sửa hoạt động. Tư vấn không tự sửa dữ liệu; đề xuất sửa phải có preview/hủy/xác nhận. Không mở rộng thành chatbot tổng quát; dashboard MCDA/Pareto và bản đồ vẫn ngoài scope.
+
+### Law 2 — Quyền dữ liệu và trách nhiệm các lớp
+- Server kiểm quyền tài khoản/admin và dữ liệu lưu theo chủ sở hữu. Không đưa khóa bí mật hoặc quyền admin vào client.
+- UI/Provider/service giữ vai trò hiện có; cho phép tính tổng ngân sách và kiểm tra lịch hợp lệ bằng logic xác định, không cần Decision Engine.
+- AI gọi qua backend hiện có, truy xuất dữ liệu catalogue liên quan theo thiết kế RAG đơn giản; kết quả phải được kiểm tra trước preview và chỉ áp dụng khi người dùng xác nhận. Không xây vector database/framework RAG mới như điều kiện hoàn thành.
+
+### Law 3 — Dữ liệu và lỗi phải minh bạch
+- Không giả đăng nhập, OTP, lưu thành công hoặc kết quả AI. Lỗi mạng/AI phải được báo rõ, giữ nội dung người dùng đang sửa.
+- Nếu dùng cache/dữ liệu dự phòng có sẵn, ghi rõ nguồn/trạng thái cũ; không bắt buộc sinh lịch giả khi server lỗi.
+- Giá chưa xác minh không được coi là miễn phí; chi phí AI là tham khảo. Phân biệt ngân sách, dự kiến và đã chi.
+
+### Law 4 — UI bất đồng bộ, không mất dữ liệu
+- Có loading, trạng thái trống và cách thử lại phù hợp; không chặn thao tác độc lập.
+- Hủy preview AI giữ nguyên lịch; xác nhận mới áp dụng. Đổi tài khoản không để dữ liệu tài khoản trước xuất hiện lại.
 
 ### 白 Law 5 窶・Strict Permission & Human-in-the-Loop Gatekeeper (Stage-Gate Protocol)
 - **Quy Trﾃｬnh H盻｣p Tﾃ｡c 5 Bﾆｰ盻嫩 Chu蘯ｩn (Stage-Gate Approval Protocol)**: Trﾆｰ盻嫩 khi b蘯ｯt ﾄ黛ｺｧu tri盻ハ khai b蘯･t k盻ｳ ﾄ雪ｻ｣t phﾃ｡t tri盻ハ l盻嬾 nﾃo (Phase/ﾄ雪ｻ｣t), Agent b蘯ｯt bu盻冂 ph蘯｣i tuﾃ｢n th盻ｧ nghiﾃｪm ng蘯ｷt 5 bﾆｰ盻嫩:
@@ -108,6 +105,6 @@ M盻擁 khi hoﾃn thﾃnh m盻冲 nhi盻㍊ v盻･, Agent b蘯ｯt bu盻
 
 ## 7. Giải thích coding và review cho owner (bắt buộc)
 
-Owner muốn hiểu luồng hoạt động, cách giải quyết vấn đề và bằng chứng review; không cần học từng dòng code. Áp dụng sau mỗi lần Antigravity sửa và mỗi lần Codex review, kể cả review chưa đạt hoặc task bị chặn. Mặc định không sử dụng superpowers; chỉ sử dụng khi owner yêu cầu rõ ràng cho task hiện tại.
+Owner muốn hiểu luồng hoạt động, cách giải quyết vấn đề và bằng chứng review; không cần học từng dòng code. Áp dụng sau mỗi lần Antigravity sửa và mỗi lần Codex review, kể cả review chưa đạt hoặc task bị chặn. Áp dụng chính sách Superpowers ở đầu tài liệu: Antigravity coding dùng theo chỉ thị thường trực; Codex chỉ dùng khi được yêu cầu cho task hiện tại.
 
 Đọc và thực hiện [quy tắc giải thích](.agent/rules.md#owner-learning-rule) và [workflow giải thích](.agent/workflow.md#owner-learning-workflow). Antigravity giải thích phần mình sửa; Codex giải thích phần mình kiểm tra/tìm lỗi, phân biệt đã sửa với mới đề xuất. Đây là bổ sung cho handover hiện có, không thêm approval gate hoặc thay phạm vi triển khai.

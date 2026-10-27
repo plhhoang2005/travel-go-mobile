@@ -20,11 +20,13 @@ $script:runRoot = $null
 $script:logRoot = $null
 
 function Stop-PostgresInstance {
-    if ($script:dataRoot -and (Test-Path $script:dataRoot)) {
+    if ($script:dataRoot -and (Test-Path (Join-Path $script:dataRoot 'postmaster.pid'))) {
         if ($script:pgCtl -and (Test-Path $script:pgCtl)) {
-            try {
-                & $script:pgCtl -D $script:dataRoot -m immediate stop *> $null
-            } catch {}
+            $stopLog = Join-Path $script:runRoot 'stop.log'
+            & $script:pgCtl -D $script:dataRoot -m immediate -w stop *> $stopLog
+            if ($LASTEXITCODE -ne 0 -or (Test-Path (Join-Path $script:dataRoot 'postmaster.pid'))) {
+                throw "Owned PostgreSQL did not stop. See $stopLog"
+            }
         }
     }
     $script:pgStarted = $false
@@ -159,7 +161,8 @@ function Invoke-Sql {
                 $jsonCandidate = $trimmed.Substring($firstBrace, $lastBrace - $firstBrace + 1)
             }
             try {
-                $null = $jsonCandidate | ConvertFrom-Json
+                $parsedJson = $jsonCandidate | ConvertFrom-Json
+                if ($null -eq $parsedJson) { throw 'Expected a non-null JSON object.' }
                 [System.IO.File]::WriteAllText($OutputJsonPath, $jsonCandidate, [System.Text.Encoding]::UTF8)
             } catch {
                 throw "Invoke-Sql: $Label did not produce valid JSON for $OutputJsonPath. Output: $trimmed"
@@ -394,6 +397,11 @@ try {
 
         # 4.1 Dart targeted tests
         $accountDartTests = @(
+            'test/admin_account_provider_test.dart',
+            'test/admin_account_service_test.dart',
+            'test/admin_account_ui_test.dart',
+            'test/admin_navigation_test.dart',
+            'test/coursework_admin_account_flow_test.dart',
             'test/auth_role_security_test.dart',
             'test/auth_navigation_test.dart',
             'test/local_account_lifecycle_test.dart'
@@ -407,7 +415,7 @@ try {
         ) + $accountDartTests)
 
         # 4.2 Node Account contracts (run when created)
-        $accountNodeTests = @()
+        $accountNodeTests = @('test/coursework_admin_contract_test.mjs')
         if (Test-Path (Join-Path $repoRoot 'test/admin_account_gateway_test.mjs')) {
             $accountNodeTests += 'test/admin_account_gateway_test.mjs'
         }
@@ -497,6 +505,10 @@ GRANT ALL ON ALL TABLES IN SCHEMA auth TO anon,authenticated,service_role;
                 if (Test-Path (Join-Path $repoRoot 'supabase/tests/admin_account_surface_guards.sql')) {
                     Invoke-Sql 'admin_account_surface_guards.sql' -File (Join-Path $repoRoot 'supabase/tests/admin_account_surface_guards.sql') -Connection $conn
                 }
+                $c6Migration = Get-ChildItem -LiteralPath (Join-Path $repoRoot 'supabase/migrations') -Filter '*_coursework_admin_account_consistency.sql' | Select-Object -First 1
+                if ($c6Migration) { Invoke-Sql 'C6 account consistency migration' -File $c6Migration.FullName -Connection $conn }
+                Invoke-Sql 'coursework_admin_account_contract.sql' -File (Join-Path $repoRoot 'supabase/tests/coursework_admin_account_contract.sql') -Connection $conn -OutputJsonPath (Join-Path $script:runRoot 'coursework-admin-vectors.json')
+                Invoke-Check 'sql-shared-vectors' $nodeExecutable @('tool/check-coursework-admin-vectors.mjs', (Join-Path $script:runRoot 'coursework-admin-vectors.json'))
             } finally {
                 Stop-PostgresInstance
             }

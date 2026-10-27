@@ -102,7 +102,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                         child: Column(
                           children: [
                             const Text(
-                              'Đã đổi mật khẩu thành công. Cần hoàn tất đăng xuất trước khi tiếp tục.',
+                              'Cần hoàn tất dọn dẹp phiên khôi phục trước khi tiếp tục.',
                               textAlign: TextAlign.center,
                             ),
                             const SizedBox(height: 12),

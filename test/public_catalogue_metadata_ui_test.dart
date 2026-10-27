@@ -9,13 +9,9 @@ import 'package:travelgo_mobile/features/explore/models/catalogue_reference.dart
 import 'package:travelgo_mobile/features/explore/models/public_catalogue_snapshot.dart';
 import 'package:travelgo_mobile/features/explore/presentation/screens/destination_detail_screen.dart';
 import 'package:travelgo_mobile/features/explore/presentation/widgets/destination_reference_list_tile.dart';
-import 'package:travelgo_mobile/features/explore/providers/discovery_provider.dart';
 import 'package:travelgo_mobile/features/explore/services/public_catalogue_parser.dart';
-import 'package:travelgo_mobile/features/favorites/models/favorite_item_model.dart';
-import 'package:travelgo_mobile/features/favorites/presentation/screens/favorites_screen.dart';
-import 'package:travelgo_mobile/features/favorites/providers/favorites_provider.dart';
-import 'package:travelgo_mobile/features/map/services/manual_place_locations.dart';
-import 'package:travelgo_mobile/features/trip_planner/providers/trip_provider.dart';
+import 'package:travelgo_mobile/features/explore/services/manual_place_locations.dart';
+import 'package:travelgo_mobile/features/trip_planner/providers/planner_input_provider.dart';
 
 PublicCatalogueSnapshot createSnapshot({
   int version = 1,
@@ -65,31 +61,6 @@ PublicCatalogueSnapshot createSnapshot({
     now: DateTime.parse('2026-10-20T12:00:00Z'),
     origin: 'storage',
   );
-}
-
-class FakeFavoritesProvider extends ChangeNotifier implements FavoritesProvider {
-  final List<FavoriteItem> _items;
-  int deleteFavoriteCalls = 0;
-
-  FakeFavoritesProvider(this._items);
-
-  @override
-  List<FavoriteItem> get items => _items;
-
-  @override
-  bool get isLoading => false;
-
-  @override
-  bool isFavorite(String itemId) => _items.any((i) => i.itemId == itemId);
-
-  @override
-  Future<bool> toggleFavorite(FavoriteItem item) async {
-    deleteFavoriteCalls++;
-    return true;
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class FakeAuthProvider extends ChangeNotifier implements AuthProvider {
@@ -147,67 +118,6 @@ void main() {
     expect(ManualPlaceLocations.find('unknown/place', snapshot: snapshot), isNull);
   });
 
-  testWidgets('unavailable_favorite_keeps_saved_label: pin invariant', (tester) async {
-    final fakeFavorites = FakeFavoritesProvider([
-      FavoriteItem(
-        id: 'fav-01',
-        userId: 'usr-minh-01',
-        itemId: 'old-destination-hidden',
-        itemType: 'destination',
-        title: 'Điểm Đến Cũ Đã Ẩn',
-        location: 'Miền Tây',
-        createdAt: DateTime.now(),
-      ),
-      FavoriteItem(
-        id: 'fav-02',
-        userId: 'usr-minh-01',
-        itemId: 'hotel-01',
-        itemType: 'hotel',
-        title: 'Khách sạn Biển Đẹp',
-        location: 'Đà Nẵng',
-        createdAt: DateTime.now(),
-      ),
-    ]);
-
-    final discovery = DiscoveryProvider();
-    final snapshot = createSnapshot(
-      version: 2,
-      destinations: [
-        {
-          'id': 'da-nang',
-          'name': 'Đà Nẵng',
-          'slug': 'da-nang',
-          'region': 'Miền Trung',
-          'places': [],
-        }
-      ],
-    );
-    discovery.bindPublicSnapshot(snapshot);
-
-    await tester.pumpWidget(
-      MultiProvider(
-        providers: [
-          ChangeNotifierProvider<AuthProvider>.value(value: FakeAuthProvider()),
-          ChangeNotifierProvider<FavoritesProvider>.value(value: fakeFavorites),
-          ChangeNotifierProvider<DiscoveryProvider>.value(value: discovery),
-        ],
-        child: const MaterialApp(home: FavoritesScreen()),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    // Saved name is visible
-    expect(find.text('Điểm Đến Cũ Đã Ẩn'), findsOneWidget);
-    // Unavailable label is shown for catalogue item
-    expect(find.text('Mục không còn trong danh mục phát hành'), findsOneWidget);
-
-    // Hotel does not show the label
-    expect(find.text('Khách sạn Biển Đẹp'), findsOneWidget);
-
-    // Pin: Zero delete favorite calls made
-    expect(fakeFavorites.deleteFavoriteCalls, 0);
-  });
-
   testWidgets('DestinationReferenceListTile and DetailScreen render published metadata and image', (tester) async {
     final destination = DestinationReference(
       id: 'da-nang-v2',
@@ -250,7 +160,7 @@ void main() {
     await tester.pumpWidget(
       MultiProvider(
         providers: [
-          ChangeNotifierProvider(create: (_) => TripProvider()),
+          ChangeNotifierProvider(create: (_) => PlannerInputProvider()),
         ],
         child: MaterialApp(
           home: DestinationDetailScreen(

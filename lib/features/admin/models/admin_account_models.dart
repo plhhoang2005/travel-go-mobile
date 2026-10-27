@@ -212,10 +212,12 @@ class AuditEvent {
 class UserDetail {
   final UserSummary summary;
   final List<AuditEvent> audit;
+  final AccountOperation? pendingOperation;
 
   const UserDetail({
     required this.summary,
     required this.audit,
+    this.pendingOperation,
   });
 
   String get id => summary.id;
@@ -243,9 +245,20 @@ class UserDetail {
         .map((e) => AuditEvent.fromJson(e as Map<String, dynamic>))
         .toList(growable: false);
 
+    final pendingRaw = json['pendingOperation'];
+    final pending = pendingRaw == null
+        ? null
+        : AccountOperation.fromJson(pendingRaw as Map<String, dynamic>);
+    if (pending != null &&
+        (pending.targetId != summary.id ||
+            pending.targetRevision != summary.revision ||
+            pending.isCompleted)) {
+      throw const FormatException('Invalid pending operation');
+    }
     return UserDetail(
       summary: summary,
       audit: audit,
+      pendingOperation: pending,
     );
   }
 }
@@ -255,15 +268,9 @@ class UserCursor {
   final String createdAt;
   final String id;
 
-  const UserCursor({
-    required this.createdAt,
-    required this.id,
-  });
+  const UserCursor({required this.createdAt, required this.id});
 
-  Map<String, dynamic> toJson() => {
-        'createdAt': createdAt,
-        'id': id,
-      };
+  Map<String, dynamic> toJson() => {'createdAt': createdAt, 'id': id};
 
   factory UserCursor.fromJson(Map<String, dynamic> json) {
     final createdAt = json['createdAt'];
@@ -280,10 +287,7 @@ class UserPage {
   final List<UserSummary> items;
   final UserCursor? nextCursor;
 
-  const UserPage({
-    required this.items,
-    this.nextCursor,
-  });
+  const UserPage({required this.items, this.nextCursor});
 
   factory UserPage.fromJson(Map<String, dynamic> json) {
     final itemsRaw = json['items'];
@@ -296,14 +300,12 @@ class UserPage {
 
     UserCursor? nextCursor;
     if (json['nextCursor'] != null) {
-      nextCursor =
-          UserCursor.fromJson(json['nextCursor'] as Map<String, dynamic>);
+      nextCursor = UserCursor.fromJson(
+        json['nextCursor'] as Map<String, dynamic>,
+      );
     }
 
-    return UserPage(
-      items: items,
-      nextCursor: nextCursor,
-    );
+    return UserPage(items: items, nextCursor: nextCursor);
   }
 }
 
@@ -380,10 +382,7 @@ class RegistrationDayPoint {
   final String date;
   final int count;
 
-  const RegistrationDayPoint({
-    required this.date,
-    required this.count,
-  });
+  const RegistrationDayPoint({required this.date, required this.count});
 
   factory RegistrationDayPoint.fromJson(Map<String, dynamic> json) {
     final date = json['date'];
@@ -539,7 +538,8 @@ class DashboardSnapshot {
     PublishedCatalogueStats? published;
     if (publishedRaw != null) {
       published = PublishedCatalogueStats.fromJson(
-          publishedRaw as Map<String, dynamic>);
+        publishedRaw as Map<String, dynamic>,
+      );
     }
 
     return DashboardSnapshot(
@@ -569,6 +569,29 @@ class AdminFailure implements Exception {
     required this.message,
   });
 
+  String get userMessage {
+    if (outcomeUncertain) {
+      return 'Chưa xác định được kết quả. Thử lại để kiểm tra đúng thao tác đã gửi.';
+    }
+    return switch (code) {
+      'unauthorized' || 'stale_session' || 'invalid_session' =>
+        'Phiên đăng nhập đã thay đổi. Vui lòng đăng nhập lại.',
+      'forbidden' || 'admin_required' => 'Tài khoản không còn quyền quản trị.',
+      'account_locked' => 'Tài khoản của bạn đã bị khóa.',
+      'revision_conflict' || 'revision_mismatch' => 'Thông tin tài khoản đã thay đổi. Kiểm tra lại rồi xác nhận lại thao tác.',
+      'operation_in_progress' =>
+        'Thao tác đang được xử lý. Vui lòng đợi một chút rồi kiểm tra lại.',
+      'self_change_denied' =>
+        'Không thể thao tác trên tài khoản của chính mình.',
+      'last_admin_preserved' =>
+        'Cần giữ ít nhất một quản trị viên đang hoạt động.',
+      'network_error' ||
+      'upstream_unavailable' => 'Chưa thể kết nối máy chủ. Vui lòng thử lại.',
+      _ => 'Chưa thể hoàn tất yêu cầu. Vui lòng tải lại hoặc thử lại.',
+    };
+  }
+
   @override
-  String toString() => 'AdminFailure(code: $code, field: $field, uncertain: $outcomeUncertain)';
+  String toString() =>
+      'AdminFailure(code: $code, field: $field, uncertain: $outcomeUncertain)';
 }

@@ -10,14 +10,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:travelgo_mobile/features/auth/models/user_model.dart';
 import 'package:travelgo_mobile/features/auth/providers/auth_provider.dart';
 import 'package:travelgo_mobile/features/profile/presentation/screens/profile_screen.dart';
-import 'package:travelgo_mobile/features/trip_planner/models/trip_request.dart';
-import 'package:travelgo_mobile/features/trip_planner/models/trip_response.dart';
-import 'package:travelgo_mobile/features/trip_planner/presentation/screens/dashboard_result_screen.dart';
-import 'package:travelgo_mobile/features/trip_planner/providers/trip_provider.dart';
-import 'package:travelgo_mobile/features/trip_planner/services/trip_api_service.dart';
-import 'package:travelgo_mobile/features/trips/models/saved_trip_model.dart';
-import 'package:travelgo_mobile/features/trips/providers/saved_trips_provider.dart';
-import 'package:travelgo_mobile/features/trips/services/trips_service.dart';
 
 void main() {
   group('Auth Role Security & Epoch Tests (R02, DB-006)', () {
@@ -477,6 +469,81 @@ void main() {
       expect(auth.isLoading, isFalse);
     });
 
+    testWidgets(
+      'profile update failure preserves edited input and read-only email',
+      (tester) async {
+        final client = SupabaseClient(
+          'https://synthetic.invalid',
+          'synthetic-public',
+          authOptions: const AuthClientOptions(autoRefreshToken: false),
+          httpClient: MockClient(
+            (request) async => http.Response(
+              request.method == 'PATCH'
+                  ? '{"message":"synthetic denied"}'
+                  : '[]',
+              request.method == 'PATCH' ? 403 : 200,
+              headers: {'content-type': 'application/json'},
+            ),
+          ),
+        );
+        final auth = AuthProvider(
+          client: client,
+          trustedRoleFetcher: (_) async => 'customer',
+        );
+        auth.simulateSupabaseUser(
+          createFakeUser(
+            id: 'a',
+            email: 'a@example.invalid',
+            metadata: {'full_name': 'Original'},
+          ),
+        );
+        await tester.pumpWidget(
+          ChangeNotifierProvider<AuthProvider>.value(
+            value: auth,
+            child: const MaterialApp(home: CustomerProfileScreen()),
+          ),
+        );
+        await tester.tap(find.text('Thông tin cá nhân'));
+        await tester.pumpAndSettle();
+        await tester.enterText(find.byType(TextField).first, 'Edited name');
+        expect(
+          find.text('Email: a@example.invalid (Không thể thay đổi)'),
+          findsOneWidget,
+        );
+        await tester.tap(find.text('Lưu'));
+        await tester.pumpAndSettle();
+        expect(find.text('Thông Tin Cá Nhân'), findsOneWidget);
+        expect(
+          tester
+              .widget<TextField>(find.byType(TextField).first)
+              .controller!
+              .text,
+          'Edited name',
+        );
+        expect(auth.currentUser?.fullName, 'Original');
+        expect(auth.currentUser?.email, 'a@example.invalid');
+        expect(auth.errorMessage, isNotNull);
+        await tester.tap(find.text('Hủy'));
+        await tester.pumpAndSettle();
+        await tester.pumpWidget(const SizedBox.shrink());
+        auth.dispose();
+        var closed = false;
+        final closing = client.dispose().then((_) {
+          closed = true;
+        });
+        for (var i = 0; i < 100 && !closed; i++) {
+          await tester.pump();
+          await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+        }
+        expect(
+          closed,
+          isTrue,
+          reason: 'SDK disposal must drain both async zones',
+        );
+        await closing;
+      },
+    );
+
     testWidgets('UI-03: production CustomerProfileScreen dialog can cancel after focus without disposed controller exception', (tester) async {
       final auth = AuthProvider(
         client: SupabaseClient(
@@ -560,155 +627,5 @@ void main() {
       expect(find.byType(CustomerProfileScreen), findsOneWidget);
     });
 
-    testWidgets('UI-03: production DashboardResultScreen save dialog can cancel after focus without exception', (tester) async {
-      final auth = AuthProvider(
-        client: SupabaseClient(
-          'https://synthetic.invalid',
-          'synthetic-key',
-          authOptions: const AuthClientOptions(autoRefreshToken: false),
-        ),
-        trustedRoleFetcher: (_) async => 'customer',
-      );
-      auth.simulateSupabaseUser(createFakeUser(id: 'user-a', email: 'a@example.com'));
-      final tripProvider = TripProvider(apiService: _FakeTripApiService());
-      await tripProvider.submitPlan();
-      final tripsProvider = SavedTripsProvider(service: _FakeTripsService());
-      await tripsProvider.loadTrips('user-a');
-
-      await tester.pumpWidget(
-        MultiProvider(
-          providers: [
-            ChangeNotifierProvider<AuthProvider>.value(value: auth),
-            ChangeNotifierProvider<TripProvider>.value(value: tripProvider),
-            ChangeNotifierProvider<SavedTripsProvider>.value(value: tripsProvider),
-          ],
-          child: const MaterialApp(home: DashboardResultScreen()),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      // Open save trip dialog
-      await tester.tap(find.text('Lưu Chuyến Đi Này Lên Cloud'));
-      await tester.pumpAndSettle();
-      expect(find.text('Lưu Chuyến Đi Lên Cloud'), findsOneWidget);
-
-      // Focus textfield and cancel
-      await tester.tap(find.byType(TextField).first);
-      await tester.pump();
-      await tester.tap(find.text('Hủy'));
-      await tester.pumpAndSettle();
-
-      expect(tester.takeException(), isNull);
-      expect(find.text('Lưu Chuyến Đi Lên Cloud'), findsNothing);
-      expect(find.byType(DashboardResultScreen), findsOneWidget);
-    });
-
-    testWidgets('UI-03: production DashboardResultScreen save dialog blocks Back while saving, safe on delayed completion', (tester) async {
-      final auth = AuthProvider(
-        client: SupabaseClient(
-          'https://synthetic.invalid',
-          'synthetic-key',
-          authOptions: const AuthClientOptions(autoRefreshToken: false),
-        ),
-        trustedRoleFetcher: (_) async => 'customer',
-      );
-      auth.simulateSupabaseUser(createFakeUser(id: 'user-a', email: 'a@example.com'));
-      final saveCompleter = Completer<SavedTrip>();
-      final tripProvider = TripProvider(apiService: _FakeTripApiService());
-      await tripProvider.submitPlan();
-      final tripsProvider = SavedTripsProvider(service: _FakeTripsService(completer: saveCompleter));
-      await tripsProvider.loadTrips('user-a');
-
-      await tester.pumpWidget(
-        MultiProvider(
-          providers: [
-            ChangeNotifierProvider<AuthProvider>.value(value: auth),
-            ChangeNotifierProvider<TripProvider>.value(value: tripProvider),
-            ChangeNotifierProvider<SavedTripsProvider>.value(value: tripsProvider),
-          ],
-          child: const MaterialApp(home: DashboardResultScreen()),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('Lưu Chuyến Đi Này Lên Cloud'));
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('Lưu'));
-      await tester.pump();
-
-      // System back while saving
-      final dynamic widgetsAppState = tester.state(find.byType(WidgetsApp));
-      await widgetsAppState.didPopRoute();
-      await tester.pump();
-
-      // Blocked by PopScope
-      expect(find.text('Lưu Chuyến Đi Lên Cloud'), findsOneWidget);
-
-      saveCompleter.complete(SavedTrip(
-        id: 'new-id',
-        userId: 'user-a',
-        title: 'Trip A',
-        destinationName: 'Đà Nẵng',
-        tripPlanData: const {},
-        createdAt: DateTime.now(),
-      ));
-      await tester.pumpAndSettle();
-
-      expect(tester.takeException(), isNull);
-      expect(find.text('Lưu Chuyến Đi Lên Cloud'), findsNothing);
-      expect(find.byType(DashboardResultScreen), findsOneWidget);
-    });
   });
-}
-
-class _FakeTripsService extends TripsService {
-  final Completer<SavedTrip>? completer;
-  _FakeTripsService({this.completer});
-
-  @override
-  Future<SavedTrip> saveTrip(SavedTrip trip) async {
-    if (completer != null) return completer!.future;
-    return SavedTrip(
-      id: 'mock-trip-id-1',
-      userId: trip.userId,
-      title: trip.title,
-      destinationName: trip.destinationName,
-      numDays: trip.numDays,
-      budgetTotal: trip.budgetTotal,
-      tripPlanData: trip.tripPlanData,
-      createdAt: DateTime.now(),
-    );
-  }
-}
-
-class _FakeTripApiService extends TripApiService {
-  @override
-  Future<PlanTripResponse> planTrip(PlanTripRequest req) async {
-    return PlanTripResponse(
-      winnerId: 'da-nang',
-      topDestinations: [
-        DestinationCard(
-          id: 'da-nang',
-          name: 'Đà Nẵng',
-          totalScore: 9.0,
-          normalizedScores: const {},
-          scoreContributions: const {},
-          estimatedCostVnd: 4000000,
-          weatherSource: 'Test',
-          avgTempMax: 28,
-          avgPrecipitation: 0,
-          latitude: 16.0,
-          longitude: 108.0,
-          region: 'Trung Bộ',
-        ),
-      ],
-      transportOptions: const [],
-      itineraryDays: const [],
-      budgetBreakdown: BudgetBreakdown(transport: 1, accommodation: 1, food: 1, attractions: 1, remainingSafetyMargin: 1),
-      aiExplanation: 'Test explanation',
-      dataSources: const {},
-      assumptions: const [],
-    );
-  }
 }

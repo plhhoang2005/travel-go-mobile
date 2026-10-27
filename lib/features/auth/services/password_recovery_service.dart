@@ -37,6 +37,11 @@ class PasswordRecoveryService {
     return response;
   }
 
+  Future<String?> verifyUser(SupabaseClient client) async {
+    final response = await client.auth.getUser();
+    return response.user?.id;
+  }
+
   Future<UserResponse> updatePassword(
     SupabaseClient client,
     String password,

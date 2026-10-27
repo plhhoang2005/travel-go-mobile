@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../../home/presentation/screens/main_home_screen.dart';
 import '../../../explore/presentation/screens/explore_screen.dart';
 import '../../../trips/presentation/screens/my_trips_screen.dart';
-import '../../../favorites/presentation/screens/favorites_screen.dart';
 import '../../../profile/presentation/screens/profile_screen.dart';
 
 class MainNavigationShell extends StatefulWidget {
@@ -22,14 +21,13 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
     MainHomeScreen(),
     ExploreScreen(),
     MyTripsScreen(),
-    FavoritesScreen(),
     CustomerProfileScreen(),
   ];
 
   @override
   void initState() {
     super.initState();
-    _currentIndex = widget.initialIndex;
+    _currentIndex = widget.initialIndex.clamp(0, _screens.length - 1);
   }
 
   @override
@@ -61,11 +59,6 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
             icon: Icon(Icons.confirmation_number_outlined),
             selectedIcon: Icon(Icons.confirmation_number_rounded),
             label: 'Chuyến đi',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.favorite_outline),
-            selectedIcon: Icon(Icons.favorite_rounded),
-            label: 'Yêu thích',
           ),
           NavigationDestination(
             icon: Icon(Icons.person_outline),

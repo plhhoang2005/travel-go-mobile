@@ -5,9 +5,10 @@ import 'package:intl/intl.dart';
 import '../../models/trip_request.dart';
 import 'manual_planner_entry_screen.dart';
 
+import '../../providers/planner_input_provider.dart';
 import '../../providers/trip_provider.dart';
-import 'dashboard_result_screen.dart';
 import '../../../trips/models/local_trip_records.dart';
+import '../../../trips/models/trip_payload_codec.dart';
 import '../widgets/selected_destination_controls.dart';
 
 /// Shared local save entry point; the state owns and disposes its title controller.
@@ -102,6 +103,139 @@ class _GuestDraftSaveDialogState extends State<_GuestDraftSaveDialog> {
   );
 }
 
+abstract class _HomePlannerInputState {
+  PlanTripRequest get currentRequest;
+  bool get hasPlannerInput;
+  bool get hasSelectedDestination;
+  bool get canReplaceWorkspace;
+  TripMetadataV1 get currentMetadata;
+  void updateRequest(PlanTripRequest req);
+  void setCalendarRange(String start, String end);
+  void applyPreset(int index);
+  void setDuration(int days);
+  void init();
+}
+
+class _ProviderHomeInputState implements _HomePlannerInputState {
+  final PlannerInputProvider provider;
+  _ProviderHomeInputState(this.provider);
+
+  @override
+  PlanTripRequest get currentRequest => provider.currentRequest;
+
+  @override
+  bool get hasPlannerInput => provider.hasPlannerInput;
+
+  @override
+  bool get hasSelectedDestination => provider.hasSelectedDestination;
+
+  @override
+  bool get canReplaceWorkspace => provider.canReplaceWorkspace;
+
+  @override
+  TripMetadataV1 get currentMetadata => provider.currentMetadata;
+
+  @override
+  void updateRequest(PlanTripRequest req) {
+    provider.updateRequest(req);
+  }
+
+  @override
+  void setCalendarRange(String start, String end) {
+    provider.setCalendarRange(start, end);
+  }
+
+  @override
+  void applyPreset(int index) {
+    provider.applyPreset(index);
+  }
+
+  @override
+  void setDuration(int days) {
+    provider.setDuration(days);
+  }
+
+  @override
+  void init() {
+    provider.init();
+  }
+}
+
+class _TripHomeInputState implements _HomePlannerInputState {
+  final TripProvider trip;
+  _TripHomeInputState(this.trip);
+
+  @override
+  PlanTripRequest get currentRequest => trip.currentRequest;
+
+  @override
+  bool get hasPlannerInput => trip.hasPlannerInput;
+
+  @override
+  bool get hasSelectedDestination => trip.hasSelectedDestination;
+
+  @override
+  bool get canReplaceWorkspace => trip.canReplaceWorkspace;
+
+  @override
+  TripMetadataV1 get currentMetadata => trip.currentMetadata;
+
+  @override
+  void updateRequest(PlanTripRequest req) {
+    trip.updateRequest(req);
+  }
+
+  @override
+  void setCalendarRange(String start, String end) {
+    trip.setCalendarRange(start, end);
+  }
+
+  @override
+  void applyPreset(int index) {
+    trip.applyPreset(index);
+  }
+
+  @override
+  void setDuration(int days) {
+    trip.setDuration(days);
+  }
+
+  @override
+  void init() {}
+}
+
+class _DefaultHomeInputState implements _HomePlannerInputState {
+  @override
+  PlanTripRequest get currentRequest => PlanTripRequest.presetMinh();
+
+  @override
+  bool get hasPlannerInput => true;
+
+  @override
+  bool get hasSelectedDestination => false;
+
+  @override
+  bool get canReplaceWorkspace => true;
+
+  @override
+  TripMetadataV1 get currentMetadata => TripMetadataV1();
+
+  @override
+  void updateRequest(PlanTripRequest req) {}
+
+  @override
+  void setCalendarRange(String start, String end) {}
+
+  @override
+  void applyPreset(int index) {}
+
+  @override
+  void setDuration(int days) {}
+
+  @override
+  void init() {}
+}
+
 class HomePlannerScreen extends StatefulWidget {
   const HomePlannerScreen({super.key});
 
@@ -143,7 +277,7 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
 
   Future<void> _pickDateRange(
     BuildContext context,
-    TripProvider provider,
+    _HomePlannerInputState provider,
     PlanTripRequest req,
   ) async {
     final now = DateTime.now();
@@ -186,7 +320,7 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
 
   Future<void> _showCustomOriginDialog(
     BuildContext context,
-    TripProvider provider,
+    _HomePlannerInputState provider,
     PlanTripRequest req,
   ) async {
     final controller = TextEditingController(text: req.origin);
@@ -221,7 +355,7 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
 
   Future<void> _showAddCustomInterestDialog(
     BuildContext context,
-    TripProvider provider,
+    _HomePlannerInputState provider,
     PlanTripRequest req,
   ) async {
     final controller = TextEditingController();
@@ -257,18 +391,24 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
   }
 
   @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final trip = context.read<TripProvider>();
-      if (!trip.hasSelectedDestination) trip.init();
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final provider = context.watch<TripProvider>();
+    PlannerInputProvider? inputProvider;
+    try {
+      inputProvider = context.watch<PlannerInputProvider>();
+    } catch (_) {}
+    TripProvider? tripProvider;
+    if (inputProvider == null) {
+      try {
+        tripProvider = context.watch<TripProvider>();
+      } catch (_) {}
+    }
+
+    final _HomePlannerInputState provider = inputProvider != null
+        ? _ProviderHomeInputState(inputProvider)
+        : (tripProvider != null
+            ? _TripHomeInputState(tripProvider)
+            : _DefaultHomeInputState());
+
     final req = provider.currentRequest;
     final currencyFmt = NumberFormat.currency(
       locale: 'vi',
@@ -279,33 +419,22 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
 
     if (!provider.hasPlannerInput) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Bản nháp trên máy')),
+        appBar: AppBar(title: const Text('Lập chuyến đi')),
         body: SafeArea(
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const Text(
-                  'Bản nháp này chỉ có kết quả đã lưu, chưa có thông tin đầu vào.',
+                  'Chưa có thông tin đầu vào cho chuyến đi.',
+                  textAlign: TextAlign.center,
                 ),
+                const SizedBox(height: 16),
                 FilledButton(
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const DashboardResultScreen(),
-                    ),
-                  ),
-                  child: Text(
-                    provider.isRestoredLocalDraft
-                        ? 'Xem kết quả đã lưu'
-                        : 'Xem kết quả',
-                  ),
-                ),
-                OutlinedButton(
-                  onPressed: provider.canPersistGuestDraft
-                      ? () => _newDraft(provider)
-                      : null,
-                  child: const Text('Bản nháp mới'),
+                  onPressed: () => provider.init(),
+                  child: const Text('Bắt đầu chuyến đi mới'),
                 ),
               ],
             ),
@@ -383,21 +512,11 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
             const SizedBox(height: 4),
             Text(
               provider.hasSelectedDestination
-                  ? 'Điều chỉnh ngân sách, số ngày và sở thích trước khi lấy gợi ý hoặc lưu bản nháp.'
-                  : 'Điều chỉnh ngân sách và sở thích để so sánh gợi ý. Muốn chọn nơi cụ thể, hãy dùng Tự lập lịch trình ở trên.',
+                  ? 'Điều chỉnh ngân sách, số ngày và sở thích trước khi bắt đầu lập lịch trình.'
+                  : 'Điều chỉnh ngân sách và sở thích. Bạn có thể chọn điểm đến cụ thể ở trên hoặc để trống để tự tạo.',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             const SizedBox(height: 16),
-
-            if (!provider.hasSelectedDestination)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: Text(
-                  provider.isBackendOnline
-                      ? 'Có kết nối để lấy gợi ý trực tuyến'
-                      : 'Chưa có kết nối gợi ý · kết quả dự phòng sẽ được ghi rõ',
-                ),
-              ),
             // Quick Presets
             if (!provider.hasSelectedDestination)
               Card(
@@ -736,87 +855,18 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
 
             const SizedBox(height: 24),
 
-            if (provider.canPersistGuestDraft) ...[
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  OutlinedButton(
-                    onPressed: provider.isSavingDraft
-                        ? null
-                        : () => showGuestDraftSaveDialog(context),
-                    child: const Text('Lưu bản nháp trên máy'),
-                  ),
-                  OutlinedButton(
-                    onPressed: provider.isLoadingDraft
-                        ? null
-                        : () => _openDraftList(provider),
-                    child: const Text('Bản nháp trên máy'),
-                  ),
-                  TextButton(
-                    onPressed: () => _newDraft(provider),
-                    child: const Text('Bản nháp mới'),
-                  ),
-                ],
-              ),
-              if (provider.currentResponse == null)
-                const Text('Chưa có kết quả lập lịch'),
-              if (provider.currentResponse != null)
-                TextButton(
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const DashboardResultScreen(),
-                    ),
-                  ),
-                  child: Text(
-                    provider.isRestoredLocalDraft
-                        ? 'Xem kết quả đã lưu'
-                        : 'Xem kết quả',
-                  ),
-                ),
-              if (provider.draftErrorMessage != null)
-                Text(
-                  provider.draftErrorMessage!,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                ),
-              const SizedBox(height: 16),
-            ],
-
-            // Submit Button
+            // Primary Planning CTA
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: provider.isLoading
-                    ? null
-                    : () async {
-                        final navigator = Navigator.of(context);
-                        final accepted = await provider.submitPlan();
-                        if (!mounted) return;
-                        if (accepted && provider.currentResponse != null) {
-                          navigator.push(
-                            MaterialPageRoute(
-                              builder: (_) => const DashboardResultScreen(),
-                            ),
-                          );
-                        }
-                      },
-                icon: provider.isLoading
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2,
-                        ),
-                      )
-                    : const Icon(Icons.bolt),
+                onPressed: provider.canReplaceWorkspace
+                    ? () => openManualPlanner(context)
+                    : null,
+                icon: const Icon(Icons.edit_calendar_outlined),
                 label: Text(
-                  provider.isLoading
-                      ? 'Đang lấy gợi ý…'
-                      : (provider.hasSelectedDestination
-                          ? 'Xem gợi ý cho ${provider.currentMetadata.destinationName ?? "điểm đến"}'
-                          : 'Xem gợi ý chuyến đi'),
+                  provider.hasSelectedDestination
+                      ? 'Lập lịch trình cho ${provider.currentMetadata.destinationName ?? "điểm đến"}'
+                      : 'Bắt đầu lập lịch trình',
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -830,103 +880,21 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
       ),
     );
   }
-
-  Future<bool> _confirmReplace(TripProvider provider) async {
-    if (!provider.isDraftDirty) return true;
-    return await showDialog<bool>(
-          context: context,
-          builder: (dialog) => AlertDialog(
-            title: const Text('Thay nội dung chưa lưu?'),
-            content: const Text(
-              'Nội dung đang sửa chưa được lưu. Bạn có muốn thay thế không?',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialog, false),
-                child: const Text('Hủy'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(dialog, true),
-                child: const Text('Thay thế'),
-              ),
-            ],
-          ),
-        ) ??
-        false;
-  }
-
-  Future<void> _newDraft(TripProvider provider) async {
-    final generation = provider.workspaceGeneration;
-    if (!await _confirmReplace(provider) || !mounted) return;
-    provider.startNewGuestDraft(expectedWorkspaceGeneration: generation);
-  }
-
-  Future<void> _openDraftList(TripProvider provider) async {
-    final rows = await provider.listGuestDrafts();
-    if (!mounted) return;
-    if (provider.draftErrorMessage != null) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(provider.draftErrorMessage!)));
-      return;
-    }
-    if (!provider.canPersistGuestDraft) return;
-    final selected = await showModalBottomSheet<GuestDraftSummaryRecord>(
-      context: context,
-      isScrollControlled: true,
-      builder: (sheet) => SafeArea(
-        child: SizedBox(
-          height: MediaQuery.sizeOf(sheet).height * 0.65,
-          child: rows.isEmpty
-              ? const Center(child: Text('Chưa có bản nháp trên máy.'))
-              : ListView(
-                  children: rows
-                      .map(
-                        (row) => ListTile(
-                          title: Text(row.title ?? 'Bản nháp'),
-                          subtitle: Text(
-                            'Phiên bản ${row.currentRevision} · ${row.updatedAt.toLocal()}',
-                          ),
-                          trailing: const Icon(Icons.folder_open),
-                          onTap: () => Navigator.pop(sheet, row),
-                        ),
-                      )
-                      .toList(),
-                ),
-        ),
-      ),
-    );
-    if (!mounted || selected == null) return;
-    final generation = provider.workspaceGeneration;
-    if (!await _confirmReplace(provider) || !mounted) return;
-    final opened = await provider.openGuestDraft(
-      draftId: selected.draftId,
-      revision: selected.currentRevision,
-      expectedWorkspaceGeneration: generation,
-    );
-    if (!mounted) return;
-    if (!opened) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            provider.draftErrorMessage ??
-                'Nội dung đã thay đổi; hãy chọn lại bản nháp.',
-          ),
-        ),
-      );
-      return;
-    }
-    if (!provider.hasPlannerInput) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const DashboardResultScreen()),
-      );
-    }
-  }
 }
 
 Future<void> openManualPlanner(BuildContext context) async {
-  final trip = context.read<TripProvider>();
-  if (!trip.canReplaceWorkspace) return;
+  PlannerInputProvider? input;
+  try {
+    input = context.read<PlannerInputProvider>();
+  } catch (_) {}
+  TripProvider? trip;
+  if (input == null) {
+    try {
+      trip = context.read<TripProvider>();
+    } catch (_) {}
+  }
+  final canReplace = input?.canReplaceWorkspace ?? trip?.canReplaceWorkspace ?? true;
+  if (!canReplace) return;
   await Navigator.of(
     context,
   ).push<void>(MaterialPageRoute(builder: (_) => const ManualPlannerEntryScreen()));

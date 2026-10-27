@@ -5,9 +5,9 @@ import 'package:provider/provider.dart';
 
 import '../../providers/discovery_provider.dart';
 import '../../providers/place_visit_details_provider.dart';
+import '../../providers/public_catalogue_provider.dart';
 import '../widgets/destination_reference_list_tile.dart';
 import 'destination_detail_screen.dart';
-import '../../../map/presentation/screens/trip_map_screen.dart';
 
 class ExploreScreen extends StatefulWidget {
   const ExploreScreen({super.key});
@@ -45,6 +45,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
   @override
   Widget build(BuildContext context) {
     final discovery = context.watch<DiscoveryProvider>();
+    PublicCatalogueProvider? publicCatalogue;
+    try {
+      publicCatalogue = context.watch<PublicCatalogueProvider>();
+    } catch (_) {}
     if (_search.text != discovery.query) {
       _search.value = TextEditingValue(
         text: discovery.query,
@@ -59,14 +63,6 @@ class _ExploreScreenState extends State<ExploreScreen> {
           overflow: TextOverflow.ellipsis,
         ),
         actions: [
-          IconButton(
-            tooltip: 'Bản đồ',
-            icon: const Icon(Icons.map_outlined),
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute<void>(builder: (_) => const TripMapScreen()),
-            ),
-          ),
           IconButton(
             tooltip: 'Đọc lại danh mục',
             icon: const Icon(Icons.refresh),
@@ -103,7 +99,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     onSubmitted: (_) => FocusScope.of(context).unfocus(),
                     onChanged: discovery.setQuery,
                     decoration: InputDecoration(
-                      labelText: 'Tìm điểm đến',
+                      labelText: 'Tìm điểm đến hoặc địa điểm',
                       prefixIcon: const Icon(Icons.search),
                       suffixIcon: discovery.query.isEmpty
                           ? null
@@ -145,6 +141,24 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 ],
               ),
             ),
+            if (discovery.catalogue != null &&
+                (discovery.state == DiscoveryLoadState.error ||
+                    publicCatalogue?.error != null))
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    const Text(
+                      'Chưa thể cập nhật. Đang hiển thị danh mục đã tải trước đó.',
+                    ),
+                    TextButton(
+                      onPressed: () => _loadDiscovery(force: true),
+                      child: const Text('Thử lại'),
+                    ),
+                  ],
+                ),
+              ),
             Expanded(child: _content(context, discovery)),
           ],
         ),
@@ -156,7 +170,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
     if (provider.state == DiscoveryLoadState.loading) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (provider.state == DiscoveryLoadState.error) {
+    if (provider.state == DiscoveryLoadState.error &&
+        provider.catalogue == null) {
       return Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -178,10 +193,23 @@ class _ExploreScreenState extends State<ExploreScreen> {
     }
     final items = provider.visibleDestinations;
     if (items.isEmpty) {
-      return const Center(
+      return Center(
         child: Padding(
           padding: EdgeInsets.all(24),
-          child: Text('Không tìm thấy điểm đến phù hợp.'),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Không tìm thấy điểm đến phù hợp.'),
+              if (provider.query.isNotEmpty || provider.region != null)
+                TextButton(
+                  onPressed: () {
+                    provider.setQuery('');
+                    provider.setRegion(null);
+                  },
+                  child: const Text('Xóa tìm kiếm và bộ lọc'),
+                ),
+            ],
+          ),
         ),
       );
     }
@@ -195,6 +223,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
         separatorBuilder: (_, _) => const SizedBox(height: 24),
         itemBuilder: (context, index) => DestinationReferenceListTile(
           destination: items[index],
+          matchingPlaces: provider.matchingPlaceNames(items[index]),
           onTap: () => Navigator.push(
             context,
             MaterialPageRoute<void>(

@@ -21,7 +21,7 @@ import 'catalogue_parser_test.dart' show catalogueData;
 import 'editable_trip_repository_test.dart' as repository;
 import 'editable_local_store_test.dart' as records;
 import 'guest_draft_planner_test.dart' show DraftApi, planner;
-import 'manual_budget_ui_test.dart' show tapText, finishSave;
+import 'manual_budget_ui_test.dart' show tapText;
 
 ManualPlannerResources resources(repository.Context ctx) =>
     ManualPlannerResources(
@@ -72,7 +72,7 @@ void selectHue(TripProvider trip) {
 
 void main() {
   testWidgets(
-    'Discovery Hue manual save reopens exact V2 without engine or AI',
+    'Discovery Hue keeps the guest editor but requires account saving without engine or AI',
     (tester) async {
       await tester.runAsync(
         () => repository.run((ctx) async {
@@ -114,14 +114,13 @@ void main() {
               'Tự chọn ở Huế',
             );
             await tapText(tester, 'Áp dụng thay đổi');
+            final document = bindings.planner.document!;
             await tapText(tester, 'Xem lại trước khi lưu');
-            await tapText(
-              tester,
-              'Lưu bản nháp trên máy',
-              scroll: 'manual.preview',
-            );
-            await finishSave(bindings.planner);
             await tester.pumpAndSettle();
+            expect(find.text('Đăng nhập để lưu chuyến đi vào tài khoản.'), findsOneWidget);
+            expect(find.text('Lưu bản nháp trên máy'), findsNothing);
+            expect(bindings.planner.document!.toJson(), document.toJson());
+            expect(bindings.planner.isSaving, isFalse);
             final id = bindings.planner.draftId!;
             await tester.pumpWidget(const SizedBox.shrink());
             await runtime.close();
@@ -131,9 +130,10 @@ void main() {
               deviceScope: 'default',
               draftId: id,
             );
-            expect(saved!.document.input.destinationId, 'hue');
-            expect(saved.document.input.startDate, isNull);
-            expect(saved.document.items.single.title, 'Tự chọn ở Huế');
+            expect(saved, isNull);
+            expect(document.input.destinationId, 'hue');
+            expect(document.input.startDate, isNull);
+            expect(document.items.single.title, 'Tự chọn ở Huế');
             expect(api.plans, 0);
             expect(api.health, 0);
             expect(ctx.server.creates, 0);

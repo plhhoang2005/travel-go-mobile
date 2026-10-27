@@ -8,17 +8,14 @@ import 'package:travelgo_mobile/features/explore/models/public_catalogue_snapsho
 import 'package:travelgo_mobile/features/explore/providers/public_catalogue_provider.dart';
 import 'package:travelgo_mobile/features/explore/services/public_catalogue_parser.dart';
 import 'package:travelgo_mobile/features/explore/services/public_catalogue_repository.dart';
-import 'package:travelgo_mobile/features/map/presentation/screens/manual_day_map_screen.dart';
-import 'package:travelgo_mobile/features/map/services/manual_place_locations.dart';
-import 'package:travelgo_mobile/features/trip_planner/models/editable_trip_document.dart';
+import 'package:travelgo_mobile/features/explore/services/manual_place_locations.dart';
 import 'package:travelgo_mobile/features/trip_planner/presentation/screens/manual_planner_entry_screen.dart';
 import 'package:travelgo_mobile/features/trip_planner/presentation/screens/manual_planner_screen.dart';
-import 'package:travelgo_mobile/features/trip_planner/providers/trip_provider.dart';
+import 'package:travelgo_mobile/features/trip_planner/providers/planner_input_provider.dart';
 import 'package:travelgo_mobile/main.dart';
 
 import 'editable_trip_repository_test.dart' as repository;
 import 'manual_discovery_flow_test.dart' as flow;
-import 'manual_planner_screen_test.dart' as editor;
 
 PublicCatalogueSnapshot makeTestReleaseSnapshot() {
   final bundle = {
@@ -231,64 +228,6 @@ void main() {
     });
   });
 
-  group('ManualDayMapScreen with Dynamic Catalogue Snapshot', () {
-    final snapshot = makeTestReleaseSnapshot();
-
-    testWidgets('shows marker for dynamic place and indicates unlocated place',
-        (tester) async {
-      tester.view.physicalSize = const Size(360, 800);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-
-      final base = editor.documentWithLinkedActivity();
-      final targetDayId = base.days.first.id;
-      final item = base.items.single;
-      final doc = base.copyWith(
-        items: [
-          TripItem.fromJson({
-            ...item.toJson(),
-            'id': 'item-1',
-            'dayId': targetDayId,
-            'title': 'Tham quan Eo Gió',
-            'placeId': 'dest-quy-nhon-123/eo-gio',
-            'position': 0,
-          }),
-          TripItem.fromJson({
-            ...item.toJson(),
-            'id': 'item-2',
-            'dayId': targetDayId,
-            'title': 'Tắm biển Kỳ Co',
-            'placeId': 'dest-quy-nhon-123/ky-co',
-            'position': 1,
-          }),
-        ],
-      );
-
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: AppTheme.lightTheme,
-          home: ManualDayMapScreen(
-            document: doc,
-            dayId: targetDayId,
-            enableNetworkTiles: false,
-            snapshot: snapshot,
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      // Eo Gió marker is present
-      expect(
-        find.bySemanticsLabel('Vị trí 1: Tham quan Eo Gió'),
-        findsOneWidget,
-      );
-
-      // Overview reports located count correctly
-      expect(find.textContaining('1/2 hoạt động có vị trí tham khảo'), findsOneWidget);
-    });
-  });
-
   group('ManualPlannerEntryScreen Integration', () {
     testWidgets('renders ManualPlannerScreen with dynamic snapshot destinations',
         (tester) async {
@@ -296,8 +235,8 @@ void main() {
         final snapshot = makeTestReleaseSnapshot();
         final pubProvider = FakePublicCatalogueProvider(snapshot);
 
-        final tripProvider = TripProvider();
-        tripProvider.setCalendarRange('2026-11-01', '2026-11-03');
+        final inputProvider = PlannerInputProvider();
+        inputProvider.setCalendarRange('2026-11-01', '2026-11-03');
 
         final bundle = flow.resources(ctx);
         final runtime = ManualPlannerRuntime(
@@ -311,8 +250,8 @@ void main() {
                 ChangeNotifierProvider<PublicCatalogueProvider>.value(
                   value: pubProvider,
                 ),
-                ChangeNotifierProvider<TripProvider>.value(
-                  value: tripProvider,
+                ChangeNotifierProvider<PlannerInputProvider>.value(
+                  value: inputProvider,
                 ),
                 Provider<ManualPlannerRuntime>.value(
                   value: runtime,
@@ -344,7 +283,7 @@ void main() {
           );
         } finally {
           bundle.dispose();
-          tripProvider.dispose();
+          inputProvider.dispose();
           pubProvider.dispose();
         }
       }));

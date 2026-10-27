@@ -73,13 +73,13 @@ function createHarness(options = {}) {
           accessState = 'unlocking';
         }
         return json({
-          id: '66666666-6666-4666-8666-666666666666',
+          id: requestId,
           targetId,
           action,
-          state: accessState,
+          state: options.replayCompleted ? 'completed' : 'pending',
           targetRevision: Number(opRevision),
           workerToken,
-          authSynced: false
+          authSynced: options.replayCompleted === true
         });
       }
       if (p_action === 'reconcile') {
@@ -87,11 +87,15 @@ function createHarness(options = {}) {
           id: '77777777-7777-4777-8777-777777777777',
           targetId,
           action: 'unlock',
-          state: accessState,
+          state: 'pending',
           targetRevision: Number(opRevision),
           workerToken,
           authSynced: false
         });
+      }
+      if (p_action === 'dispatch') {
+        if (options.dispatchDenied) return json({ code: 'revision_conflict' }, 409);
+        return json({ dispatch: true });
       }
       return json({ code: 'invalid_action' }, 422);
     }
@@ -132,11 +136,12 @@ function createHarness(options = {}) {
         accessState = 'enabled';
       }
       return json({
-        status: 'ok',
+        id: p_operation_id,
         targetId,
-        state: accessState,
+        action: options.initialTargetState === 'locked' || options.initialTargetState === 'unlocking' ? 'unlock' : 'lock',
+        state: p_auth_synced ? 'completed' : 'needs_retry',
         authSynced: p_auth_synced,
-        revision: Number(opRevision)
+        targetRevision: Number(opRevision)
       });
     }
 
@@ -224,7 +229,7 @@ test('lock RPC occurs before Auth ban; success completes with authSynced: true',
   assert.equal(res.status, 200);
   const data = await res.json();
   assert.equal(data.status, 'ok');
-  assert.equal(data.data.state, 'locked');
+  assert.equal(data.data.state, 'completed');
   assert.equal(data.data.authSynced, true);
 
   // Assert ordering: SQL mutate called BEFORE Auth Admin PUT
@@ -262,7 +267,7 @@ test('lock: Auth timeout leaves locked + authSynced: false (needs_retry)', async
   const res = await handler(req);
   assert.equal(res.status, 200);
   const data = await res.json();
-  assert.equal(data.data.state, 'locked');
+  assert.equal(data.data.state, 'needs_retry');
   assert.equal(data.data.authSynced, false);
 
   // complete RPC called with authSynced = false
@@ -296,7 +301,7 @@ test('unlock: unban failure leaves unlocking and authSynced: false', async () =>
   const res = await handler(req);
   assert.equal(res.status, 200);
   const data = await res.json();
-  assert.equal(data.data.state, 'unlocking');
+  assert.equal(data.data.state, 'needs_retry');
   assert.equal(data.data.authSynced, false);
   assert.equal(harness.getState(), 'unlocking');
 });
@@ -328,3 +333,19 @@ test('stale_auth_completion_cannot_enable_new_revision: completion for old revis
   // Target cannot be transitioned to enabled if revision is stale
   assert.equal(harness.getState(), 'unlocking');
 });
+
+for (const options of [{ replayCompleted: true }, { dispatchDenied: true }]) {
+  test(`replayed completed or superseded operation never calls Auth Admin: ${JSON.stringify(options)}`, async () => {
+    const harness = createHarness(options);
+    const handler = createAdminControl({ projectUrl: 'https://fixture.supabase.co', serviceKey: 'svc_key' }, harness.fetchImpl);
+    const response = await handler(new Request('https://fixture.supabase.co/functions/v1/admin-control', {
+      method: 'POST', headers: { authorization: `Bearer ${makeAdminToken()}` },
+      body: JSON.stringify({ contract: 'travelgo.admin.v1', action: 'mutate',
+        request: { requestId, targetId, expectedRevision: 1, action: 'lock', reason: 'test' } })
+    }));
+    assert.equal(response.status, options.dispatchDenied ? 409 : 200);
+    assert.equal(harness.calls.filter(c => c.url.includes('/auth/v1/admin/users/')).length, 0);
+    const body = await response.json();
+    assert.equal(body.data?.workerToken, undefined);
+  });
+}

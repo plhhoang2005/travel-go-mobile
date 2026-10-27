@@ -95,8 +95,8 @@ class EditableTripValidator {
       if (input.origin.trim().isEmpty) {
         issue('required', 'input.origin', 'Nhập nơi xuất phát.');
       }
-      if (input.destinationId == null || input.destinationName == null) {
-        issue('required', 'input.destinationId', 'Chọn điểm đến.');
+      if (input.destinationName == null || input.destinationName!.trim().isEmpty) {
+        issue('required', 'input.destinationName', 'Chọn hoặc nhập tên điểm đến.');
       }
       if (!complete) {
         issue(

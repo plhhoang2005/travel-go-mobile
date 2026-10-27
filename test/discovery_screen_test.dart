@@ -16,6 +16,7 @@ import 'package:travelgo_mobile/features/explore/presentation/widgets/place_visi
 import 'package:travelgo_mobile/features/explore/services/catalogue_repository.dart';
 import 'package:travelgo_mobile/features/explore/presentation/screens/explore_screen.dart';
 import 'package:travelgo_mobile/features/explore/presentation/screens/destination_detail_screen.dart';
+import 'package:travelgo_mobile/features/trip_planner/providers/planner_input_provider.dart';
 import 'package:travelgo_mobile/features/trip_planner/providers/trip_provider.dart';
 
 import 'catalogue_parser_test.dart' show catalogueData;
@@ -54,6 +55,7 @@ Future<void> pumpDiscovery(
   Widget? screen,
   AuthProvider? auth,
   PlaceVisitDetailsProvider? visits,
+  PlannerInputProvider? input,
   double width = 390,
   double scale = 1,
 }) async {
@@ -66,6 +68,8 @@ Future<void> pumpDiscovery(
       providers: [
         ChangeNotifierProvider.value(value: discovery),
         ChangeNotifierProvider.value(value: trip),
+        if (input != null)
+          ChangeNotifierProvider<PlannerInputProvider>.value(value: input),
         if (visits != null) ChangeNotifierProvider.value(value: visits),
         if (auth != null) ChangeNotifierProvider.value(value: auth),
       ],

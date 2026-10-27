@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:travelgo_mobile/features/explore/models/public_catalogue_snapshot.dart';
 
@@ -9,7 +10,8 @@ enum DiscoveryLoadState { loading, ready, error }
 
 class DiscoveryProvider extends ChangeNotifier {
   final CatalogueRepository _repository;
-  final Future<PublicCatalogueSnapshot> Function(bool force)? publicSnapshotLoader;
+  final Future<PublicCatalogueSnapshot> Function(bool force)?
+  publicSnapshotLoader;
 
   DiscoveryProvider({
     CatalogueRepository? repository,
@@ -34,7 +36,11 @@ class DiscoveryProvider extends ChangeNotifier {
 
   void bindPublicSnapshot(PublicCatalogueSnapshot snapshot) {
     if (_disposed) return;
-    if (_version == snapshot.version && _sha256 == snapshot.sha256 && _catalogue != null) return;
+    if (_version == snapshot.version &&
+        _sha256 == snapshot.sha256 &&
+        _catalogue != null) {
+      return;
+    }
     _version = snapshot.version;
     _sha256 = snapshot.sha256;
     _catalogue = snapshot.catalogue;
@@ -51,15 +57,32 @@ class DiscoveryProvider extends ChangeNotifier {
       }
     });
   }
+
   List<DestinationReference> get visibleDestinations {
     final query = foldSearch(_query);
     return List.unmodifiable(
       (_catalogue?.destinations ?? <DestinationReference>[]).where(
         (d) =>
-            (_region == null || d.region == _region) &&
-            foldSearch(d.name).contains(query),
+            (_region == null ||
+                normalizeRegion(d.region) == normalizeRegion(_region!)) &&
+            (foldSearch(d.name).contains(query) ||
+                d.places.any((p) => foldSearch(p.name).contains(query))),
       ),
     );
+  }
+
+  static String normalizeRegion(String value) =>
+      foldSearch(value).replaceFirst(RegExp(r'^mien\s+'), '');
+
+  List<String> matchingPlaceNames(DestinationReference destination) {
+    final query = foldSearch(_query);
+    if (query.isEmpty || foldSearch(destination.name).contains(query)) {
+      return const [];
+    }
+    return destination.places
+        .where((place) => foldSearch(place.name).contains(query))
+        .map((place) => place.name)
+        .toList(growable: false);
   }
 
   void setQuery(String value) {
@@ -93,9 +116,7 @@ class DiscoveryProvider extends ChangeNotifier {
         _state = DiscoveryLoadState.ready;
       } catch (_) {
         if (_disposed || generation != _loadGeneration) return;
-        if (_catalogue == null) {
-          _state = DiscoveryLoadState.error;
-        }
+        _state = DiscoveryLoadState.error;
       }
     } else {
       try {
@@ -105,9 +126,7 @@ class DiscoveryProvider extends ChangeNotifier {
         _state = DiscoveryLoadState.ready;
       } catch (_) {
         if (_disposed || generation != _loadGeneration) return;
-        if (_catalogue == null) {
-          _state = DiscoveryLoadState.error;
-        }
+        _state = DiscoveryLoadState.error;
       }
     }
     if (!_disposed && generation == _loadGeneration) notifyListeners();

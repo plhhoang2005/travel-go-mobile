@@ -28,7 +28,11 @@ class RecoveryIntentStore {
       final decoded = jsonDecode(raw) as Map<String, dynamic>;
       final item = PendingRecovery.fromJson(decoded);
       if (item.isExpired(_clock())) {
-        if (item.phase == RecoveryPhase.updating || item.phase == RecoveryPhase.cleanup) {
+        // Keep a verified SDK session's owner until the provider revokes it.
+        // Expiry removes mutation authority, not the obligation to sign out.
+        if (item.phase == RecoveryPhase.ready ||
+            item.phase == RecoveryPhase.updating ||
+            item.phase == RecoveryPhase.cleanup) {
           return item;
         }
         await clear();
@@ -53,9 +57,21 @@ class RecoveryIntentStore {
     }
   }
 
-  Future<void> clear() async {
+  Future<void> clear([String? expectedIntentId]) async {
     final prefs = _prefs;
     if (prefs != null) {
+      if (expectedIntentId != null) {
+        final raw = prefs.getString(_storageKey);
+        if (raw != null && raw.trim().isNotEmpty) {
+          try {
+            final decoded = jsonDecode(raw) as Map<String, dynamic>;
+            final item = PendingRecovery.fromJson(decoded);
+            if (item.intentId != expectedIntentId) {
+              return;
+            }
+          } catch (_) {}
+        }
+      }
       final removed = await prefs.remove(_storageKey);
       if (!removed) {
         throw StateError('Failed to remove recovery intent from storage.');

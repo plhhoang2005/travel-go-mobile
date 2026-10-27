@@ -61,6 +61,8 @@ class PlanTripRequest {
     );
   }
 
+  static const Object _sentinel = Object();
+
   PlanTripRequest copyWith({
     String? origin,
     int? numDays,
@@ -68,12 +70,34 @@ class PlanTripRequest {
     int? budgetVnd,
     List<String>? preferences,
     String? priority,
-    String? destinationId,
-    String? destinationName,
-    String? startDate,
-    String? endDate,
+    Object? destinationId = _sentinel,
+    Object? destinationName = _sentinel,
+    Object? startDate = _sentinel,
+    Object? endDate = _sentinel,
     String? companionType,
+    bool clearDestination = false,
+    bool clearDates = false,
   }) {
+    final resolvedDestinationId = clearDestination
+        ? null
+        : (identical(destinationId, _sentinel)
+            ? this.destinationId
+            : destinationId as String?);
+    final resolvedDestinationName = clearDestination
+        ? null
+        : (identical(destinationName, _sentinel)
+            ? this.destinationName
+            : destinationName as String?);
+    final resolvedStartDate = clearDates
+        ? null
+        : (identical(startDate, _sentinel)
+            ? this.startDate
+            : startDate as String?);
+    final resolvedEndDate = clearDates
+        ? null
+        : (identical(endDate, _sentinel)
+            ? this.endDate
+            : endDate as String?);
     return PlanTripRequest(
       origin: origin ?? this.origin,
       numDays: numDays ?? this.numDays,
@@ -81,13 +105,16 @@ class PlanTripRequest {
       budgetVnd: budgetVnd ?? this.budgetVnd,
       preferences: preferences ?? this.preferences,
       priority: priority ?? this.priority,
-      destinationId: destinationId ?? this.destinationId,
-      destinationName: destinationName ?? this.destinationName,
-      startDate: startDate ?? this.startDate,
-      endDate: endDate ?? this.endDate,
+      destinationId: resolvedDestinationId,
+      destinationName: resolvedDestinationName,
+      startDate: resolvedStartDate,
+      endDate: resolvedEndDate,
       companionType: companionType ?? this.companionType,
     );
   }
+
+  PlanTripRequest clearDestination() => copyWith(clearDestination: true);
+  PlanTripRequest clearDates() => copyWith(clearDates: true);
 
   // Pre-configured Presets according to Persona Minh & Project Requirements
   static PlanTripRequest presetMinh() {

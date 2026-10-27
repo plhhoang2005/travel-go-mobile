@@ -1,6 +1,7 @@
 // ignore_for_file: depend_on_referenced_packages
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -37,7 +38,10 @@ class ControllableRecoveryService extends PasswordRecoveryService {
   Completer<AuthSessionUrlResponse>? exchangeCompleter;
 
   @override
-  Future<AuthSessionUrlResponse> exchange(SupabaseClient client, String code) async {
+  Future<AuthSessionUrlResponse> exchange(
+    SupabaseClient client,
+    String code,
+  ) async {
     if (exchangeEntered != null && !exchangeEntered!.isCompleted) {
       exchangeEntered!.complete();
     }
@@ -51,7 +55,10 @@ class ControllableRecoveryService extends PasswordRecoveryService {
   }
 
   @override
-  Future<UserResponse> updatePassword(SupabaseClient client, String password) async {
+  Future<UserResponse> updatePassword(
+    SupabaseClient client,
+    String password,
+  ) async {
     if (rejectWith != null) {
       throw rejectWith!;
     }
@@ -60,6 +67,24 @@ class ControllableRecoveryService extends PasswordRecoveryService {
     }
     return super.updatePassword(client, password);
   }
+}
+
+Future<void> pumpRecoveryUntil(
+  WidgetTester tester,
+  bool Function() condition,
+) async {
+  // SharedPreferences and the marker queue cross real/fake async zones.
+  // Flush both until the asserted operation boundary, rather than a fixed delay.
+  for (var i = 0; i < 100; i++) {
+    await tester.pump();
+    if (condition()) return;
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+  }
+  expect(
+    condition(),
+    isTrue,
+    reason: 'recovery did not reach the expected boundary',
+  );
 }
 
 void main() {
@@ -73,8 +98,17 @@ void main() {
     late SupabaseClient client;
     late AuthProvider auth;
     late PasswordRecoveryProvider recoveryProvider;
+    var failLogout = false;
+    var failVerification = false;
+    var verificationGets = 0;
+    var passwordPuts = 0;
+    Completer<void>? verificationGate;
 
     setUp(() async {
+      failLogout = false;
+      failVerification = false;
+      verificationGets = passwordPuts = 0;
+      verificationGate = null;
       SharedPreferences.setMockInitialValues({});
       prefs = await SharedPreferences.getInstance();
       store = RecoveryIntentStore(prefs, projectNamespace: 'gate_test');
@@ -90,7 +124,17 @@ void main() {
         ),
         httpClient: MockClient((request) async {
           final path = request.url.path;
-          if (path.contains('/user') && request.method == 'PUT') {
+          if (path.contains('/user') &&
+              (request.method == 'PUT' || request.method == 'GET')) {
+            if (request.method == 'GET') {
+              verificationGets++;
+              await verificationGate?.future;
+              if (failVerification) {
+                throw http.ClientException('synthetic offline');
+              }
+            } else {
+              passwordPuts++;
+            }
             return http.Response(
               jsonEncode({
                 'id': 'usr-recovery-gate',
@@ -121,6 +165,9 @@ void main() {
             );
           }
           if (path.contains('/logout')) {
+            if (failLogout) {
+              return http.Response('{"error":"server_error"}', 500);
+            }
             return http.Response('{}', 204);
           }
           return http.Response('{"error":"not_found"}', 404);
@@ -143,7 +190,10 @@ void main() {
       });
       await client.auth.recoverSession(sessionJson);
 
-      auth = AuthProvider(client: client, initialRecoveryIntentId: 'gate-intent');
+      auth = AuthProvider(
+        client: client,
+        initialRecoveryIntentId: 'gate-intent',
+      );
       recoveryProvider = PasswordRecoveryProvider(
         service: service,
         store: store,
@@ -160,11 +210,87 @@ void main() {
             value: recoveryProvider,
           ),
         ],
-        child: MaterialApp(
-          home: PasswordRecoveryGate(child: child),
-        ),
+        child: MaterialApp(home: PasswordRecoveryGate(child: child)),
       );
     }
+
+    testWidgets('cold verification failure has retry and hides reset form', (
+      tester,
+    ) async {
+      await store.write(
+        PendingRecovery(
+          intentId: 'gate-intent',
+          requestedAt: DateTime.now().toUtc(),
+          phase: RecoveryPhase.ready,
+          verifiedUserId: 'usr-recovery-gate',
+        ),
+      );
+      failVerification = true;
+      await tester.runAsync(recoveryProvider.initializeFromStore);
+      await tester.pumpWidget(
+        createTestApp(child: const Text('BACKGROUND_CHILD_SCREEN')),
+      );
+      expect(find.text('Thử lại xác minh'), findsOneWidget);
+      expect(find.byType(ResetPasswordScreen), findsNothing);
+      expect(find.text('BACKGROUND_CHILD_SCREEN'), findsNothing);
+
+      failVerification = false;
+      verificationGate = Completer<void>();
+      await tester.tap(find.text('Thử lại xác minh'));
+      await pumpRecoveryUntil(tester, () => verificationGets == 2);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.byType(ResetPasswordScreen), findsNothing);
+      verificationGate!.complete();
+      await pumpRecoveryUntil(tester, () => recoveryProvider.isReady);
+      expect(find.byType(ResetPasswordScreen), findsOneWidget);
+      expect(passwordPuts, 0);
+    });
+
+    testWidgets(
+      'warm verification failure preserves password input for safe retry',
+      (tester) async {
+        await store.write(
+          PendingRecovery(
+            intentId: 'gate-intent',
+            requestedAt: DateTime.now().toUtc(),
+            phase: RecoveryPhase.ready,
+            verifiedUserId: 'usr-recovery-gate',
+          ),
+        );
+        await tester.runAsync(recoveryProvider.initializeFromStore);
+        await tester.pumpWidget(
+          createTestApp(child: const Text('BACKGROUND_CHILD_SCREEN')),
+        );
+        const password = 'SyntheticPassword123!';
+        final field = find.byKey(const ValueKey('new-password-field'));
+        await tester.enterText(field, password);
+        await tester.enterText(
+          find.byKey(const ValueKey('confirm-password-field')),
+          password,
+        );
+        failVerification = true;
+        final submit = find.byKey(const ValueKey('submit-new-password-btn'));
+        await tester.ensureVisible(submit);
+        await tester.tap(submit);
+        await pumpRecoveryUntil(
+          tester,
+          () =>
+              !recoveryProvider.isProcessing &&
+              recoveryProvider.errorMessage != null,
+        );
+        expect(recoveryProvider.isReady, isTrue);
+        expect(passwordPuts, 0);
+        expect(tester.widget<TextFormField>(field).controller!.text, password);
+        failVerification = false;
+        await tester.ensureVisible(submit);
+        await tester.tap(submit);
+        await pumpRecoveryUntil(
+          tester,
+          () => recoveryProvider.state == RecoveryState.completed,
+        );
+        expect(passwordPuts, 1);
+      },
+    );
 
     testWidgets('password_form_survives_pending_update', (tester) async {
       final intent = PendingRecovery(
@@ -174,7 +300,7 @@ void main() {
         verifiedUserId: 'usr-recovery-gate',
       );
       await store.write(intent);
-      await recoveryProvider.initializeFromStore();
+      await tester.runAsync(recoveryProvider.initializeFromStore);
 
       await tester.pumpWidget(
         createTestApp(
@@ -207,6 +333,10 @@ void main() {
       await tester.pump();
 
       // Pending update: ResetPasswordScreen must STILL be mounted!
+      await pumpRecoveryUntil(
+        tester,
+        () => recoveryProvider.state == RecoveryState.updating,
+      );
       expect(recoveryProvider.state, RecoveryState.updating);
       expect(find.byType(ResetPasswordScreen), findsOneWidget);
       expect(find.text('BACKGROUND_CHILD_SCREEN'), findsNothing);
@@ -235,7 +365,7 @@ void main() {
         verifiedUserId: 'usr-recovery-gate',
       );
       await store.write(intent);
-      await recoveryProvider.initializeFromStore();
+      await tester.runAsync(recoveryProvider.initializeFromStore);
 
       await tester.pumpWidget(
         createTestApp(
@@ -264,21 +394,26 @@ void main() {
       await tester.tap(btn);
       await tester.pump();
 
-      await tester.runAsync(() async {
-        for (int i = 0; i < 50; i++) {
-          if (recoveryProvider.errorMessage != null) break;
-          await Future<void>.delayed(const Duration(milliseconds: 20));
-        }
-      });
-      await tester.pump();
+      await pumpRecoveryUntil(
+        tester,
+        () =>
+            recoveryProvider.errorMessage?.contains('Mật khẩu quá yếu') ==
+                true &&
+            !recoveryProvider.isProcessing,
+      );
 
       // Must remain on form with server error message visible
       expect(find.byType(ResetPasswordScreen), findsOneWidget);
       expect(find.textContaining('Mật khẩu quá yếu'), findsOneWidget);
-      expect(find.byKey(const ValueKey('submit-new-password-btn')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('submit-new-password-btn')),
+        findsOneWidget,
+      );
     });
 
-    testWidgets('cleanup_and_uncertain_never_show_update_button', (tester) async {
+    testWidgets('cleanup_and_uncertain_never_show_update_button', (
+      tester,
+    ) async {
       final intent = PendingRecovery(
         intentId: 'gate-intent',
         requestedAt: DateTime.now().toUtc(),
@@ -286,7 +421,7 @@ void main() {
         verifiedUserId: 'usr-recovery-gate',
       );
       await store.write(intent);
-      await recoveryProvider.initializeFromStore();
+      await tester.runAsync(recoveryProvider.initializeFromStore);
 
       await tester.pumpWidget(
         createTestApp(
@@ -296,11 +431,16 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
 
       expect(find.byType(ResetPasswordScreen), findsOneWidget);
-      expect(find.byKey(const ValueKey('submit-new-password-btn')), findsNothing);
+      expect(
+        find.byKey(const ValueKey('submit-new-password-btn')),
+        findsNothing,
+      );
       expect(find.textContaining('đăng xuất'), findsWidgets);
     });
 
-    testWidgets('warm_and_cold_callbacks_override_nested_bootstrap', (tester) async {
+    testWidgets('warm_and_cold_callbacks_override_nested_bootstrap', (
+      tester,
+    ) async {
       final linkStreamController = StreamController<Uri>.broadcast();
       final intent = PendingRecovery(
         intentId: 'gate-intent',
@@ -328,16 +468,12 @@ void main() {
 
       // Dispatch warm recovery callback link
       linkStreamController.add(
-        Uri.parse('io.supabase.travelgo://login-callback?flow=recovery&code=code-gate-warm'),
+        Uri.parse(
+          'io.supabase.travelgo://login-callback?flow=recovery&code=code-gate-warm',
+        ),
       );
-      
-      await tester.runAsync(() async {
-        for (int i = 0; i < 50; i++) {
-          if (recoveryProvider.isReady) break;
-          await Future<void>.delayed(const Duration(milliseconds: 20));
-        }
-      });
-      await tester.pump();
+
+      await pumpRecoveryUntil(tester, () => recoveryProvider.isReady);
 
       // Recovery gate overrides nested bootstrap routes
       expect(find.byType(ResetPasswordScreen), findsOneWidget);
@@ -347,7 +483,9 @@ void main() {
       await tester.pump(const Duration(seconds: 2));
     });
 
-    testWidgets('bootstrap_resume_timer_cannot_replace_recovery_form', (tester) async {
+    testWidgets('bootstrap_resume_timer_cannot_replace_recovery_form', (
+      tester,
+    ) async {
       final intent = PendingRecovery(
         intentId: 'gate-intent',
         requestedAt: DateTime.now().toUtc(),
@@ -355,7 +493,7 @@ void main() {
         verifiedUserId: 'usr-recovery-gate',
       );
       await store.write(intent);
-      await recoveryProvider.initializeFromStore();
+      await tester.runAsync(recoveryProvider.initializeFromStore);
 
       await tester.pumpWidget(
         createTestApp(
@@ -385,7 +523,7 @@ void main() {
         verifiedUserId: 'usr-recovery-gate',
       );
       await store.write(intent);
-      await recoveryProvider.initializeFromStore();
+      await tester.runAsync(recoveryProvider.initializeFromStore);
 
       await tester.pumpWidget(
         createTestApp(
@@ -398,13 +536,48 @@ void main() {
 
       // Tap retry cleanup button
       await tester.tap(find.text('Thử lại hoàn tất đăng xuất'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
+      await pumpRecoveryUntil(
+        tester,
+        () => recoveryProvider.state == RecoveryState.completed,
+      );
 
       // Gate unmounts ResetPasswordScreen and returns to child login screen
       expect(find.text('BACKGROUND_CHILD_SCREEN'), findsOneWidget);
       expect(find.byType(ResetPasswordScreen), findsNothing);
       expect(auth.isAuthenticated, isFalse);
+    });
+
+    testWidgets('cancel_logout_failure_retries_after_marker_is_gone', (
+      tester,
+    ) async {
+      await store.write(
+        PendingRecovery(
+          intentId: 'gate-intent',
+          requestedAt: DateTime.now().toUtc(),
+          phase: RecoveryPhase.ready,
+          verifiedUserId: 'usr-recovery-gate',
+        ),
+      );
+      await tester.runAsync(recoveryProvider.initializeFromStore);
+      failLogout = true;
+      await tester.runAsync(recoveryProvider.cancel);
+      expect(await store.read(), isNull);
+      expect(recoveryProvider.isCleanupRequired, isTrue);
+      await tester.pumpWidget(
+        createTestApp(
+          child: const Scaffold(body: Text('BACKGROUND_CHILD_SCREEN')),
+        ),
+      );
+      expect(find.byType(ResetPasswordScreen), findsOneWidget);
+      failLogout = false;
+      await tester.tap(find.text('Thử lại hoàn tất đăng xuất'));
+      await pumpRecoveryUntil(
+        tester,
+        () => recoveryProvider.state == RecoveryState.completed,
+      );
+      expect(find.text('BACKGROUND_CHILD_SCREEN'), findsOneWidget);
+      expect(find.byType(ResetPasswordScreen), findsNothing);
+      expect(auth.isRecovering, isFalse);
     });
   });
 }

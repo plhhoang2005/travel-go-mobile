@@ -16,6 +16,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'core/constants/api_constants.dart';
 import 'core/services/backend_api_config.dart';
 import 'core/theme/app_theme.dart';
+import 'features/trip_planner/providers/planner_input_provider.dart';
 import 'features/trip_planner/providers/trip_provider.dart';
 import 'features/trip_planner/providers/manual_planner_provider.dart';
 import 'features/trips/providers/editable_drafts_provider.dart';
@@ -31,7 +32,7 @@ import 'features/auth/providers/password_recovery_provider.dart';
 import 'features/auth/presentation/widgets/password_recovery_gate.dart';
 import 'features/auth/presentation/screens/onboarding_screen.dart';
 
-import 'features/favorites/providers/favorites_provider.dart';
+// favorites removed
 import 'features/trips/providers/saved_trips_provider.dart';
 import 'features/trips/providers/guest_drafts_provider.dart';
 import 'features/home/providers/home_catalog_provider.dart';
@@ -45,7 +46,7 @@ import 'features/explore/providers/discovery_provider.dart';
 import 'features/explore/providers/place_visit_details_provider.dart';
 import 'features/explore/services/place_visit_cache.dart';
 import 'features/explore/services/place_visit_details_repository.dart';
-import 'features/map/providers/map_provider.dart';
+// map removed
 import 'features/trips/services/local_trip_store.dart';
 import 'features/trips/services/local_account_lifecycle_service.dart';
 import 'features/trips/services/guest_import_service.dart';
@@ -250,6 +251,7 @@ class TravelGoApp extends StatefulWidget {
   final RecoveryIntentStore? recoveryIntentStore;
   final PasswordRecoveryService? recoveryService;
   final String? initialRecoveryIntentId;
+  final TripProvider? legacyTrip;
   const TravelGoApp({
     super.key,
     this.localStoreRuntime,
@@ -262,6 +264,7 @@ class TravelGoApp extends StatefulWidget {
     this.recoveryIntentStore,
     this.recoveryService,
     this.initialRecoveryIntentId,
+    this.legacyTrip,
   });
 
   @override
@@ -637,33 +640,32 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
         Provider<Future<LocalAccountLifecycleService> Function()>.value(value: _getLifecycle),
         Provider<LocalTripStoreRuntime>.value(value: _runtime),
         Provider<ManualPlannerRuntime>.value(value: _manualRuntime),
-        ChangeNotifierProxyProvider<AuthProvider, TripProvider>(
+        ChangeNotifierProvider<PlannerInputProvider>(
           create: (context) {
-            final trip = TripProvider(localStoreLoader: _runtime.getStore);
+            final input = PlannerInputProvider();
             _removeRamBindings.add(
               _auth.registerAccountInvalidator(() {
-                trip.setPlannerContext(
-                  isGuest: true,
-                  isDemo: false,
-                  ownerId: null,
-                  authEpoch: _auth.authEpoch,
-                );
+                input.reset();
               }),
             );
-            return trip;
-          },
-          update: (_, auth, trip) {
-            final provider = trip!;
-            provider.setPlannerContext(
-              isGuest: auth.isGuest,
-              isDemo: auth.isDemoSession,
-              ownerId: auth.currentUser?.id,
-              authEpoch: auth.authEpoch,
-            );
-            return provider;
+            return input;
           },
         ),
-        ChangeNotifierProvider(create: (_) => FavoritesProvider()),
+        if (widget.legacyTrip != null)
+          ChangeNotifierProxyProvider<AuthProvider, TripProvider>(
+            create: (_) => widget.legacyTrip!,
+            update: (_, auth, trip) {
+              final provider = trip!;
+              provider.setPlannerContext(
+                isGuest: auth.isGuest,
+                isDemo: auth.isDemoSession,
+                ownerId: auth.currentUser?.id,
+                authEpoch: auth.authEpoch,
+              );
+              return provider;
+            },
+          ),
+        // favorites provider removed
         ChangeNotifierProxyProvider<AuthProvider, SavedTripsProvider>(
           create: (_) {
             final saved = SavedTripsProvider(
@@ -785,7 +787,7 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
             return vp;
           },
         ),
-        ChangeNotifierProvider(create: (_) => MapProvider()),
+        // map provider removed
       ],
       child: MaterialApp(
         title: 'TravelGO Mobile',

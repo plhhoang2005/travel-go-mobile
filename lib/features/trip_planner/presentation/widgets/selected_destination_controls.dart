@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../auth/providers/auth_provider.dart';
 import '../../../explore/providers/public_catalogue_provider.dart';
+import '../../../trips/models/trip_payload_codec.dart';
+import '../../models/trip_request.dart';
+import '../../providers/planner_input_provider.dart';
 import '../../providers/trip_provider.dart';
 import '../../models/editable_trip_document.dart';
 import 'planner_workspace_actions.dart';
@@ -12,9 +16,30 @@ class SelectedDestinationControls extends StatelessWidget {
   const SelectedDestinationControls({super.key, this.onManualPlanner});
   @override
   Widget build(BuildContext context) {
-    final trip = context.watch<TripProvider>();
-    final request = trip.currentRequest;
-    final metadata = trip.currentMetadata;
+    PlannerInputProvider? inputProvider;
+    try {
+      inputProvider = context.watch<PlannerInputProvider>();
+    } catch (_) {}
+    TripProvider? legacyTrip;
+    if (inputProvider == null) {
+      try {
+        legacyTrip = context.watch<TripProvider>();
+      } catch (_) {}
+    }
+
+    final request = inputProvider?.currentRequest ?? legacyTrip?.currentRequest ?? PlanTripRequest.presetMinh();
+    final metadata = inputProvider?.currentMetadata ?? legacyTrip?.currentMetadata ?? TripMetadataV1();
+    final canReplace = inputProvider?.canReplaceWorkspace ?? legacyTrip?.canReplaceWorkspace ?? true;
+    final hasSelectedDestination = inputProvider?.hasSelectedDestination ?? legacyTrip?.hasSelectedDestination ?? false;
+    final supportsAi = inputProvider?.supportsSelectedDestinationAi ?? legacyTrip?.supportsSelectedDestinationAi ?? false;
+
+    AuthProvider? auth;
+    try {
+      auth = context.watch<AuthProvider>();
+    } catch (_) {}
+    final isAccountWorkspace =
+        (auth != null && !auth.isGuest && !auth.isDemoSession && auth.isAuthenticated) ||
+        (legacyTrip != null && legacyTrip.isAccountWorkspace);
     final input = TripInput(
       title: metadata.title ?? 'Chuyến đi mới',
       destinationId: metadata.destinationId,
@@ -41,13 +66,13 @@ class SelectedDestinationControls extends StatelessWidget {
           const SizedBox(height: 16),
           if (onManualPlanner != null) ...[
             FilledButton.icon(
-              onPressed: trip.canReplaceWorkspace ? onManualPlanner : null,
+              onPressed: canReplace ? onManualPlanner : null,
               icon: const Icon(Icons.edit_outlined),
               label: const Text('Tự lập lịch trình'),
             ),
             const SizedBox(height: 16),
           ],
-          if (trip.hasSelectedDestination) ...[
+          if (hasSelectedDestination) ...[
             Text(
               'Điểm đến đã chọn',
               style: Theme.of(context).textTheme.labelLarge,
@@ -63,18 +88,18 @@ class SelectedDestinationControls extends StatelessWidget {
                 final snapshot = pub?.snapshot;
                 final isSupported = metadata.destinationId == null ||
                     (snapshot != null
-                        ? TripProvider.isAiEligibleDestination(metadata.destinationId, snapshot)
-                        : trip.supportsSelectedDestinationAi);
+                        ? PlannerInputProvider.isAiEligibleDestination(metadata.destinationId, snapshot)
+                        : supportsAi);
                 return Text(
                   isSupported
-                      ? 'Hệ thống sẽ gợi ý lịch trình và phương tiện tối ưu riêng cho ${metadata.destinationName ?? "điểm đến này"}.'
+                      ? 'Hệ thống sẽ đồng hành cùng bạn khi lập lịch trình cho ${metadata.destinationName ?? "điểm đến này"}.'
                       : 'Tính năng tự động và AI chưa hỗ trợ điểm đến này. Bạn có thể tự lập lịch trình.',
                 );
               },
             ),
             const SizedBox(height: 8),
             OutlinedButton(
-              onPressed: trip.canReplaceWorkspace
+              onPressed: canReplace
                   ? () => replacePlannerWorkspace(context)
                   : null,
               child: const Text('Để app gợi ý điểm đến'),
@@ -84,7 +109,7 @@ class SelectedDestinationControls extends StatelessWidget {
               'Đây là thông tin đầu vào. Bạn có thể điều chỉnh các giá trị bên dưới.',
             ),
           ],
-          if (trip.isAccountWorkspace) ...[
+          if (isAccountWorkspace) ...[
             const SizedBox(height: 8),
             const Text(
               'Thông tin này chưa được lưu',

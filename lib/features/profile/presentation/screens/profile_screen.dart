@@ -114,13 +114,15 @@ class CustomerProfileScreen extends StatelessWidget {
                   ? null
                   : () => _showTravelPreferences(context, auth, user.id),
             ),
-            if (!guest && !auth.isDemoSession && user.role == UserRole.admin) ...[
+            if (!guest &&
+                !auth.isDemoSession &&
+                user.role == UserRole.admin) ...[
               const Divider(height: 24),
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.admin_panel_settings_outlined),
                 title: const Text('Quản trị'),
-                subtitle: const Text('Bảng điều khiển và quản lý hệ thống'),
+                subtitle: const Text('Quản lý người dùng và địa điểm'),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () {
                   Navigator.of(context).push(
@@ -143,7 +145,8 @@ class CustomerProfileScreen extends StatelessWidget {
                 try {
                   config = context.watch<BackendApiConfig>();
                 } catch (_) {}
-                final currentUrl = config?.effectiveBaseUrl ?? ApiConstants.baseUrl;
+                final currentUrl =
+                    config?.effectiveBaseUrl ?? ApiConstants.baseUrl;
                 final displayUrl = currentUrl.split('/api')[0];
                 return ListTile(
                   contentPadding: EdgeInsets.zero,
@@ -242,7 +245,8 @@ class CustomerProfileScreen extends StatelessWidget {
                     ),
                     style: const TextStyle(fontSize: 13),
                   ),
-                  if (config?.persistenceError != null || errorMessage != null) ...[
+                  if (config?.persistenceError != null ||
+                      errorMessage != null) ...[
                     const SizedBox(height: 8),
                     Text(
                       errorMessage ?? config!.persistenceError!,
@@ -307,7 +311,8 @@ class CustomerProfileScreen extends StatelessWidget {
                           }
                           if (!ctx.mounted) return;
                           Navigator.pop(ctx);
-                          final currentUrl = config?.effectiveBaseUrl ?? ApiConstants.baseUrl;
+                          final currentUrl =
+                              config?.effectiveBaseUrl ?? ApiConstants.baseUrl;
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text('Đã lưu URL API: $currentUrl'),

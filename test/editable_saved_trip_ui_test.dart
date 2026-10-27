@@ -284,7 +284,9 @@ void main() {
             expect(stored.document.actualExpenses.single.amountVnd, 250000);
             expect(stored.document.actualExpenses.single.paidOn, '2026-10-15');
             expect(find.byType(ManualSavePreview), findsNothing);
-            expect(find.text('Mở bản nháp tự lập'), findsOneWidget);
+            // In C1: guest import banner is removed from MyTripsScreen; guest empty state is rendered
+            expect(find.text('Mở bản nháp tự lập'), findsNothing);
+            expect(find.text('Đăng nhập để lưu chuyến đi'), findsOneWidget);
             expect(bundle.drafts.drafts.single.draftId, draftId);
             expect(bundle.drafts.drafts.single.revision, 1);
             expect(ctx.server.creates, 0);

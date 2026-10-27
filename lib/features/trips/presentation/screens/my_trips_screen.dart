@@ -8,11 +8,8 @@ import '../../../auth/providers/auth_provider.dart';
 import '../../../trip_planner/presentation/screens/home_planner_screen.dart';
 import '../../models/editable_remote_records.dart';
 import '../../models/saved_trip_model.dart';
-import '../../providers/guest_drafts_provider.dart';
 import '../../providers/saved_trips_provider.dart';
 import '../../services/trip_list_classifier.dart';
-import '../widgets/editable_draft_import_selection.dart';
-import '../widgets/guest_draft_import_sheet.dart';
 import 'editable_trip_detail_screen.dart';
 import 'saved_trip_snapshot_screen.dart';
 
@@ -111,14 +108,6 @@ class _MyTripsScreenState extends State<MyTripsScreen>
         ),
         backgroundColor: Theme.of(context).colorScheme.surface,
         elevation: 0,
-        actions: [
-          if (auth.isAuthenticated && !auth.isDemoSession)
-            IconButton(
-              tooltip: 'Chuyển bản nháp Guest',
-              onPressed: () => _openGuestImport(context, auth.currentUser!.id),
-              icon: const Icon(Icons.move_to_inbox_outlined),
-            ),
-        ],
         bottom: TabBar(
           controller: _tabController,
           labelColor: Theme.of(context).colorScheme.primary,
@@ -138,11 +127,9 @@ class _MyTripsScreenState extends State<MyTripsScreen>
           // Tab 1: Sắp/đang đi
           _withAccountRefresh(
             isGuest
-                ? EditableGuestDraftList(
-                    fallback: _buildEmptyState(
-                      context,
-                      'Chưa có chuyến đi sắp tới',
-                    ),
+                ? _buildEmptyState(
+                    context,
+                    'Chưa có chuyến đi sắp tới',
                   )
                 : _buildTabContent(
                     context,
@@ -288,28 +275,6 @@ class _MyTripsScreenState extends State<MyTripsScreen>
         await provider.loadTrips(ownerId);
       },
       child: child,
-    );
-  }
-
-  Future<void> _openGuestImport(BuildContext context, String ownerId) async {
-    GuestDraftsProvider? drafts;
-    try {
-      drafts = context.read<GuestDraftsProvider?>();
-    } on ProviderNotFoundException catch (_) {
-      drafts = null;
-    }
-    if (drafts == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Bản nháp trên máy chưa sẵn sàng.')),
-      );
-      return;
-    }
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (_) =>
-          GuestDraftImportSheet(drafts: drafts!, expectedOwnerId: ownerId),
     );
   }
 

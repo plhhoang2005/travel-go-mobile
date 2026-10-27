@@ -7,8 +7,9 @@ import 'package:travelgo_mobile/features/admin/presentation/screens/admin_user_d
 import 'package:travelgo_mobile/features/admin/presentation/screens/admin_users_screen.dart';
 import 'package:travelgo_mobile/features/admin/providers/admin_account_provider.dart';
 import 'package:travelgo_mobile/features/admin/services/admin_account_service.dart';
-import 'package:travelgo_mobile/features/auth/models/user_model.dart';
 import 'package:travelgo_mobile/features/auth/providers/auth_provider.dart';
+
+import 'coursework_admin_account_flow_test.dart' show CourseworkAdminAuth;
 
 class MockAdminService implements AdminAccountService {
   final List<String> sentMutationRequestIds = [];
@@ -18,6 +19,7 @@ class MockAdminService implements AdminAccountService {
   List<UserSummary> usersToReturn = [];
   UserCursor? nextCursorToReturn;
   UserDetail? userDetailToReturn;
+  AdminFailure? mutationError;
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -25,7 +27,7 @@ class MockAdminService implements AdminAccountService {
   @override
   Future<AdminAccess> access() async {
     return const AdminAccess(
-      subjectId: 'admin-caller',
+      subjectId: 'admin-1',
       role: 'admin',
       accountRevision: 1,
       allowed: true,
@@ -68,10 +70,7 @@ class MockAdminService implements AdminAccountService {
     String? state,
     UserCursor? cursor,
   }) async {
-    return UserPage(
-      items: usersToReturn,
-      nextCursor: nextCursorToReturn,
-    );
+    return UserPage(items: usersToReturn, nextCursor: nextCursorToReturn);
   }
 
   @override
@@ -102,6 +101,23 @@ class MockAdminService implements AdminAccountService {
     required String reason,
   }) async {
     sentMutationRequestIds.add(requestId);
+    if (mutationError != null) throw mutationError!;
+    final old = userDetailToReturn;
+    if (old != null) {
+      userDetailToReturn = UserDetail(
+        summary: UserSummary(
+          id: old.id,
+          fullName: old.fullName,
+          email: old.email,
+          role: old.role,
+          state: action == 'lock' ? 'locked' : 'enabled',
+          revision: expectedRevision + 1,
+          createdAt: old.createdAt,
+          authSynced: true,
+        ),
+        audit: old.audit,
+      );
+    }
     return AccountOperation(
       id: 'op-1',
       targetId: targetId,
@@ -143,12 +159,12 @@ void main() {
 
   setUp(() async {
     mockService = MockAdminService();
-    authProvider = AuthProvider();
-    await authProvider.quickDemoLogin(UserRole.admin);
+    authProvider = CourseworkAdminAuth();
     provider = AdminAccountProvider(
       service: mockService,
       authProvider: authProvider,
     );
+    await provider.enter();
   });
 
   tearDown(() {
@@ -157,11 +173,12 @@ void main() {
   });
 
   group('Admin Dashboard Screen Widget Tests', () {
-    testWidgets('Dashboard renders metrics truthfully and switches 7/30 days', (tester) async {
-      await tester.pumpWidget(_wrapScreen(
-        child: const AdminDashboardScreen(),
-        provider: provider,
-      ));
+    testWidgets('Dashboard renders metrics truthfully and switches 7/30 days', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _wrapScreen(child: const AdminDashboardScreen(), provider: provider),
+      );
       await tester.pumpAndSettle();
 
       expect(find.text('Tổng tài khoản'), findsOneWidget);
@@ -169,8 +186,14 @@ void main() {
       expect(find.text('Tài khoản bị khóa'), findsOneWidget);
       expect(find.text('3'), findsOneWidget);
       expect(find.text('Admin hoạt động'), findsOneWidget);
-      final adminCard = find.ancestor(of: find.text('Admin hoạt động'), matching: find.byType(Card));
-      expect(find.descendant(of: adminCard, matching: find.text('2')), findsOneWidget);
+      final adminCard = find.ancestor(
+        of: find.text('Admin hoạt động'),
+        matching: find.byType(Card),
+      );
+      expect(
+        find.descendant(of: adminCard, matching: find.text('2')),
+        findsOneWidget,
+      );
       expect(find.textContaining('Bản nháp (Revision 5)'), findsOneWidget);
       expect(find.textContaining('Phiên bản v2'), findsOneWidget);
 
@@ -180,55 +203,150 @@ void main() {
       expect(find.text('Đăng ký mới (30 ngày)'), findsOneWidget);
     });
 
-    testWidgets('Dashboard displays retry banner when backend unavailable and does not invent zero', (tester) async {
-      mockService.dashboardError = const AdminFailure(
-        code: 'upstream_unavailable',
-        message: 'Could not connect to database statistics',
-      );
+    testWidgets(
+      'Dashboard displays retry banner when backend unavailable and does not invent zero',
+      (tester) async {
+        mockService.dashboardError = const AdminFailure(
+          code: 'upstream_unavailable',
+          message: 'Could not connect to database statistics',
+        );
 
-      await tester.pumpWidget(_wrapScreen(
-        child: const AdminDashboardScreen(),
-        provider: provider,
-      ));
-      await tester.pumpAndSettle();
+        await tester.pumpWidget(
+          _wrapScreen(child: const AdminDashboardScreen(), provider: provider),
+        );
+        await tester.pumpAndSettle();
 
-      expect(find.textContaining('Không thể tải dữ liệu thống kê'), findsOneWidget);
-      expect(find.text('Thử lại'), findsOneWidget);
-      expect(find.text('100'), findsNothing);
-    });
+        expect(
+          find.textContaining('Không thể tải dữ liệu thống kê'),
+          findsOneWidget,
+        );
+        expect(find.text('Thử lại'), findsOneWidget);
+        expect(find.text('100'), findsNothing);
+      },
+    );
   });
 
   group('Admin Users Screen Widget Tests', () {
-    testWidgets('Users list renders items, null lastSignIn renders Chưa đăng nhập', (tester) async {
-      mockService.usersToReturn = [
-        UserSummary(
-          id: 'u-1',
-          fullName: 'Tran Thi B',
-          email: 'b@example.com',
-          role: 'customer',
-          state: 'enabled',
-          revision: 1,
-          createdAt: DateTime.parse('2026-10-23T00:00:00Z'),
-          lastSignInAt: null,
-          authSynced: true,
-        ),
-      ];
+    testWidgets(
+      'Users list renders items, null lastSignIn renders Chưa đăng nhập',
+      (tester) async {
+        mockService.usersToReturn = [
+          UserSummary(
+            id: 'u-1',
+            fullName: 'Tran Thi B',
+            email: 'b@example.com',
+            role: 'customer',
+            state: 'enabled',
+            revision: 1,
+            createdAt: DateTime.parse('2026-10-23T00:00:00Z'),
+            lastSignInAt: null,
+            authSynced: true,
+          ),
+        ];
 
-      await tester.pumpWidget(_wrapScreen(
-        child: const AdminUsersScreen(),
-        provider: provider,
-      ));
-      await tester.pumpAndSettle();
+        await tester.pumpWidget(
+          _wrapScreen(child: const AdminUsersScreen(), provider: provider),
+        );
+        await tester.pumpAndSettle();
 
-      expect(find.text('Tran Thi B'), findsOneWidget);
-      expect(find.text('b@example.com'), findsOneWidget);
-      expect(find.text('• Chưa đăng nhập'), findsOneWidget);
-      expect(find.text('USER'), findsOneWidget);
-    });
+        expect(find.text('Tran Thi B'), findsOneWidget);
+        expect(find.text('b@example.com'), findsOneWidget);
+        expect(find.text('• Chưa đăng nhập'), findsOneWidget);
+        expect(find.text('USER'), findsOneWidget);
+      },
+    );
   });
 
   group('Admin User Detail & Dialog Invariant Tests', () {
-    testWidgets('cancel_and_double_confirm_do_not_duplicate_mutation', (tester) async {
+    testWidgets('dialog transport retry keeps frozen identity and reason', (
+      tester,
+    ) async {
+      mockService.userDetailToReturn = UserDetail(
+        summary: UserSummary(
+          id: 'target',
+          fullName: 'Target',
+          email: 'target@example.invalid',
+          role: 'customer',
+          state: 'enabled',
+          revision: 1,
+          createdAt: DateTime.utc(2026),
+          authSynced: true,
+        ),
+        audit: const [],
+      );
+      mockService.mutationError = const AdminFailure(
+        code: 'network_error',
+        outcomeUncertain: true,
+        message: 'lost ACK',
+      );
+      await tester.pumpWidget(
+        _wrapScreen(
+          child: const AdminUserDetailScreen(userId: 'target'),
+          provider: provider,
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Cấp quyền Admin'), findsNothing);
+      await tester.tap(find.text('Khóa tài khoản'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextFormField), 'Lý do được giữ');
+      await tester.tap(find.text('Xác nhận'));
+      await tester.pumpAndSettle();
+      expect(mockService.sentMutationRequestIds.length, 1);
+      expect(find.text('Lý do được giữ'), findsOneWidget);
+      mockService.mutationError = null;
+      await tester.tap(find.text('Thử lại'));
+      await tester.pumpAndSettle();
+      expect(mockService.sentMutationRequestIds.length, 2);
+      expect(mockService.sentMutationRequestIds.toSet().length, 1);
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(provider.selectedUser!.state, 'locked');
+    });
+
+    testWidgets(
+      'user rows at 320dp and 2x text wrap status and preserve filters',
+      (tester) async {
+        tester.view.physicalSize = const Size(320, 600);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        mockService.usersToReturn = [
+          UserSummary(
+            id: 'target',
+            fullName: 'Tên người dùng',
+            email: 'target@example.invalid',
+            role: 'customer',
+            state: 'locked',
+            revision: 2,
+            createdAt: DateTime.utc(2026),
+            lastSignInAt: DateTime.utc(2026, 10, 26),
+            authSynced: false,
+          ),
+        ];
+        provider.setFilter(role: 'customer', state: 'locked');
+        await provider.loadUsers();
+        await tester.pumpWidget(
+          _wrapScreen(
+            child: const AdminUsersScreen(),
+            provider: provider,
+            width: 320,
+            height: 600,
+            textScale: 2,
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.enterText(find.byType(TextField), 'target');
+        await tester.pump(const Duration(milliseconds: 350));
+        expect(provider.roleFilter, 'customer');
+        expect(provider.stateFilter, 'locked');
+        expect(find.byTooltip('Xóa tìm kiếm'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets('cancel_and_double_confirm_do_not_duplicate_mutation', (
+      tester,
+    ) async {
       mockService.userDetailToReturn = UserDetail(
         summary: UserSummary(
           id: 'target-to-lock',
@@ -244,10 +362,12 @@ void main() {
         audit: const [],
       );
 
-      await tester.pumpWidget(_wrapScreen(
-        child: const AdminUserDetailScreen(userId: 'target-to-lock'),
-        provider: provider,
-      ));
+      await tester.pumpWidget(
+        _wrapScreen(
+          child: const AdminUserDetailScreen(userId: 'target-to-lock'),
+          provider: provider,
+        ),
+      );
       await tester.pumpAndSettle();
 
       // Tap Khóa tài khoản button to open dialog
@@ -266,7 +386,10 @@ void main() {
       await tester.pumpAndSettle();
 
       // Enter required reason
-      await tester.enterText(find.byType(TextFormField), 'Vi phạm chính sách cộng đồng');
+      await tester.enterText(
+        find.byType(TextFormField),
+        'Vi phạm chính sách cộng đồng',
+      );
       await tester.pump();
 
       // Double tap confirm rapidly
@@ -279,41 +402,53 @@ void main() {
       expect(mockService.sentMutationRequestIds.toSet().length, 1);
     });
 
-    testWidgets('Responsive test: width 320dp and textScale 2.0 does not overflow', (tester) async {
-      mockService.userDetailToReturn = UserDetail(
-        summary: UserSummary(
-          id: 'target-uuid-long-long-long-long',
-          fullName: 'Nguyễn Văn Rất Dài Cần Kiểm Tra Tràn Khung Màn Hình Hẹp',
-          email: 'nguyenvanratdaicankiemtratrankhungmanhinhhep@example.invalid',
-          role: 'customer',
-          state: 'enabled',
-          revision: 15,
-          createdAt: DateTime.parse('2026-10-20T10:00:00Z'),
-          lastSignInAt: DateTime.parse('2026-10-23T09:00:00Z'),
-          authSynced: false,
-        ),
-        audit: [
-          AuditEvent(
-            id: 'evt-1',
-            actorId: 'admin-caller',
-            targetId: 'target-uuid-long-long-long-long',
-            eventKind: 'account_locked',
-            reason: 'Lý do dài kiểm tra hiển thị trên thiết bị màn hình nhỏ không bị lỗi tràn pixel',
-            createdAt: DateTime.parse('2026-10-23T09:30:00Z'),
+    testWidgets(
+      'Responsive test: width 320dp and textScale 2.0 does not overflow',
+      (tester) async {
+        tester.view.physicalSize = const Size(320, 600);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        mockService.userDetailToReturn = UserDetail(
+          summary: UserSummary(
+            id: 'target-uuid-long-long-long-long',
+            fullName: 'Nguyễn Văn Rất Dài Cần Kiểm Tra Tràn Khung Màn Hình Hẹp',
+            email:
+                'nguyenvanratdaicankiemtratrankhungmanhinhhep@example.invalid',
+            role: 'customer',
+            state: 'enabled',
+            revision: 15,
+            createdAt: DateTime.parse('2026-10-20T10:00:00Z'),
+            lastSignInAt: DateTime.parse('2026-10-23T09:00:00Z'),
+            authSynced: false,
           ),
-        ],
-      );
+          audit: [
+            AuditEvent(
+              id: 'evt-1',
+              actorId: 'admin-caller',
+              targetId: 'target-uuid-long-long-long-long',
+              eventKind: 'account_locked',
+              reason: 'Lý do dài kiểm tra hiển thị trên thiết bị màn hình nhỏ không bị lỗi tràn pixel',
+              createdAt: DateTime.parse('2026-10-23T09:30:00Z'),
+            ),
+          ],
+        );
 
-      await tester.pumpWidget(_wrapScreen(
-        child: const AdminUserDetailScreen(userId: 'target-uuid-long-long-long-long'),
-        provider: provider,
-        width: 320,
-        height: 600,
-        textScale: 2.0,
-      ));
-      await tester.pumpAndSettle();
+        await tester.pumpWidget(
+          _wrapScreen(
+            child: const AdminUserDetailScreen(
+              userId: 'target-uuid-long-long-long-long',
+            ),
+            provider: provider,
+            width: 320,
+            height: 600,
+            textScale: 2.0,
+          ),
+        );
+        await tester.pumpAndSettle();
 
-      expect(tester.takeException(), isNull);
-    });
+        expect(tester.takeException(), isNull);
+      },
+    );
   });
 }

@@ -9,7 +9,7 @@ import 'package:travelgo_mobile/features/auth/providers/auth_provider.dart';
 import 'package:travelgo_mobile/features/auth/presentation/screens/splash_screen.dart';
 import 'package:travelgo_mobile/features/explore/providers/discovery_provider.dart';
 import 'package:travelgo_mobile/features/explore/services/catalogue_repository.dart';
-import 'package:travelgo_mobile/features/trip_planner/providers/trip_provider.dart';
+import 'package:travelgo_mobile/features/trip_planner/providers/planner_input_provider.dart';
 import 'package:travelgo_mobile/features/trip_planner/presentation/screens/home_planner_screen.dart';
 
 import 'catalogue_parser_test.dart' show catalogueData;
@@ -39,7 +39,7 @@ void main() {
       await tester.pump();
       expect(discovery.catalogue!.destinations.length, 12);
       expect(opens, 0);
-      expect(context.read<TripProvider>().canPersistGuestDraft, true);
+      expect(context.read<PlannerInputProvider>().canReplaceWorkspace, true);
       await tester.pumpWidget(const SizedBox());
       await tester.pump(const Duration(seconds: 2));
       await runtime.close();
@@ -70,11 +70,15 @@ void main() {
           expect(find.byType(HomePlannerScreen), findsOneWidget);
           expect(trip.currentMetadata.destinationId, 'hue');
           expect(trip.activeDraftId, isNull);
-          await tester.ensureVisible(find.text('Lưu bản nháp trên máy'));
-          await tester.tap(find.text('Lưu bản nháp trên máy'));
-          await tester.pumpAndSettle();
-          await tester.tap(find.text('Lưu'));
-          await tester.pumpAndSettle();
+          // In C1: Guest draft persistence UI button is removed from HomePlannerScreen
+          expect(find.text('Lưu bản nháp trên máy'), findsNothing);
+          expect(
+            find.widgetWithText(ElevatedButton, 'Lập lịch trình cho Huế'),
+            findsOneWidget,
+          );
+          // Underlying draft persistence and disk reload keep destination
+          final savedRow = await trip.saveGuestDraft(title: 'Bản nháp Huế');
+          expect(savedRow, isNotNull);
           final rows = await ctx.store.listGuestDrafts();
           expect(rows, hasLength(1));
           expect(trip.isDraftDirty, false);

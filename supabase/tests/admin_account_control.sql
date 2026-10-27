@@ -210,12 +210,17 @@ SELECT pg_temp.denied_a1(
 );
 
 -- Worker completion
+-- The positive control must use the worker and resulting revision actually
+-- issued by SQL. C6 negative controls separately reject random/stale workers.
+RESET ROLE;
+SELECT worker_token AS fixture_worker_token FROM private_admin.account_operations
+WHERE id='b0000000-0000-4000-8000-000000000002'::uuid \gset
 SET LOCAL ROLE service_role;
 SELECT pg_temp.check_a1(
   (public.complete_admin_account_operation(
     'b0000000-0000-4000-8000-000000000002'::uuid,
-    gen_random_uuid(),
-    1::bigint,
+    :'fixture_worker_token'::uuid,
+    2::bigint,
     true
   )->>'state') = 'completed',
   'complete_admin_account_operation_completed'

@@ -73,6 +73,7 @@ class _ManualTripInputFormState extends State<ManualTripInputForm> {
     final values = {
       'title': input.title,
       'origin': input.origin,
+      'destinationName': input.destinationName ?? '',
       'start': input.startDate ?? '',
       'end': input.endDate ?? '',
       'days': '${widget.initialDocument.days.length}',
@@ -170,6 +171,11 @@ class _ManualTripInputFormState extends State<ManualTripInputForm> {
 
   String? _validate(String name, String? value) {
     final raw = (value ?? '').trim();
+    if (name == 'destinationName') {
+      if (_destination != null) return null;
+      if (raw.isEmpty) return 'Nhập tên điểm đến.';
+      return raw.runes.length > 180 ? 'Tối đa 180 ký tự Unicode.' : null;
+    }
     if (name == 'title' || name == 'origin') {
       return raw.runes.length > 200 ? 'Tối đa 200 ký tự Unicode.' : null;
     }
@@ -273,7 +279,9 @@ class _ManualTripInputFormState extends State<ManualTripInputForm> {
       'title': _text('title'),
       'origin': _text('origin'),
       'destinationId': _destination,
-      'destinationName': selected.isEmpty ? null : selected.single.name,
+      'destinationName': selected.isEmpty
+          ? (_text('destinationName').isEmpty ? null : _text('destinationName'))
+          : selected.single.name,
       'startDate': _text('start').isEmpty ? null : _text('start'),
       'endDate': _text('end').isEmpty ? null : _text('end'),
       'travelerCount': int.parse(_text('travelers')),
@@ -665,7 +673,7 @@ class _TripMainFields extends StatelessWidget {
       _TripSection(
         key: form._sections[0],
         title: '1. Đi đâu?',
-        subtitle: 'Chọn điểm đến và nơi xuất phát.',
+        subtitle: 'Chọn trong danh sách hoặc tự nhập điểm đến.',
       ),
       _InputField(form: form, name: 'title', label: 'Tên chuyến đi'),
       Padding(
@@ -678,17 +686,29 @@ class _TripMainFields extends StatelessWidget {
           items: [
             const DropdownMenuItem<String>(
               value: null,
-              child: Text('Chưa chọn điểm đến'),
+              child: Text('Tự nhập điểm đến'),
             ),
+            if (form._destination != null &&
+                !form.widget.destinations.any((d) => d.id == form._destination))
+              DropdownMenuItem(
+                value: form._destination,
+                child: Text(form._text('destinationName')),
+              ),
             for (final d in form.widget.destinations)
               DropdownMenuItem(value: d.id, child: Text(d.name)),
           ],
           onChanged: (v) {
             form._destination = v;
+            final selected = form.widget.destinations.where((d) => d.id == v);
+            if (selected.isNotEmpty) {
+              form._fields['destinationName']!.text = selected.single.name;
+            }
             form._changed();
           },
         ),
       ),
+      if (form._destination == null)
+        _InputField(form: form, name: 'destinationName', label: 'Tên điểm đến'),
       _InputField(form: form, name: 'origin', label: 'Nơi xuất phát'),
       _TripSection(
         key: form._sections[1],
