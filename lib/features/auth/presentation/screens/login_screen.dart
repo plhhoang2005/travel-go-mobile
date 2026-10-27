@@ -70,7 +70,20 @@ class _LoginScreenState extends State<LoginScreen> {
           auth.isAuthenticated &&
           !auth.isGuest &&
           ModalRoute.of(context)?.isCurrent == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Đăng nhập thành công! Chào mừng bạn quay trở lại.'),
+            backgroundColor: Colors.green,
+          ),
+        );
         _openHome();
+      } else if (!success && auth.errorMessage != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(auth.errorMessage!),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
       }
     } finally {
       if (mounted && operation == _operation) {
