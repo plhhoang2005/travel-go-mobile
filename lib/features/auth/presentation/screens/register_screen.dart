@@ -45,17 +45,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         email: _email.text,
         password: _password.text,
       );
-      if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
-      if (!ok) {
-        final err = auth.errorMessage ?? 'Không thể hoàn tất đăng ký.';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(err),
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-        );
-        return;
-      }
+      if (!mounted || ModalRoute.of(context)?.isCurrent != true || !ok) return;
       // The request has finished. Reading its confirmation is a separate action.
       setState(() => _busy = false);
       if (auth.isAuthenticated && !auth.isGuest) {
@@ -70,15 +60,32 @@ class _RegisterScreenState extends State<RegisterScreen> {
           (_) => false,
         );
       } else if (auth.isEmailConfirmationPending) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Mã OTP đã được gửi đến email. Vui lòng nhập mã để hoàn tất.'),
-            backgroundColor: Colors.blue,
-          ),
-        );
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => OtpVerificationScreen(email: _email.text.trim()),
+        await showDialog<void>(
+          context: context,
+          builder: (dialog) => AlertDialog(
+            title: const Text('Kiểm tra email xác nhận'),
+            content: const SingleChildScrollView(
+              child: Text(
+                'Yêu cầu đăng ký đã được tiếp nhận. Nếu nhận được thư xác nhận, bạn có thể lấy mã OTP để nhập vào app hoặc mở liên kết trong thư.',
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(dialog).pop();
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => OtpVerificationScreen(email: _email.text.trim()),
+                    ),
+                  );
+                },
+                child: const Text('Nhập mã OTP'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(dialog).pop(),
+                child: const Text('Đã hiểu'),
+              ),
+            ],
           ),
         );
       }

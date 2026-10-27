@@ -77,13 +77,6 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         );
         _openHome();
-      } else if (!success && auth.errorMessage != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(auth.errorMessage!),
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-        );
       }
     } finally {
       if (mounted && operation == _operation) {
