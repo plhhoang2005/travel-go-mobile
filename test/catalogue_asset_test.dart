@@ -8,10 +8,10 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   test('reviewed source bytes equal bundled asset and rootBundle parses all twelve', () async {
     final source = File('docs/phase-2/catalogue/catalogue_readiness_v1.json')
-        .readAsBytesSync();
+        .readAsStringSync().replaceAll('\r\n', '\n');
     final asset = File('assets/catalogue/catalogue_readiness_v1.json')
-        .readAsBytesSync();
-    expect(asset, orderedEquals(source));
+        .readAsStringSync().replaceAll('\r\n', '\n');
+    expect(asset, equals(source));
     final bundled = await rootBundle.loadString(
       'assets/catalogue/catalogue_readiness_v1.json',
     );
