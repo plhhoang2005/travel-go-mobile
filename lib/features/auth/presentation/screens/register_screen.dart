@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../providers/auth_provider.dart';
 import '../../../navigation/presentation/screens/main_navigation_shell.dart';
+import 'otp_verification_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -48,6 +49,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
       // The request has finished. Reading its confirmation is a separate action.
       setState(() => _busy = false);
       if (auth.isAuthenticated && !auth.isGuest) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Đăng ký tài khoản thành công!'),
+            backgroundColor: Colors.green,
+          ),
+        );
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (_) => const MainNavigationShell()),
           (_) => false,
@@ -59,10 +66,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
             title: const Text('Kiểm tra email xác nhận'),
             content: const SingleChildScrollView(
               child: Text(
-                'Yêu cầu đăng ký đã được tiếp nhận. Nếu nhận được thư xác nhận, hãy mở liên kết trong thư rồi đăng nhập. Bạn chưa đăng nhập vào tài khoản. Kiểm tra cả thư rác.',
+                'Yêu cầu đăng ký đã được tiếp nhận. Nếu nhận được thư xác nhận, hãy mở liên kết trong thư hoặc nhập mã OTP. Bạn chưa đăng nhập vào tài khoản. Kiểm tra cả thư rác.',
               ),
             ),
             actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(dialog).pop();
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => OtpVerificationScreen(email: _email.text.trim()),
+                    ),
+                  );
+                },
+                child: const Text('Nhập mã OTP'),
+              ),
               TextButton(
                 onPressed: () => Navigator.of(dialog).pop(),
                 child: const Text('Đã hiểu'),

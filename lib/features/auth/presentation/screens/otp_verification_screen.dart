@@ -44,9 +44,22 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       final ok = await auth.verifyOtp(_code.text, email: widget.email);
       if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
       if (ok && auth.isAuthenticated && !auth.isGuest) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Xác thực email thành công!'),
+            backgroundColor: Colors.green,
+          ),
+        );
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (_) => const MainNavigationShell()),
           (_) => false,
+        );
+      } else if (!ok) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(auth.errorMessage ?? 'Mã xác thực không hợp lệ hoặc đã hết hạn.'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
         );
       }
     } finally {
