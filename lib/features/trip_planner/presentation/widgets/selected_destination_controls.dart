@@ -56,7 +56,7 @@ class SelectedDestinationControls extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 24),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           TripLivePreview(
             input: input,
@@ -67,7 +67,7 @@ class SelectedDestinationControls extends StatelessWidget {
           if (onManualPlanner != null) ...[
             FilledButton.icon(
               onPressed: canReplace ? onManualPlanner : null,
-              icon: const Icon(Icons.edit_outlined),
+              icon: const Icon(Icons.edit_calendar_outlined),
               label: const Text('Tự lập lịch trình'),
             ),
             const SizedBox(height: 16),
@@ -75,9 +75,10 @@ class SelectedDestinationControls extends StatelessWidget {
           if (hasSelectedDestination) ...[
             Text(
               'Điểm đến đã chọn',
-              style: Theme.of(context).textTheme.labelLarge,
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
             ),
-            const SizedBox(height: 4),
             const SizedBox(height: 8),
             Builder(
               builder: (context) {
@@ -88,7 +89,10 @@ class SelectedDestinationControls extends StatelessWidget {
                 final snapshot = pub?.snapshot;
                 final isSupported = metadata.destinationId == null ||
                     (snapshot != null
-                        ? PlannerInputProvider.isAiEligibleDestination(metadata.destinationId, snapshot)
+                        ? PlannerInputProvider.isAiEligibleDestination(
+                            metadata.destinationId,
+                            snapshot,
+                          )
                         : supportsAi);
                 return Text(
                   isSupported
@@ -110,13 +114,28 @@ class SelectedDestinationControls extends StatelessWidget {
             ),
           ],
           if (isAccountWorkspace) ...[
-            const SizedBox(height: 8),
-            const Text(
-              'Thông tin này chưa được lưu',
-              style: TextStyle(fontWeight: FontWeight.w600),
-            ),
-            const Text(
-              'Nội dung hiện chỉ được giữ trong phiên làm việc của ứng dụng.',
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(
+                  alpha: 0.5,
+                ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Text(
+                    'Thông tin này chưa được lưu',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'Nội dung hiện chỉ được giữ trong phiên làm việc của ứng dụng.',
+                  ),
+                ],
+              ),
             ),
           ],
         ],
