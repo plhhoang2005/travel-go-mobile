@@ -3,16 +3,19 @@
 
 const DEFAULT_WARNING = 'Thông tin từ Internet, chưa được Admin kiểm duyệt: kiểm tra lại trước khi thực hiện.';
 
+const utf8Encoder = new TextEncoder();
+const utf8Decoder = new TextDecoder('utf-8', { fatal: false });
+
 /**
  * Safely slices text using UTF-8 byte offsets (as specified by Google Gemini v1beta).
  */
 export function sliceUtf8Bytes(fullText, startIndex = 0, endIndex) {
   if (typeof fullText !== 'string' || fullText.length === 0) return '';
-  const bytes = Buffer.from(fullText, 'utf-8');
+  const bytes = utf8Encoder.encode(fullText);
   const start = Math.max(0, Math.min(Number.isSafeInteger(startIndex) ? startIndex : 0, bytes.length));
   const end = Math.min(Number.isSafeInteger(endIndex) ? endIndex : bytes.length, bytes.length);
   if (end <= start) return '';
-  return bytes.subarray(start, end).toString('utf-8');
+  return utf8Decoder.decode(bytes.subarray(start, end));
 }
 
 /**
@@ -160,11 +163,17 @@ export function normalizeGoogleGrounding({
     ? { renderedContent: metadata.searchEntryPoint.renderedContent }
     : null;
 
+  const trimmedEvidence = evidence.slice(0, 8);
+  const allowedEvidenceIds = new Set(trimmedEvidence.map(e => e.id));
+  const filteredClaims = claims
+    .filter(c => c.evidenceIds.some(id => allowedEvidenceIds.has(id)))
+    .slice(0, 10);
+
   return {
-    summary,
-    evidence,
-    claims,
-    searchQueries,
+    summary: summary.slice(0, 4000),
+    evidence: trimmedEvidence,
+    claims: filteredClaims,
+    searchQueries: searchQueries.slice(0, 5),
     searchEntryPoint,
     warnings,
   };

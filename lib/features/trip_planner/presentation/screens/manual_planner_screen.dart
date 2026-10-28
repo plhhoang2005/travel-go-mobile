@@ -263,25 +263,41 @@ class _ManualPlannerScreenState extends State<ManualPlannerScreen> {
         input: input,
         authority: Listenable.merge([planner, auth]),
         isCurrent: current,
-        generate: (requestId) =>
-            widget.generateAi?.call(snapshot, requestId) ??
-            (widget.snapshot != null
-                ? generateAiWithEvidence(
-                    auth: auth,
-                    document: snapshot,
-                    snapshot: widget.snapshot!,
-                    requestId: requestId,
-                    newId: _newId,
-                    workspaceCurrent: current,
-                  )
-                : generateAiForDraft(
-                    auth: auth,
-                    document: snapshot,
-                    requestId: requestId,
-                    newId: _newId,
-                    workspaceCurrent: current,
-                    destination: dest,
-                  )),
+        generate: (requestId) async {
+          if (widget.generateAi != null) {
+            return widget.generateAi!(snapshot, requestId);
+          }
+          if (widget.snapshot != null) {
+            try {
+              return await generateAiWithEvidence(
+                auth: auth,
+                document: snapshot,
+                snapshot: widget.snapshot!,
+                requestId: requestId,
+                newId: _newId,
+                workspaceCurrent: current,
+              );
+            } catch (evidenceError) {
+              debugPrint('generateAiWithEvidence fallback: $evidenceError');
+              return await generateAiForDraft(
+                auth: auth,
+                document: snapshot,
+                requestId: requestId,
+                newId: _newId,
+                workspaceCurrent: current,
+                destination: dest,
+              );
+            }
+          }
+          return await generateAiForDraft(
+            auth: auth,
+            document: snapshot,
+            requestId: requestId,
+            newId: _newId,
+            workspaceCurrent: current,
+            destination: dest,
+          );
+        },
       ),
       dialog: true,
     );
@@ -386,25 +402,50 @@ class _ManualPlannerScreenState extends State<ManualPlannerScreen> {
         input: input,
         authority: Listenable.merge([planner, auth]),
         isCurrent: current,
+        onWebAdvice: (prompt, requestId) async {
+          return await requestWebAdvice(
+            auth: auth,
+            document: snapshot,
+            prompt: prompt,
+            requestId: requestId,
+            workspaceCurrent: current,
+            selectedDay: _ordinal,
+          );
+        },
         generate:
             widget.assistantGenerate ??
-            (intent, prompt, history, requestId) {
+            (intent, prompt, history, requestId) async {
               if (widget.snapshot != null) {
-                return askAiWithEvidence(
-                  auth: auth,
-                  document: snapshot,
-                  snapshot: widget.snapshot!,
-                  intent: intent,
-                  prompt: prompt,
-                  history: history,
-                  requestId: requestId,
-                  newId: _newId,
-                  workspaceCurrent: current,
-                  selectedDay: _ordinal,
-                  evidenceEnvelope: planner.evidenceEnvelope,
-                );
+                try {
+                  return await askAiWithEvidence(
+                    auth: auth,
+                    document: snapshot,
+                    snapshot: widget.snapshot!,
+                    intent: intent,
+                    prompt: prompt,
+                    history: history,
+                    requestId: requestId,
+                    newId: _newId,
+                    workspaceCurrent: current,
+                    selectedDay: _ordinal,
+                    evidenceEnvelope: planner.evidenceEnvelope,
+                  );
+                } catch (e) {
+                  debugPrint('askAiWithEvidence fallback: $e');
+                  return await askAiForDraft(
+                    auth: auth,
+                    document: snapshot,
+                    context: input,
+                    intent: intent,
+                    prompt: prompt,
+                    history: history,
+                    requestId: requestId,
+                    newId: _newId,
+                    workspaceCurrent: current,
+                  );
+                }
               }
-              return askAiForDraft(
+              return await askAiForDraft(
                 auth: auth,
                 document: snapshot,
                 context: input,

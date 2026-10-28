@@ -291,14 +291,22 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
                     ],
                   ),
                   const VerticalDivider(thickness: 1, width: 1),
-                  Expanded(child: screens[_selectedIndex]),
+                  Expanded(
+                    child: IndexedStack(
+                      index: _selectedIndex,
+                      children: screens,
+                    ),
+                  ),
                 ],
               ),
             );
           }
 
           return Scaffold(
-            body: screens[_selectedIndex],
+            body: IndexedStack(
+              index: _selectedIndex,
+              children: screens,
+            ),
             bottomNavigationBar: NavigationBar(
               selectedIndex: _selectedIndex,
               onDestinationSelected: (idx) =>
