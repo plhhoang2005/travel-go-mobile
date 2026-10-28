@@ -3,6 +3,7 @@
 // Manages draft freezing, public V2 projection, immutable Storage uploads, and atomic CAS activation.
 
 import crypto from 'node:crypto';
+import { Buffer } from 'node:buffer';
 import { validateAndProjectPublicBundle, encodePublicBundle } from './bundle.mjs';
 
 const ALLOWED_ACTIONS = new Set(['preview', 'publish', 'operation']);
@@ -22,7 +23,8 @@ export function createPublicationGateway(deps = {}) {
   } = deps;
 
   return async function handlePublication(request) {
-    if (request.method !== 'POST') {
+    try {
+      if (request.method !== 'POST') {
       return jsonResponse({ code: 'method_not_allowed', message: 'Method not allowed' }, 405);
     }
 
@@ -42,7 +44,7 @@ export function createPublicationGateway(deps = {}) {
       return jsonResponse({ code: 'invalid_body', message: 'Could not read request body' }, 400);
     }
 
-    if (Buffer.byteLength(rawBody, 'utf8') > MAX_BODY_BYTES) {
+    if (new TextEncoder().encode(rawBody).length > MAX_BODY_BYTES) {
       return jsonResponse({ code: 'body_too_large', message: 'Payload exceeds 64 KiB limit' }, 413);
     }
 
@@ -103,6 +105,10 @@ export function createPublicationGateway(deps = {}) {
         }
       }
       return jsonResponse({ code: 'internal_error', message: msg }, 500);
+    }
+    } catch (topErr) {
+      console.error('PUBLICATION_TOP_LEVEL_ERROR:', topErr);
+      return jsonResponse({ code: 'internal_error', message: topErr.message || String(topErr) }, 500);
     }
   };
 }
