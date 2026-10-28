@@ -2,6 +2,7 @@
 // Implements deterministic packaging, public projection filtering, and cross-runtime hash vectors.
 
 import crypto from 'node:crypto';
+import { Buffer } from 'node:buffer';
 
 export function validateAndProjectPublicBundle({ frozenDraft, version, preparedAt }) {
   const blockers = [];
