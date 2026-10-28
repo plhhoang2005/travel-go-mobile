@@ -8,6 +8,7 @@ import 'package:travelgo_mobile/features/admin/presentation/screens/admin_public
 import 'package:travelgo_mobile/features/admin/presentation/widgets/admin_destination_form.dart';
 import 'package:travelgo_mobile/features/admin/presentation/widgets/admin_place_form.dart';
 import 'package:travelgo_mobile/features/admin/providers/admin_catalogue_provider.dart';
+import 'package:travelgo_mobile/features/admin/providers/admin_publication_provider.dart';
 
 class AdminCatalogueScreen extends StatefulWidget {
   const AdminCatalogueScreen({super.key});
@@ -247,10 +248,14 @@ class _AdminCatalogueScreenState extends State<AdminCatalogueScreen>
             icon: const Icon(Icons.cloud_upload_outlined),
             tooltip: 'Xuất bản danh mục',
             onPressed: () {
+              final publicationProvider = context.read<AdminPublicationProvider>();
               Navigator.of(context).push(
                 MaterialPageRoute(
-                  builder: (_) => AdminPublicationScreen(
-                    draftRevision: provider.currentRevision,
+                  builder: (_) => ChangeNotifierProvider<AdminPublicationProvider>.value(
+                    value: publicationProvider,
+                    child: AdminPublicationScreen(
+                      draftRevision: provider.currentRevision,
+                    ),
                   ),
                 ),
               );
@@ -306,10 +311,14 @@ class _AdminCatalogueScreenState extends State<AdminCatalogueScreen>
                         icon: const Icon(Icons.upload, size: 16),
                         label: const Text('Xuất bản', style: TextStyle(fontSize: 12)),
                         onPressed: () {
+                          final publicationProvider = context.read<AdminPublicationProvider>();
                           Navigator.of(context).push(
                             MaterialPageRoute(
-                              builder: (_) => AdminPublicationScreen(
-                                draftRevision: provider.currentRevision,
+                              builder: (_) => ChangeNotifierProvider<AdminPublicationProvider>.value(
+                                value: publicationProvider,
+                                child: AdminPublicationScreen(
+                                  draftRevision: provider.currentRevision,
+                                ),
                               ),
                             ),
                           );
