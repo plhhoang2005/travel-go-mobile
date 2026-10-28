@@ -78,7 +78,7 @@ function publicQuota(value, requestId) {
   keys(value, ['status'], ['requestId', 'acceptedDay', 'workerToken', 'expiresAt', 'remaining', 'result', 'dispatch']);
   ensure(['reserved', 'succeeded', 'failed', 'expired', 'result_expired', 'quota_exhausted', 'global_cap'].includes(value.status));
   if (value.status === 'global_cap') return { status: value.status };
-  date(value.acceptedDay); integer(value.remaining, 0, 3);
+  date(value.acceptedDay); integer(value.remaining, 0, 500);
   if (value.status === 'quota_exhausted') return { status: value.status, acceptedDay: value.acceptedDay, remaining: value.remaining };
   ensure(value.requestId === requestId);
   if (value.status === 'reserved') {

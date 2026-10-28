@@ -320,3 +320,47 @@ test('createItineraryGateway denies anonymous guest for web advice', async () =>
   const body = await res.json();
   assert.equal(body.status, 'subject_denied');
 });
+
+test('validateWebAdviceResult accepts multiline summary, claims and natural text', async () => {
+  const requestId = '77777777-7777-4777-8777-777777777777';
+  const clean = {
+    contract: WEB_ADVICE,
+    requestId,
+    context: { baseDigest: 'c'.repeat(64) },
+  };
+  const value = {
+    contract: WEB_ADVICE,
+    requestId,
+    summary: 'Dưới đây là một số quán cà phê đẹp:\n1. Quán Trấn Vũ view hồ Tây\n2. Cà phê phố cổ\n\nChúc bạn có trải nghiệm tuyệt vời!',
+    evidence: [
+      {
+        id: 'web:source-1',
+        origin: 'web',
+        sourceUri: 'https://hanoicafe.vn/quan-dep',
+        sourceTitle: 'Top quán cà phê Hà Nội',
+        retrievedAt: '2026-10-28T03:00:00.000Z',
+        reviewed: false,
+      },
+    ],
+    claims: [
+      {
+        id: 'claim:web:0',
+        kind: 'fact',
+        field: 'advice',
+        text: 'Quán Trấn Vũ view hồ Tây đẹp vào hoàng hôn.\nKhông gian thoáng mát.',
+        context: 'Quán Trấn Vũ view hồ Tây',
+        evidenceIds: ['web:source-1'],
+        sourceIds: ['web:source-1'],
+      },
+    ],
+    searchQueries: ['quán cà phê hồ Tây ngắm hoàng hôn'],
+    searchEntryPoint: null,
+    warnings: ['Thông tin từ Internet, chưa được Admin kiểm duyệt: kiểm tra lại trước khi thực hiện.'],
+    baseDigest: 'c'.repeat(64),
+  };
+
+  const m = await import('../supabase/functions/itinerary-proposal/gateway.mjs');
+  const validated = m.validateWebAdviceResult(value, clean);
+  assert.equal(validated.summary, value.summary);
+  assert.equal(validated.claims.length, 1);
+});

@@ -142,12 +142,12 @@ export function createItineraryGateway(config,fetchImpl=fetch){
     return { allowed: false, status: 503 };
   }
  };
- async function rpc(name,body){const r=await fetchImpl(`${origin}/rest/v1/rpc/${name}`,{method:'POST',headers:{apikey:c.serviceKey,Authorization:`Bearer ${c.serviceKey}`,'content-type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(5000)});ensure(r.ok);return boundedJson(r,20000);}
+ async function rpc(name,body){const r=await fetchImpl(`${origin}/rest/v1/rpc/${name}`,{method:'POST',headers:{apikey:c.serviceKey,Authorization:`Bearer ${c.serviceKey}`,'content-type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(5000)});if(!r.ok){const errText=await r.text();console.error('RPC_FAIL:',name,r.status,errText);throw new Error(`RPC_${name}_${r.status}_${errText}`);}return boundedJson(r,65536);}
  function safeEnvelope(value,clean,lookup=false){
   object(value,['status'],['requestId','acceptedDay','workerToken','expiresAt','remaining','result','dispatch']);
   ensure(['reserved','succeeded','failed','expired','result_expired','quota_exhausted','global_cap'].includes(value.status));
   if(value.status==='global_cap')return {status:'global_cap'};
-  day(value.acceptedDay);integer(value.remaining,0,3);
+  day(value.acceptedDay);integer(value.remaining,0,500);
   if(value.status==='quota_exhausted')return {status:value.status,acceptedDay:value.acceptedDay,remaining:value.remaining};
   ensure(value.requestId===clean.requestId);
   if(value.status==='reserved')ensure((lookup?value.workerToken===null:UUID.test(value.workerToken))&&Number.isFinite(Date.parse(value.expiresAt))&&value.result===null&&(value.dispatch===undefined||value.dispatch===true));
@@ -193,19 +193,21 @@ export function createItineraryGateway(config,fetchImpl=fetch){
    try{providerClean=providerEvidenceContext(clean,resolved);assembleCatalogueReceipt(clean,null,resolved);}
    catch{return response({status:'insufficient',requestId:clean.requestId},503);}
   }
-  try{reservation=await rpc('reserve_ai_request_v1',{...binding,p_is_guest:user.is_anonymous});safeEnvelope(reservation,clean);if(reservation.dispatch!==true)return quotaResponse(reservation,clean);ensure(reservation.status==='reserved');}catch{return response({status:'quota_unavailable',requestId:clean.requestId},503);}
+  try{reservation=await rpc('reserve_ai_request_v1',{...binding,p_is_guest:user.is_anonymous});
+safeEnvelope(reservation,clean);if(reservation.dispatch!==true)return quotaResponse(reservation,clean);ensure(reservation.status==='reserved');}catch{return response({status:'quota_unavailable',requestId:clean.requestId},503);}
   const finalize=(success,usable)=>rpc('finalize_ai_request_v1',{...binding,p_worker_token:reservation.workerToken,p_success:success,p_result:usable});
   let usable,stage='provider_transport',httpStatus=null,finishReason=null,providerError;
   try{
    const providerBodyData=clean.contract===WEB_PROPOSAL?webProposalProviderBody(clean):(clean.contract===WEB_ADVICE?webAdviceProviderBody(clean):(evidenceMode?catalogueProviderRequest(providerClean,clean,resolved):providerRequest(clean)));
-   const r=await fetchImpl(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`,{method:'POST',headers:{'x-goog-api-key':c.geminiKey,'content-type':'application/json'},body:JSON.stringify(providerBodyData),signal:AbortSignal.timeout(25000)});httpStatus=r.status;stage='provider_http';if(!r.ok&&clean.contract===CONTRACT)providerError=await safeProviderError(r);ensure(r.ok);
+   const modelName=[WEB_ADVICE,WEB_PROPOSAL].includes(clean.contract)?'gemini-2.5-flash':MODEL;
+   const r=await fetchImpl(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`,{method:'POST',headers:{'x-goog-api-key':c.geminiKey,'content-type':'application/json'},body:JSON.stringify(providerBodyData),signal:AbortSignal.timeout(25000)});httpStatus=r.status;stage='provider_http';if(!r.ok){if(clean.contract===CONTRACT)providerError=await safeProviderError(r);else{try{providerError=await r.text();}catch{}}}ensure(r.ok);
    stage='provider_envelope';const candidate=(await boundedJson(r)).candidates?.[0];
    if(candidate?.finishReason!==undefined)finishReason=['STOP','MAX_TOKENS','SAFETY','RECITATION','LANGUAGE','BLOCKLIST','PROHIBITED_CONTENT','SPII','MALFORMED_FUNCTION_CALL','IMAGE_SAFETY'].includes(candidate.finishReason)?candidate.finishReason:'OTHER';
    ensure(candidate?.finishReason==='STOP'&&Array.isArray(candidate.content?.parts));const parts=candidate.content.parts.filter(p=>p.thought!==true);ensure(parts.length>0&&parts.every(p=>typeof p.text==='string'&&!p.functionCall));
    if(clean.contract===WEB_ADVICE){
     stage='web_advice_normalization';
     const norm=normalizeGoogleGrounding({candidate,retrievedAt:new Date().toISOString(),destinationName:clean.context.destinationName,travelDates:clean.context.dates});
-    usable=validateWebAdviceResult({contract:WEB_ADVICE,requestId:clean.requestId,...norm,baseDigest:clean.context.baseDigest},clean);
+    usable=validateWebAdviceResult(boundWebAdviceBytes({contract:WEB_ADVICE,requestId:clean.requestId,...norm,baseDigest:clean.context.baseDigest}),clean);
    }else if(clean.contract===WEB_PROPOSAL){
     stage='web_proposal_normalization';
     const norm=normalizeGoogleGrounding({candidate,retrievedAt:new Date().toISOString(),destinationName:clean.context.destinationName,travelDates:clean.context.dates});
@@ -251,9 +253,24 @@ export function createItineraryGateway(config,fetchImpl=fetch){
       baseDigest:clean.context.baseDigest,
     },clean);
    }else{
-    stage='provider_content';const raw=JSON.parse(parts.map(p=>p.text).join(''));stage='proposal_validation';usable=providerClean.contract===ASSISTANT?validateAssistantResult(raw,providerClean):validateProposal(raw,providerClean.context);if(evidenceMode)usable=assembleCatalogueReceipt(clean,usable,resolved);
+    stage='provider_content';
+     const rawText=parts.map(p=>p.text).join('');
+     let raw;
+     try{
+       raw=JSON.parse(rawText);
+     }catch(parseErr){
+       const match=/```(?:json)?\s*([\s\S]*?)\s*```/i.exec(rawText.trim());
+       const cleanJson=match?match[1].trim():rawText.trim();
+       try{
+         raw=JSON.parse(cleanJson);
+       }catch(parseErr2){
+         throw new Error(`JSON_PARSE_FAILED: ${parseErr2.message} | RAW: ${rawText.slice(0, 500)}`);
+       }
+     }
+     stage='proposal_validation';usable=providerClean.contract===ASSISTANT?validateAssistantResult(raw,providerClean):validateProposal(raw,providerClean.context);if(evidenceMode)usable=assembleCatalogueReceipt(clean,usable,resolved);
    }
-  }catch{
+  }catch(err){
+   console.error('GATEWAY_ERROR:', stage, err);
    if(clean.contract===CONTRACT&&typeof c.diagnostic==='function'){
     try{c.diagnostic({event:'itinerary_generation_failed',requestId:clean.requestId,stage,httpStatus,finishReason,...(providerError?{providerError}:{})});}catch{ }
    }
@@ -381,20 +398,52 @@ export function sanitizeWebAdviceRequest(value){
  };
 }
 
+function adviceSummaryText(value,max=8000){ensure(typeof value==='string'&&value.trim().length>0&&[...value].length<=max&&!/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(value));return value;}
+
+
+function boundWebAdviceBytes(usable){
+ let enc = encoder.encode(JSON.stringify(usable));
+ if(enc.length <= 14000) return usable;
+ if(usable.searchEntryPoint?.renderedContent?.length > 200){
+  usable.searchEntryPoint = { renderedContent: usable.searchEntryPoint.renderedContent.slice(0, 200) };
+  enc = encoder.encode(JSON.stringify(usable));
+  if(enc.length <= 14000) return usable;
+ }
+ if(usable.claims.length > 5){
+  usable.claims = usable.claims.slice(0, 5);
+  enc = encoder.encode(JSON.stringify(usable));
+  if(enc.length <= 14000) return usable;
+ }
+ if(usable.evidence.length > 4){
+  usable.evidence = usable.evidence.slice(0, 4);
+  usable.claims = usable.claims.filter(c => c.evidenceIds.some(id => usable.evidence.some(e => e.id === id)));
+  enc = encoder.encode(JSON.stringify(usable));
+  if(enc.length <= 14000) return usable;
+ }
+ while(enc.length > 14000 && usable.summary.length > 400){
+  usable.summary = usable.summary.slice(0, usable.summary.length - 200);
+  enc = encoder.encode(JSON.stringify(usable));
+ }
+ return usable;
+}
+
 export function validateWebAdviceResult(value,clean){
  object(value,['contract','requestId','summary','evidence','claims','searchQueries','warnings','baseDigest'],['searchEntryPoint']);
  ensure(value.contract===WEB_ADVICE&&value.requestId===clean.requestId&&value.baseDigest===clean.context.baseDigest);
- text(value.summary,4000);
+ adviceSummaryText(value.summary,8000);
  ensure(Array.isArray(value.evidence)&&Array.isArray(value.claims)&&Array.isArray(value.searchQueries)&&Array.isArray(value.warnings));
+ ensure(encoder.encode(JSON.stringify(value)).length<=14000);
  return value;
 }
 
 function webAdviceProviderBody(clean){
  return {
   systemInstruction:{parts:[{text:'TravelGO Web Advisor: Bạn là trợ lý tư vấn du lịch bằng tiếng Việt sử dụng kết quả tìm kiếm Google Search. Chỉ tư vấn, giải đáp thông tin thực tế về địa điểm, giờ mở cửa, giá vé, lời khuyên thực tế. Không tự bịa thông tin hoặc liên kết nguồn giả.'}]},
-  contents:[{role:'user',parts:[{text:JSON.stringify({prompt:clean.prompt,destination:clean.context.destinationName,dates:clean.context.dates,budgetVnd:clean.context.budgetVnd,numPeople:clean.context.numPeople,interests:clean.context.interests})}]}],
+  contents:[{role:'user',parts:[{text:`[Thông tin chuyến đi: Điểm đến: ${clean.context.destinationName}, Thời gian: ${clean.context.dates.join(', ')}, Ngân sách: ${clean.context.budgetVnd} VND cho ${clean.context.numPeople} người, Sở thích: ${clean.context.interests.join(', ')}]
+
+Câu hỏi: ${clean.prompt}`}]}],
   tools:[{google_search:{}}],
-  generationConfig:{maxOutputTokens:2048,temperature:0.2},
+  generationConfig:{maxOutputTokens:8192,temperature:0.2},
  };
 }
 

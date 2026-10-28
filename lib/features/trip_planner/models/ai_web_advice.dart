@@ -39,7 +39,15 @@ class AiWebAdviceContext {
       dates.add(doc.input.startDate!);
     }
     if (dates.isEmpty) {
-      dates.add(DateTime.now().toIso8601String().substring(0, 10));
+      final totalDays = [
+        if (selectedDay != null && selectedDay > 0) selectedDay,
+        doc.days.length,
+        1,
+      ].reduce((int a, int b) => a > b ? a : b);
+      final now = DateTime.now();
+      for (var i = 0; i < totalDays; i++) {
+        dates.add(now.add(Duration(days: i)).toIso8601String().substring(0, 10));
+      }
     }
 
     final dest = doc.input.destinationName?.trim().isNotEmpty == true
@@ -169,13 +177,18 @@ class AiWebAdviceReply {
       warnings.add('Thông tin từ Internet, chưa được Admin kiểm duyệt: kiểm tra lại trước khi thực hiện.');
     }
 
+    final rawEntryPoint = json['searchEntryPoint'];
+    final entryPointStr = rawEntryPoint is Map
+        ? (rawEntryPoint['renderedContent'] as String? ?? rawEntryPoint.toString())
+        : (rawEntryPoint as String?);
+
     return AiWebAdviceReply(
       requestId: json['requestId'] as String? ?? '',
       summary: json['summary'] as String? ?? '',
       evidence: evidenceList,
       claims: claimsList,
       searchQueries: queries,
-      searchEntryPoint: json['searchEntryPoint'] as String?,
+      searchEntryPoint: entryPointStr,
       warnings: warnings,
       baseDigest: json['baseDigest'] as String? ?? '',
     );

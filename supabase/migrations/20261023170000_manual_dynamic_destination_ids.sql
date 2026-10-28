@@ -149,7 +149,7 @@ CREATE OR REPLACE FUNCTION private.p32_issues(doc jsonb) RETURNS jsonb LANGUAGE 
   ) c(code) WHERE c.code IS NOT NULL
  )
  SELECT coalesce(jsonb_agg(jsonb_build_object('issueCode',code,'itemIds',jsonb_build_array(a->'id',b->'id'),
-  'fingerprint',encode(digest(convert_to(private.p32_canonical(jsonb_build_object('code',code,'itemIds',jsonb_build_array(a->'id',b->'id'),
+  'fingerprint',encode(extensions.digest(convert_to(private.p32_canonical(jsonb_build_object('code',code,'itemIds',jsonb_build_array(a->'id',b->'id'),
   'scopedFields',jsonb_build_array(
     jsonb_build_object('date',(SELECT d->'date' FROM jsonb_array_elements(doc->'days') d WHERE d->'id'=a->'dayId'),'dayId',a->'dayId','endMinute',a->'endMinute','id',a->'id','position',a->'position','startMinute',a->'startMinute'),
     jsonb_build_object('date',(SELECT d->'date' FROM jsonb_array_elements(doc->'days') d WHERE d->'id'=b->'dayId'),'dayId',b->'dayId','endMinute',b->'endMinute','id',b->'id','position',b->'position','startMinute',b->'startMinute')
@@ -163,8 +163,8 @@ BEGIN
  PERFORM private.p32_require(FOUND,'unauthorized');
  RETURN owner; END $f$;
 
-CREATE OR REPLACE FUNCTION private.p32_utc(t timestamptz) RETURNS text LANGUAGE sql IMMUTABLE SET search_path='' AS $f$
- SELECT to_char(t AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') $f$;
+CREATE OR REPLACE FUNCTION private.p32_utc(v timestamptz) RETURNS text LANGUAGE sql IMMUTABLE SET search_path='' AS $f$
+ SELECT to_char(v AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') $f$;
 
 CREATE OR REPLACE FUNCTION private.p32_head(trip uuid,owner uuid) RETURNS jsonb LANGUAGE sql SET search_path='' AS $f$
  SELECT jsonb_build_object('tripId',d.trip_id,'version',d.content_version,'payloadText',d.payload_text,'contentDigest',d.content_digest,'updatedAt',private.p32_utc(d.updated_at),'fetchedAt',private.p32_utc(clock_timestamp()))
@@ -408,12 +408,12 @@ LANGUAGE plpgsql SECURITY DEFINER SET search_path=public, private, pg_temp AS $f
 DECLARE owner uuid:=private.p32_owner(true); body jsonb; doc jsonb; source jsonb; trip uuid; old private.editable_trip_mutations%ROWTYPE; source_digest text;
 BEGIN
  PERFORM private.p32_require(p_request_id IS NOT NULL AND p_request_digest ~ '^[0-9a-f]{64}$' AND octet_length(p_request_text)<=3145728,'invalid_request');
- PERFORM private.p32_require(encode(digest(convert_to(p_request_text,'UTF8'),'sha256'),'hex')=p_request_digest,'invalid_request');
+ PERFORM private.p32_require(encode(extensions.digest(convert_to(p_request_text,'UTF8'),'sha256'),'hex')=p_request_digest,'invalid_request');
  SELECT * INTO old FROM private.editable_trip_mutations WHERE owner_id=owner AND request_id=p_request_id;
  IF FOUND THEN PERFORM private.p32_require(old.operation='create' AND old.request_digest=p_request_digest,'request_identity_conflict'); RETURN private.p32_reply(owner,p_request_id); END IF;
  body:=private.p32_parse(p_request_text,3145728); PERFORM private.p32_keys(body,'payloadText contentDigest sourceBinding');
  PERFORM private.p32_text(body->'payloadText',1048576); PERFORM private.p32_hash(body->'contentDigest');
- PERFORM private.p32_require(encode(digest(convert_to(body->>'payloadText','UTF8'),'sha256'),'hex')=body->>'contentDigest','invalid_request');
+ PERFORM private.p32_require(encode(extensions.digest(convert_to(body->>'payloadText','UTF8'),'sha256'),'hex')=body->>'contentDigest','invalid_request');
  doc:=private.p32_validate(body->>'payloadText',true); source:=nullif(body->'sourceBinding','null'::jsonb);
 
  -- Publication membership check: new trips must select an active published or legacy destination
@@ -439,14 +439,14 @@ LANGUAGE plpgsql SECURITY DEFINER SET search_path=public, private, pg_temp AS $f
 DECLARE owner uuid:=private.p32_owner(true); old private.editable_trip_mutations%ROWTYPE; d private.editable_trip_documents%ROWTYPE; body jsonb; doc jsonb; replay jsonb;
 BEGIN
  PERFORM private.p32_require(p_trip_id IS NOT NULL AND p_request_id IS NOT NULL AND p_expected_version BETWEEN 1 AND 9007199254740990 AND octet_length(p_request_text)<=3145728 AND p_request_digest ~ '^[0-9a-f]{64}$','invalid_request');
- PERFORM private.p32_require(encode(digest(convert_to(p_request_text,'UTF8'),'sha256'),'hex')=p_request_digest,'invalid_request');
+ PERFORM private.p32_require(encode(extensions.digest(convert_to(p_request_text,'UTF8'),'sha256'),'hex')=p_request_digest,'invalid_request');
  SELECT * INTO old FROM private.editable_trip_mutations WHERE owner_id=owner AND request_id=p_request_id;
  IF FOUND THEN PERFORM private.p32_require(old.operation='update' AND old.trip_id=p_trip_id AND old.expected_version=p_expected_version AND old.request_digest=p_request_digest,'request_identity_conflict'); RETURN private.p32_reply(owner,p_request_id); END IF;
  PERFORM 1 FROM public.trips WHERE id=p_trip_id AND user_id=owner; PERFORM private.p32_require(FOUND,'trip_unavailable');
  SELECT * INTO d FROM private.editable_trip_documents WHERE trip_id=p_trip_id AND owner_id=owner; PERFORM private.p32_require(FOUND,'trip_unavailable');
  PERFORM private.p32_require(d.content_version=p_expected_version,'version_conflict');
  body:=private.p32_parse(p_request_text,3145728); PERFORM private.p32_keys(body,'payloadText contentDigest commands'); PERFORM private.p32_hash(body->'contentDigest');
- PERFORM private.p32_require(encode(digest(convert_to(body->>'payloadText','UTF8'),'sha256'),'hex')=body->>'contentDigest','invalid_request');
+ PERFORM private.p32_require(encode(extensions.digest(convert_to(body->>'payloadText','UTF8'),'sha256'),'hex')=body->>'contentDigest','invalid_request');
  doc:=private.p32_validate(body->>'payloadText',true); replay:=private.p32_replay(d.payload_text::jsonb,body->'commands');
  PERFORM private.p32_require(replay=doc,'invalid_request'); PERFORM private.p32_validate(private.p32_canonical(replay),true);
 

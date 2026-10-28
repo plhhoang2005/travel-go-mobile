@@ -238,7 +238,7 @@ test('assistant rejects aggregate money overflow and receipts exceeding the shar
  const clean=sanitizeAssistantRequest(assistantPayload('modify'));
  const add={kind:'add',title:'Hoạt động',placeId:null,startMinute:null,endMinute:null,costVnd:9007199254740991,category:'other'};
  assert.throws(()=>validateAssistantResult({...assistantOutput(),operations:[add,add]},clean));
- const f=fixture({reserve:{status:'reserved',requestId,acceptedDay:'2026-10-19',workerToken:worker,expiresAt:'2026-10-19T12:00:00Z',remaining:4,result:null,dispatch:true}});
+ const f=fixture({reserve:{status:'reserved',requestId,acceptedDay:'2026-10-19',workerToken:worker,expiresAt:'2026-10-19T12:00:00Z',remaining:501,result:null,dispatch:true}});
  assert.equal((await f.handler(request())).status,503);assert.equal(f.calls.some(c=>c.url.includes('generativelanguage')),false);
 });
 test('sanitizeContext accepts dynamic slug destination IDs beyond the initial 12 seed',async()=>{

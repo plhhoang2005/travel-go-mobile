@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:travelgo_mobile/core/theme/app_theme.dart';
 import 'package:travelgo_mobile/features/admin/models/admin_catalogue_models.dart';
+import 'package:travelgo_mobile/features/admin/presentation/screens/admin_publication_screen.dart';
 import 'package:travelgo_mobile/features/admin/presentation/widgets/admin_destination_form.dart';
 import 'package:travelgo_mobile/features/admin/presentation/widgets/admin_place_form.dart';
 import 'package:travelgo_mobile/features/admin/providers/admin_catalogue_provider.dart';
@@ -242,6 +243,19 @@ class _AdminCatalogueScreenState extends State<AdminCatalogueScreen>
             tooltip: 'Tải lại',
             onPressed: isLoading ? null : () => provider.load(),
           ),
+          IconButton(
+            icon: const Icon(Icons.cloud_upload_outlined),
+            tooltip: 'Xuất bản danh mục',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => AdminPublicationScreen(
+                    draftRevision: provider.currentRevision,
+                  ),
+                ),
+              );
+            },
+          ),
         ],
         bottom: TabBar(
           controller: _tabController,
@@ -264,29 +278,51 @@ class _AdminCatalogueScreenState extends State<AdminCatalogueScreen>
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               color: AppTheme.primarySoft,
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: AppTheme.primaryColor,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      'Bản nháp r${provider.currentRevision}',
-                      style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-                    ),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppTheme.primaryColor,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          'Bản nháp r${provider.currentRevision}',
+                          style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      FilledButton.tonalIcon(
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        icon: const Icon(Icons.upload, size: 16),
+                        label: const Text('Xuất bản', style: TextStyle(fontSize: 12)),
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => AdminPublicationScreen(
+                                draftRevision: provider.currentRevision,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      provider.isSaving
-                          ? 'Đang lưu và xuất bản danh mục...'
-                          : 'Lưu nháp không cập nhật danh mục của khách hàng cho đến khi xuất bản.',
-                      style: theme.textTheme.bodySmall?.copyWith(color: AppTheme.primaryDark),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 2,
-                    ),
+                  const SizedBox(height: 6),
+                  Text(
+                    provider.isSaving
+                        ? 'Đang lưu và xuất bản danh mục...'
+                        : 'Lưu nháp không cập nhật danh mục của khách hàng cho đến khi xuất bản.',
+                    style: theme.textTheme.bodySmall?.copyWith(color: AppTheme.primaryDark),
                   ),
                 ],
               ),
@@ -406,13 +442,20 @@ class _AdminCatalogueScreenState extends State<AdminCatalogueScreen>
       return const Center(child: Text('Không tìm thấy điểm đến nào'));
     }
 
+    final activeCounts = <String, int>{};
+    for (final p in allPlaces) {
+      if (p.active && p.destinationId.isNotEmpty) {
+        activeCounts[p.destinationId] = (activeCounts[p.destinationId] ?? 0) + 1;
+      }
+    }
+
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 80),
       itemCount: destinations.length,
       separatorBuilder: (_, _) => const Divider(height: 1),
       itemBuilder: (ctx, i) {
         final d = destinations[i];
-        final activeChildCount = allPlaces.where((p) => p.destinationId == d.id && p.active).length;
+        final activeChildCount = activeCounts[d.id ?? ''] ?? 0;
 
         return ListTile(
           key: Key('destination_tile_${d.id ?? i}'),
@@ -463,7 +506,7 @@ class _AdminCatalogueScreenState extends State<AdminCatalogueScreen>
 
         return ListTile(
           key: Key('place_tile_${p.id ?? i}'),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
           title: Row(
             children: [
               Expanded(
