@@ -278,47 +278,51 @@ class _AdminCatalogueScreenState extends State<AdminCatalogueScreen>
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               color: AppTheme.primarySoft,
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: AppTheme.primaryColor,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      'Bản nháp r${provider.currentRevision}',
-                      style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      provider.isSaving
-                          ? 'Đang lưu và xuất bản danh mục...'
-                          : 'Lưu nháp không cập nhật danh mục của khách hàng cho đến khi xuất bản.',
-                      style: theme.textTheme.bodySmall?.copyWith(color: AppTheme.primaryDark),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 2,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  FilledButton.tonalIcon(
-                    style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      visualDensity: VisualDensity.compact,
-                    ),
-                    icon: const Icon(Icons.upload, size: 16),
-                    label: const Text('Xuất bản', style: TextStyle(fontSize: 12)),
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => AdminPublicationScreen(
-                            draftRevision: provider.currentRevision,
-                          ),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppTheme.primaryColor,
+                          borderRadius: BorderRadius.circular(4),
                         ),
-                      );
-                    },
+                        child: Text(
+                          'Bản nháp r${provider.currentRevision}',
+                          style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      FilledButton.tonalIcon(
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        icon: const Icon(Icons.upload, size: 16),
+                        label: const Text('Xuất bản', style: TextStyle(fontSize: 12)),
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => AdminPublicationScreen(
+                                draftRevision: provider.currentRevision,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    provider.isSaving
+                        ? 'Đang lưu và xuất bản danh mục...'
+                        : 'Lưu nháp không cập nhật danh mục của khách hàng cho đến khi xuất bản.',
+                    style: theme.textTheme.bodySmall?.copyWith(color: AppTheme.primaryDark),
                   ),
                 ],
               ),
