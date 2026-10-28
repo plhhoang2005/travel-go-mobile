@@ -1,0 +1,293 @@
+{
+  "info": {
+    "_postman_id": "travelgo-web-api-suite-2026",
+    "name": "TravelGO Web API (Staging)",
+    "description": "Bộ API kiểm thử tích hợp Web/Cloud cho TravelGO: Supabase Auth, Gemini AI Planner, Google Search Grounding, Quản lý chuyến đi RPC, Catalogue và Bảo mật phân quyền Admin (Bao gồm Khóa / Mở khóa tài khoản). Hỗ trợ import trực tiếp vào Postman, Hoppscotch, Insomnia, Thunder Client.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://bkocylxbuyvdgxccpixx.supabase.co",
+      "type": "string"
+    },
+    {
+      "key": "apiKey",
+      "value": "sb_publishable_Rs5bXpcVG848C2bxgWZVRQ_x8g-rSK-",
+      "type": "string"
+    },
+    {
+      "key": "bearerToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "adminToken",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Xác thực & Tài khoản (Auth)",
+      "item": [
+        {
+          "name": "1.1. Đăng ký tài khoản mới (Sign Up)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "apikey", "value": "{{apiKey}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"test_user_travelgo_2026@gmail.com\",\n  \"password\": \"TravelGo@2026\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/v1/signup",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "v1", "signup"]
+            },
+            "description": "Tạo tài khoản thật trên Supabase Auth, tự động gửi email xác thực OTP/link."
+          }
+        },
+        {
+          "name": "1.2. Đăng nhập lấy Token (Login / Password)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "apikey", "value": "{{apiKey}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"test_user_travelgo_2026@gmail.com\",\n  \"password\": \"TravelGo@2026\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/v1/token?grant_type=password",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "v1", "token"],
+              "query": [{ "key": "grant_type", "value": "password" }]
+            },
+            "description": "Xác thực và cấp Bearer Access Token (JWT). Copy giá trị `access_token` dán vào biến {{bearerToken}}."
+          }
+        },
+        {
+          "name": "1.3. Quên mật khẩu (Password Recovery)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "apikey", "value": "{{apiKey}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"test_user_travelgo_2026@gmail.com\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/v1/recover",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "v1", "recover"]
+            },
+            "description": "Gửi liên kết khôi phục mật khẩu thật về hòm thư người dùng."
+          }
+        },
+        {
+          "name": "1.4. Xem thông tin cá nhân (Profile)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "apikey", "value": "{{apiKey}}" },
+              { "key": "Authorization", "value": "Bearer {{bearerToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/rest/v1/profiles?select=*",
+              "host": ["{{baseUrl}}"],
+              "path": ["rest", "v1", "profiles"],
+              "query": [{ "key": "select", "value": "*" }]
+            },
+            "description": "Đọc thông tin profile của chính người dùng hiện tại (bảo vệ bởi PostgreSQL RLS)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Khám phá & Lập lịch Chuyến đi (Trips & Catalogue)",
+      "item": [
+        {
+          "name": "2.1. Xem danh mục điểm đến công khai (Public)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "apikey", "value": "{{apiKey}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/rest/v1/discovery_release_manifest?select=*",
+              "host": ["{{baseUrl}}"],
+              "path": ["rest", "v1", "discovery_release_manifest"],
+              "query": [{ "key": "select", "value": "*" }]
+            },
+            "description": "API Public: lấy version và manifest danh mục điểm đến mới nhất đã được Admin duyệt."
+          }
+        },
+        {
+          "name": "2.2. Xem danh sách chuyến đi của tôi (RPC)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "apikey", "value": "{{apiKey}}" },
+              { "key": "Authorization", "value": "Bearer {{bearerToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"p_limit\": 10\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/rest/v1/rpc/list_owned_trips_v3",
+              "host": ["{{baseUrl}}"],
+              "path": ["rest", "v1", "rpc", "list_owned_trips_v3"]
+            },
+            "description": "Lấy danh sách các chuyến đi do người dùng hiện tại tạo (tuyệt đối không lẫn dữ liệu người khác)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Trợ lý AI & Tìm kiếm Web (Gemini AI)",
+      "item": [
+        {
+          "name": "3.1. AI Sinh Lịch Trình Tự Động (Gemini)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "apikey", "value": "{{apiKey}}" },
+              { "key": "Authorization", "value": "Bearer {{bearerToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contract\": \"travelgo.itinerary.v1\",\n  \"intent\": \"generate\",\n  \"requestId\": \"123e4567-e89b-12d3-a456-426614174000\",\n  \"consent\": true,\n  \"context\": {\n    \"destinationId\": \"da-nang\",\n    \"originRegion\": \"central\",\n    \"numDays\": 3,\n    \"numPeople\": 2,\n    \"budgetVnd\": 5000000,\n    \"interests\": [\"ẩm thực\", \"biển\"]\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/functions/v1/itinerary-proposal",
+              "host": ["{{baseUrl}}"],
+              "path": ["functions", "v1", "itinerary-proposal"]
+            },
+            "description": "Edge Function gọi Gemini tạo bản đề xuất lịch trình cấu trúc chi tiết từng ngày, giờ và chi phí."
+          }
+        },
+        {
+          "name": "3.2. AI Tìm Kiếm Web Có Nguồn (Google Grounding)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "apikey", "value": "{{apiKey}}" },
+              { "key": "Authorization", "value": "Bearer {{bearerToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contract\": \"travelgo.web.advice.v1\",\n  \"requestId\": \"223e4567-e89b-12d3-a456-426614174000\",\n  \"consent\": true,\n  \"webConsent\": true,\n  \"prompt\": \"Khám phá ẩm thực đêm tại Đà Lạt có món gì ngon và địa chỉ uy tín?\",\n  \"context\": {\n    \"destinationName\": \"Đà Lạt\",\n    \"dates\": [\"2026-11-20\", \"2026-11-21\"],\n    \"numPeople\": 2,\n    \"budgetVnd\": 3000000,\n    \"interests\": [\"ẩm thực\"],\n    \"scope\": \"whole_trip\",\n    \"baseDigest\": \"a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/functions/v1/itinerary-proposal",
+              "host": ["{{baseUrl}}"],
+              "path": ["functions", "v1", "itinerary-proposal"]
+            },
+            "description": "Tư vấn kèm dẫn chứng từ Google Search Grounding: có URL thực tế kèm nhãn chưa Admin kiểm duyệt."
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Quản trị & Phân quyền Admin (Admin Control & Security)",
+      "item": [
+        {
+          "name": "4.1. Thử gọi API Admin bằng User thường (Phải bị chặn 403)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "apikey", "value": "{{apiKey}}" },
+              { "key": "Authorization", "value": "Bearer {{bearerToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contract\": \"travelgo.admin.v1\",\n  \"action\": \"users\",\n  \"request\": {\n    \"query\": \"\",\n    \"limit\": 10\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/functions/v1/admin-control",
+              "host": ["{{baseUrl}}"],
+              "path": ["functions", "v1", "admin-control"]
+            },
+            "description": "Test ranh giới bảo mật: Dùng token của User thường gọi API Admin sẽ bị từ chối ngay với mã lỗi 403 Forbidden."
+          }
+        },
+        {
+          "name": "4.2. Admin Xem Danh Sách Người Dùng (List Users)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "apikey", "value": "{{apiKey}}" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contract\": \"travelgo.admin.v1\",\n  \"action\": \"users\",\n  \"request\": {\n    \"query\": \"\",\n    \"limit\": 25\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/functions/v1/admin-control",
+              "host": ["{{baseUrl}}"],
+              "path": ["functions", "v1", "admin-control"]
+            },
+            "description": "Dùng Token Admin để lấy danh sách người dùng, xem ID, email, role và trạng thái tài khoản."
+          }
+        },
+        {
+          "name": "4.3. Admin Khóa Tài Khoản Người Dùng (Lock User)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "apikey", "value": "{{apiKey}}" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contract\": \"travelgo.admin.v1\",\n  \"action\": \"mutate\",\n  \"request\": {\n    \"requestId\": \"123e4567-e89b-12d3-a456-426614174000\",\n    \"targetId\": \"dien_user_id_can_khoa_vao_day\",\n    \"expectedRevision\": 0,\n    \"action\": \"lock\",\n    \"reason\": \"Vi phạm điều khoản hoặc kiểm thử đồ án\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/functions/v1/admin-control",
+              "host": ["{{baseUrl}}"],
+              "path": ["functions", "v1", "admin-control"]
+            },
+            "description": "Admin gửi lệnh khóa tài khoản targetId. Server sẽ cấm đăng nhập (ban_duration 876600h) và cập nhật trạng thái locked trong database."
+          }
+        },
+        {
+          "name": "4.4. Admin Mở Khóa Tài Khoản (Unlock User)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "apikey", "value": "{{apiKey}}" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contract\": \"travelgo.admin.v1\",\n  \"action\": \"mutate\",\n  \"request\": {\n    \"requestId\": \"223e4567-e89b-12d3-a456-426614174000\",\n    \"targetId\": \"dien_user_id_can_mo_khoa_vao_day\",\n    \"expectedRevision\": 1,\n    \"action\": \"unlock\",\n    \"reason\": \"Mở khóa sau khi kiểm thử\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/functions/v1/admin-control",
+              "host": ["{{baseUrl}}"],
+              "path": ["functions", "v1", "admin-control"]
+            },
+            "description": "Admin gửi lệnh mở khóa tài khoản targetId, khôi phục lại quyền đăng nhập bình thường cho người dùng."
+          }
+        }
+      ]
+    }
+  ]
+}
