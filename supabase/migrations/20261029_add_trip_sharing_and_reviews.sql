@@ -7,13 +7,15 @@
 --      - like_count: INT (default 0, non-negative)
 --      - average_rating: NUMERIC(3,2) (default 0.0, range 0.0 - 5.0)
 --      - review_count: INT (default 0, non-negative)
---   2. Updates RLS policies so public trips can be read by anyone, while
---      private trips remain strictly accessible only to their owners.
+--   2. Updates RLS policies so public trips can be read by anyone (including guests/anon),
+--      while private trips remain strictly accessible only to their owners.
 --      Write / Update / Delete permissions remain strictly restricted to the owner.
 --   3. Creates public.trip_reviews table for community ratings and comments with:
+--      - Explicit Table Grants (SELECT to anon/authenticated, INSERT/UPDATE/DELETE to authenticated).
 --      - Strict RLS (read public, insert/update/delete strictly limited to review author).
 --      - UNIQUE(trip_id, user_id) constraint preventing duplicate reviews per user.
---      - Trigger synchronizing average_rating & review_count onto trips table atomically.
+--      - Hardened SECURITY DEFINER Trigger synchronizing average_rating & review_count
+--        with SET search_path = '', strict UUID format validation, and principle of least privilege.
 -- Safety: Fully idempotent (uses IF NOT EXISTS / IF EXISTS), non-destructive.
 -- ==============================================================================
 
@@ -24,7 +26,7 @@ BEGIN;
 -- ------------------------------------------------------------------------------
 DO $$
 BEGIN
-  -- 1.1 Áp dụng cho bảng public.trips (Bảng chuẩn chính thức của TravelGO)
+  -- 1.1 Áp dụng cho bảng public.trips (Bảng chuẩn chính thức mà app TravelGO thực sự dùng)
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'trips') THEN
     ALTER TABLE public.trips ADD COLUMN IF NOT EXISTS is_public BOOLEAN NOT NULL DEFAULT false;
     ALTER TABLE public.trips ADD COLUMN IF NOT EXISTS author_name TEXT;
@@ -49,6 +51,9 @@ BEGIN
     CREATE POLICY "Users can read public or own trips" 
     ON public.trips FOR SELECT 
     USING (is_public = true OR auth.uid() = user_id);
+
+    -- Cấp quyền SELECT cho anon và authenticated để xem bài công khai qua RLS
+    GRANT SELECT ON TABLE public.trips TO anon, authenticated;
 
     -- Chỉ mục tối ưu hóa tốc độ tải Bảng tin Cộng đồng
     CREATE INDEX IF NOT EXISTS idx_trips_is_public ON public.trips(is_public) WHERE is_public = true;
@@ -78,6 +83,8 @@ BEGIN
     ON public.saved_trips FOR SELECT 
     USING (is_public = true OR auth.uid() = user_id);
 
+    GRANT SELECT ON TABLE public.saved_trips TO anon, authenticated;
+
     CREATE INDEX IF NOT EXISTS idx_saved_trips_is_public ON public.saved_trips(is_public) WHERE is_public = true;
   END IF;
 END $$;
@@ -87,11 +94,11 @@ END $$;
 -- ------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.trip_reviews (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    trip_id TEXT NOT NULL,
+    trip_id TEXT NOT NULL CHECK (trip_id ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'),
     user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
-    user_name TEXT NOT NULL,
+    user_name TEXT NOT NULL CHECK (length(btrim(user_name)) >= 1 AND length(user_name) <= 100),
     rating INT NOT NULL CHECK (rating >= 1 AND rating <= 5),
-    comment TEXT,
+    comment TEXT CHECK (comment IS NULL OR octet_length(comment) <= 5000),
     created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
     CONSTRAINT trip_reviews_trip_user_unique UNIQUE (trip_id, user_id)
@@ -128,20 +135,27 @@ ON public.trip_reviews FOR DELETE
 TO authenticated 
 USING (auth.uid() = user_id);
 
+-- Phân quyền truy cập bảng ở tầng PostgREST API
+GRANT SELECT ON TABLE public.trip_reviews TO anon, authenticated;
+GRANT INSERT, UPDATE, DELETE ON TABLE public.trip_reviews TO authenticated;
+
 -- Các chỉ mục hỗ trợ truy vấn hiệu năng cao
 CREATE INDEX IF NOT EXISTS idx_trip_reviews_trip_id ON public.trip_reviews(trip_id);
 CREATE INDEX IF NOT EXISTS idx_trip_reviews_user_id ON public.trip_reviews(user_id);
 
 -- ------------------------------------------------------------------------------
--- 3. TRIGGER ĐỒNG BỘ ĐIỂM SAO & TỔNG REVIEW LÊN BẢNG CHUYẾN ĐI
+-- 3. TRIGGER ĐỒNG BỘ ĐIỂM SAO & TỔNG REVIEW LÊN BẢNG CHUYẾN ĐI (SECURITY HARDENED)
 -- ------------------------------------------------------------------------------
--- Trigger chạy với quyền SECURITY DEFINER để người dùng khi viết review không cần
--- quyền UPDATE trực tiếp vào bảng trips của tác giả khác mà số sao vẫn tự nhảy.
+-- Hardening features:
+--   - SET search_path = '': Ngăn chặn triệt để lỗ hổng search_path hijacking.
+--   - Bắt buộc kiểm tra định dạng UUID hợp lệ trước khi thực thi UPDATE.
+--   - Giới hạn cập nhật: Chỉ cho phép ghi đè đúng 2 trường average_rating và review_count.
+--   - REVOKE ALL quyền thực thi từ PUBLIC và anon; chỉ cấp cho authenticated và service_role.
 CREATE OR REPLACE FUNCTION public.fn_sync_trip_review_stats()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = ''
 AS $$
 DECLARE
     target_trip_id TEXT;
@@ -154,23 +168,34 @@ BEGIN
         target_trip_id := NEW.trip_id;
     END IF;
 
+    -- Kiểm tra định dạng UUID nghiêm ngặt
+    IF target_trip_id IS NULL OR target_trip_id !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN
+        RETURN NULL;
+    END IF;
+
     SELECT 
-        COALESCE(ROUND(AVG(rating)::numeric, 2), 0.0),
+        COALESCE(ROUND(AVG(r.rating)::numeric, 2), 0.0),
         COUNT(*)::INT
     INTO new_avg, new_count
-    FROM public.trip_reviews
-    WHERE trip_id = target_trip_id;
+    FROM public.trip_reviews r
+    WHERE r.trip_id = target_trip_id;
 
     -- Cập nhật vào public.trips nếu có trip_id tương ứng
-    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'trips') THEN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.tables 
+        WHERE table_schema = 'public' AND table_name = 'trips'
+    ) THEN
         UPDATE public.trips
         SET average_rating = new_avg,
             review_count = new_count
-        WHERE id::text = target_trip_id;
+        WHERE id = target_trip_id::uuid;
     END IF;
 
     -- Cập nhật vào public.saved_trips nếu tồn tại
-    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'saved_trips') THEN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.tables 
+        WHERE table_schema = 'public' AND table_name = 'saved_trips'
+    ) THEN
         UPDATE public.saved_trips
         SET average_rating = new_avg,
             review_count = new_count
@@ -180,6 +205,11 @@ BEGIN
     RETURN NULL;
 END;
 $$;
+
+-- Giới hạn quyền thực thi hàm trigger (Principle of Least Privilege)
+REVOKE ALL ON FUNCTION public.fn_sync_trip_review_stats() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.fn_sync_trip_review_stats() FROM anon;
+GRANT EXECUTE ON FUNCTION public.fn_sync_trip_review_stats() TO authenticated, service_role;
 
 DROP TRIGGER IF EXISTS trg_sync_trip_review_stats ON public.trip_reviews;
 CREATE TRIGGER trg_sync_trip_review_stats
