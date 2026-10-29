@@ -8,6 +8,7 @@ import '../../providers/place_visit_details_provider.dart';
 import '../../providers/public_catalogue_provider.dart';
 import '../widgets/destination_reference_list_tile.dart';
 import 'destination_detail_screen.dart';
+import '../../../map/presentation/screens/catalogue_discovery_map_screen.dart';
 
 class ExploreScreen extends StatefulWidget {
   const ExploreScreen({super.key});
@@ -63,6 +64,17 @@ class _ExploreScreenState extends State<ExploreScreen> {
           overflow: TextOverflow.ellipsis,
         ),
         actions: [
+          IconButton(
+            tooltip: 'Xem bản đồ khám phá',
+            icon: const Icon(Icons.map_outlined),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const CatalogueDiscoveryMapScreen(),
+                ),
+              );
+            },
+          ),
           IconButton(
             tooltip: 'Đọc lại danh mục',
             icon: const Icon(Icons.refresh),
