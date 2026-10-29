@@ -233,13 +233,6 @@ class _CatalogueDiscoveryMapScreenState
       // 2. Chế độ Xem Toàn Cảnh: Marker Điểm đến
       for (final destination in catalogue.destinations) {
         final point = _resolveDestinationCoords(destination);
-        final markerData = CatalogueMapMarker(
-          id: destination.id,
-          title: destination.name,
-          subtitle: '${destination.places.length} địa điểm',
-          point: point,
-          type: MarkerType.destination,
-        );
 
         markers.add(
           Marker(
@@ -346,7 +339,7 @@ class _CatalogueDiscoveryMapScreenState
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.amber.withOpacity(0.6),
+              color: Colors.amber.withValues(alpha: 0.6),
               blurRadius: isSelected ? 12 : 6,
               spreadRadius: isSelected ? 4 : 2,
             ),
@@ -429,7 +422,7 @@ class _CatalogueDiscoveryMapScreenState
                 TileLayer(
                   urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                   userAgentPackageName: 'com.travelgo.mobile',
-                  errorTileCallback: (_, __, ___) {
+                  errorTileCallback: (tile, error, stackTrace) {
                     // Gracefully ignore network tile download failures when offline
                   },
                 ),
@@ -448,7 +441,7 @@ class _CatalogueDiscoveryMapScreenState
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.surface.withOpacity(0.92),
+                  color: theme.colorScheme.surface.withValues(alpha: 0.92),
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: const [
                     BoxShadow(

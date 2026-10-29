@@ -38,7 +38,7 @@ class PlaceMapPreviewCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: marker.markerColor.withOpacity(0.15),
+                    color: marker.markerColor.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(
