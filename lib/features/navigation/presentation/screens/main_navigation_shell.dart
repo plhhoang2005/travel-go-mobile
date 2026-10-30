@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../community/presentation/screens/community_feed_screen.dart';
 import '../../../home/presentation/screens/main_home_screen.dart';
 import '../../../explore/presentation/screens/explore_screen.dart';
 import '../../../trips/presentation/screens/my_trips_screen.dart';
@@ -7,8 +8,13 @@ import '../../../profile/presentation/screens/profile_screen.dart';
 
 class MainNavigationShell extends StatefulWidget {
   final int initialIndex;
+  final bool enableCommunityTab;
 
-  const MainNavigationShell({super.key, this.initialIndex = 0});
+  const MainNavigationShell({
+    super.key,
+    this.initialIndex = 0,
+    this.enableCommunityTab = false,
+  });
 
   @override
   State<MainNavigationShell> createState() => _MainNavigationShellState();
@@ -17,12 +23,13 @@ class MainNavigationShell extends StatefulWidget {
 class _MainNavigationShellState extends State<MainNavigationShell> {
   late int _currentIndex;
 
-  final List<Widget> _screens = const [
-    MainHomeScreen(),
-    ExploreScreen(),
-    MyTripsScreen(),
-    CustomerProfileScreen(),
-  ];
+  List<Widget> get _screens => [
+        const MainHomeScreen(),
+        const ExploreScreen(),
+        if (widget.enableCommunityTab) const CommunityFeedScreen(),
+        const MyTripsScreen(),
+        const CustomerProfileScreen(),
+      ];
 
   @override
   void initState() {
@@ -44,23 +51,29 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
         backgroundColor: Theme.of(context).colorScheme.surface,
         elevation: 0,
         indicatorColor: Theme.of(context).colorScheme.primaryContainer,
-        destinations: const [
-          NavigationDestination(
+        destinations: [
+          const NavigationDestination(
             icon: Icon(Icons.home_outlined),
             selectedIcon: Icon(Icons.home_rounded),
             label: 'Trang chủ',
           ),
-          NavigationDestination(
+          const NavigationDestination(
             icon: Icon(Icons.search_rounded),
             selectedIcon: Icon(Icons.search_rounded),
             label: 'Khám phá',
           ),
-          NavigationDestination(
+          if (widget.enableCommunityTab)
+            const NavigationDestination(
+              icon: Icon(Icons.people_outline),
+              selectedIcon: Icon(Icons.people_rounded),
+              label: 'Cộng đồng',
+            ),
+          const NavigationDestination(
             icon: Icon(Icons.confirmation_number_outlined),
             selectedIcon: Icon(Icons.confirmation_number_rounded),
             label: 'Chuyến đi',
           ),
-          NavigationDestination(
+          const NavigationDestination(
             icon: Icon(Icons.person_outline),
             selectedIcon: Icon(Icons.person_rounded),
             label: 'Cá nhân',
