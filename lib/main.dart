@@ -11,6 +11,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/constants/supabase_constants.dart';
 import 'core/testing/p32_drop_committed_reply_adapter.dart';
+
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'core/constants/api_constants.dart';
@@ -46,6 +47,8 @@ import 'features/explore/providers/discovery_provider.dart';
 import 'features/explore/providers/place_visit_details_provider.dart';
 import 'features/explore/services/place_visit_cache.dart';
 import 'features/explore/services/place_visit_details_repository.dart';
+import 'features/reviews/providers/place_reviews_provider.dart';
+import 'features/reviews/services/review_service.dart';
 // map removed
 import 'features/trips/services/local_trip_store.dart';
 import 'features/trips/services/local_account_lifecycle_service.dart';
@@ -289,6 +292,7 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
   EditableTripRepository? _editableRepository;
   EditableTripService? _editableService;
   PublicCatalogueProvider? _publicCatalogueProvider;
+  late final ReviewService _reviewService;
   bool _disposed = false;
 
   @override
@@ -304,6 +308,10 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
         _client = null;
       }
     }
+    _reviewService = ReviewService(
+      client: _client,
+      placeValidator: _isPublishedPlace,
+    );
     Future<String>? directory;
     Future<String> databaseDirectory() => directory ??= getDatabasesPath();
     _runtime =
@@ -315,19 +323,22 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
             'account_cache_lifecycle_v1.json',
           ),
         );
-    _auth = widget.authProvider ??
+    _auth =
+        widget.authProvider ??
         AuthProvider(
-      client: _client,
-      lifecycleLoader: _client == null ? null : _getLifecycle,
-      sessionReader: () => _client?.auth.currentSession,
-      initialRecoveryIntentId: widget.initialRecoveryIntentId,
-    );
-    final recoveryStore = widget.recoveryIntentStore ??
+          client: _client,
+          lifecycleLoader: _client == null ? null : _getLifecycle,
+          sessionReader: () => _client?.auth.currentSession,
+          initialRecoveryIntentId: widget.initialRecoveryIntentId,
+        );
+    final recoveryStore =
+        widget.recoveryIntentStore ??
         RecoveryIntentStore(
           _backendConfig.preferences,
           projectNamespace: 'travelgo',
         );
-    _recoveryProvider = widget.recoveryProvider ??
+    _recoveryProvider =
+        widget.recoveryProvider ??
         PasswordRecoveryProvider(
           service: widget.recoveryService ?? PasswordRecoveryService(),
           store: recoveryStore,
@@ -533,7 +544,9 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
     return _publicCatalogueProvider ??= PublicCatalogueProvider(
       repository: PublicCatalogueRepository(
         seedLoader: () async {
-          final text = await rootBundle.loadString('assets/catalogue/catalogue_readiness_v1.json');
+          final text = await rootBundle.loadString(
+            'assets/catalogue/catalogue_readiness_v1.json',
+          );
           final catalogue = CatalogueParser().parse(text);
           final manifest = DiscoveryManifest(
             contract: 'travelgo.discovery.manifest.v2',
@@ -559,7 +572,10 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
                 'packages': <Map<String, Object?>>[],
                 'places': <Map<String, Object?>>[],
               },
-              expectedPlaceIds: catalogue.destinations.expand((d) => d.places).map((p) => p.id).toSet(),
+              expectedPlaceIds: catalogue.destinations
+                  .expand((d) => d.places)
+                  .map((p) => p.id)
+                  .toSet(),
               now: DateTime.now(),
             ),
             fetchedAt: DateTime.now(),
@@ -567,13 +583,22 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
           );
         },
         cache: PublicCatalogueCache(
-          databasePath: () async => p.join(await getDatabasesPath(), 'public_discovery_v2.db'),
+          databasePath: () async =>
+              p.join(await getDatabasesPath(), 'public_discovery_v2.db'),
         ),
         client: Dio(),
         projectOrigin: SupabaseConstants.projectUrl,
         publishableKey: SupabaseConstants.publishableKey,
       ),
     )..initialize();
+  }
+
+  bool _isPublishedPlace(String placeId) {
+    final snapshot = _getPublicCatalogueProvider().snapshot;
+    if (snapshot == null) return true;
+    return snapshot.catalogue.destinations
+        .expand((destination) => destination.places)
+        .any((place) => place.id == placeId);
   }
 
   @override
@@ -637,7 +662,9 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
         ChangeNotifierProvider<PasswordRecoveryProvider>.value(
           value: _recoveryProvider,
         ),
-        Provider<Future<LocalAccountLifecycleService> Function()>.value(value: _getLifecycle),
+        Provider<Future<LocalAccountLifecycleService> Function()>.value(
+          value: _getLifecycle,
+        ),
         Provider<LocalTripStoreRuntime>.value(value: _runtime),
         Provider<ManualPlannerRuntime>.value(value: _manualRuntime),
         ChangeNotifierProvider<PlannerInputProvider>(
@@ -697,7 +724,34 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
         ChangeNotifierProvider<PublicCatalogueProvider>.value(
           value: _getPublicCatalogueProvider(),
         ),
-        ChangeNotifierProxyProvider<PublicCatalogueProvider, HomeCatalogProvider>(
+        Provider<ReviewService>.value(value: _reviewService),
+        ChangeNotifierProxyProvider<AuthProvider, PlaceReviewsProvider>(
+          create: (_) =>
+              PlaceReviewsProvider(
+                service: _reviewService,
+                placeValidator: _isPublishedPlace,
+              )..bindAuthContext(
+                userId: _auth.currentUser?.id,
+                authEpoch: _auth.authEpoch,
+              ),
+          update: (_, auth, provider) {
+            final reviews =
+                provider ??
+                PlaceReviewsProvider(
+                  service: _reviewService,
+                  placeValidator: _isPublishedPlace,
+                );
+            reviews.bindAuthContext(
+              userId: auth.currentUser?.id,
+              authEpoch: auth.authEpoch,
+            );
+            return reviews;
+          },
+        ),
+        ChangeNotifierProxyProvider<
+          PublicCatalogueProvider,
+          HomeCatalogProvider
+        >(
           create: (_) => HomeCatalogProvider(),
           update: (_, publicCat, home) {
             final h = home ?? HomeCatalogProvider();
@@ -717,12 +771,15 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
             },
           ),
           update: (_, publicCat, discovery) {
-            final d = discovery ?? DiscoveryProvider(
-              publicSnapshotLoader: (force) async {
-                await publicCat.refresh(force: force);
-                return publicCat.snapshot ?? await publicCat.repository.load();
-              },
-            );
+            final d =
+                discovery ??
+                DiscoveryProvider(
+                  publicSnapshotLoader: (force) async {
+                    await publicCat.refresh(force: force);
+                    return publicCat.snapshot ??
+                        await publicCat.repository.load();
+                  },
+                );
             final snapshot = publicCat.snapshot;
             if (snapshot != null) {
               d.bindPublicSnapshot(snapshot);
@@ -730,7 +787,10 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
             return d;
           },
         ),
-        ChangeNotifierProxyProvider<PublicCatalogueProvider, PlaceVisitDetailsProvider>(
+        ChangeNotifierProxyProvider<
+          PublicCatalogueProvider,
+          PlaceVisitDetailsProvider
+        >(
           create: (_) => PlaceVisitDetailsProvider(
             now: DateTime.now,
             repositoryFactory: (catalogue) async => VisitDetailsRepository(
@@ -756,30 +816,33 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
             ),
           ),
           update: (_, publicCat, visitsProvider) {
-            final vp = visitsProvider ?? PlaceVisitDetailsProvider(
-              now: DateTime.now,
-              repositoryFactory: (catalogue) async => VisitDetailsRepository(
-                dio: Dio(),
-                ownsDio: true,
-                cache: SqliteVisitReleaseCache(
-                  databasePath: () async => p.join(
-                    await getDatabasesPath(),
-                    'travelgo_discovery_public_v1.db',
-                  ),
-                ),
-                seedLoader: () => rootBundle.loadString(
-                  'assets/catalogue/place_visit_details_v1.json',
-                ),
-                projectOrigin: Uri.parse(SupabaseConstants.projectUrl),
-                remoteEnabled: SupabaseConstants.isStaging,
-                expectedPlaceIds: catalogue.destinations
-                    .expand((destination) => destination.places)
-                    .map((place) => place.id)
-                    .toSet(),
-                expectedCatalogueSha256: 'c14cecc97149a3acf64f439d44662333bbb8756bd580e18f368ac053bdd1542a',
-                now: DateTime.now,
-              ),
-            );
+            final vp =
+                visitsProvider ??
+                PlaceVisitDetailsProvider(
+                  now: DateTime.now,
+                  repositoryFactory: (catalogue) async =>
+                      VisitDetailsRepository(
+                        dio: Dio(),
+                        ownsDio: true,
+                        cache: SqliteVisitReleaseCache(
+                          databasePath: () async => p.join(
+                            await getDatabasesPath(),
+                            'travelgo_discovery_public_v1.db',
+                          ),
+                        ),
+                        seedLoader: () => rootBundle.loadString(
+                          'assets/catalogue/place_visit_details_v1.json',
+                        ),
+                        projectOrigin: Uri.parse(SupabaseConstants.projectUrl),
+                        remoteEnabled: SupabaseConstants.isStaging,
+                        expectedPlaceIds: catalogue.destinations
+                            .expand((destination) => destination.places)
+                            .map((place) => place.id)
+                            .toSet(),
+                        expectedCatalogueSha256: 'c14cecc97149a3acf64f439d44662333bbb8756bd580e18f368ac053bdd1542a',
+                        now: DateTime.now,
+                      ),
+                );
             final snapshot = publicCat.snapshot;
             if (snapshot != null) {
               vp.bindPublicSnapshot(snapshot);
@@ -800,9 +863,7 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
               )
             : null,
         theme: AppTheme.lightTheme,
-        home: PasswordRecoveryGate(
-          child: _AuthBootstrap(auth: _auth),
-        ),
+        home: PasswordRecoveryGate(child: _AuthBootstrap(auth: _auth)),
       ),
     );
   }
