@@ -217,4 +217,54 @@ AFTER INSERT OR UPDATE OR DELETE ON public.trip_reviews
 FOR EACH ROW
 EXECUTE FUNCTION public.fn_sync_trip_review_stats();
 
+
+-- ------------------------------------------------------------------------------
+-- 4. BỔ SUNG QUYỀN CẬP NHẬT METADATA CỘNG ĐỒNG CHO TRIGGER BẢO VỆ (private.p32_guard)
+-- ------------------------------------------------------------------------------
+-- Cho phép cập nhật các trường is_public, author_name, average_rating, review_count
+-- của chuyến đi V2 mà không bị chặn bởi cơ chế kiểm soát phiên bản (versioned_write_required),
+-- miễn là nội dung lịch trình (ai_plan_data, title, ...) không bị sửa trực tiếp.
+CREATE OR REPLACE FUNCTION private.p32_guard() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $f$
+DECLARE trip uuid; owned uuid; versioned boolean; permitted boolean;
+BEGIN
+ IF TG_TABLE_NAME='trip_activities' THEN
+  IF TG_OP='DELETE' AND NOT EXISTS(SELECT 1 FROM public.trips WHERE id=OLD.trip_id) THEN RETURN OLD; END IF;
+  IF TG_OP<>'INSERT' AND EXISTS(SELECT 1 FROM private.editable_trip_documents d WHERE d.trip_id=OLD.trip_id) THEN RAISE EXCEPTION 'versioned_write_required'; END IF;
+  IF TG_OP<>'DELETE' AND EXISTS(SELECT 1 FROM private.editable_trip_documents d WHERE d.trip_id=NEW.trip_id) THEN RAISE EXCEPTION 'versioned_write_required'; END IF;
+  IF TG_OP='DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
+ END IF;
+ IF TG_OP='INSERT' THEN
+  IF NEW.ai_plan_data->>'schemaVersion'='2' THEN RAISE EXCEPTION 'versioned_write_required'; END IF;
+  IF NEW.canonical_payload_text IS NOT NULL AND NEW.canonical_payload_text IS JSON THEN
+   IF NEW.canonical_payload_text::jsonb->>'schemaVersion'='2' THEN RAISE EXCEPTION 'versioned_write_required'; END IF;
+  END IF;
+  RETURN NEW;
+ END IF;
+ trip:=OLD.id; owned:=OLD.user_id;
+ SELECT EXISTS(SELECT 1 FROM private.editable_trip_documents d WHERE d.trip_id=trip) INTO versioned;
+ IF NOT versioned THEN IF TG_OP='DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF; END IF;
+ IF TG_OP='DELETE' AND NOT EXISTS(SELECT 1 FROM auth.users WHERE id=owned) THEN RETURN OLD; END IF;
+
+ -- Cho phép cập nhật metadata chia sẻ cộng đồng và đánh giá mà không làm đổi dữ liệu lịch trình
+ IF TG_OP='UPDATE' THEN
+  IF NEW.id=OLD.id AND NEW.user_id=OLD.user_id
+     AND NEW.ai_plan_data IS NOT DISTINCT FROM OLD.ai_plan_data
+     AND NEW.canonical_payload_text IS NOT DISTINCT FROM OLD.canonical_payload_text
+     AND NEW.title IS NOT DISTINCT FROM OLD.title
+     AND NEW.destination_name IS NOT DISTINCT FROM OLD.destination_name
+     AND NEW.num_days IS NOT DISTINCT FROM OLD.num_days
+     AND NEW.budget_total IS NOT DISTINCT FROM OLD.budget_total THEN
+   RETURN NEW;
+  END IF;
+ END IF;
+
+ SELECT EXISTS(SELECT 1 FROM private.editable_trip_write_permits p WHERE p.backend_pid=pg_backend_pid() AND p.transaction_id=pg_current_xact_id() AND p.trip_id=trip AND p.operation=TG_OP) INTO permitted;
+ PERFORM private.p32_require(permitted,'versioned_write_required');
+ IF TG_OP='UPDATE' THEN
+  PERFORM private.p32_require(NEW.id=OLD.id AND NEW.user_id=OLD.user_id AND NEW.ai_plan_data='{}'::jsonb AND NEW.canonical_payload_text IS NULL,'versioned_write_required');
+  RETURN NEW;
+ END IF;
+ RETURN OLD;
+END $f$;
+
 COMMIT;
