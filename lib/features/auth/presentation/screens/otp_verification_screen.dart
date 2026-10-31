@@ -51,7 +51,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
           ),
         );
         Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const MainNavigationShell()),
+          MaterialPageRoute(builder: (_) => const MainNavigationShell(enableCommunityTab: true)),
           (_) => false,
         );
       } else if (!ok) {

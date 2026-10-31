@@ -42,7 +42,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   void _guest() {
     context.read<AuthProvider>().continueAsGuest();
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const MainNavigationShell()),
+      MaterialPageRoute(builder: (_) => const MainNavigationShell(enableCommunityTab: true)),
     );
   }
 

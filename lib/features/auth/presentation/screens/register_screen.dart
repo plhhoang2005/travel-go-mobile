@@ -56,7 +56,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
         );
         Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const MainNavigationShell()),
+          MaterialPageRoute(builder: (_) => const MainNavigationShell(enableCommunityTab: true)),
           (_) => false,
         );
       } else if (auth.isEmailConfirmationPending) {
