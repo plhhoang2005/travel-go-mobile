@@ -10,7 +10,7 @@ Owner chốt ngày 24/10/2026. Đây là nguồn quy định phạm vi sản ph�
 | --- | --- |
 | Xác thực | Đăng nhập, đăng ký, OTP xác minh đăng ký, quên/đặt lại mật khẩu, đăng xuất. Dùng dịch vụ xác thực thật; không OTP/tài khoản giả. Không tạo thêm một luồng OTP độc lập nếu không cần. |
 | Tài khoản | Xem/sửa thông tin cá nhân cơ bản; phân biệt customer và admin. |
-| Khám phá | Danh sách, tìm kiếm, chi tiết điểm đến và địa điểm tham quan. |
+| Khám phá | Danh sách, tìm kiếm, chi tiết điểm đến và địa điểm tham quan; đánh giá công khai theo từng địa điểm. Guest được đọc; tài khoản thật được gửi tối đa một đánh giá bất biến 1–5 sao cho mỗi địa điểm. Chưa có sửa/xóa đánh giá. |
 | Tự lập lịch | Tạo chuyến đi, tên/điểm đến/ngày/số người; thêm/sửa/xóa hoạt động theo ngày, giờ và ghi chú. |
 | Chuyến đi theo tài khoản | Lưu, danh sách, mở lại, sửa, xóa; giữ đúng hoạt động, ngày, số người và dữ liệu ngân sách sau khi mở lại. |
 | Ngân sách | Nhập ngân sách; thêm/sửa/xóa khoản dự kiến và đã chi; tổng hợp, cảnh báo vượt. Biểu đồ đơn giản phục vụ ngân sách được giữ; không cần tối ưu toán học. |
