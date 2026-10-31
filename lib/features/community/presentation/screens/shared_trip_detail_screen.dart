@@ -5,6 +5,8 @@ import '../../../../core/theme/app_theme.dart';
 import '../../models/community_trip.dart';
 import '../../models/trip_review.dart';
 import '../../services/community_service.dart';
+import '../../../../core/presentation/travel_image.dart';
+import '../widgets/community_trip_card.dart';
 import '../widgets/rating_stars_widget.dart';
 
 /// Màn hình Chi tiết Chuyến đi được chia sẻ trên Cộng đồng.
@@ -243,6 +245,15 @@ class _SharedTripDetailScreenState extends State<SharedTripDetailScreen> {
         child: ListView(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           children: [
+            // Ảnh đại diện điểm đến nếu có
+            if (CommunityTripCard.resolveDestinationMedia(destination) case final media?) ...[
+              TravelImage(
+                media: media,
+                semanticLabel: media.caption,
+                height: 180,
+              ),
+              const SizedBox(height: 16),
+            ],
             // Card Tổng quan chuyến đi
             Card(
               elevation: 0,

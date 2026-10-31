@@ -27,6 +27,7 @@ import '../../services/editable_trip_service.dart';
 import '../../services/legacy_trip_copy_adapter.dart';
 import '../../services/local_account_lifecycle_service.dart';
 import '../../../community/services/community_service.dart';
+import '../../../community/presentation/screens/community_feed_screen.dart';
 
 bool _owner(BuildContext context, String id) {
   final auth = context.read<AuthProvider>();
@@ -327,8 +328,20 @@ class _EditableTripDetailScreenState extends State<EditableTripDetailScreen> {
       );
       if (mounted && _current) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Đã chia sẻ chuyến đi thành công lên Bảng tin Cộng đồng!'),
+          SnackBar(
+            content: const Text(
+              'Đã chia sẻ chuyến đi thành công lên Bảng tin Cộng đồng!',
+            ),
+            action: SnackBarAction(
+              label: 'Xem ngay',
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const CommunityFeedScreen(),
+                  ),
+                );
+              },
+            ),
           ),
         );
       }
@@ -424,6 +437,17 @@ class _EditableTripDetailScreenState extends State<EditableTripDetailScreen> {
                         : null,
                     icon: const Icon(Icons.share_outlined),
                     label: const Text('Chia sẻ cộng đồng'),
+                  ),
+                  FilledButton.tonalIcon(
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const CommunityFeedScreen(),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.people_alt_outlined),
+                    label: const Text('Xem Bảng tin Cộng đồng'),
                   ),
                   TextButton(
                     onPressed: _busy ? null : _load,
