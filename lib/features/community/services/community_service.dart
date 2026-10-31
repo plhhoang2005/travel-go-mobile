@@ -2,6 +2,9 @@ import 'dart:convert';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../trips/models/trip_payload_codec.dart';
+import '../../trip_planner/models/trip_request.dart';
+import '../../trip_planner/models/trip_response.dart';
 import '../models/community_trip.dart';
 import '../models/trip_review.dart';
 
@@ -54,8 +57,47 @@ class CommunityService {
       throw ArgumentError('Mã người dùng mới (newUserId) không được để trống.');
     }
 
-    // Deep clone ai_plan_data để bảo toàn 100% hoạt động và không bị tham chiếu chéo
+    final clonedTitle = (newTitle != null && newTitle.trim().isNotEmpty)
+        ? newTitle.trim()
+        : 'Bản sao - ${original.title.trim().isNotEmpty ? original.title.trim() : "Chuyến đi"}';
+
+    final destName = original.destination.trim().isNotEmpty
+        ? original.destination.trim()
+        : 'Việt Nam';
+
+    final normalized = destName
+        .toLowerCase()
+        .replaceAll(RegExp(r'[àáạảãâầấậẩẫăằắặẳẵ]'), 'a')
+        .replaceAll(RegExp(r'[èéẹẻẽêềếệểễ]'), 'e')
+        .replaceAll(RegExp(r'[ìíịỉĩ]'), 'i')
+        .replaceAll(RegExp(r'[òóọỏõôồốộổỗơờớợởỡ]'), 'o')
+        .replaceAll(RegExp(r'[ùúụủũưừứựửữ]'), 'u')
+        .replaceAll(RegExp(r'[ỳýỵỷỹ]'), 'y')
+        .replaceAll(RegExp(r'[đ]'), 'd');
+    final rawDestId = normalized
+        .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
+        .replaceAll(RegExp(r'^-|-$'), '');
+    final destId = rawDestId.isNotEmpty ? rawDestId : 'dest-1';
+
+    final daysCount = (original.daysCount != null && original.daysCount! > 0)
+        ? original.daysCount!
+        : 1;
+
+    final budgetTotal = (original.estimatedCostVnd != null && original.estimatedCostVnd! > 0)
+        ? original.estimatedCostVnd!.toInt()
+        : 0;
+
+    final startDateStr = original.startDate != null
+        ? '${original.startDate!.year.toString().padLeft(4, '0')}-${original.startDate!.month.toString().padLeft(2, '0')}-${original.startDate!.day.toString().padLeft(2, '0')}'
+        : null;
+
+    final endDateStr = original.endDate != null
+        ? '${original.endDate!.year.toString().padLeft(4, '0')}-${original.endDate!.month.toString().padLeft(2, '0')}-${original.endDate!.day.toString().padLeft(2, '0')}'
+        : null;
+
     Map<String, dynamic> clonedPlanData = {};
+
+    // 1. Deep clone dữ liệu hiện có nếu có để bảo toàn hoạt động và tính tương thích
     if (original.tripData.isNotEmpty) {
       try {
         clonedPlanData = Map<String, dynamic>.from(
@@ -64,17 +106,106 @@ class CommunityService {
       } catch (_) {
         clonedPlanData = Map<String, dynamic>.from(original.tripData);
       }
+
+      // Nếu là Canonical Envelope V1, cập nhật tiêu đề mới trong metadata
+      if (clonedPlanData.containsKey('metadata') &&
+          clonedPlanData['metadata'] is Map) {
+        final meta =
+            Map<String, dynamic>.from(clonedPlanData['metadata'] as Map);
+        meta['title'] = clonedTitle;
+        clonedPlanData['metadata'] = meta;
+      }
+    }
+
+    // 2. Nếu ai_plan_data rỗng (chuyến đi tự lập hoặc chưa có lịch AI), tạo CanonicalTripPayloadV1 chuẩn chỉ
+    // để TripPayloadCodec.decodeLegacyRow không từ chối (tránh lỗi CorruptPayloadException làm ẩn chuyến đi)
+    if (clonedPlanData.isEmpty) {
+      final List<ItineraryDay> days = [];
+      for (var i = 1; i <= daysCount; i++) {
+        days.add(
+          ItineraryDay(
+            day: i,
+            title: 'Ngày $i: Khám phá $destName',
+            activities: [
+              Activity(
+                time: '08:00',
+                title: 'Tham quan và trải nghiệm $destName',
+                costVnd: 0,
+                durationHours: 2.0,
+              ),
+            ],
+          ),
+        );
+      }
+
+      final plan = PlanTripResponse(
+        winnerId: destId,
+        aiExplanation: 'Lịch trình sao chép từ cộng đồng TravelGO',
+        dataSources: const {'source': 'community'},
+        assumptions: const ['Di chuyển tự túc hoặc thuê xe tại điểm đến'],
+        topDestinations: [
+          DestinationCard(
+            id: destId,
+            name: destName,
+            totalScore: 9.0,
+            estimatedCostVnd: budgetTotal,
+            weatherSource: 'historical',
+            avgTempMax: 28.0,
+            avgPrecipitation: 10.0,
+            region: 'Việt Nam',
+            normalizedScores: const {},
+            scoreContributions: const {},
+          ),
+        ],
+        transportOptions: [
+          TransportOption(
+            mode: 'car',
+            displayName: 'Phương tiện đề xuất',
+            priceTotalVnd: 0,
+            durationHours: 2.0,
+            comfortScore: 8,
+            tradeoffType: 'balanced',
+            recommendationReason: 'Thuận tiện di chuyển theo lịch trình',
+            isParetoOptimal: true,
+          ),
+        ],
+        itineraryDays: days,
+      );
+
+      final payload = CanonicalTripPayloadV1(
+        schemaVersion: 1,
+        metadata: TripMetadataV1(
+          title: clonedTitle,
+          destinationId: destId,
+          destinationName: destName,
+          startDate: startDateStr,
+          endDate: endDateStr,
+        ),
+        request: PlanTripRequest(
+          origin: 'TP. Hồ Chí Minh',
+          destinationName: destName,
+          numDays: daysCount,
+          numPeople: 2,
+          budgetVnd: budgetTotal,
+          preferences: const ['Khám phá'],
+          priority: 'balanced',
+          startDate: startDateStr,
+          endDate: endDateStr,
+        ),
+        plan: plan,
+      );
+      clonedPlanData = payload.toJson();
     }
 
     return {
       'id': const Uuid().v4(),
       'user_id': newUserId,
-      'title': newTitle ?? 'Bản sao - ${original.title}',
-      'destination_name': original.destination,
-      'num_days': original.daysCount,
-      'budget_total': original.estimatedCostVnd,
-      'start_date': original.startDate?.toIso8601String(),
-      'end_date': original.endDate?.toIso8601String(),
+      'title': clonedTitle,
+      'destination_name': destName,
+      'num_days': daysCount,
+      'budget_total': budgetTotal,
+      'start_date': startDateStr,
+      'end_date': endDateStr,
       'status': 'planning',
       'is_public': false,
       'author_name': null,

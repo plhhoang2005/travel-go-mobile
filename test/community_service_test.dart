@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:travelgo_mobile/features/community/models/community_trip.dart';
 import 'package:travelgo_mobile/features/community/models/trip_review.dart';
 import 'package:travelgo_mobile/features/community/services/community_service.dart';
+import 'package:travelgo_mobile/features/trips/models/trip_payload_codec.dart';
 
 const String testUserIdA = '11111111-1111-4111-8111-111111111111';
 const String testUserIdB = '22222222-2222-4222-8222-222222222222';
@@ -240,6 +241,33 @@ void main() {
       // 7. Sửa đổi trên clonedPlan không được làm ảnh hưởng bản gốc (Deep copy)
       (clonedPlan['activities'] as List).clear();
       expect(original.tripData['activities'], isNotEmpty);
+    });
+
+    test('buildClonedTripPayload with empty tripData synthesizes valid canonical envelope that decodes cleanly', () {
+      final original = CommunityTrip(
+        id: testTripId,
+        title: 'Chuyến đi mới',
+        destination: 'Đà Nẵng',
+        daysCount: 2,
+        estimatedCostVnd: 4000000,
+        startDate: DateTime(2026, 10, 1),
+        endDate: DateTime(2026, 10, 2),
+        authorId: testUserIdA,
+        tripData: const {},
+      );
+
+      final payload = CommunityService.buildClonedTripPayload(
+        original: original,
+        newUserId: testUserIdB,
+      );
+
+      final decoded = TripPayloadCodec.decodeLegacyRow(payload);
+      expect(decoded.payload.metadata.title, 'Bản sao - Chuyến đi mới');
+      expect(decoded.payload.metadata.startDate, '2026-10-01');
+      expect(decoded.payload.metadata.endDate, '2026-10-02');
+      expect(decoded.payload.plan, isNotNull);
+      expect(decoded.payload.plan!.itineraryDays.length, 2);
+      expect(decoded.payload.plan!.winnerId, 'da-nang');
     });
 
     test('cloneTrip fails if user is not authenticated', () async {

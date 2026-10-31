@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 
 import '../../../../core/theme/app_theme.dart';
+import '../../../auth/providers/auth_provider.dart';
+import '../../../trips/providers/saved_trips_provider.dart';
 import '../../models/community_trip.dart';
 import '../../models/trip_review.dart';
 import '../../services/community_service.dart';
@@ -158,19 +161,31 @@ class _SharedTripDetailScreenState extends State<SharedTripDetailScreen> {
     try {
       final clonedTrip = await _service.cloneTrip(sourceTrip: _trip);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Đã sao chép "${clonedTrip.title}" về Chuyến đi của bạn!',
+        try {
+          final auth = context.read<AuthProvider>();
+          final currentUserId = auth.currentUser?.id;
+          if (currentUserId != null && currentUserId.isNotEmpty) {
+            await context.read<SavedTripsProvider>().loadTrips(currentUserId);
+          }
+        } catch (_) {
+          // Bỏ qua lỗi nếu Provider không nằm trong cây widget
+        }
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Đã sao chép "${clonedTrip.title}" về Chuyến đi của bạn!',
+              ),
+              backgroundColor: AppTheme.accentEmerald,
+              action: SnackBarAction(
+                label: 'Đóng',
+                textColor: Colors.white,
+                onPressed: () {},
+              ),
             ),
-            backgroundColor: AppTheme.accentEmerald,
-            action: SnackBarAction(
-              label: 'Đóng',
-              textColor: Colors.white,
-              onPressed: () {},
-            ),
-          ),
-        );
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
