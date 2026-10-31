@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
@@ -321,6 +322,41 @@ void main() {
     );
 
     testWidgets(
+      'SharedTripDetailScreen on narrow 360-wide screen does not overflow RenderFlex',
+      (tester) async {
+        tester.view.physicalSize = const Size(1080, 2400);
+        tester.view.devicePixelRatio = 3.0; // 360 logical width
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+
+        final bigTrip = sampleTrip.copyWith(
+          title: 'Chuyến đi mới với tiêu đề dài tại Đà Nẵng',
+          destination: 'Thành phố Đà Nẵng',
+          daysCount: 14,
+          estimatedCostVnd: 50000000.0,
+        );
+        final fakeService = FakeCommunityService(publicTrips: [bigTrip]);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: AppTheme.lightTheme,
+            home: SharedTripDetailScreen(
+              trip: bigTrip,
+              service: fakeService,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(find.text('Thời lượng: 14 ngày'), findsOneWidget);
+        expect(find.text('Sao chép về chuyến đi của tôi'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
       'SharedTripDetailScreen submits review with rating and comment',
       (tester) async {
         tester.view.physicalSize = const Size(800, 2400);
@@ -424,6 +460,10 @@ void main() {
           findsNWidgets(5),
         );
         expect(find.text('Cộng đồng'), findsOneWidget);
+
+        // Đảm bảo chữ "Cộng đồng" nằm trên đúng 1 hàng ngang, không bị ngắt thành 2 dòng dọc (chiều cao <= 18px)
+        final renderParagraph = tester.renderObject<RenderParagraph>(find.text('Cộng đồng'));
+        expect(renderParagraph.size.height, lessThanOrEqualTo(18.0));
 
         auth.dispose();
         trip.dispose();

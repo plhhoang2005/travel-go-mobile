@@ -41,44 +41,60 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: IndexedStack(index: _currentIndex, children: _screens),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        elevation: 0,
-        indicatorColor: Theme.of(context).colorScheme.primaryContainer,
-        destinations: [
-          const NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home_rounded),
-            label: 'Trang chủ',
+      bottomNavigationBar: NavigationBarTheme(
+        data: NavigationBarTheme.of(context).copyWith(
+          labelTextStyle: WidgetStateProperty.resolveWith((states) {
+            final isSelected = states.contains(WidgetState.selected);
+            return TextStyle(
+              fontSize: widget.enableCommunityTab ? 11.0 : 12.0,
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+              letterSpacing: widget.enableCommunityTab ? -0.3 : 0.0,
+              overflow: TextOverflow.ellipsis,
+            );
+          }),
+        ),
+        child: MediaQuery.withClampedTextScaling(
+          maxScaleFactor: 1.0,
+          child: NavigationBar(
+            selectedIndex: _currentIndex,
+            onDestinationSelected: (index) {
+              setState(() {
+                _currentIndex = index;
+              });
+            },
+            backgroundColor: Theme.of(context).colorScheme.surface,
+            elevation: 0,
+            indicatorColor: Theme.of(context).colorScheme.primaryContainer,
+            destinations: [
+              const NavigationDestination(
+                icon: Icon(Icons.home_outlined),
+                selectedIcon: Icon(Icons.home_rounded),
+                label: 'Trang chủ',
+              ),
+              const NavigationDestination(
+                icon: Icon(Icons.search_rounded),
+                selectedIcon: Icon(Icons.search_rounded),
+                label: 'Khám phá',
+              ),
+              if (widget.enableCommunityTab)
+                const NavigationDestination(
+                  icon: Icon(Icons.people_outline),
+                  selectedIcon: Icon(Icons.people_rounded),
+                  label: 'Cộng đồng',
+                ),
+              const NavigationDestination(
+                icon: Icon(Icons.confirmation_number_outlined),
+                selectedIcon: Icon(Icons.confirmation_number_rounded),
+                label: 'Chuyến đi',
+              ),
+              const NavigationDestination(
+                icon: Icon(Icons.person_outline),
+                selectedIcon: Icon(Icons.person_rounded),
+                label: 'Cá nhân',
+              ),
+            ],
           ),
-          const NavigationDestination(
-            icon: Icon(Icons.search_rounded),
-            selectedIcon: Icon(Icons.search_rounded),
-            label: 'Khám phá',
-          ),
-          if (widget.enableCommunityTab)
-            const NavigationDestination(
-              icon: Icon(Icons.people_outline),
-              selectedIcon: Icon(Icons.people_rounded),
-              label: 'Cộng đồng',
-            ),
-          const NavigationDestination(
-            icon: Icon(Icons.confirmation_number_outlined),
-            selectedIcon: Icon(Icons.confirmation_number_rounded),
-            label: 'Chuyến đi',
-          ),
-          const NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person_rounded),
-            label: 'Cá nhân',
-          ),
-        ],
+        ),
       ),
     );
   }

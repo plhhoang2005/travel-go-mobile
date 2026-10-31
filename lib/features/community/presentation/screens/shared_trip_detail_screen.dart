@@ -270,25 +270,31 @@ class _SharedTripDetailScreenState extends State<SharedTripDetailScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppTheme.primarySoft,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            destination,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                              color: AppTheme.primaryColor,
+                        Flexible(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppTheme.primarySoft,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              destination,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.primaryColor,
+                              ),
                             ),
                           ),
                         ),
+                        const SizedBox(width: 8),
                         Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             const Icon(
                               Icons.star_rounded,
@@ -337,24 +343,44 @@ class _SharedTripDetailScreenState extends State<SharedTripDetailScreen> {
                     ),
                     const Divider(height: 24, color: AppTheme.slate100),
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          'Thời lượng: $daysCount ngày',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: AppTheme.slate700,
-                            fontWeight: FontWeight.w500,
-                          ),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.calendar_today_outlined,
+                              size: 14,
+                              color: AppTheme.slate500,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Thời lượng: $daysCount ngày',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: AppTheme.slate700,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
                         ),
-                        Text(
-                          budget != null
-                              ? 'Dự toán: ${currencyFmt.format(budget)}'
-                              : 'Chưa có dự toán',
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.primaryColor,
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Align(
+                            alignment: Alignment.centerRight,
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerRight,
+                              child: Text(
+                                budget != null
+                                    ? 'Dự toán: ${currencyFmt.format(budget)}'
+                                    : 'Chưa có dự toán',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppTheme.primaryColor,
+                                ),
+                              ),
+                            ),
                           ),
                         ),
                       ],
@@ -475,7 +501,8 @@ class _SharedTripDetailScreenState extends State<SharedTripDetailScreen> {
                                       ),
                                     ),
                                     if (act['costVnd'] != null &&
-                                        act['costVnd'] > 0)
+                                        act['costVnd'] > 0) ...[
+                                      const SizedBox(width: 8),
                                       Text(
                                         currencyFmt.format(act['costVnd']),
                                         style: const TextStyle(
@@ -484,6 +511,7 @@ class _SharedTripDetailScreenState extends State<SharedTripDetailScreen> {
                                           color: AppTheme.slate500,
                                         ),
                                       ),
+                                    ],
                                   ],
                                 ),
                               ),
@@ -709,14 +737,18 @@ class _SharedTripDetailScreenState extends State<SharedTripDetailScreen> {
                       color: Colors.black87,
                       size: 20,
                     ),
-              label: Text(
-                _isCloning
-                    ? 'Đang sao chép…'
-                    : 'Sao chép về chuyến đi của tôi',
-                style: const TextStyle(
-                  color: Colors.black87,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 15,
+              label: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  _isCloning
+                      ? 'Đang sao chép…'
+                      : 'Sao chép về chuyến đi của tôi',
+                  maxLines: 1,
+                  style: const TextStyle(
+                    color: Colors.black87,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
                 ),
               ),
               style: ElevatedButton.styleFrom(
