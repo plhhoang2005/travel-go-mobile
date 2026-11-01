@@ -90,89 +90,97 @@ class PlaceMapPreviewCard extends StatelessWidget {
             const SizedBox(height: 12),
             Row(
               children: [
-                if (marker.type == MarkerType.place) ...[
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
+                Expanded(
+                  child: Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8,
+                    runSpacing: 4,
                     children: [
-                      const Icon(Icons.star, color: Colors.amber, size: 18),
-                      const SizedBox(width: 4),
-                      Text(
-                        marker.averageRating > 0
-                            ? marker.averageRating.toStringAsFixed(1)
-                            : 'Mới',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      if (marker.reviewCount > 0) ...[
-                        const SizedBox(width: 4),
-                        Text(
-                          '(${marker.reviewCount} đánh giá)',
-                          style: theme.textTheme.bodySmall,
+                      if (marker.type == MarkerType.place) ...[
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.star, color: Colors.amber, size: 18),
+                            const SizedBox(width: 4),
+                            Text(
+                              marker.averageRating > 0
+                                  ? marker.averageRating.toStringAsFixed(1)
+                                  : 'Mới',
+                              style: const TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            if (marker.reviewCount > 0) ...[
+                              const SizedBox(width: 4),
+                              Text(
+                                '(${marker.reviewCount} đánh giá)',
+                                style: theme.textTheme.bodySmall,
+                              ),
+                            ],
+                          ],
+                        ),
+                        if (marker.isTopRated)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.amber.shade100,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text(
+                              '⭐ Nổi Bật',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.deepOrange,
+                              ),
+                            ),
+                          ),
+                      ] else if (marker.type == MarkerType.destination) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: colorScheme.primaryContainer,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            'Điểm đến du lịch',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: colorScheme.onPrimaryContainer,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ] else ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade100,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            'Lãnh thổ Việt Nam',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.red.shade900,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ),
                       ],
                     ],
                   ),
-                  if (marker.isTopRated) ...[
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Colors.amber.shade100,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: const Text(
-                        '⭐ Nổi Bật',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.deepOrange,
-                        ),
-                      ),
-                    ),
-                  ],
-                ] else if (marker.type == MarkerType.destination) ...[
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: colorScheme.primaryContainer,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      'Điểm đến du lịch',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: colorScheme.onPrimaryContainer,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ] else ...[
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: Colors.red.shade100,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      'Lãnh thổ Việt Nam',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Colors.red.shade900,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
-                const Spacer(),
+                ),
+                const SizedBox(width: 8),
                 ElevatedButton.icon(
                   onPressed: onDetailsPressed,
-                  icon: const Icon(Icons.arrow_forward, size: 16),
+                  icon: const Icon(Icons.arrow_forward, size: 15),
                   label: Text(
                     marker.type == MarkerType.destination ? 'Xem các điểm' : 'Xem chi tiết',
+                    style: const TextStyle(fontSize: 13),
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: marker.isTopRated ? Colors.amber.shade700 : colorScheme.primary,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),

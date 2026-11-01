@@ -9,6 +9,8 @@ import '../../../explore/providers/discovery_provider.dart';
 import '../../../explore/providers/public_catalogue_provider.dart';
 import '../../../explore/services/manual_place_locations.dart';
 import '../../../explore/presentation/screens/destination_detail_screen.dart';
+import '../../../trip_planner/presentation/screens/home_planner_screen.dart';
+import '../../../trip_planner/presentation/widgets/planner_workspace_actions.dart';
 import '../../../auth/models/user_model.dart';
 import '../../../auth/providers/auth_provider.dart';
 import '../../models/catalogue_map_marker.dart';
@@ -205,7 +207,7 @@ class _CatalogueDiscoveryMapScreenState
 
     if (marker.type == MarkerType.destination) {
       final dest = catalogue.destinations
-          .where((d) => d.id == marker.id)
+          .where((d) => d.id == marker.id || d.name == marker.title)
           .firstOrNull;
       if (dest != null) {
         Navigator.of(context).push(
@@ -221,7 +223,11 @@ class _CatalogueDiscoveryMapScreenState
       final dest = catalogue.destinations
           .where((d) => d.id == marker.destinationId || d.places.any((p) => p.id == marker.id))
           .firstOrNull;
-      if (dest != null) {
+      final place = dest?.places.where((p) => p.id == marker.id).firstOrNull;
+
+      if (dest != null && place != null) {
+        _showPlaceDetailModal(dest, place, marker);
+      } else if (dest != null) {
         Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => DestinationDetailScreen(
@@ -232,6 +238,254 @@ class _CatalogueDiscoveryMapScreenState
         );
       }
     }
+  }
+
+  void _showPlaceDetailModal(
+    DestinationReference dest,
+    PlaceReference place,
+    CatalogueMapMarker marker,
+  ) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final catalogue = _resolveCatalogue();
+    final source = catalogue?.source(place.sourceId);
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.55,
+          minChildSize: 0.35,
+          maxChildSize: 0.85,
+          expand: false,
+          builder: (_, scrollController) {
+            return SingleChildScrollView(
+              controller: scrollController,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: marker.markerColor.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(
+                          marker.iconData,
+                          color: marker.markerColor,
+                          size: 28,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              place.name,
+                              style: theme.textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${dest.name} · ${dest.region}',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.star, color: Colors.amber, size: 20),
+                          const SizedBox(width: 4),
+                          Text(
+                            marker.averageRating > 0
+                                ? marker.averageRating.toStringAsFixed(1)
+                                : 'Mới',
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '(${marker.reviewCount} lượt đánh giá)',
+                            style: theme.textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                      if (marker.isTopRated)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.amber.shade100,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Text(
+                            '⭐ Điểm Đến Nổi Bật',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.deepOrange,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  const Divider(),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Vị trí địa lý',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.explore_outlined,
+                        size: 16,
+                        color: Colors.grey,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Tọa độ: ${marker.point.latitude.toStringAsFixed(4)}, ${marker.point.longitude.toStringAsFixed(4)}',
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Thông tin tham quan',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: colorScheme.surfaceContainerHighest.withValues(
+                        alpha: 0.5,
+                      ),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: colorScheme.outlineVariant),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.info_outline,
+                              size: 16,
+                              color: Colors.teal,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Giờ mở cửa & giá vé: Theo nguồn tham khảo',
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (source != null) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            'Nguồn: ${source.title} (${source.publisher})',
+                            style: theme.textTheme.bodySmall,
+                          ),
+                          Text(
+                            'Kiểm tra ngày: ${source.checkedAt}',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: () async {
+                        Navigator.of(sheetContext).pop();
+                        final accepted = await replacePlannerWorkspace(
+                          context,
+                          destinationId: dest.id,
+                          destinationName: dest.name,
+                        );
+                        if (!accepted || !mounted) return;
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const HomePlannerScreen(),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.edit_calendar),
+                      label: const Text('Chuẩn bị chuyến đi tới đây'),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.of(sheetContext).pop();
+                        if (catalogue != null) {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => DestinationDetailScreen(
+                                catalogue: catalogue,
+                                destination: dest,
+                              ),
+                            ),
+                          );
+                        }
+                      },
+                      icon: const Icon(Icons.location_city),
+                      label: Text('Xem toàn cảnh ${dest.name}'),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   List<Marker> _buildMapMarkers(
@@ -490,9 +744,10 @@ class _CatalogueDiscoveryMapScreenState
             children: [
               if (widget.enableNetworkTiles)
                 TileLayer(
-                  urlTemplate: 'https://tile.openstreetmap.de/{z}/{x}/{y}.png',
+                  urlTemplate:
+                      'https://tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',
                   fallbackUrl:
-                      'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+                      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
                   userAgentPackageName: 'com.travelgo.travelgo_mobile',
                   errorTileCallback: (tile, error, stackTrace) {
                     // Gracefully ignore network tile download failures when offline

@@ -86,8 +86,7 @@ class AdminAccountProvider extends ChangeNotifier {
     if (newOwnerId != _currentOwnerId ||
         newRole != _currentRole ||
         _authEpoch != authProvider.authEpoch ||
-        authProvider.isLoggingOut ||
-        authProvider.isDemoSession) {
+        authProvider.isLoggingOut) {
       _currentOwnerId = newOwnerId;
       _currentRole = newRole;
       _authEpoch = authProvider.authEpoch;
@@ -136,11 +135,49 @@ class AdminAccountProvider extends ChangeNotifier {
     _error = null;
     if (_currentOwnerId == null ||
         _currentRole != 'admin' ||
-        authProvider.isDemoSession ||
         authProvider.isLoggingOut) {
       invalidate();
       return;
     }
+
+    if (authProvider.isDemoSession) {
+      _hasAdminAccess = true;
+      _users = [
+        UserSummary(
+          id: 'admin-demo-1',
+          email: 'admin@travelgo.vn',
+          fullName: 'Quản Trị TravelGO',
+          role: 'admin',
+          state: 'active',
+          revision: 1,
+          authSynced: true,
+          createdAt: DateTime.now().subtract(const Duration(days: 30)),
+        ),
+        UserSummary(
+          id: 'minh-demo-2',
+          email: 'minh.nguyen@example.com',
+          fullName: 'Minh Nguyễn (Persona)',
+          role: 'customer',
+          state: 'active',
+          revision: 1,
+          authSynced: true,
+          createdAt: DateTime.now().subtract(const Duration(days: 10)),
+        ),
+        UserSummary(
+          id: 'user-demo-3',
+          email: 'hien.tu@example.com',
+          fullName: 'Tu Minh Hien',
+          role: 'customer',
+          state: 'active',
+          revision: 1,
+          authSynced: true,
+          createdAt: DateTime.now().subtract(const Duration(days: 2)),
+        ),
+      ];
+      notifyListeners();
+      return;
+    }
+
     try {
       final access = await service.access();
       if (!_isCurrent(context) || gen != _accessGeneration) return;

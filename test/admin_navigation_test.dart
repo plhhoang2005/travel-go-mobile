@@ -161,10 +161,10 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.text('Quản trị'), findsNothing);
 
-        // 2. Demo session with admin badge: demo session MUST NOT display Quản trị entry
-        final demoLogin = authProvider.quickDemoLogin(UserRole.admin);
+        // 2. Customer mode (Minh Demo): Customer role cannot see Quản trị
+        final customerLogin = authProvider.quickDemoLogin(UserRole.customer);
         await tester.pump(const Duration(milliseconds: 200));
-        await demoLogin;
+        await customerLogin;
         await tester.pumpWidget(
           _wrapWithAuth(
             child: const CustomerProfileScreen(),
@@ -174,6 +174,20 @@ void main() {
         );
         await tester.pumpAndSettle();
         expect(find.text('Quản trị'), findsNothing);
+
+        // 3. Admin Demo: Admin role CAN see Quản trị
+        final adminLogin = authProvider.quickDemoLogin(UserRole.admin);
+        await tester.pump(const Duration(milliseconds: 200));
+        await adminLogin;
+        await tester.pumpWidget(
+          _wrapWithAuth(
+            child: const CustomerProfileScreen(),
+            auth: authProvider,
+            adminProvider: adminProvider,
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Quản trị'), findsOneWidget);
       },
     );
 
