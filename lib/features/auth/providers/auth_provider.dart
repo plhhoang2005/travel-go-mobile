@@ -638,8 +638,7 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  /// Helper retained strictly for unit test fixtures
-  @visibleForTesting
+  /// Helper for demo login mode and unit test fixtures
   Future<void> quickDemoLogin(UserRole role) async {
     _handleRecoveryCancellation();
     _requestGeneration++;

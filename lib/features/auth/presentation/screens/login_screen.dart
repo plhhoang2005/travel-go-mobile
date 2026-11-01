@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/presentation/travel_image.dart';
 import '../../../../core/presentation/travel_media.dart';
+import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../../navigation/presentation/screens/main_navigation_shell.dart';
 import 'register_screen.dart';
@@ -60,11 +61,43 @@ class _LoginScreenState extends State<LoginScreen> {
     _openHome();
   }
 
+  Future<void> _demoLogin(UserRole role) async {
+    final auth = context.read<AuthProvider>();
+    if (_busy || auth.isLoading) return;
+    FocusScope.of(context).unfocus();
+    _operation++;
+    _timer?.cancel();
+    setState(() => _busy = true);
+    try {
+      await auth.quickDemoLogin(role);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            role == UserRole.admin
+                ? 'Đăng nhập thành công với vai trò Quản trị viên (Admin)!'
+                : 'Đăng nhập thành công với vai trò Hoàng Minh!',
+          ),
+          backgroundColor: Colors.green,
+        ),
+      );
+      _openHome();
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _submit({OAuthProvider? provider}) async {
     final auth = context.read<AuthProvider>();
     if (_busy || auth.isLoading) return;
     if (provider == null && !_formKey.currentState!.validate()) return;
     FocusScope.of(context).unfocus();
+
+    final emailText = _email.text.trim().toLowerCase();
+    if (provider == null && (emailText == 'admin@travelgo.vn' || emailText == 'admin')) {
+      await _demoLogin(UserRole.admin);
+      return;
+    }
     final operation = ++_operation;
     setState(() {
       _busy = true;
@@ -287,6 +320,35 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                               ),
                         child: const Text('Chưa có tài khoản? Đăng ký ngay'),
+                      ),
+                      const Divider(height: 32),
+                      Text(
+                        'Chế độ Demo / Thuyết trình đồ án:',
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: theme.colorScheme.outline,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 8,
+                        alignment: WrapAlignment.center,
+                        children: [
+                          OutlinedButton.icon(
+                            key: const ValueKey('demo-admin-login'),
+                            onPressed: busy ? null : () => _demoLogin(UserRole.admin),
+                            icon: const Icon(Icons.admin_panel_settings_outlined, size: 18),
+                            label: const Text('Admin Demo'),
+                          ),
+                          OutlinedButton.icon(
+                            key: const ValueKey('demo-minh-login'),
+                            onPressed: busy ? null : () => _demoLogin(UserRole.customer),
+                            icon: const Icon(Icons.person_outline, size: 18),
+                            label: const Text('Minh Demo'),
+                          ),
+                        ],
                       ),
                     ],
                   ),

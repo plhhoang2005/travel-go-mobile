@@ -16,14 +16,28 @@ void main() {
   runApp(const MapTestPreviewApp());
 }
 
-class MapTestPreviewApp extends StatefulWidget {
+class MapTestPreviewApp extends StatelessWidget {
   const MapTestPreviewApp({super.key});
 
   @override
-  State<MapTestPreviewApp> createState() => _MapTestPreviewAppState();
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'TravelGO - Map Test Preview',
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.lightTheme,
+      home: const MapTestPreviewScreen(),
+    );
+  }
 }
 
-class _MapTestPreviewAppState extends State<MapTestPreviewApp> {
+class MapTestPreviewScreen extends StatefulWidget {
+  const MapTestPreviewScreen({super.key});
+
+  @override
+  State<MapTestPreviewScreen> createState() => _MapTestPreviewScreenState();
+}
+
+class _MapTestPreviewScreenState extends State<MapTestPreviewScreen> {
   late CatalogueReference _currentCatalogue;
   bool _isAdminSimulatedHidden = false;
 
@@ -223,34 +237,32 @@ class _MapTestPreviewAppState extends State<MapTestPreviewApp> {
           ),
         ),
       ],
-      child: MaterialApp(
-        title: 'TravelGO - Map Test Preview',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.lightTheme,
-        home: Builder(
-          builder: (screenContext) {
-            return Scaffold(
-              body: CatalogueDiscoveryMapScreen(
-                initialCatalogue: _currentCatalogue,
-                enableNetworkTiles: true,
+      child: Builder(
+        builder: (screenContext) {
+          return Scaffold(
+            appBar: AppBar(
+              title: const Text('Bản đồ Khám phá (Chế độ Admin Test)'),
+            ),
+            body: CatalogueDiscoveryMapScreen(
+              initialCatalogue: _currentCatalogue,
+              enableNetworkTiles: true,
+            ),
+            floatingActionButton: FloatingActionButton.extended(
+              backgroundColor:
+                  _isAdminSimulatedHidden ? Colors.teal : Colors.deepOrange,
+              foregroundColor: Colors.white,
+              icon: Icon(
+                _isAdminSimulatedHidden ? Icons.visibility : Icons.visibility_off,
               ),
-              floatingActionButton: FloatingActionButton.extended(
-                backgroundColor:
-                    _isAdminSimulatedHidden ? Colors.teal : Colors.deepOrange,
-                foregroundColor: Colors.white,
-                icon: Icon(
-                  _isAdminSimulatedHidden ? Icons.visibility : Icons.visibility_off,
-                ),
-                label: Text(
-                  _isAdminSimulatedHidden
-                      ? 'Admin: Hiện lại Chợ Đà Lạt'
-                      : 'Admin: Ẩn Chợ Đà Lạt',
-                ),
-                onPressed: () => _toggleAdminHidePlace(screenContext),
+              label: Text(
+                _isAdminSimulatedHidden
+                    ? 'Admin: Hiện lại Chợ Đà Lạt'
+                    : 'Admin: Ẩn Chợ Đà Lạt',
               ),
-            );
-          },
-        ),
+              onPressed: () => _toggleAdminHidePlace(screenContext),
+            ),
+          );
+        },
       ),
     );
   }

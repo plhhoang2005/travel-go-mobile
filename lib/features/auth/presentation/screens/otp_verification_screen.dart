@@ -103,7 +103,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                       )
                     else ...[
                       Text(
-                        'Chỉ dùng mã đăng ký nhận được tại ${widget.email}. Màn hình này không gửi hoặc gửi lại email.',
+                        'Nhập mã OTP 6 số nhận được tại hộp thư Gmail: ${widget.email}.\n(Vui lòng mở ứng dụng Gmail và kiểm tra cả hộp thư Đến, Spam và Thư rác).',
                       ),
                       const SizedBox(height: 24),
                       TextFormField(

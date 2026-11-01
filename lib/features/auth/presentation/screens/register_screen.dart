@@ -64,9 +64,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
           context: context,
           builder: (dialog) => AlertDialog(
             title: const Text('Kiểm tra email xác nhận'),
-            content: const SingleChildScrollView(
+            content: SingleChildScrollView(
               child: Text(
-                'Yêu cầu đăng ký đã được tiếp nhận. Nếu nhận được thư xác nhận, hãy mở liên kết trong thư hoặc nhập mã OTP. Bạn chưa đăng nhập vào tài khoản. Kiểm tra cả thư rác.',
+                'Yêu cầu đăng ký đã được tiếp nhận. '
+                'Mã OTP xác thực đã được gửi đến hộp thư Gmail: ${_email.text.trim()} '
+                '(nhớ kiểm tra cả mục Thư rác/Spam; hệ thống KHÔNG gửi tin nhắn SMS về số điện thoại). '
+                'Nếu nhận được thư xác nhận, hãy mở liên kết trong thư hoặc nhập mã OTP. Bạn chưa đăng nhập vào tài khoản. Kiểm tra cả thư rác.',
               ),
             ),
             actions: [
@@ -101,6 +104,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     TextInputType? keyboard,
     List<String>? hints,
     String? Function(String?)? validator,
+    String? helperText,
     bool password = false,
     bool last = false,
   }) => Padding(
@@ -118,6 +122,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       onFieldSubmitted: last ? (_) => _submit() : null,
       decoration: InputDecoration(
         labelText: label,
+        helperText: helperText,
         suffixIcon: password
             ? IconButton(
                 tooltip: _hidden ? 'Hiện mật khẩu' : 'Ẩn mật khẩu',
@@ -176,6 +181,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         _phone,
                         keyboard: TextInputType.phone,
                         hints: const [AutofillHints.telephoneNumber],
+                        helperText:
+                            'Lưu vào hồ sơ. Mã OTP sẽ gửi về Gmail, KHÔNG gửi qua SMS.',
                         validator: (v) => v == null || v.trim().length < 9
                             ? 'Số điện thoại không hợp lệ'
                             : null,
@@ -191,6 +198,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         _email,
                         keyboard: TextInputType.emailAddress,
                         hints: const [AutofillHints.email],
+                        helperText:
+                            'Mã OTP 6 số sẽ được gửi về Gmail này (kiểm tra cả mục Spam).',
                         validator: (v) {
                           if (v == null || v.trim().isEmpty) {
                             return 'Vui lòng nhập email';
