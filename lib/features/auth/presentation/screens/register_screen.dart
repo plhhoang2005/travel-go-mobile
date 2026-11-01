@@ -191,9 +191,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         _email,
                         keyboard: TextInputType.emailAddress,
                         hints: const [AutofillHints.email],
-                        validator: (v) => v == null || !v.contains('@')
-                            ? 'Email không hợp lệ'
-                            : null,
+                        validator: (v) {
+                          if (v == null || v.trim().isEmpty) {
+                            return 'Vui lòng nhập email';
+                          }
+                          final email = v.trim();
+                          if (!email.contains('@') ||
+                              email.contains('..') ||
+                              !email.contains('.')) {
+                            return 'Định dạng email không hợp lệ (ví dụ: name@gmail.com)';
+                          }
+                          return null;
+                        },
                       ),
                       _field(
                         'register-password',
