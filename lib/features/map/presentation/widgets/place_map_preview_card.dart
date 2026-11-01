@@ -5,12 +5,18 @@ class PlaceMapPreviewCard extends StatelessWidget {
   final CatalogueMapMarker marker;
   final VoidCallback? onDetailsPressed;
   final VoidCallback? onClosePressed;
+  final bool isAdmin;
+  final bool isPlaceHidden;
+  final VoidCallback? onAdminToggleHide;
 
   const PlaceMapPreviewCard({
     super.key,
     required this.marker,
     this.onDetailsPressed,
     this.onClosePressed,
+    this.isAdmin = false,
+    this.isPlaceHidden = false,
+    this.onAdminToggleHide,
   });
 
   @override
@@ -174,6 +180,91 @@ class PlaceMapPreviewCard extends StatelessWidget {
                 ),
               ],
             ),
+            if (isAdmin && marker.type == MarkerType.place) ...[
+              const SizedBox(height: 12),
+              const Divider(height: 1),
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  color: isPlaceHidden
+                      ? Colors.red.withValues(alpha: 0.08)
+                      : colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: isPlaceHidden
+                        ? Colors.red.shade300
+                        : colorScheme.outlineVariant,
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      isPlaceHidden
+                          ? Icons.visibility_off
+                          : Icons.admin_panel_settings_outlined,
+                      size: 16,
+                      color: isPlaceHidden
+                          ? Colors.red.shade700
+                          : colorScheme.primary,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            isPlaceHidden
+                                ? 'Đang ẩn với khách'
+                                : 'Quản trị địa điểm',
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: isPlaceHidden
+                                  ? Colors.red.shade800
+                                  : colorScheme.onSurface,
+                            ),
+                          ),
+                          Text(
+                            isPlaceHidden
+                                ? 'Khách không nhìn thấy trên bản đồ'
+                                : 'Đang hiển thị công khai',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              fontSize: 11,
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    FilledButton.tonalIcon(
+                      key: const ValueKey('admin-toggle-place-visibility-btn'),
+                      onPressed: onAdminToggleHide,
+                      icon: Icon(
+                        isPlaceHidden ? Icons.visibility : Icons.visibility_off,
+                        size: 16,
+                      ),
+                      label: Text(isPlaceHidden ? 'Hiện lại' : 'Ẩn địa điểm'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: isPlaceHidden
+                            ? Colors.teal.shade700
+                            : Colors.deepOrange.shade700,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
       ),

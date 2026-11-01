@@ -99,6 +99,76 @@ void main() {
       await tester.tap(find.byIcon(Icons.close));
       expect(closeTapped, isTrue);
     });
+
+    testWidgets('PlaceMapPreviewCard displays Admin section when isAdmin is true', (tester) async {
+      bool togglePressed = false;
+      final marker = CatalogueMapMarker(
+        id: 'place-ponagar',
+        title: 'Tháp Bà Po Nagar',
+        subtitle: 'Nha Trang',
+        point: const LatLng(12.2654, 109.1958),
+        type: MarkerType.place,
+        averageRating: 4.5,
+      );
+
+      // Render as Admin, currently visible
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: PlaceMapPreviewCard(
+            marker: marker,
+            isAdmin: true,
+            isPlaceHidden: false,
+            onAdminToggleHide: () => togglePressed = true,
+          ),
+        ),
+      ));
+
+      expect(find.text('Quản trị địa điểm'), findsOneWidget);
+      expect(find.text('Đang hiển thị công khai'), findsOneWidget);
+      expect(find.text('Ẩn địa điểm'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('admin-toggle-place-visibility-btn')));
+      expect(togglePressed, isTrue);
+
+      // Now render when place is hidden
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: PlaceMapPreviewCard(
+            marker: marker,
+            isAdmin: true,
+            isPlaceHidden: true,
+            onAdminToggleHide: () {},
+          ),
+        ),
+      ));
+
+      expect(find.text('Đang ẩn với khách'), findsOneWidget);
+      expect(find.text('Khách không nhìn thấy trên bản đồ'), findsOneWidget);
+      expect(find.text('Hiện lại'), findsOneWidget);
+    });
+
+    testWidgets('PlaceMapPreviewCard hides Admin section when isAdmin is false', (tester) async {
+      final marker = CatalogueMapMarker(
+        id: 'place-ponagar',
+        title: 'Tháp Bà Po Nagar',
+        subtitle: 'Nha Trang',
+        point: const LatLng(12.2654, 109.1958),
+        type: MarkerType.place,
+        averageRating: 4.5,
+      );
+
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: PlaceMapPreviewCard(
+            marker: marker,
+            isAdmin: false,
+          ),
+        ),
+      ));
+
+      expect(find.text('Quản trị địa điểm'), findsNothing);
+      expect(find.text('Ẩn địa điểm'), findsNothing);
+      expect(find.byKey(const ValueKey('admin-toggle-place-visibility-btn')), findsNothing);
+    });
   });
 
   group('[Member 2] CatalogueDiscoveryMapScreen Interactive Drill-down Tests', () {

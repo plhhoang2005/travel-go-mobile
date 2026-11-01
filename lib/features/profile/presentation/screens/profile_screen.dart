@@ -6,7 +6,6 @@ import '../../../auth/models/user_model.dart';
 import '../../../auth/providers/auth_provider.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
 import '../../../admin/presentation/screens/admin_shell_screen.dart';
-import '../../../../main_map_preview.dart';
 
 class CustomerProfileScreen extends StatelessWidget {
   const CustomerProfileScreen({super.key});
@@ -113,7 +112,9 @@ class CustomerProfileScreen extends StatelessWidget {
                   ? null
                   : () => _showTravelPreferences(context, auth, user.id),
             ),
-            if (!guest && user.role == UserRole.admin) ...[
+            if (!guest &&
+                !auth.isDemoSession &&
+                user.role == UserRole.admin) ...[
               const Divider(height: 24),
               ListTile(
                 contentPadding: EdgeInsets.zero,
@@ -124,9 +125,7 @@ class CustomerProfileScreen extends StatelessWidget {
                 onTap: () {
                   Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (_) => auth.isDemoSession
-                          ? const MapTestPreviewScreen()
-                          : const AdminShellScreen(),
+                      builder: (_) => const AdminShellScreen(),
                     ),
                   );
                 },

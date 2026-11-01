@@ -39,21 +39,27 @@ class _CatalogueDiscoveryMapScreenState
   late final MapController _mapController;
   DestinationReference? _selectedDestination;
   CatalogueMapMarker? _selectedMarker;
-  bool _isAdminSimulatedHidden = false;
+  final Set<String> _hiddenPlaceIds = {};
 
-  void _toggleAdminHide() {
+  void _togglePlaceHide(CatalogueMapMarker marker) {
+    final willHide = !_hiddenPlaceIds.contains(marker.id);
     setState(() {
-      _isAdminSimulatedHidden = !_isAdminSimulatedHidden;
+      if (willHide) {
+        _hiddenPlaceIds.add(marker.id);
+      } else {
+        _hiddenPlaceIds.remove(marker.id);
+      }
     });
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          _isAdminSimulatedHidden
-              ? 'Admin đã ẩn "Chợ Đà Lạt & Chợ Đêm" khỏi danh mục!'
-              : 'Admin đã khôi phục "Chợ Đà Lạt & Chợ Đêm" trên bản đồ!',
+          willHide
+              ? 'Admin đã ẩn "${marker.title}" khỏi bản đồ!'
+              : 'Admin đã khôi phục "${marker.title}" trên bản đồ!',
         ),
         backgroundColor:
-            _isAdminSimulatedHidden ? Colors.red.shade700 : Colors.teal.shade700,
+            willHide ? Colors.red.shade700 : Colors.teal.shade700,
         duration: const Duration(seconds: 2),
       ),
     );
@@ -228,7 +234,10 @@ class _CatalogueDiscoveryMapScreenState
     }
   }
 
-  List<Marker> _buildMapMarkers(CatalogueReference? catalogue) {
+  List<Marker> _buildMapMarkers(
+    CatalogueReference? catalogue, {
+    bool isAdmin = false,
+  }) {
     final markers = <Marker>[];
 
     // 1. Thêm 2 ghim chủ quyền biển đảo Việt Nam
@@ -312,10 +321,9 @@ class _CatalogueDiscoveryMapScreenState
       final dest = _selectedDestination!;
       for (int i = 0; i < dest.places.length; i++) {
         final place = dest.places[i];
-        if (_isAdminSimulatedHidden &&
-            (place.id == 'dalat-cho-dem' ||
-             place.id == 'cho-da-lat' ||
-             place.name.toLowerCase().contains('chợ'))) {
+        final isHidden = _hiddenPlaceIds.contains(place.id);
+        if (!isAdmin && isHidden) {
+          // Người dùng bình thường không nhìn thấy địa điểm đã bị ẩn
           continue;
         }
         final point = _resolvePlaceCoords(place, dest, i);
@@ -343,7 +351,7 @@ class _CatalogueDiscoveryMapScreenState
                   _selectedMarker = markerData;
                 });
               },
-              child: _buildPlaceMarkerWidget(markerData),
+              child: _buildPlaceMarkerWidget(markerData, isHidden: isHidden),
             ),
           ),
         );
@@ -353,8 +361,38 @@ class _CatalogueDiscoveryMapScreenState
     return markers;
   }
 
-  Widget _buildPlaceMarkerWidget(CatalogueMapMarker marker) {
+  Widget _buildPlaceMarkerWidget(
+    CatalogueMapMarker marker, {
+    bool isHidden = false,
+  }) {
     final isSelected = _selectedMarker?.id == marker.id;
+
+    if (isHidden) {
+      return Container(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.blueGrey.shade700,
+          border: Border.all(
+            color: isSelected ? Colors.red.shade400 : Colors.red.shade200,
+            width: isSelected ? 3 : 1.5,
+          ),
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black26,
+              blurRadius: 4,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Center(
+          child: Icon(
+            Icons.visibility_off,
+            color: Colors.white70,
+            size: marker.markerSize * 0.45,
+          ),
+        ),
+      );
+    }
 
     if (marker.isTopRated) {
       return AnimatedContainer(
@@ -461,7 +499,7 @@ class _CatalogueDiscoveryMapScreenState
                   },
                 ),
               MarkerLayer(
-                markers: _buildMapMarkers(catalogue),
+                markers: _buildMapMarkers(catalogue, isAdmin: isAdmin),
               ),
             ],
           ),
@@ -517,6 +555,9 @@ class _CatalogueDiscoveryMapScreenState
               right: 0,
               child: PlaceMapPreviewCard(
                 marker: _selectedMarker!,
+                isAdmin: isAdmin,
+                isPlaceHidden: _hiddenPlaceIds.contains(_selectedMarker!.id),
+                onAdminToggleHide: () => _togglePlaceHide(_selectedMarker!),
                 onDetailsPressed: () => _openDetails(_selectedMarker!),
                 onClosePressed: () {
                   setState(() {
@@ -527,25 +568,6 @@ class _CatalogueDiscoveryMapScreenState
             ),
         ],
       ),
-      floatingActionButton: isAdmin
-          ? FloatingActionButton.extended(
-              key: const ValueKey('admin-map-toggle-btn'),
-              backgroundColor:
-                  _isAdminSimulatedHidden ? Colors.teal : Colors.deepOrange,
-              foregroundColor: Colors.white,
-              icon: Icon(
-                _isAdminSimulatedHidden
-                    ? Icons.visibility
-                    : Icons.visibility_off,
-              ),
-              label: Text(
-                _isAdminSimulatedHidden
-                    ? 'Admin: Hiện lại Chợ Đà Lạt'
-                    : 'Admin: Ẩn Chợ Đà Lạt',
-              ),
-              onPressed: _toggleAdminHide,
-            )
-          : null,
     );
   }
 }
