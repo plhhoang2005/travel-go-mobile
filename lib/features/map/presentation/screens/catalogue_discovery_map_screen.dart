@@ -9,6 +9,8 @@ import '../../../explore/providers/discovery_provider.dart';
 import '../../../explore/providers/public_catalogue_provider.dart';
 import '../../../explore/services/manual_place_locations.dart';
 import '../../../explore/presentation/screens/destination_detail_screen.dart';
+import '../../../auth/models/user_model.dart';
+import '../../../auth/providers/auth_provider.dart';
 import '../../models/catalogue_map_marker.dart';
 import '../widgets/place_map_preview_card.dart';
 import '../widgets/vietnamese_sovereignty_layer.dart';
@@ -17,12 +19,14 @@ class CatalogueDiscoveryMapScreen extends StatefulWidget {
   final CatalogueReference? initialCatalogue;
   final PublicCatalogueSnapshot? initialSnapshot;
   final bool enableNetworkTiles;
+  final bool showBackButton;
 
   const CatalogueDiscoveryMapScreen({
     super.key,
     this.initialCatalogue,
     this.initialSnapshot,
     this.enableNetworkTiles = true,
+    this.showBackButton = true,
   });
 
   @override
@@ -35,6 +39,25 @@ class _CatalogueDiscoveryMapScreenState
   late final MapController _mapController;
   DestinationReference? _selectedDestination;
   CatalogueMapMarker? _selectedMarker;
+  bool _isAdminSimulatedHidden = false;
+
+  void _toggleAdminHide() {
+    setState(() {
+      _isAdminSimulatedHidden = !_isAdminSimulatedHidden;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          _isAdminSimulatedHidden
+              ? 'Admin đã ẩn "Chợ Đà Lạt & Chợ Đêm" khỏi danh mục!'
+              : 'Admin đã khôi phục "Chợ Đà Lạt & Chợ Đêm" trên bản đồ!',
+        ),
+        backgroundColor:
+            _isAdminSimulatedHidden ? Colors.red.shade700 : Colors.teal.shade700,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
 
   static const LatLng _vietnamCenter = LatLng(16.047079, 108.206230);
   static const double _initialZoom = 6.0;
@@ -289,6 +312,12 @@ class _CatalogueDiscoveryMapScreenState
       final dest = _selectedDestination!;
       for (int i = 0; i < dest.places.length; i++) {
         final place = dest.places[i];
+        if (_isAdminSimulatedHidden &&
+            (place.id == 'dalat-cho-dem' ||
+             place.id == 'cho-da-lat' ||
+             place.name.toLowerCase().contains('chợ'))) {
+          continue;
+        }
         final point = _resolvePlaceCoords(place, dest, i);
         final rating = _resolvePlaceRating(place);
 
@@ -381,9 +410,12 @@ class _CatalogueDiscoveryMapScreenState
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final catalogue = _resolveCatalogue();
+    final auth = context.watch<AuthProvider?>();
+    final isAdmin = auth?.currentUser?.role == UserRole.admin;
 
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: widget.showBackButton,
         title: const Text('Bản Đồ Khám Phá'),
         actions: [
           if (_selectedDestination != null)
@@ -420,8 +452,10 @@ class _CatalogueDiscoveryMapScreenState
             children: [
               if (widget.enableNetworkTiles)
                 TileLayer(
-                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                  userAgentPackageName: 'com.travelgo.mobile',
+                  urlTemplate: 'https://tile.openstreetmap.de/{z}/{x}/{y}.png',
+                  fallbackUrl:
+                      'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+                  userAgentPackageName: 'com.travelgo.travelgo_mobile',
                   errorTileCallback: (tile, error, stackTrace) {
                     // Gracefully ignore network tile download failures when offline
                   },
@@ -493,6 +527,25 @@ class _CatalogueDiscoveryMapScreenState
             ),
         ],
       ),
+      floatingActionButton: isAdmin
+          ? FloatingActionButton.extended(
+              key: const ValueKey('admin-map-toggle-btn'),
+              backgroundColor:
+                  _isAdminSimulatedHidden ? Colors.teal : Colors.deepOrange,
+              foregroundColor: Colors.white,
+              icon: Icon(
+                _isAdminSimulatedHidden
+                    ? Icons.visibility
+                    : Icons.visibility_off,
+              ),
+              label: Text(
+                _isAdminSimulatedHidden
+                    ? 'Admin: Hiện lại Chợ Đà Lạt'
+                    : 'Admin: Ẩn Chợ Đà Lạt',
+              ),
+              onPressed: _toggleAdminHide,
+            )
+          : null,
     );
   }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../home/presentation/screens/main_home_screen.dart';
 import '../../../explore/presentation/screens/explore_screen.dart';
+import '../../../map/presentation/screens/catalogue_discovery_map_screen.dart';
 import '../../../trips/presentation/screens/my_trips_screen.dart';
 import '../../../profile/presentation/screens/profile_screen.dart';
 
@@ -17,11 +18,15 @@ class MainNavigationShell extends StatefulWidget {
 class _MainNavigationShellState extends State<MainNavigationShell> {
   late int _currentIndex;
 
-  final List<Widget> _screens = const [
-    MainHomeScreen(),
-    ExploreScreen(),
-    MyTripsScreen(),
-    CustomerProfileScreen(),
+  late final List<Widget> _screens = [
+    const MainHomeScreen(),
+    const ExploreScreen(),
+    CatalogueDiscoveryMapScreen(
+      showBackButton: false,
+      enableNetworkTiles: !WidgetsBinding.instance.runtimeType.toString().contains('Test'),
+    ),
+    const MyTripsScreen(),
+    const CustomerProfileScreen(),
   ];
 
   @override
@@ -54,6 +59,11 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
             icon: Icon(Icons.search_rounded),
             selectedIcon: Icon(Icons.search_rounded),
             label: 'Khám phá',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.map_outlined),
+            selectedIcon: Icon(Icons.map_rounded),
+            label: 'Bản đồ',
           ),
           NavigationDestination(
             icon: Icon(Icons.confirmation_number_outlined),

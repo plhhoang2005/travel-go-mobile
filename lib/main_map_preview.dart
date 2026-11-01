@@ -39,32 +39,11 @@ class MapTestPreviewScreen extends StatefulWidget {
 
 class _MapTestPreviewScreenState extends State<MapTestPreviewScreen> {
   late CatalogueReference _currentCatalogue;
-  bool _isAdminSimulatedHidden = false;
 
   @override
   void initState() {
     super.initState();
     _currentCatalogue = _createMockCatalogue(hidePlace: false);
-  }
-
-  void _toggleAdminHidePlace(BuildContext scaffoldContext) {
-    setState(() {
-      _isAdminSimulatedHidden = !_isAdminSimulatedHidden;
-      _currentCatalogue = _createMockCatalogue(hidePlace: _isAdminSimulatedHidden);
-    });
-
-    ScaffoldMessenger.of(scaffoldContext).showSnackBar(
-      SnackBar(
-        content: Text(
-          _isAdminSimulatedHidden
-              ? 'Admin đã ẩn "Chợ Đà Lạt" khỏi danh mục!'
-              : 'Admin đã khôi phục "Chợ Đà Lạt" trên bản đồ!',
-        ),
-        duration: const Duration(seconds: 2),
-        backgroundColor:
-            _isAdminSimulatedHidden ? Colors.red.shade700 : Colors.teal.shade700,
-      ),
-    );
   }
 
   static CatalogueReference _createMockCatalogue({required bool hidePlace}) {
@@ -237,32 +216,9 @@ class _MapTestPreviewScreenState extends State<MapTestPreviewScreen> {
           ),
         ),
       ],
-      child: Builder(
-        builder: (screenContext) {
-          return Scaffold(
-            appBar: AppBar(
-              title: const Text('Bản đồ Khám phá (Chế độ Admin Test)'),
-            ),
-            body: CatalogueDiscoveryMapScreen(
-              initialCatalogue: _currentCatalogue,
-              enableNetworkTiles: true,
-            ),
-            floatingActionButton: FloatingActionButton.extended(
-              backgroundColor:
-                  _isAdminSimulatedHidden ? Colors.teal : Colors.deepOrange,
-              foregroundColor: Colors.white,
-              icon: Icon(
-                _isAdminSimulatedHidden ? Icons.visibility : Icons.visibility_off,
-              ),
-              label: Text(
-                _isAdminSimulatedHidden
-                    ? 'Admin: Hiện lại Chợ Đà Lạt'
-                    : 'Admin: Ẩn Chợ Đà Lạt',
-              ),
-              onPressed: () => _toggleAdminHidePlace(screenContext),
-            ),
-          );
-        },
+      child: CatalogueDiscoveryMapScreen(
+        initialCatalogue: _currentCatalogue,
+        enableNetworkTiles: true,
       ),
     );
   }

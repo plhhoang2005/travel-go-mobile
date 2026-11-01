@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import 'package:travelgo_mobile/core/theme/app_theme.dart';
 import 'package:travelgo_mobile/features/auth/providers/auth_provider.dart';
+import 'package:travelgo_mobile/features/explore/presentation/screens/explore_screen.dart';
 import 'package:travelgo_mobile/features/explore/providers/discovery_provider.dart';
 import 'package:travelgo_mobile/features/explore/providers/place_visit_details_provider.dart';
 import 'package:travelgo_mobile/features/explore/providers/public_catalogue_provider.dart';
@@ -74,32 +75,33 @@ void main() {
             ],
             child: MaterialApp(
               theme: AppTheme.lightTheme,
-              home: const MainNavigationShell(initialIndex: 3),
+              home: const MainNavigationShell(initialIndex: 4),
             ),
           ),
         );
 
         await tester.pumpAndSettle();
 
-        // 1. Verify NavigationBar has exactly 4 items
+        // 1. Verify NavigationBar has exactly 5 items (including Member 2 Map)
         final navBarFinder = find.byType(NavigationBar);
         expect(navBarFinder, findsOneWidget);
         final destinationsFinder = find.descendant(
           of: navBarFinder,
           matching: find.byType(NavigationDestination),
         );
-        expect(destinationsFinder, findsNWidgets(4));
+        expect(destinationsFinder, findsNWidgets(5));
 
         // 2. Favorites is completely removed
         expect(find.text('Yêu thích'), findsNothing);
 
-        // 3. Tab labels: Trang chủ, Khám phá, Chuyến đi, Cá nhân
+        // 3. Tab labels: Trang chủ, Khám phá, Bản đồ, Chuyến đi, Cá nhân
         expect(find.text('Trang chủ'), findsOneWidget);
         expect(find.text('Khám phá'), findsOneWidget);
+        expect(find.text('Bản đồ'), findsOneWidget);
         expect(find.text('Chuyến đi'), findsOneWidget);
         expect(find.text('Cá nhân'), findsOneWidget);
 
-        // 4. At initialIndex 3, CustomerProfileScreen is directly displayed
+        // 4. At initialIndex 4, CustomerProfileScreen is directly displayed
         expect(find.byType(CustomerProfileScreen), findsOneWidget);
         expect(find.text('Tài Khoản'), findsOneWidget);
 
@@ -251,8 +253,20 @@ void main() {
               await tester.pumpAndSettle();
 
               // 1. Explore screen has no map button / tooltip / icon
-              expect(find.byTooltip('Bản đồ'), findsNothing);
-              expect(find.byIcon(Icons.map_outlined), findsNothing);
+              expect(
+                find.descendant(
+                  of: find.byType(ExploreScreen),
+                  matching: find.byTooltip('Bản đồ'),
+                ),
+                findsNothing,
+              );
+              expect(
+                find.descendant(
+                  of: find.byType(ExploreScreen),
+                  matching: find.byIcon(Icons.map_outlined),
+                ),
+                findsNothing,
+              );
 
               // 2. Search and tap destination 'Huế' in explore screen
               await tester.enterText(
