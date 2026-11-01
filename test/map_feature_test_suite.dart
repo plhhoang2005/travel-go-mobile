@@ -60,6 +60,19 @@ void main() {
       expect(truongSa.point.latitude, closeTo(10.7327, 0.01));
       expect(truongSa.point.longitude, closeTo(115.8272, 0.01));
     });
+
+    test('Can Tho destination resolves to Mekong Delta coordinates (latitude ~10.04)', () {
+      final canTho = DestinationReference(
+        id: 'can-tho',
+        name: 'Cần Thơ',
+        region: 'Đồng bằng sông Cửu Long',
+        sample: SampleReference.unavailable(),
+        places: const [],
+      );
+      final coords = CatalogueDiscoveryMapScreen.resolveDestinationCoords(canTho);
+      expect(coords.latitude, closeTo(10.0452, 0.05));
+      expect(coords.longitude, closeTo(105.7469, 0.05));
+    });
   });
 
   group('[Member 2] PlaceMapPreviewCard Widget Tests', () {
@@ -289,6 +302,67 @@ void main() {
       ));
 
       expect(find.byType(FlutterMap), findsOneWidget);
+    });
+
+    testWidgets('tapping Xem chi tiết on place opens place detail modal sheet', (tester) async {
+      final catalogue = CatalogueReference(
+        checkedAt: '2026-10-30',
+        sources: const [
+          SourceReference(
+            id: 's1',
+            title: 'UBND TP Đà Lạt',
+            publisher: 'UBND TP',
+            url: 'https://dalat.vn',
+            checkedAt: '2026-10-30',
+          ),
+        ],
+        destinations: [
+          DestinationReference(
+            id: 'da-lat',
+            name: 'Đà Lạt',
+            region: 'Tây Nguyên',
+            sample: SampleReference.unavailable(),
+            places: const [
+              PlaceReference(
+                id: 'place-ga-da-lat',
+                name: 'Ga Đà Lạt',
+                sourceId: 's1',
+                latitude: 11.9425,
+                longitude: 108.4445,
+              ),
+            ],
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(MaterialApp(
+        home: CatalogueDiscoveryMapScreen(
+          initialCatalogue: catalogue,
+          enableNetworkTiles: false,
+        ),
+      ));
+
+      // Enter Đà Lạt drill down
+      await tester.tap(find.text('Đà Lạt'));
+      await tester.pumpAndSettle();
+
+      // Tap on Ga Đà Lạt marker pin to open preview card
+      await tester.tap(find.byIcon(Icons.place).first);
+      await tester.pumpAndSettle();
+
+      // Preview card is shown with Ga Đà Lạt
+      expect(find.text('Ga Đà Lạt'), findsOneWidget);
+      expect(find.text('Xem chi tiết'), findsOneWidget);
+
+      // Tap Xem chi tiết
+      await tester.tap(find.text('Xem chi tiết'));
+      await tester.pumpAndSettle();
+
+      // Place detail bottom sheet should appear with information
+      expect(find.text('Vị trí địa lý'), findsOneWidget);
+      expect(find.text('Thông tin tham quan'), findsOneWidget);
+      expect(find.text('Chuẩn bị chuyến đi tới đây'), findsOneWidget);
+      expect(find.text('Xem toàn cảnh Đà Lạt'), findsOneWidget);
     });
   });
 }

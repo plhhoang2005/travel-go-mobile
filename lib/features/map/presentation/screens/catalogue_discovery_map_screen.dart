@@ -31,6 +31,15 @@ class CatalogueDiscoveryMapScreen extends StatefulWidget {
     this.showBackButton = true,
   });
 
+  static LatLng resolveDestinationCoords(
+    DestinationReference destination, {
+    PublicCatalogueSnapshot? snapshot,
+  }) =>
+      _CatalogueDiscoveryMapScreenState.resolveDestinationCoords(
+        destination,
+        snapshot: snapshot,
+      );
+
   @override
   State<CatalogueDiscoveryMapScreen> createState() =>
       _CatalogueDiscoveryMapScreenState();
@@ -72,15 +81,20 @@ class _CatalogueDiscoveryMapScreenState
 
   static const Map<String, LatLng> _knownDestinationCoords = {
     'ha-noi': LatLng(21.0285, 105.8542),
-    'da-nang': LatLng(16.0544, 108.2022),
-    'da-lat': LatLng(11.9404, 108.4583),
-    'phu-quoc': LatLng(10.2899, 103.9840),
-    'tp-ho-chi-minh': LatLng(10.8231, 106.6297),
-    'nha-trang': LatLng(12.2388, 109.1967),
-    'hue': LatLng(16.4637, 107.5909),
+    'ha-long': LatLng(20.9505, 107.0734),
     'quang-ninh': LatLng(20.9505, 107.0734),
-    'hoi-an': LatLng(15.8801, 108.3380),
     'sapa': LatLng(22.3364, 103.8438),
+    'sa-pa': LatLng(22.3364, 103.8438),
+    'ninh-binh': LatLng(20.2506, 105.9745),
+    'hue': LatLng(16.4637, 107.5909),
+    'da-nang': LatLng(16.0544, 108.2022),
+    'hoi-an': LatLng(15.8801, 108.3380),
+    'nha-trang': LatLng(12.2388, 109.1967),
+    'da-lat': LatLng(11.9404, 108.4583),
+    'ho-chi-minh': LatLng(10.8231, 106.6297),
+    'tp-ho-chi-minh': LatLng(10.8231, 106.6297),
+    'can-tho': LatLng(10.0452, 105.7469),
+    'phu-quoc': LatLng(10.2899, 103.9840),
   };
 
   @override
@@ -95,38 +109,71 @@ class _CatalogueDiscoveryMapScreenState
     super.dispose();
   }
 
-  CatalogueReference? _resolveCatalogue() {
+  CatalogueReference? _resolveCatalogue({bool listen = false}) {
     if (widget.initialCatalogue != null) return widget.initialCatalogue;
     try {
-      final publicProv = context.watch<PublicCatalogueProvider?>();
+      final publicProv = listen
+          ? context.watch<PublicCatalogueProvider?>()
+          : context.read<PublicCatalogueProvider?>();
       if (publicProv?.snapshot?.catalogue != null) {
         return publicProv!.snapshot!.catalogue;
       }
     } catch (_) {}
 
     try {
-      final discProv = context.watch<DiscoveryProvider?>();
+      final discProv = listen
+          ? context.watch<DiscoveryProvider?>()
+          : context.read<DiscoveryProvider?>();
       if (discProv?.catalogue != null) return discProv!.catalogue;
     } catch (_) {}
+
+    if (widget.initialSnapshot?.catalogue != null) {
+      return widget.initialSnapshot!.catalogue;
+    }
 
     return null;
   }
 
-  PublicCatalogueSnapshot? _resolveSnapshot() {
+  PublicCatalogueSnapshot? _resolveSnapshot({bool listen = false}) {
     if (widget.initialSnapshot != null) return widget.initialSnapshot;
     try {
-      final publicProv = context.watch<PublicCatalogueProvider?>();
+      final publicProv = listen
+          ? context.watch<PublicCatalogueProvider?>()
+          : context.read<PublicCatalogueProvider?>();
       return publicProv?.snapshot;
     } catch (_) {
       return null;
     }
   }
 
-  LatLng _resolveDestinationCoords(DestinationReference destination) {
-    if (_knownDestinationCoords.containsKey(destination.id)) {
-      return _knownDestinationCoords[destination.id]!;
+  static LatLng resolveDestinationCoords(
+    DestinationReference destination, {
+    PublicCatalogueSnapshot? snapshot,
+  }) {
+    final key = destination.id.toLowerCase().replaceAll('_', '-');
+    if (_knownDestinationCoords.containsKey(key)) {
+      return _knownDestinationCoords[key]!;
     }
-    final snapshot = _resolveSnapshot();
+    final nameLower = destination.name.toLowerCase();
+    if (nameLower.contains('cần thơ')) return const LatLng(10.0452, 105.7469);
+    if (nameLower.contains('hà nội')) return const LatLng(21.0285, 105.8542);
+    if (nameLower.contains('hạ long') || nameLower.contains('quảng ninh')) {
+      return const LatLng(20.9505, 107.0734);
+    }
+    if (nameLower.contains('sa pa') || nameLower.contains('sapa')) {
+      return const LatLng(22.3364, 103.8438);
+    }
+    if (nameLower.contains('ninh bình')) return const LatLng(20.2506, 105.9745);
+    if (nameLower.contains('huế')) return const LatLng(16.4637, 107.5909);
+    if (nameLower.contains('đà nẵng')) return const LatLng(16.0544, 108.2022);
+    if (nameLower.contains('hội an')) return const LatLng(15.8801, 108.3380);
+    if (nameLower.contains('nha trang')) return const LatLng(12.2388, 109.1967);
+    if (nameLower.contains('đà lạt')) return const LatLng(11.9404, 108.4583);
+    if (nameLower.contains('hồ chí minh') || nameLower.contains('sài gòn')) {
+      return const LatLng(10.8231, 106.6297);
+    }
+    if (nameLower.contains('phú quốc')) return const LatLng(10.2899, 103.9840);
+
     for (final place in destination.places) {
       if (place.latitude != null && place.longitude != null) {
         return LatLng(place.latitude!, place.longitude!);
@@ -137,6 +184,13 @@ class _CatalogueDiscoveryMapScreenState
       }
     }
     return _vietnamCenter;
+  }
+
+  LatLng _resolveDestinationCoords(DestinationReference destination) {
+    return resolveDestinationCoords(
+      destination,
+      snapshot: _resolveSnapshot(listen: false),
+    );
   }
 
   LatLng _resolvePlaceCoords(
@@ -202,14 +256,13 @@ class _CatalogueDiscoveryMapScreenState
   }
 
   void _openDetails(CatalogueMapMarker marker) {
-    final catalogue = _resolveCatalogue();
-    if (catalogue == null) return;
+    final catalogue = _resolveCatalogue(listen: false);
 
     if (marker.type == MarkerType.destination) {
-      final dest = catalogue.destinations
+      final dest = catalogue?.destinations
           .where((d) => d.id == marker.id || d.name == marker.title)
           .firstOrNull;
-      if (dest != null) {
+      if (dest != null && catalogue != null) {
         Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => DestinationDetailScreen(
@@ -220,19 +273,28 @@ class _CatalogueDiscoveryMapScreenState
         );
       }
     } else if (marker.type == MarkerType.place) {
-      final dest = catalogue.destinations
-          .where((d) => d.id == marker.destinationId || d.places.any((p) => p.id == marker.id))
+      DestinationReference? dest = _selectedDestination;
+      if (dest == null && catalogue != null) {
+        dest = catalogue.destinations
+            .where((d) =>
+                d.id == marker.destinationId ||
+                d.places.any((p) => p.id == marker.id || p.name == marker.title))
+            .firstOrNull;
+      }
+
+      final place = dest?.places
+          .where((p) => p.id == marker.id || p.name == marker.title)
           .firstOrNull;
-      final place = dest?.places.where((p) => p.id == marker.id).firstOrNull;
 
       if (dest != null && place != null) {
         _showPlaceDetailModal(dest, place, marker);
-      } else if (dest != null) {
+      } else if (dest != null && catalogue != null) {
+        final targetDest = dest;
         Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => DestinationDetailScreen(
               catalogue: catalogue,
-              destination: dest,
+              destination: targetDest,
             ),
           ),
         );
@@ -247,8 +309,11 @@ class _CatalogueDiscoveryMapScreenState
   ) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final catalogue = _resolveCatalogue();
-    final source = catalogue?.source(place.sourceId);
+    final catalogue = _resolveCatalogue(listen: false);
+    SourceReference? source;
+    try {
+      source = catalogue?.source(place.sourceId);
+    } catch (_) {}
 
     showModalBottomSheet<void>(
       context: context,
@@ -701,7 +766,7 @@ class _CatalogueDiscoveryMapScreenState
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final catalogue = _resolveCatalogue();
+    final catalogue = _resolveCatalogue(listen: true);
     final auth = context.watch<AuthProvider?>();
     final isAdmin = auth?.currentUser?.role == UserRole.admin;
 
