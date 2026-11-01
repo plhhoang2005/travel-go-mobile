@@ -201,8 +201,10 @@ class _CatalogueDiscoveryMapScreenState
     if (place.latitude != null && place.longitude != null) {
       return LatLng(place.latitude!, place.longitude!);
     }
-    final snapshot = _resolveSnapshot();
-    final manual = ManualPlaceLocations.find(place.id, snapshot: snapshot);
+    final snapshot = _resolveSnapshot(listen: false);
+    final manual = ManualPlaceLocations.find(place.id, snapshot: snapshot) ??
+        ManualPlaceLocations.find('${destination.id}/${place.id}', snapshot: snapshot) ??
+        ManualPlaceLocations.forPlace(place.id);
     if (manual != null) {
       return LatLng(manual.position.latitude, manual.position.longitude);
     }

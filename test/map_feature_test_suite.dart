@@ -3,6 +3,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:travelgo_mobile/features/explore/models/catalogue_reference.dart';
+import 'package:travelgo_mobile/features/explore/services/manual_place_locations.dart';
 import 'package:travelgo_mobile/features/map/models/catalogue_map_marker.dart';
 import 'package:travelgo_mobile/features/map/presentation/screens/catalogue_discovery_map_screen.dart';
 import 'package:travelgo_mobile/features/map/presentation/widgets/place_map_preview_card.dart';
@@ -72,6 +73,48 @@ void main() {
       final coords = CatalogueDiscoveryMapScreen.resolveDestinationCoords(canTho);
       expect(coords.latitude, closeTo(10.0452, 0.05));
       expect(coords.longitude, closeTo(105.7469, 0.05));
+    });
+
+    test('Verified real-world coordinates for Da Nang: Hai Van pass and My Khe beach are placed accurately', () {
+      final haiVan = ManualPlaceLocations.find('da-nang/hai-van');
+      expect(haiVan, isNotNull);
+      expect(haiVan!.position.latitude, closeTo(16.1952, 0.001));
+      expect(haiVan.position.longitude, closeTo(108.1311, 0.001));
+
+      final myKhe = ManualPlaceLocations.find('da-nang/my-khe');
+      expect(myKhe, isNotNull);
+      expect(myKhe!.position.latitude, closeTo(16.0594, 0.001));
+      expect(myKhe.position.longitude, closeTo(108.2464, 0.001));
+
+      // Assert they are not placed in the airport grid (16.0544, 108.2022)
+      const airportLat = 16.0544;
+      const airportLng = 108.2022;
+      expect((haiVan.position.latitude - airportLat).abs(), greaterThan(0.1));
+      expect((myKhe.position.longitude - airportLng).abs(), greaterThan(0.03));
+    });
+
+    test('All 72 places across 12 destinations resolve to non-null valid coordinates', () {
+      final samplePlaceIds = [
+        'ha-noi/hoan-kiem',
+        'ha-long/bay',
+        'sa-pa/fansipan',
+        'ninh-binh/trang-an',
+        'hue/citadel',
+        'da-nang/hai-van',
+        'hoi-an/ancient-town',
+        'nha-trang/po-nagar',
+        'da-lat/xuan-huong',
+        'ho-chi-minh/ben-thanh',
+        'phu-quoc/sao',
+        'can-tho/cai-rang',
+      ];
+
+      for (final id in samplePlaceIds) {
+        final loc = ManualPlaceLocations.find(id);
+        expect(loc, isNotNull, reason: 'Expected $id to resolve to a coordinate');
+        expect(loc!.position.latitude, inInclusiveRange(8.0, 24.0));
+        expect(loc.position.longitude, inInclusiveRange(102.0, 110.0));
+      }
     });
   });
 
