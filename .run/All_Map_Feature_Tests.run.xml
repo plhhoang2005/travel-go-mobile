@@ -1,0 +1,7 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="🧪 All Map Feature Tests (Thành Viên 2)" type="FlutterTestConfigType" factoryName="Flutter Test">
+    <option name="filePath" value="$PROJECT_DIR$/test/map_feature_test_suite.dart" />
+    <method v="2" />
+  </configuration>
+</component>
+
