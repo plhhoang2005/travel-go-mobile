@@ -1,26 +1,20 @@
 import 'dart:convert';
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show User;
 
-import 'package:travelgo_mobile/core/theme/app_theme.dart';
 import 'package:travelgo_mobile/features/admin/models/admin_account_models.dart';
 import 'package:travelgo_mobile/features/admin/presentation/screens/admin_dashboard_screen.dart';
 import 'package:travelgo_mobile/features/admin/providers/admin_account_provider.dart';
 import 'package:travelgo_mobile/features/admin/services/admin_account_service.dart';
 import 'package:travelgo_mobile/features/auth/models/user_model.dart';
 import 'package:travelgo_mobile/features/auth/providers/auth_provider.dart';
-import 'package:travelgo_mobile/features/community/models/community_trip.dart';
-import 'package:travelgo_mobile/features/community/services/community_service.dart';
-import 'package:travelgo_mobile/features/explore/models/catalogue_reference.dart';
 import 'package:travelgo_mobile/features/explore/presentation/screens/explore_screen.dart';
 import 'package:travelgo_mobile/features/explore/providers/discovery_provider.dart';
 import 'package:travelgo_mobile/features/explore/services/catalogue_repository.dart';
 import 'package:travelgo_mobile/features/map/models/catalogue_map_marker.dart';
-import 'package:travelgo_mobile/features/map/presentation/screens/catalogue_discovery_map_screen.dart';
 import 'package:travelgo_mobile/features/map/presentation/widgets/place_map_preview_card.dart';
 import 'package:travelgo_mobile/features/profile/presentation/screens/profile_screen.dart';
 import 'package:travelgo_mobile/features/reviews/models/place_review.dart';
@@ -28,15 +22,11 @@ import 'package:travelgo_mobile/features/reviews/presentation/screens/place_revi
 import 'package:travelgo_mobile/features/reviews/presentation/widgets/rating_stars_widget.dart';
 import 'package:travelgo_mobile/features/reviews/providers/place_reviews_provider.dart';
 import 'package:travelgo_mobile/features/reviews/services/place_reviews_service.dart';
-import 'package:travelgo_mobile/features/trip_planner/presentation/screens/manual_planner_screen.dart';
-import 'package:travelgo_mobile/features/trip_planner/providers/planner_input_provider.dart';
-import 'package:travelgo_mobile/features/trip_planner/providers/trip_provider.dart';
 import 'package:travelgo_mobile/features/trips/models/saved_trip_model.dart';
 import 'package:travelgo_mobile/features/trips/models/editable_remote_records.dart';
 import 'package:travelgo_mobile/features/trips/models/local_trip_records.dart';
 import 'package:travelgo_mobile/features/trips/presentation/screens/my_trips_screen.dart';
 import 'package:travelgo_mobile/features/trips/providers/saved_trips_provider.dart';
-import 'package:travelgo_mobile/features/trips/services/trips_service.dart';
 
 import 'catalogue_parser_test.dart' show catalogueData;
 
@@ -465,7 +455,6 @@ void main() {
           reviewCount: 120,
         );
 
-        bool detailsPressed = false;
         bool hideToggled = false;
 
         await tester.pumpWidget(
@@ -475,7 +464,7 @@ void main() {
                 marker: mockMarker,
                 isAdmin: true,
                 isPlaceHidden: false,
-                onDetailsPressed: () => detailsPressed = true,
+                onDetailsPressed: () {},
                 onAdminToggleHide: () => hideToggled = true,
               ),
             ),
