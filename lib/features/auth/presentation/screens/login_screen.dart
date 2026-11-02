@@ -49,7 +49,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _openHome() => Navigator.of(context).pushAndRemoveUntil(
-    MaterialPageRoute(builder: (_) => const MainNavigationShell()),
+    MaterialPageRoute(builder: (_) => const MainNavigationShell(enableCommunityTab: true)),
     (_) => false,
   );
 

@@ -839,7 +839,7 @@ class _AuthBootstrapState extends State<_AuthBootstrap> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final destination = widget.auth.isAuthenticated || widget.auth.isGuest
-          ? const MainNavigationShell()
+          ? const MainNavigationShell(enableCommunityTab: true)
           : const OnboardingScreen();
       _navigatorKey.currentState?.pushAndRemoveUntil(
         MaterialPageRoute<void>(builder: (_) => destination),

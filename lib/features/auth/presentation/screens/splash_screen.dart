@@ -28,7 +28,7 @@ class _SplashScreenState extends State<SplashScreen> {
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
         builder: (_) => auth.isAuthenticated || auth.isGuest
-            ? const MainNavigationShell()
+            ? const MainNavigationShell(enableCommunityTab: true)
             : const OnboardingScreen(),
       ),
     );
