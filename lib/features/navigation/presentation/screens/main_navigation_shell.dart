@@ -3,17 +3,20 @@ import 'package:flutter/material.dart';
 import '../../../community/presentation/screens/community_feed_screen.dart';
 import '../../../home/presentation/screens/main_home_screen.dart';
 import '../../../explore/presentation/screens/explore_screen.dart';
+import '../../../map/presentation/screens/catalogue_discovery_map_screen.dart';
 import '../../../trips/presentation/screens/my_trips_screen.dart';
 import '../../../profile/presentation/screens/profile_screen.dart';
 
 class MainNavigationShell extends StatefulWidget {
   final int initialIndex;
   final bool enableCommunityTab;
+  final bool enableMapTab;
 
   const MainNavigationShell({
     super.key,
     this.initialIndex = 0,
     this.enableCommunityTab = false,
+    this.enableMapTab = false,
   });
 
   @override
@@ -26,6 +29,12 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
   List<Widget> get _screens => [
         const MainHomeScreen(),
         const ExploreScreen(),
+        if (widget.enableMapTab)
+          CatalogueDiscoveryMapScreen(
+            showBackButton: false,
+            enableNetworkTiles:
+                !WidgetsBinding.instance.runtimeType.toString().contains('Test'),
+          ),
         if (widget.enableCommunityTab) const CommunityFeedScreen(),
         const MyTripsScreen(),
         const CustomerProfileScreen(),
@@ -39,6 +48,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
 
   @override
   Widget build(BuildContext context) {
+    final hasExtraTabs = widget.enableMapTab || widget.enableCommunityTab;
     return Scaffold(
       body: IndexedStack(index: _currentIndex, children: _screens),
       bottomNavigationBar: NavigationBarTheme(
@@ -46,9 +56,9 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
           labelTextStyle: WidgetStateProperty.resolveWith((states) {
             final isSelected = states.contains(WidgetState.selected);
             return TextStyle(
-              fontSize: widget.enableCommunityTab ? 11.0 : 12.0,
+              fontSize: hasExtraTabs ? 11.0 : 12.0,
               fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-              letterSpacing: widget.enableCommunityTab ? -0.3 : 0.0,
+              letterSpacing: hasExtraTabs ? -0.3 : 0.0,
               overflow: TextOverflow.ellipsis,
             );
           }),
@@ -76,6 +86,12 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                 selectedIcon: Icon(Icons.search_rounded),
                 label: 'Khám phá',
               ),
+              if (widget.enableMapTab)
+                const NavigationDestination(
+                  icon: Icon(Icons.map_outlined),
+                  selectedIcon: Icon(Icons.map_rounded),
+                  label: 'Bản đồ',
+                ),
               if (widget.enableCommunityTab)
                 const NavigationDestination(
                   icon: Icon(Icons.people_outline),
