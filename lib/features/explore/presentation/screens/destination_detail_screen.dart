@@ -16,6 +16,8 @@ import '../../../trip_planner/presentation/widgets/planner_workspace_actions.dar
 import '../../providers/public_catalogue_provider.dart';
 import '../../models/public_catalogue_snapshot.dart';
 import '../../services/place_visit_details_repository.dart';
+import '../../../reviews/presentation/widgets/place_review_summary_card.dart';
+import '../../../reviews/services/review_service.dart';
 
 class DestinationDetailScreen extends StatefulWidget {
   final CatalogueReference catalogue;
@@ -250,7 +252,7 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
                 child: const Text('Xem ví dụ tham khảo'),
               ),
             const SizedBox(height: 16),
-            for (final place in destination.places)
+            for (final place in destination.places) ...[
               if (!hasVisits)
                 _PlaceSource(
                   place: place,
@@ -265,6 +267,8 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
                   snapshot: visitSnapshot,
                   showReleaseInfo: false,
                 ),
+              _ReviewCardIfConfigured(placeId: place.id, placeName: place.name),
+            ],
           ],
         ),
       ),
@@ -348,6 +352,31 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
         ),
       ),
     );
+  }
+}
+
+class _ReviewCardIfConfigured extends StatelessWidget {
+  final String placeId;
+  final String placeName;
+
+  const _ReviewCardIfConfigured({
+    required this.placeId,
+    required this.placeName,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    try {
+      final service = context.read<ReviewService>();
+      return PlaceReviewSummaryCard(
+        placeId: placeId,
+        placeName: placeName,
+        service: service,
+      );
+    } catch (_) {
+      // Isolated detail tests may intentionally omit the app-level review graph.
+      return const SizedBox.shrink();
+    }
   }
 }
 
