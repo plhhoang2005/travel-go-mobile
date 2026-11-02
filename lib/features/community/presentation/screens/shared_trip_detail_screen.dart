@@ -10,7 +10,7 @@ import '../../models/trip_review.dart';
 import '../../services/community_service.dart';
 import '../../../../core/presentation/travel_image.dart';
 import '../widgets/community_trip_card.dart';
-import '../widgets/rating_stars_widget.dart';
+import '../../../reviews/presentation/widgets/rating_stars_widget.dart';
 
 /// Màn hình Chi tiết Chuyến đi được chia sẻ trên Cộng đồng.
 /// Bao gồm:

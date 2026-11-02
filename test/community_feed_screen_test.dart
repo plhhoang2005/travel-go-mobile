@@ -11,7 +11,7 @@ import 'package:travelgo_mobile/features/community/models/trip_review.dart';
 import 'package:travelgo_mobile/features/community/presentation/screens/community_feed_screen.dart';
 import 'package:travelgo_mobile/features/community/presentation/screens/shared_trip_detail_screen.dart';
 import 'package:travelgo_mobile/features/community/presentation/widgets/community_trip_card.dart';
-import 'package:travelgo_mobile/features/community/presentation/widgets/rating_stars_widget.dart';
+import 'package:travelgo_mobile/features/reviews/presentation/widgets/rating_stars_widget.dart';
 import 'package:travelgo_mobile/features/community/services/community_service.dart';
 import 'package:travelgo_mobile/features/explore/providers/discovery_provider.dart';
 import 'package:travelgo_mobile/features/explore/services/catalogue_repository.dart';
