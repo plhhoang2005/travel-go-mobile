@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../../../core/theme/app_theme.dart';
 import '../../models/community_trip.dart';
@@ -29,11 +30,21 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
   String _selectedDestination = 'Tất cả';
   String _searchQuery = '';
 
+  bool _serviceInitialized = false;
+
   @override
-  void initState() {
-    super.initState();
-    _service = widget.service ?? CommunityService();
-    _loadTrips();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_serviceInitialized) {
+      _serviceInitialized = true;
+      try {
+        _service = widget.service ??
+            (context.read<CommunityService?>() ?? CommunityService());
+      } catch (_) {
+        _service = widget.service ?? CommunityService();
+      }
+      _loadTrips();
+    }
   }
 
   @override
