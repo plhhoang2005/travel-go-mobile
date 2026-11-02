@@ -1,6 +1,5 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:travelgo_mobile/features/trip_planner/models/local_ai_models.dart';
 import 'package:travelgo_mobile/features/trip_planner/services/local_ai_service.dart';
 
 void main() {

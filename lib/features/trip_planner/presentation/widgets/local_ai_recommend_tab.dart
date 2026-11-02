@@ -122,7 +122,7 @@ class _LocalAiRecommendTabState extends State<LocalAiRecommendTab> {
               const SizedBox(width: 12),
               Expanded(
                 child: DropdownButtonFormField<String>(
-                  value: _selectedDestination,
+                  initialValue: _selectedDestination,
                   decoration: InputDecoration(
                     contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),

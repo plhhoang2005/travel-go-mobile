@@ -1,6 +1,5 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import '../../models/local_ai_models.dart';
 import '../../services/local_ai_service.dart';
 import '../widgets/local_ai_chat_tab.dart';
 import '../widgets/local_ai_search_tab.dart';
