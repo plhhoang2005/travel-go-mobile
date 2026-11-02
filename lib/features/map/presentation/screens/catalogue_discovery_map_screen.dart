@@ -800,30 +800,40 @@ class _CatalogueDiscoveryMapScreenState
       ),
       body: Stack(
         children: [
-          FlutterMap(
-            mapController: _mapController,
-            options: const MapOptions(
-              initialCenter: _vietnamCenter,
-              initialZoom: _initialZoom,
-              minZoom: 4.0,
-              maxZoom: 18.0,
-            ),
-            children: [
-              if (widget.enableNetworkTiles)
-                TileLayer(
-                  urlTemplate:
-                      'https://tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',
-                  fallbackUrl:
-                      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
-                  userAgentPackageName: 'com.travelgo.travelgo_mobile',
-                  errorTileCallback: (tile, error, stackTrace) {
-                    // Gracefully ignore network tile download failures when offline
-                  },
-                ),
-              MarkerLayer(
-                markers: _buildMapMarkers(catalogue, isAdmin: isAdmin),
+          RepaintBoundary(
+            child: FlutterMap(
+              mapController: _mapController,
+              options: const MapOptions(
+                initialCenter: _vietnamCenter,
+                initialZoom: _initialZoom,
+                minZoom: 4.0,
+                maxZoom: 18.0,
               ),
-            ],
+              children: [
+                if (widget.enableNetworkTiles)
+                  TileLayer(
+                    urlTemplate:
+                        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    fallbackUrl:
+                        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+                    userAgentPackageName: 'com.travelgo.travelgo_mobile',
+                    keepBuffer: 3,
+                    panBuffer: 1,
+                    maxNativeZoom: 18,
+                    maxZoom: 19,
+                    tileDisplay: const TileDisplay.fadeIn(),
+                    tileUpdateTransformer: TileUpdateTransformers.throttle(
+                      const Duration(milliseconds: 120),
+                    ),
+                    errorTileCallback: (tile, error, stackTrace) {
+                      // Gracefully ignore network tile download failures when offline
+                    },
+                  ),
+                MarkerLayer(
+                  markers: _buildMapMarkers(catalogue, isAdmin: isAdmin),
+                ),
+              ],
+            ),
           ),
 
           // Header thông báo khi đang trong chế độ drill-down Điểm đến
