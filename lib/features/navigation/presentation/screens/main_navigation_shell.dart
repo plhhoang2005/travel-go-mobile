@@ -26,6 +26,8 @@ class MainNavigationShell extends StatefulWidget {
 class _MainNavigationShellState extends State<MainNavigationShell> {
   late int _currentIndex;
 
+  bool get _hasBothExtraTabs => widget.enableMapTab && widget.enableCommunityTab;
+
   List<Widget> get _screens => [
         const MainHomeScreen(),
         const ExploreScreen(),
@@ -37,7 +39,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
           ),
         if (widget.enableCommunityTab) const CommunityFeedScreen(),
         const MyTripsScreen(),
-        const CustomerProfileScreen(),
+        if (!_hasBothExtraTabs) const CustomerProfileScreen(),
       ];
 
   @override
@@ -48,7 +50,6 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
 
   @override
   Widget build(BuildContext context) {
-    final hasExtraTabs = widget.enableMapTab || widget.enableCommunityTab;
     return Scaffold(
       body: IndexedStack(index: _currentIndex, children: _screens),
       bottomNavigationBar: NavigationBarTheme(
@@ -56,9 +57,9 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
           labelTextStyle: WidgetStateProperty.resolveWith((states) {
             final isSelected = states.contains(WidgetState.selected);
             return TextStyle(
-              fontSize: hasExtraTabs ? 11.0 : 12.0,
+              fontSize: 12.0,
               fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-              letterSpacing: hasExtraTabs ? -0.3 : 0.0,
+              letterSpacing: 0.0,
               overflow: TextOverflow.ellipsis,
             );
           }),
@@ -103,11 +104,12 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                 selectedIcon: Icon(Icons.confirmation_number_rounded),
                 label: 'Chuyến đi',
               ),
-              const NavigationDestination(
-                icon: Icon(Icons.person_outline),
-                selectedIcon: Icon(Icons.person_rounded),
-                label: 'Cá nhân',
-              ),
+              if (!_hasBothExtraTabs)
+                const NavigationDestination(
+                  icon: Icon(Icons.person_outline),
+                  selectedIcon: Icon(Icons.person_rounded),
+                  label: 'Cá nhân',
+                ),
             ],
           ),
         ),
