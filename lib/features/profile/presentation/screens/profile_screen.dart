@@ -112,9 +112,7 @@ class CustomerProfileScreen extends StatelessWidget {
                   ? null
                   : () => _showTravelPreferences(context, auth, user.id),
             ),
-            if (!guest &&
-                !auth.isDemoSession &&
-                user.role == UserRole.admin) ...[
+            if (!guest && user.role == UserRole.admin) ...[
               const Divider(height: 24),
               ListTile(
                 contentPadding: EdgeInsets.zero,

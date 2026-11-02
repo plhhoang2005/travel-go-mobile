@@ -13,6 +13,7 @@ import 'package:travelgo_mobile/features/admin/providers/admin_publication_provi
 import 'package:travelgo_mobile/features/admin/services/admin_account_service.dart';
 import 'package:travelgo_mobile/features/admin/services/admin_catalogue_service.dart';
 import 'package:travelgo_mobile/features/admin/services/admin_publication_service.dart';
+import 'package:travelgo_mobile/features/admin/services/demo_admin_services.dart';
 import 'package:travelgo_mobile/features/auth/providers/auth_provider.dart';
 import 'package:travelgo_mobile/features/explore/providers/public_catalogue_provider.dart';
 import 'package:travelgo_mobile/features/trips/services/local_account_lifecycle_service.dart';
@@ -60,6 +61,14 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
     if (_ownedProvider != null) return _ownedProvider!;
 
     final auth = context.read<AuthProvider>();
+    if (auth.isDemoSession) {
+      _ownedProvider = AdminAccountProvider(
+        service: DemoAdminAccountService(),
+        authProvider: auth,
+      );
+      return _ownedProvider!;
+    }
+
     Future<LocalAccountLifecycleService> Function()? lifecycleLoader;
     try {
       lifecycleLoader = context
@@ -87,6 +96,16 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
     if (_ownedCatalogueProvider != null) return _ownedCatalogueProvider!;
 
     final auth = context.read<AuthProvider>();
+    if (auth.isDemoSession) {
+      final pubProvider = _getEffectivePublicationProvider();
+      _ownedCatalogueProvider = AdminCatalogueProvider(
+        service: DemoAdminCatalogueService(),
+        publicationService: pubProvider.service,
+        authProvider: auth,
+      );
+      return _ownedCatalogueProvider!;
+    }
+
     Future<LocalAccountLifecycleService> Function()? lifecycleLoader;
     try {
       lifecycleLoader = context
@@ -127,6 +146,14 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
     if (_ownedPublicationProvider != null) return _ownedPublicationProvider!;
 
     final auth = context.read<AuthProvider>();
+    if (auth.isDemoSession) {
+      _ownedPublicationProvider = AdminPublicationProvider(
+        service: DemoAdminPublicationService(),
+        authProvider: auth,
+      );
+      return _ownedPublicationProvider!;
+    }
+
     Future<LocalAccountLifecycleService> Function()? lifecycleLoader;
     try {
       lifecycleLoader = context
@@ -160,6 +187,7 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
     final effectiveProvider = _getEffectiveProvider();
     final effectiveCatalogueProvider = _getEffectiveCatalogueProvider();
     final effectivePublicationProvider = _getEffectivePublicationProvider();
@@ -255,6 +283,31 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
             AdminDraftHistoryScreen(),
           ];
 
+          final demoBanner = auth.isDemoSession
+              ? Container(
+                  key: const ValueKey('admin-demo-sandbox-banner'),
+                  width: double.infinity,
+                  color: Colors.amber.shade100,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Row(
+                    children: [
+                      Icon(Icons.science_outlined, size: 18, color: Colors.amber.shade900),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Chế độ Demo Quản Trị - Dữ liệu Sandbox (Ngoại tuyến)',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.amber.shade900,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : null;
+
           if (isWide) {
             return Scaffold(
               body: Row(
@@ -292,9 +345,16 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
                   ),
                   const VerticalDivider(thickness: 1, width: 1),
                   Expanded(
-                    child: IndexedStack(
-                      index: _selectedIndex,
-                      children: screens,
+                    child: Column(
+                      children: [
+                        ?demoBanner,
+                        Expanded(
+                          child: IndexedStack(
+                            index: _selectedIndex,
+                            children: screens,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -303,9 +363,16 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
           }
 
           return Scaffold(
-            body: IndexedStack(
-              index: _selectedIndex,
-              children: screens,
+            body: Column(
+              children: [
+                ?demoBanner,
+                Expanded(
+                  child: IndexedStack(
+                    index: _selectedIndex,
+                    children: screens,
+                  ),
+                ),
+              ],
             ),
             bottomNavigationBar: NavigationBar(
               selectedIndex: _selectedIndex,
