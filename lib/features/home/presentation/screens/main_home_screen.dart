@@ -1,6 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+
+import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/go_ai_mascot.dart';
 import 'package:provider/provider.dart';
 
 import '../../../auth/presentation/screens/login_screen.dart';
@@ -173,34 +176,87 @@ class _HomeGreeting extends StatelessWidget {
 
 class _HomePlanningEntry extends StatelessWidget {
   const _HomePlanningEntry();
+
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      Text(
-        'Bạn muốn khám phá đâu?',
-        style: Theme.of(context).textTheme.headlineSmall,
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppTheme.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
-      const SizedBox(height: 16),
-      OutlinedButton.icon(
-        onPressed: () => Navigator.push(
-          context,
-          MaterialPageRoute<void>(builder: (_) => const ExploreScreen()),
-        ),
-        icon: const Icon(Icons.search),
-        label: const Text('Tìm điểm đến'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Bạn muốn khám phá đâu?',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.textMain,
+                          ),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Lên kế hoạch thông minh cùng GoAI',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: AppTheme.textMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const GoAiMascot(size: 42, isWaving: true),
+            ],
+          ),
+          const SizedBox(height: 16),
+          OutlinedButton.icon(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute<void>(builder: (_) => const ExploreScreen()),
+            ),
+            icon: const Icon(Icons.search_rounded, size: 18),
+            label: const Text('Tìm điểm đến'),
+            style: OutlinedButton.styleFrom(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+              ),
+              padding: const EdgeInsets.symmetric(vertical: 12),
+            ),
+          ),
+          const SizedBox(height: 8),
+          FilledButton.icon(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute<void>(builder: (_) => const HomePlannerScreen()),
+            ),
+            icon: const Icon(Icons.add_rounded, size: 18),
+            label: const Text('Lập chuyến đi'),
+            style: FilledButton.styleFrom(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+              ),
+              padding: const EdgeInsets.symmetric(vertical: 12),
+            ),
+          ),
+        ],
       ),
-      const SizedBox(height: 8),
-      FilledButton.icon(
-        onPressed: () => Navigator.push(
-          context,
-          MaterialPageRoute<void>(builder: (_) => const HomePlannerScreen()),
-        ),
-        icon: const Icon(Icons.add),
-        label: const Text('Lập chuyến đi'),
-      ),
-    ],
-  );
+    );
+  }
 }
 
 class _HomeCatalogue extends StatelessWidget {
