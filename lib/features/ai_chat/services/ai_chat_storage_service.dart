@@ -1,5 +1,7 @@
 import 'dart:convert';
+
 import 'package:shared_preferences/shared_preferences.dart';
+
 import '../models/ai_chat_session.dart';
 
 /// Dịch vụ lưu trữ cục bộ các phiên hội thoại và tin nhắn chat AI
@@ -28,7 +30,9 @@ class AiChatStorageService {
   Future<void> saveSessions(List<AiChatSession> sessions) async {
     final prefs = await _getPrefs();
     final raw = AiChatSession.serializeList(sessions);
-    await prefs.setString(_sessionsKey, raw);
+    if (!await prefs.setString(_sessionsKey, raw)) {
+      throw StateError('Không lưu được danh sách hội thoại.');
+    }
   }
 
   /// Tải lịch sử tin nhắn của một phiên
@@ -53,7 +57,9 @@ class AiChatStorageService {
   ) async {
     final prefs = await _getPrefs();
     final raw = jsonEncode(messages.map((e) => e.toJson()).toList());
-    await prefs.setString('$_messagesPrefix$sessionId', raw);
+    if (!await prefs.setString('$_messagesPrefix$sessionId', raw)) {
+      throw StateError('Không lưu được tin nhắn.');
+    }
   }
 
   /// Xóa vĩnh viễn một phiên cùng toàn bộ tin nhắn liên quan
@@ -62,7 +68,9 @@ class AiChatStorageService {
     final sessions = await loadSessions();
     sessions.removeWhere((s) => s.id == sessionId);
     await saveSessions(sessions);
-    await prefs.remove('$_messagesPrefix$sessionId');
+    if (!await prefs.remove('$_messagesPrefix$sessionId')) {
+      throw StateError('Không xóa được tin nhắn.');
+    }
   }
 
   /// Đổi tên tiêu đề một phiên

@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+
 import '../../models/ai_chat_session.dart';
 import '../../providers/ai_chat_provider.dart';
 import '../widgets/ai_chat_drawer.dart';
 import '../widgets/ai_prompt_chips.dart';
 
-/// Màn hình Chatbot AI TravelGO đơn nhất chuẩn ChatGPT/Gemini
+/// Chat interface for the local Ollama service.
 class AiChatbotScreen extends StatefulWidget {
   const AiChatbotScreen({super.key});
 
@@ -52,7 +53,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
 
   void _handleSend(AiChatProvider provider) {
     final text = _inputController.text.trim();
-    if (text.isEmpty || provider.isLoading) return;
+    if (text.isEmpty || !provider.canSend) return;
     _inputController.clear();
     provider.sendMessage(text);
     _scrollToBottom();
@@ -84,7 +85,9 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
               children: [
                 const Text(
                   'TravelGO AI',
@@ -92,13 +95,16 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                 ),
                 const SizedBox(width: 6),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: colorScheme.primaryContainer,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    'Gemini',
+                    'Ollama · ${provider.selectedModel}',
                     style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w600,
@@ -121,20 +127,6 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
           ],
         ),
         actions: [
-          IconButton(
-            icon: Icon(
-              provider.isWebGroundingEnabled
-                  ? Icons.travel_explore
-                  : Icons.public_off_outlined,
-              color: provider.isWebGroundingEnabled
-                  ? colorScheme.primary
-                  : colorScheme.onSurfaceVariant,
-            ),
-            tooltip: provider.isWebGroundingEnabled
-                ? 'Tìm kiếm web: Đang BẬT'
-                : 'Tìm kiếm web: Đang TẮT',
-            onPressed: provider.toggleWebGrounding,
-          ),
           Builder(
             builder: (ctx) => IconButton(
               key: const ValueKey('ai_chat_history_button'),
@@ -153,27 +145,10 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Thông báo nhỏ về nguồn thông tin
-            if (provider.isWebGroundingEnabled)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
-                color: colorScheme.primaryContainer.withValues(alpha: 0.3),
-                child: Row(
-                  children: [
-                    Icon(Icons.info_outline, size: 14, color: colorScheme.primary),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        'Chế độ dẫn chứng web đang kích hoạt (Google Search)',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: colorScheme.onPrimaryContainer,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+            if (provider.settingsWarning != null)
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Text(provider.settingsWarning!),
               ),
 
             // Khung hiển thị tin nhắn
@@ -209,6 +184,38 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                 ),
               ),
 
+            if (provider.lastFailure != null)
+              Flexible(
+                flex: 0,
+                child: SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                    child: Semantics(
+                      liveRegion: true,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            provider.lastFailure!.message,
+                            style: TextStyle(color: colorScheme.error),
+                          ),
+                          TextButton(
+                            onPressed: provider.isLoading
+                                ? null
+                                : provider.retryFailedMessage,
+                            child: const Text('Thử lại'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            if (provider.isLoading)
+              TextButton(
+                onPressed: provider.cancelPendingReply,
+                child: const Text('Hủy yêu cầu'),
+              ),
             // Khung nhập tin nhắn
             _buildInputBar(context, provider),
           ],
@@ -250,7 +257,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 32),
               child: Text(
-                'Lên lịch trình, gợi ý quán ngon, dự toán ngân sách và giải đáp mọi thắc mắc về chuyến đi của bạn.',
+                'Hỏi đáp du lịch với mô hình chạy trên máy tính của bạn. Thông tin chưa được kiểm chứng bằng catalogue hoặc tìm kiếm web.',
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: colorScheme.onSurfaceVariant,
@@ -279,8 +286,9 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
-        mainAxisAlignment:
-            isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment: isUser
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (!isUser) ...[
@@ -301,7 +309,9 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
               decoration: BoxDecoration(
                 color: isUser
                     ? colorScheme.primary
-                    : colorScheme.surfaceContainerHighest.withValues(alpha: 0.8),
+                    : colorScheme.surfaceContainerHighest.withValues(
+                        alpha: 0.8,
+                      ),
                 borderRadius: BorderRadius.only(
                   topLeft: const Radius.circular(16),
                   topRight: const Radius.circular(16),
@@ -322,36 +332,6 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                           : colorScheme.onSurface,
                     ),
                   ),
-                  if (msg.citations.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 4,
-                      runSpacing: 4,
-                      children: msg.citations.map((c) {
-                        return Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: colorScheme.surface,
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                              color: colorScheme.outlineVariant,
-                            ),
-                          ),
-                          child: Text(
-                            '🔗 $c',
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: colorScheme.primary,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ],
                   if (!isUser) ...[
                     const SizedBox(height: 4),
                     Align(
@@ -401,38 +381,44 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
             ),
           ),
           const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.8),
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(16),
-                topRight: Radius.circular(16),
-                bottomLeft: Radius.circular(4),
-                bottomRight: Radius.circular(16),
+          Flexible(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: colorScheme.surfaceContainerHighest.withValues(
+                  alpha: 0.8,
+                ),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(16),
+                  topRight: Radius.circular(16),
+                  bottomLeft: Radius.circular(4),
+                  bottomRight: Radius.circular(16),
+                ),
               ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation(colorScheme.primary),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation(colorScheme.primary),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 10),
-                Text(
-                  'TravelGO AI đang suy nghĩ...',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontStyle: FontStyle.italic,
-                    color: colorScheme.onSurfaceVariant,
+                  const SizedBox(width: 10),
+                  Flexible(
+                    child: Text(
+                      'Đang chờ Ollama trả lời…',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontStyle: FontStyle.italic,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ],
@@ -487,7 +473,9 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                   },
                 ),
                 filled: true,
-                fillColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                fillColor: colorScheme.surfaceContainerHighest.withValues(
+                  alpha: 0.5,
+                ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(24),
                   borderSide: BorderSide.none,
@@ -497,7 +485,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
           ),
           const SizedBox(width: 8),
           IconButton.filled(
-            onPressed: provider.isLoading ? null : () => _handleSend(provider),
+            onPressed: provider.canSend ? () => _handleSend(provider) : null,
             icon: const Icon(Icons.arrow_upward_rounded),
             style: IconButton.styleFrom(
               backgroundColor: colorScheme.primary,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:travelgo_mobile/features/admin/models/admin_account_models.dart';
 import 'package:travelgo_mobile/features/admin/presentation/screens/admin_shell_screen.dart';
 import 'package:travelgo_mobile/features/admin/providers/admin_account_provider.dart';
@@ -96,6 +97,7 @@ void main() {
   late AdminAccountProvider adminProvider;
 
   setUp(() async {
+    SharedPreferences.setMockInitialValues({});
     fakeService = FakeNavAdminService();
     authProvider = AuthProvider();
     adminProvider = AdminAccountProvider(
@@ -311,8 +313,8 @@ void main() {
       // Tab 4: Quản trị AI
       await tester.tap(find.text('Quản trị AI'));
       await tester.pumpAndSettle();
-      expect(find.text('Quản trị Trí tuệ Nhân tạo (AI)'), findsOneWidget);
-      expect(find.text('Mô hình Trí tuệ Nhân tạo'), findsOneWidget);
+      expect(find.text('Quản trị AI local'), findsOneWidget);
+      expect(find.text('Cấu hình AI trên thiết bị này'), findsOneWidget);
     });
   });
 }

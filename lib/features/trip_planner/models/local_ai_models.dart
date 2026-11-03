@@ -1,5 +1,32 @@
 import 'package:flutter/foundation.dart';
 
+enum LocalAiFailureCode {
+  connection,
+  timeout,
+  modelMissing,
+  server,
+  invalidResponse,
+  cancelled,
+  storage,
+}
+
+class LocalAiFailure implements Exception {
+  final LocalAiFailureCode code;
+  final String message;
+  const LocalAiFailure(this.code, this.message);
+  @override
+  String toString() => message;
+}
+
+class LocalAiConnectionCheck {
+  final String modelName;
+  final Duration elapsed;
+  const LocalAiConnectionCheck({
+    required this.modelName,
+    required this.elapsed,
+  });
+}
+
 enum LocalAiMode {
   chat,
   search,

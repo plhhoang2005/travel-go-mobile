@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:provider/provider.dart';
 
 import 'package:travelgo_mobile/features/admin/presentation/screens/admin_shell_screen.dart';
@@ -9,6 +10,7 @@ import 'package:travelgo_mobile/features/profile/presentation/screens/profile_sc
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  setUp(() => SharedPreferences.setMockInitialValues({}));
 
   group('Admin Demo Sandbox Mode Tests', () {
     testWidgets('Demo Admin sees Quản trị navigation in ProfileScreen', (tester) async {

@@ -1,296 +1,423 @@
 import 'dart:async';
+
 import 'package:dio/dio.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+
+import '../../trip_planner/models/local_ai_models.dart';
+import '../../trip_planner/models/local_ai_settings.dart';
 import '../../trip_planner/services/local_ai_service.dart';
 import '../models/ai_chat_session.dart';
 import '../services/ai_chat_storage_service.dart';
+import '../services/local_ai_settings_store.dart';
 
-/// Provider quản lý toàn bộ logic và state của AI Chatbot
+class _ChatPersistenceState {
+  LocalAiFailure? failure;
+  String? failedMessageId;
+  bool hasUnsavedReply = false;
+  int requestGeneration = -1;
+}
+
+/// Owns local chat requests; cloud AI and automatic fallback are not used.
 class AiChatProvider extends ChangeNotifier {
   final AiChatStorageService storageService;
   final LocalAiService aiService;
-
+  final LocalAiSettingsStore settingsStore;
+  LocalAiSettings _settings = LocalAiSettings();
   List<AiChatSession> _sessions = [];
   AiChatSession? _currentSession;
   List<AiChatMessage> _messages = [];
+  final Map<String, List<AiChatMessage>> _messageCache = {};
+  Future<void>? _initialization;
+  Future<void> _writeQueue = Future<void>.value();
+  bool _initialized = false;
   bool _isLoading = false;
-  bool _isWebGroundingEnabled = false;
+  bool _navigating = false;
+  bool _disposed = false;
+  final Map<String, _ChatPersistenceState> _persistenceStates = {};
+  _ChatPersistenceState get _persistence => _persistenceStates.putIfAbsent(
+    _currentSession?.id ?? '',
+    _ChatPersistenceState.new,
+  );
+  bool get _hasUnsavedReply => _persistence.hasUnsavedReply;
+  set _hasUnsavedReply(bool value) => _persistence.hasUnsavedReply = value;
+  int _generation = 0;
+  int _idSequence = 0;
+  CancelToken? _cancelToken;
+  LocalAiFailure? get _lastFailure => _persistence.failure;
+  set _lastFailure(LocalAiFailure? value) => _persistence.failure = value;
+  String? get _failedMessageId => _persistence.failedMessageId;
+  set _failedMessageId(String? value) => _persistence.failedMessageId = value;
 
   AiChatProvider({
     AiChatStorageService? storageService,
     LocalAiService? aiService,
-  })  : storageService = storageService ?? AiChatStorageService(),
-        aiService = aiService ?? LocalAiService(dio: Dio());
+    LocalAiSettingsStore? settingsStore,
+  }) : storageService = storageService ?? AiChatStorageService(),
+       aiService = aiService ?? LocalAiService(dio: Dio()),
+       settingsStore = settingsStore ?? LocalAiSettingsStore();
 
   List<AiChatSession> get sessions => List.unmodifiable(_sessions);
   AiChatSession? get currentSession => _currentSession;
   List<AiChatMessage> get messages => List.unmodifiable(_messages);
   bool get isLoading => _isLoading;
-  bool get isWebGroundingEnabled => _isWebGroundingEnabled;
+  bool get isReady => _initialized && !_navigating && !_disposed;
+  bool get canSend =>
+      isReady &&
+      !_isLoading &&
+      _lastFailure?.code != LocalAiFailureCode.storage;
+  LocalAiSettings get settings => _settings;
+  String get selectedModel => _settings.modelName;
+  String? get settingsWarning => settingsStore.loadWarning;
+  LocalAiFailure? get lastFailure => _lastFailure;
+  String? get failedMessageId => _failedMessageId;
 
-  void toggleWebGrounding() {
-    _isWebGroundingEnabled = !_isWebGroundingEnabled;
-    notifyListeners();
+  void _notify() {
+    if (!_disposed) notifyListeners();
   }
 
-  /// Khởi tạo provider, nạp danh sách session từ local storage
-  Future<void> init() async {
-    _sessions = await storageService.loadSessions();
-    if (_sessions.isNotEmpty) {
-      _currentSession = _sessions.first;
-      _messages = await storageService.loadMessages(_currentSession!.id);
-    } else {
-      await createNewSession(initialTitle: 'Cuộc trò chuyện mới');
+  String _id(String prefix) =>
+      '${prefix}_${DateTime.now().microsecondsSinceEpoch}_${_idSequence++}';
+  bool _isCurrent(int generation, String sessionId) =>
+      !_disposed &&
+      generation == _generation &&
+      _currentSession?.id == sessionId;
+
+  Future<void> reloadAiSettings() async {
+    final loaded = await settingsStore.load();
+    if (_disposed) return;
+    _settings = loaded;
+    _notify();
+  }
+
+  Future<void> init() => _initialization ??= _initialize();
+
+  Future<void> _initialize() async {
+    try {
+      await reloadAiSettings();
+      final sessions = await storageService.loadSessions();
+      if (_disposed) return;
+      _sessions = sessions;
+      if (_sessions.isEmpty) {
+        _newSession('Cuộc trò chuyện mới');
+        await _persistCurrent();
+      } else {
+        _currentSession = _sessions.first;
+        final loaded = await storageService.loadMessages(_currentSession!.id);
+        if (_disposed) return;
+        _messages = loaded;
+        _messageCache[_currentSession!.id] = _messages;
+      }
+      _initialized = true;
+    } catch (_) {
+      _lastFailure = _storageFailure;
+    } finally {
+      _notify();
     }
-    notifyListeners();
   }
 
-  /// Chọn một session từ lịch sử
-  Future<void> selectSession(String sessionId) async {
-    final index = _sessions.indexWhere((s) => s.id == sessionId);
-    if (index != -1) {
-      _currentSession = _sessions[index];
-      _messages = await storageService.loadMessages(sessionId);
-      notifyListeners();
-    }
-  }
-
-  /// Tạo một session mới hoàn toàn
-  Future<void> createNewSession({String? initialTitle}) async {
+  void _newSession(String title) {
     final now = DateTime.now();
-    final newSession = AiChatSession(
-      id: 'session_${now.millisecondsSinceEpoch}',
-      title: initialTitle ?? 'Cuộc trò chuyện mới',
+    final session = AiChatSession(
+      id: _id('session'),
+      title: title,
       createdAt: now,
       updatedAt: now,
     );
-    _sessions.insert(0, newSession);
-    _currentSession = newSession;
+    _sessions.insert(0, session);
+    _currentSession = session;
     _messages = [];
-    await storageService.saveSessions(_sessions);
-    await storageService.saveMessages(newSession.id, _messages);
-    notifyListeners();
+    _messageCache[session.id] = _messages;
   }
 
-  /// Đổi tên tiêu đề session
+  Future<void> createNewSession({String? initialTitle}) async {
+    if (_disposed || _navigating || !_initialized) return;
+    cancelPendingReply();
+    _newSession(initialTitle ?? 'Cuộc trò chuyện mới');
+    _navigating = true;
+    _notify();
+    try {
+      await _persistCurrent();
+    } catch (_) {
+      _lastFailure = _storageFailure;
+    } finally {
+      _navigating = false;
+      _notify();
+    }
+  }
+
+  Future<void> selectSession(String sessionId) async {
+    if (_disposed || _navigating || !_sessions.any((s) => s.id == sessionId)) {
+      return;
+    }
+    cancelPendingReply();
+    final generation = _generation;
+    _navigating = true;
+    _notify();
+    try {
+      final loaded =
+          _messageCache[sessionId] ??
+          await storageService.loadMessages(sessionId);
+      if (_disposed || generation != _generation) return;
+      _currentSession = _sessions.firstWhere((s) => s.id == sessionId);
+      _messages = loaded;
+      _messageCache[sessionId] = loaded;
+    } catch (_) {
+      _lastFailure = _storageFailure;
+    } finally {
+      _navigating = false;
+      _notify();
+    }
+  }
+
   Future<void> renameSession(String sessionId, String newTitle) async {
     final clean = newTitle.trim();
-    if (clean.isEmpty) return;
-    await storageService.renameSession(sessionId, clean);
-    _sessions = await storageService.loadSessions();
-    if (_currentSession?.id == sessionId) {
-      _currentSession = _currentSession?.copyWith(title: clean);
-    }
-    notifyListeners();
-  }
-
-  /// Xóa một session
-  Future<void> deleteSession(String sessionId) async {
-    await storageService.deleteSession(sessionId);
-    _sessions.removeWhere((s) => s.id == sessionId);
-    if (_currentSession?.id == sessionId) {
-      if (_sessions.isNotEmpty) {
-        _currentSession = _sessions.first;
-        _messages = await storageService.loadMessages(_currentSession!.id);
-      } else {
-        await createNewSession();
-        return;
+    if (clean.isEmpty || _disposed || _navigating) return;
+    try {
+      await _write(() => storageService.renameSession(sessionId, clean));
+      if (_disposed) return;
+      _sessions = _sessions
+          .map((s) => s.id == sessionId ? s.copyWith(title: clean) : s)
+          .toList();
+      if (_currentSession?.id == sessionId) {
+        _currentSession = _currentSession!.copyWith(title: clean);
       }
+    } catch (_) {
+      _lastFailure = _storageFailure;
     }
-    notifyListeners();
+    _notify();
   }
 
-  /// Gửi tin nhắn từ người dùng
+  Future<void> deleteSession(String sessionId) async {
+    if (_disposed || _navigating) return;
+    cancelPendingReply();
+    _navigating = true;
+    _notify();
+    try {
+      await _write(() => storageService.deleteSession(sessionId));
+      if (_disposed) return;
+      _sessions.removeWhere((s) => s.id == sessionId);
+      _messageCache.remove(sessionId);
+      _persistenceStates.remove(sessionId);
+      if (_currentSession?.id == sessionId) {
+        if (_sessions.isEmpty) {
+          _newSession('Cuộc trò chuyện mới');
+          await _persistCurrent();
+        } else {
+          _currentSession = _sessions.first;
+          _messages =
+              _messageCache[_currentSession!.id] ??
+              await storageService.loadMessages(_currentSession!.id);
+          _messageCache[_currentSession!.id] = _messages;
+        }
+      }
+    } catch (_) {
+      _lastFailure = _storageFailure;
+    } finally {
+      _navigating = false;
+      _notify();
+    }
+  }
+
   Future<void> sendMessage(String text) async {
     final query = text.trim();
-    if (query.isEmpty || _isLoading) return;
-
-    if (_currentSession == null) {
-      await createNewSession();
+    if (query.isEmpty ||
+        _isLoading ||
+        !isReady ||
+        _lastFailure?.code == LocalAiFailureCode.storage) {
+      return;
     }
-
-    final now = DateTime.now();
-    final userMsg = AiChatMessage(
-      id: 'msg_${now.millisecondsSinceEpoch}',
+    final message = AiChatMessage(
+      id: _id('msg'),
       sessionId: _currentSession!.id,
       content: query,
       sender: ChatSender.user,
-      timestamp: now,
+      timestamp: DateTime.now(),
     );
-
-    _messages.add(userMsg);
-
-    // Tự động đặt tên cho session nếu vẫn là tên mặc định
+    _messages.add(message);
     if (_currentSession!.title == 'Cuộc trò chuyện mới' ||
         _currentSession!.title.isEmpty) {
-      final autoTitle = query.length > 28 ? '${query.substring(0, 28)}...' : query;
-      _currentSession = _currentSession!.copyWith(title: autoTitle);
-      final idx = _sessions.indexWhere((s) => s.id == _currentSession!.id);
-      if (idx != -1) {
-        _sessions[idx] = _currentSession!;
-        await storageService.saveSessions(_sessions);
-      }
+      _updateSession(
+        _currentSession!.copyWith(
+          title: query.length > 28 ? '${query.substring(0, 28)}...' : query,
+        ),
+      );
     }
+    await _sendExisting(message);
+  }
 
+  void _updateSession(AiChatSession session) {
+    _currentSession = session;
+    final index = _sessions.indexWhere((s) => s.id == session.id);
+    if (index != -1) _sessions[index] = session;
+  }
+
+  Future<void> _write(Future<void> Function() operation) {
+    final result = _writeQueue.then((_) => operation());
+    _writeQueue = result.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace _) {},
+    );
+    return result;
+  }
+
+  Future<void> _persistCurrent() {
+    final id = _currentSession!.id;
+    final messages = List<AiChatMessage>.of(_messages);
+    final sessions = List<AiChatSession>.of(_sessions);
+    return _write(() async {
+      await storageService.saveMessages(id, messages);
+      await storageService.saveSessions(sessions);
+    });
+  }
+
+  static const _storageFailure = LocalAiFailure(
+    LocalAiFailureCode.storage,
+    'Chưa lưu được hội thoại trên thiết bị. Nội dung đang được giữ trong bộ nhớ; hãy thử lưu lại.',
+  );
+
+  Future<void> _sendExisting(AiChatMessage message) async {
+    final generation = ++_generation;
+    final persistence = _persistence;
+    persistence.requestGeneration = generation;
+    final sessionId = message.sessionId;
+    final settings = _settings;
+    final token = CancelToken();
+    _cancelToken = token;
     _isLoading = true;
-    notifyListeners();
-
-    // Lưu tin nhắn user vào local storage
-    await storageService.saveMessages(_currentSession!.id, _messages);
-
+    _lastFailure = null;
+    _failedMessageId = message.id;
+    _hasUnsavedReply = false;
+    _notify();
     try {
-      String aiResponseText;
-      List<String> citations = [];
-
-      // Gọi AI service
-      final response = await aiService.sendChatMessage(query);
-      
-      // Nếu Ollama không chạy, tạo phản hồi thông minh thông qua tri thức du lịch nội bộ
-      if (response.contains('Không thể kết nối tới dịch vụ Ollama cục bộ') ||
-          response.contains('Đã xảy ra lỗi')) {
-        aiResponseText = _generateSmartTravelFallback(query);
-        if (_isWebGroundingEnabled) {
-          citations = ['Cục Du lịch Quốc gia Việt Nam (vietnam.travel)', 'TravelGO Catalogue'];
-        }
-      } else {
-        aiResponseText = response;
-        if (_isWebGroundingEnabled) {
-          citations = ['Google Search Grounding', 'Cục Du lịch Quốc gia'];
-        }
+      try {
+        await _persistCurrent();
+      } catch (_) {
+        throw _storageFailure;
       }
-
-      final aiMsg = AiChatMessage(
-        id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
-        sessionId: _currentSession!.id,
-        content: aiResponseText,
-        sender: ChatSender.ai,
-        timestamp: DateTime.now(),
-        citations: citations,
+      if (!_isCurrent(generation, sessionId)) return;
+      final reply = await aiService.requestReply(
+        message.content,
+        settings: settings,
+        cancelToken: token,
       );
-
-      _messages.add(aiMsg);
-      _currentSession = _currentSession!.copyWith(
-        updatedAt: DateTime.now(),
-        previewSnippet: aiResponseText.length > 50
-            ? '${aiResponseText.substring(0, 50)}...'
-            : aiResponseText,
+      if (!_isCurrent(generation, sessionId)) return;
+      _messages.add(
+        AiChatMessage(
+          id: _id('msg'),
+          sessionId: sessionId,
+          content: reply,
+          sender: ChatSender.ai,
+          timestamp: DateTime.now(),
+        ),
       );
-
-      final sIdx = _sessions.indexWhere((s) => s.id == _currentSession!.id);
-      if (sIdx != -1) {
-        _sessions[sIdx] = _currentSession!;
-        await storageService.saveSessions(_sessions);
+      _updateSession(
+        _currentSession!.copyWith(
+          updatedAt: DateTime.now(),
+          previewSnippet: reply.length > 50
+              ? '${reply.substring(0, 50)}...'
+              : reply,
+        ),
+      );
+      _hasUnsavedReply = true;
+      try {
+        await _persistCurrent();
+      } catch (_) {
+        throw _storageFailure;
       }
-
-      await storageService.saveMessages(_currentSession!.id, _messages);
-    } catch (e) {
-      final errorMsg = AiChatMessage(
-        id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
-        sessionId: _currentSession!.id,
-        content: 'Xin lỗi, tôi gặp trục trặc tạm thời khi xử lý: $e. Hãy thử lại nhé!',
-        sender: ChatSender.ai,
-        timestamp: DateTime.now(),
-      );
-      _messages.add(errorMsg);
+      if (persistence.requestGeneration == generation) {
+        persistence.hasUnsavedReply = false;
+        persistence.failedMessageId = null;
+        persistence.failure = null;
+      }
+    } on LocalAiFailure catch (failure) {
+      if (_isCurrent(generation, sessionId) ||
+          (!_disposed &&
+              failure.code == LocalAiFailureCode.storage &&
+              persistence.requestGeneration == generation &&
+              _sessions.any((s) => s.id == sessionId))) {
+        persistence.failure = failure;
+      }
+    } catch (_) {
+      if (_isCurrent(generation, sessionId)) {
+        _lastFailure = const LocalAiFailure(
+          LocalAiFailureCode.server,
+          'Không nhận được câu trả lời từ Ollama. Vui lòng thử lại.',
+        );
+      }
     } finally {
-      _isLoading = false;
-      notifyListeners();
+      if (_isCurrent(generation, sessionId)) {
+        _isLoading = false;
+        _cancelToken = null;
+        _notify();
+      }
     }
   }
 
-  /// Trình sinh phản hồi du lịch & trò chuyện thông minh đa tầng
-  String _generateSmartTravelFallback(String query) {
-    final q = query.toLowerCase().trim();
-
-    // 1. Phản hồi các câu hỏi kiến thức chung & nhân vật nổi tiếng
-    if (q.contains('ronaldo') || q.contains('cr7')) {
-      return '⚽ **Cristiano Ronaldo (CR7)** sinh ngày **05 tháng 02 năm 1985** (năm nay 41 tuổi) tại Santo António, Funchal, thuộc quần đảo Madeira, Bồ Đào Nha.\n\n'
-          '🌟 **Gợi ý du lịch thú vị từ TravelGO:**\n'
-          'Nếu bạn là fan của Ronaldo, hòn đảo quê hương **Madeira** là một thiên đường nghỉ dưỡng tuyệt mỹ ở Đại Tây Dương. Tại thành phố Funchal có **Bảo tàng Museu CR7** trưng bày tất cả Quả bóng Vàng, cúp vô địch và bức tượng đồng nổi tiếng của anh, ngay cạnh khách sạn cao cấp Pestana CR7 bên bờ vịnh!';
+  Future<void> retryFailedMessage() async {
+    if (_isLoading || _disposed || _navigating) return;
+    if (!_initialized) {
+      _isLoading = true;
+      _notify();
+      try {
+        if (_currentSession != null) {
+          await _persistCurrent();
+          _initialized = true;
+          _lastFailure = null;
+        } else {
+          _initialization = null;
+          await init();
+        }
+      } catch (_) {
+        _lastFailure = _storageFailure;
+      } finally {
+        _isLoading = false;
+        _notify();
+      }
+      return;
     }
-
-    if (q.contains('messi') || q.contains('m10')) {
-      return '⚽ **Lionel Messi** sinh ngày **24 tháng 06 năm 1987** tại thành phố Rosario, tỉnh Santa Fe, Argentina.\n\n'
-          '🌟 **Điểm đến du lịch gợi ý:**\n'
-          'Thành phố quê hương Rosario của Messi nằm bên bờ sông Paraná thơ mộng. Du khách đến đây có thể tham quan khu phố La Bajada nơi Messi lớn lên với những bức tranh tường graffiti khổng lồ đầy nghệ thuật, hoặc ghé thăm bảo tàng thể thao Museo del Deporte Santafesino.';
+    if (_lastFailure?.code == LocalAiFailureCode.storage &&
+        (_hasUnsavedReply || _failedMessageId == null)) {
+      _isLoading = true;
+      _notify();
+      final generation = _generation;
+      final sessionId = _currentSession!.id;
+      final persistence = _persistence;
+      try {
+        await _persistCurrent();
+        persistence.failure = null;
+        persistence.hasUnsavedReply = false;
+        persistence.failedMessageId = null;
+      } catch (_) {
+        persistence.failure = _storageFailure;
+      } finally {
+        if (_isCurrent(generation, sessionId)) {
+          _isLoading = false;
+          _notify();
+        }
+      }
+      return;
     }
+    final failed = _messages.where((m) => m.id == _failedMessageId && m.isUser);
+    if (failed.isNotEmpty) await _sendExisting(failed.single);
+  }
 
-    // 2. Phản hồi về quán cà phê, chụp ảnh check-in
-    if (q.contains('quán cafe') || q.contains('quan cafe') || q.contains('cà phê') || q.contains('cafe')) {
-      return '☕ **Gợi ý các quán cà phê ngắm cảnh & chụp hình tuyệt đẹp:**\n\n'
-          '• **Tại Đà Lạt:**\n'
-          '  - *Tiệm Cà Phê Cheo Veo*: Nằm trên sườn đồi Hoàng Hoa Thám, nơi ngắm hoàng hôn và thung lũng đèn lãng mạn nhất.\n'
-          '  - *Lời Của Gió*: Phong cách mộc mạc nhìn ra đồi thông, đồ uống ngon và không gian cực kỳ yên tĩnh.\n'
-          '• **Tại Hà Nội:**\n'
-          '  - *Café Giảng (Nguyễn Hữu Huân)*: Khai sinh món cà phê trứng trứ danh từ năm 1946.\n'
-          '  - *Loading T (Chân Cầm)*: Nằm trong biệt thự Pháp cổ trăm tuổi, hương thơm hoa cúc và quế đặc trưng.\n'
-          '• **Tại TP. Hồ Chí Minh:**\n'
-          '  - *Okkio Caffe (Lê Lợi)*: Thiết kế retro hiện đại, cà phê Specialty rang xay chuẩn gu.\n'
-          '  - *The Running Bean (Mạc Thị Bưởi)*: Không gian kính thoáng sáng, thích hợp làm việc và thư giãn.';
+  void cancelPendingReply() {
+    _generation++;
+    _cancelToken?.cancel();
+    _cancelToken = null;
+    _isLoading = false;
+    if (_lastFailure?.code != LocalAiFailureCode.storage && !_hasUnsavedReply) {
+      _lastFailure = null;
+      _failedMessageId = null;
     }
+    _notify();
+  }
 
-    // 3. Phản hồi các điểm đến du lịch nổi tiếng
-    if (q.contains('đà lạt') || q.contains('da lat')) {
-      return '🌲 **Lịch trình gợi ý du lịch Đà Lạt 3 ngày 2 đêm tự túc:**\n\n'
-          '• **Ngày 1 (Check-in & Chill phố núi):**\n'
-          '  - Sáng: Dạo quanh Hồ Xuân Hương, check-in Nụ hoa Atiso tại Quảng trường Lâm Viên.\n'
-          '  - Chiều: Khám phá Dinh III Bảo Đại, thưởng thức cà phê ngắm đồi thông.\n'
-          '  - Tối: Ăn lẩu gà lá é Tao Ngộ (đường 3/4) rồi đi dạo Chợ Đêm Đà Lạt thưởng thức bánh tráng nướng và sữa đậu nành nóng.\n\n'
-          '• **Ngày 2 (Săn mây & Trải nghiệm):**\n'
-          '  - Sáng sớm: Đón bình minh và săn mây tại Đồi chè Cầu Đất.\n'
-          '  - Trưa: Ghé Chùa Linh Phước (Chùa Ve Chai) với kiến trúc khảm sành độc đáo.\n'
-          '  - Chiều: Tham quan Thung Lũng Tình Yêu hoặc Ga Đà Lạt cổ kính.\n'
-          '  - Tối: Thưởng thức lẩu bò Ba Toa quán gỗ Quán Gỗ chuẩn vị.\n\n'
-          '• **Ngày 3 (Thư giãn & Mua quà):**\n'
-          '  - Sáng: Tham quan Vườn dâu tây công nghệ cao, tự tay hái dâu.\n'
-          '  - Mua đặc sản mứt dâu, hồng treo gió và trà atiso làm quà tại L\'angfarm.\n\n'
-          '💡 *Chi phí dự kiến:* Khoảng 1.800.000đ - 2.500.000đ/người cho chuyến đi 3N2Đ.';
-    }
-
-    if (q.contains('sa pa') || q.contains('sapa')) {
-      return '🏔️ **Cẩm nang du lịch Sa Pa trọn vẹn từ TravelGO:**\n\n'
-          '• **Trải nghiệm đỉnh cao:**\n'
-          '  - Chinh phục đỉnh Fansipan (3.143m) bằng tuyến cáp treo đạt kỷ lục thế giới, ngắm trọn biển mây Hoàng Liên Sơn.\n'
-          '  - Dạo bước tại Bản Cát Cát, thuê trang phục dân tộc H\'Mông chụp ảnh bên thác Tiên Sa.\n'
-          '  - Ngắm hoàng hôn kỳ vĩ tại Đèo Ô Quy Hồ - một trong "Tứ đại đỉnh đèo" Tây Bắc.\n\n'
-          '• **Ẩm thực đặc sản:** Lẩu cá hồi tươi, thịt trâu gác bếp, cơm lam ống nứa nướng than, lợn cắp nách quay giòn.\n'
-          '• **Trang phục khuyên dùng:** Nhiệt độ Sa Pa có thể xuống dưới 10°C vào ban đêm. Bạn hãy mang áo phao ấm, khăn len và giày leo núi chống trơn nhé!';
-    }
-
-    if (q.contains('phú quốc') || q.contains('phu quoc')) {
-      return '🏝️ **Kinh nghiệm khám phá Đảo Ngọc Phú Quốc:**\n\n'
-          '• **Bãi biển đẹp nhất:** Bãi Sao (cát trắng mịn như kem), Bãi Khem, Hòn Thơm (đi cáp treo vượt biển 7.899m).\n'
-          '• **Trải nghiệm không thể bỏ lỡ:** Lặn ngắm san hô tại quần đảo An Thới, ngắm hoàng hôn Sunset Sanato, thăm Làng chài Rạch Vẹm mùa sao biển.\n'
-          '• **Món ngon đảo ngọc:** Gỏi cá trích cuốn bánh tráng, bún quậy Kiến Xây trứ danh, hải sản Hàm Ninh, tiêu chín ngào đường.';
-    }
-
-    if (q.contains('hà nội') || q.contains('ha noi')) {
-      return '🏛️ **Gợi ý khám phá Thủ đô Hà Nội 36 phố phường:**\n\n'
-          '• **Địa điểm lịch sử & Văn hóa:** Hồ Hoàn Kiếm, Đền Ngọc Sơn, Lăng Bác, Chùa Một Cột, Văn Miếu - Quốc Tử Giám, Nhà tù Hỏa Lò.\n'
-          '• **Hành trình ẩm thực:** Phở bò Bát Đàn, bún chả Hương Liên (quán Tổng thống Obama), chả cá Lã Vọng, bánh cuốn Thanh Trì, cà phê trứng Giảng.\n'
-          '• **Mẹo di chuyển:** Buổi sáng đi bộ quanh hồ Gươm ngắm người dân tập dưỡng sinh, chiều tối đi xe buýt 2 tầng ngắm phố lên đèn.';
-    }
-
-    if (q.contains('đà nẵng') || q.contains('da nang') || q.contains('hội an') || q.contains('hoi an')) {
-      return '🌊 **Combo Du lịch Đà Nẵng - Hội An:**\n\n'
-          '• **Đà Nẵng:** Tắm biển Mỹ Khê (top bãi biển đẹp nhất hành tinh), xem Cầu Rồng phun lửa & nước lúc 21:00 thứ 7, CN; khám phá Bà Nà Hills với Cầu Vàng nổi tiếng thế giới.\n'
-          '• **Phố cổ Hội An:** Cách Đà Nẵng 30km, thả đèn hoa đăng trên sông Hoài, thưởng thức Cao Lầu Bà Bé, bánh mì Phượng, cơm gà Bà Buội.';
-    }
-
-    if (q.contains('ngân sách') || q.contains('chi phí') || q.contains('tiết kiệm') || q.contains('tien')) {
-      return '💰 **Bí quyết tối ưu chi phí du lịch từ TravelGO:**\n\n'
-          '1. **Quy tắc 30 - 30 - 25 - 15:** Dành 30% cho di chuyển (săn vé sớm), 30% cho lưu trú (chọn homestay uy tín), 25% cho ăn uống trải nghiệm và 15% cho vé tham quan & dự phòng.\n'
-          '2. **Lưu trú thông minh:** Đặt phòng trước từ 2-3 tuần, chọn các khu vực cách trung tâm 1-2km để tiết kiệm tới 40% chi phí phòng.\n'
-          '3. **Ăn uống địa phương:** Thưởng thức tại các khu chợ truyền thống vừa đúng phong vị địa phương vừa có giá niêm yết rõ ràng.';
-    }
-
-    // 4. Phản hồi các câu hỏi mở, chào hỏi và tương tác tổng quát
-    return '✈️ **Xin chào bạn! Tôi là Trợ lý AI du lịch TravelGO.**\n\n'
-        'Tôi có thể hỗ trợ bạn mọi thông tin từ:\n'
-        '• **Lên lịch trình thông minh:** Lịch trình chi tiết 2N1Đ, 3N2Đ, 4N3Đ theo sở thích của bạn.\n'
-        '• **Khám phá ẩm thực & quán cafe:** Danh sách các quán ăn đặc sản ngon, view ngắm cảnh đẹp nhất.\n'
-        '• **Tối ưu ngân sách:** Dự trù chi phí vé máy bay, phòng ở, ăn uống cho từng người.\n'
-        '• **Giải đáp kiến thức & địa danh:** Tra cứu thông tin điểm đến, văn hóa, danh lam thắng cảnh khắp Việt Nam và quốc tế.\n\n'
-        'Bạn đang dự định đi đâu hoặc muốn tìm hiểu điều gì? Hãy nhắn cho tôi nhé!';
+  @override
+  void dispose() {
+    _disposed = true;
+    _generation++;
+    _cancelToken?.cancel();
+    super.dispose();
   }
 }
