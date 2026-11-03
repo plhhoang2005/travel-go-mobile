@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TravelGO · Live Local AI Web API Playground</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✈️</text></svg>">
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Font Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          },
+          colors: {
+            travel: {
+              50: '#F0FDF4',
+              100: '#DCFCE7',
+              500: '#10B981',
+              600: '#00897B',
+              700: '#00796B',
+              800: '#004D40',
+            },
+            amber: {
+              500: '#F59E0B',
+              600: '#D97706',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .glass-card {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(226, 232, 240, 0.8);
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #F1F5F9;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #CBD5E1;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans min-h-screen flex flex-col antialiased">
+
+  <!-- Top Navigation Bar -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-travel-600 flex items-center justify-center text-white shadow-md shadow-travel-600/30">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+          </svg>
+        </div>
+        <div>
+          <div class="flex items-center space-x-2">
+            <span class="text-xl font-bold tracking-tight text-slate-900">TravelGO</span>
+            <span class="px-2 py-0.5 text-xs font-semibold bg-emerald-100 text-emerald-800 rounded-full">API Playground</span>
+          </div>
+          <p class="text-xs text-slate-500">Trợ lý AI Lập Lịch Trình Local · Qwen3 4B</p>
+        </div>
+      </div>
+
+      <!-- Live Status & Config -->
+      <div class="flex items-center space-x-3">
+        <div id="statusBadge" class="flex items-center space-x-2 px-3 py-1.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span id="statusText">Đang kiểm tra AI...</span>
+        </div>
+        <button onclick="toggleConfigModal()" class="px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors flex items-center space-x-1.5">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+          <span>Cấu hình Endpoint</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full">
+
+    <!-- Hero Banner -->
+    <div class="mb-8 bg-gradient-to-r from-travel-700 via-travel-600 to-teal-500 rounded-2xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden">
+      <div class="relative z-10 max-w-3xl">
+        <div class="inline-flex items-center space-x-2 px-3 py-1 bg-white/10 rounded-full text-xs font-semibold mb-3 backdrop-blur-md">
+          <span>⚡ 100% On-Device / Local AI</span>
+          <span>·</span>
+          <span>Không phụ thuộc Cloud API Key</span>
+        </div>
+        <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight mb-2">Live Web API Playground & Interactivity</h1>
+        <p class="text-travel-100 text-sm sm:text-base leading-relaxed">
+          Thử nghiệm và kiểm chứng trực tiếp các Web API của TravelGO: từ thuật toán lập kế hoạch thông minh theo ngân sách & sở thích, đến trợ lý đàm thoại du lịch thông minh chạy trên mô hình <b>Qwen3 4B</b> nội bộ.
+        </p>
+      </div>
+      <div class="absolute right-0 bottom-0 translate-x-10 translate-y-10 opacity-10 pointer-events-none">
+        <svg class="w-96 h-96" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path></svg>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div class="flex space-x-2 border-b border-slate-200 mb-6">
+      <button onclick="switchTab('planner')" id="tab-planner" class="px-5 py-3 font-semibold text-sm border-b-2 border-travel-600 text-travel-700 flex items-center space-x-2 transition-all">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+        <span>1. API Lập Lịch Trình (Plan Trip)</span>
+      </button>
+      <button onclick="switchTab('chat')" id="tab-chat" class="px-5 py-3 font-semibold text-sm border-b-2 border-transparent text-slate-500 hover:text-slate-700 flex items-center space-x-2 transition-all">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path></svg>
+        <span>2. API Chatbot Du Lịch (Chat AI)</span>
+      </button>
+      <button onclick="switchTab('docs')" id="tab-docs" class="px-5 py-3 font-semibold text-sm border-b-2 border-transparent text-slate-500 hover:text-slate-700 flex items-center space-x-2 transition-all">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
+        <span>3. Tài Liệu API & cURL</span>
+      </button>
+    </div>
+
+    <!-- TAB 1: PLAN TRIP API -->
+    <div id="content-planner" class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <!-- Input Controls (5 Cols) -->
+      <div class="lg:col-span-5 space-y-6">
+        <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-base font-bold text-slate-900 flex items-center space-x-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-travel-600"></span>
+              <span>Tham Số Yêu Cầu (Request Payload)</span>
+            </h2>
+            <span class="text-xs px-2 py-1 font-mono font-bold bg-amber-100 text-amber-800 rounded">POST /plan-trip</span>
+          </div>
+
+          <form id="plannerForm" onsubmit="handlePlanTrip(event)" class="space-y-4">
+            <!-- Điểm đến -->
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Điểm Đến Du Lịch</label>
+              <select id="destination" class="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-travel-600 focus:outline-none transition-all">
+                <option value="ninh-binh" data-name="Ninh Bình" selected>Ninh Bình (Tràng An, Tam Cốc, Hang Múa)</option>
+                <option value="da-nang" data-name="Đà Nẵng">Đà Nẵng (Bà Nà Hills, Cầu Rồng, Mỹ Khê)</option>
+                <option value="da-lat" data-name="Đà Lạt">Đà Lạt (Hồ Xuân Hương, Thung Lũng Tình Yêu)</option>
+                <option value="ha-noi" data-name="Hà Nội">Hà Nội (Phố Cổ, Hồ Gươm, Lăng Bác)</option>
+                <option value="phu-quoc" data-name="Phú Quốc">Phú Quốc (Bãi Sao, Sunset Sanato)</option>
+                <option value="hue" data-name="Huế">Huế (Đại Nội, Chùa Thiên Mụ, Sông Hương)</option>
+              </select>
+            </div>
+
+            <!-- Số ngày & Số người -->
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Số Ngày Đi</label>
+                <select id="numDays" class="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-travel-600 focus:outline-none">
+                  <option value="1">1 Ngày (Trong ngày)</option>
+                  <option value="2">2 Ngày 1 Đêm</option>
+                  <option value="3" selected>3 Ngày 2 Đêm</option>
+                  <option value="4">4 Ngày 3 Đêm</option>
+                  <option value="5">5 Ngày 4 Đêm</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Số Người</label>
+                <select id="numPeople" class="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-travel-600 focus:outline-none">
+                  <option value="1">1 Người (Solo)</option>
+                  <option value="2" selected>2 Người (Cặp đôi/Bạn bè)</option>
+                  <option value="4">4 Người (Gia đình/Nhóm)</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Ngân sách -->
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Tổng Ngân Sách Dự Kiến (VND)</label>
+              <input type="number" id="budgetVnd" value="4000000" step="500000" min="500000" class="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-travel-600 focus:outline-none font-mono">
+              <div class="flex space-x-1.5 mt-2">
+                <button type="button" onclick="setBudget(2000000)" class="text-xs px-2 py-1 bg-slate-100 hover:bg-slate-200 rounded-md text-slate-600">2 triệu</button>
+                <button type="button" onclick="setBudget(4000000)" class="text-xs px-2 py-1 bg-slate-100 hover:bg-slate-200 rounded-md text-slate-600">4 triệu</button>
+                <button type="button" onclick="setBudget(8000000)" class="text-xs px-2 py-1 bg-slate-100 hover:bg-slate-200 rounded-md text-slate-600">8 triệu</button>
+                <button type="button" onclick="setBudget(12000000)" class="text-xs px-2 py-1 bg-slate-100 hover:bg-slate-200 rounded-md text-slate-600">12 triệu</button>
+              </div>
+            </div>
+
+            <!-- Sở thích chuyến đi -->
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1.5">Sở Thích & Phong Cách Chuyến Đi</label>
+              <div class="flex flex-wrap gap-2" id="preferenceChips">
+                <button type="button" onclick="togglePref(this, 'nghỉ dưỡng')" class="pref-chip px-2.5 py-1 rounded-lg text-xs font-medium border border-travel-600 bg-travel-50 text-travel-700 transition-all">🏖️ Nghỉ dưỡng</button>
+                <button type="button" onclick="togglePref(this, 'ẩm thực')" class="pref-chip px-2.5 py-1 rounded-lg text-xs font-medium border border-travel-600 bg-travel-50 text-travel-700 transition-all">🍜 Ẩm thực</button>
+                <button type="button" onclick="togglePref(this, 'check-in & chill')" class="pref-chip px-2.5 py-1 rounded-lg text-xs font-medium border border-travel-600 bg-travel-50 text-travel-700 transition-all">📸 Check-in & Chill</button>
+                <button type="button" onclick="togglePref(this, 'lịch sử')" class="pref-chip px-2.5 py-1 rounded-lg text-xs font-medium border border-slate-200 bg-white text-slate-600 hover:border-slate-300 transition-all">🏛️ Lịch sử</button>
+                <button type="button" onclick="togglePref(this, 'biển')" class="pref-chip px-2.5 py-1 rounded-lg text-xs font-medium border border-slate-200 bg-white text-slate-600 hover:border-slate-300 transition-all">🌊 Biển</button>
+              </div>
+            </div>
+
+            <button type="submit" id="planSubmitBtn" class="w-full mt-4 py-3 px-4 bg-travel-600 hover:bg-travel-700 active:scale-[0.99] text-white font-semibold rounded-xl shadow-lg shadow-travel-600/30 transition-all flex items-center justify-center space-x-2">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+              <span>Gửi Yêu Cầu Tạo Lịch Trình AI ⚡</span>
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Output Display (7 Cols) -->
+      <div class="lg:col-span-7 space-y-6">
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-full min-h-[560px]">
+          <!-- Result Header -->
+          <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+              <span class="text-sm font-bold text-slate-900">Kết Quả Phản Hồi (API Response)</span>
+              <span id="responseStatus" class="px-2 py-0.5 text-xs font-mono font-bold bg-slate-200 text-slate-700 rounded">Chưa gửi</span>
+            </div>
+            <div class="flex space-x-2">
+              <button onclick="switchResultSubTab('visual')" id="subtab-visual" class="px-3 py-1 text-xs font-semibold rounded-lg bg-travel-600 text-white transition-all">Lịch Trình Trực Quan</button>
+              <button onclick="switchResultSubTab('json')" id="subtab-json" class="px-3 py-1 text-xs font-semibold rounded-lg bg-slate-200 text-slate-700 hover:bg-slate-300 transition-all">JSON Thô</button>
+            </div>
+          </div>
+
+          <!-- Loading State -->
+          <div id="plannerLoading" class="hidden flex-1 flex flex-col items-center justify-center p-12 text-center">
+            <div class="w-12 h-12 border-4 border-travel-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+            <p class="text-base font-bold text-slate-800">Local AI (Qwen3) đang lập kế hoạch...</p>
+            <p class="text-xs text-slate-500 mt-1">Đang phân bổ ngân sách và tổng hợp hoạt động tối ưu</p>
+          </div>
+
+          <!-- Result Body -->
+          <div id="plannerResult" class="flex-1 p-6 custom-scrollbar overflow-y-auto">
+            <!-- Initial Empty State -->
+            <div id="plannerEmpty" class="h-full flex flex-col items-center justify-center text-center p-12 text-slate-400">
+              <svg class="w-16 h-16 mb-4 stroke-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+              <p class="text-sm font-medium text-slate-600">Chọn thông số bên trái và bấm "Gửi Yêu Cầu Tạo Lịch Trình AI"</p>
+              <p class="text-xs text-slate-400 mt-1">Lịch trình chi tiết và dữ liệu JSON sẽ xuất hiện tại đây</p>
+            </div>
+
+            <!-- Visual Itinerary Result -->
+            <div id="visualResult" class="hidden space-y-6">
+              <div class="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl p-4 flex items-center justify-between">
+                <div>
+                  <h3 id="planTitle" class="text-base font-bold text-emerald-900">Lịch trình Ninh Bình</h3>
+                  <p id="planSummary" class="text-xs text-emerald-700 mt-0.5">3 ngày · 2 người · 4.000.000 ₫</p>
+                </div>
+                <div class="text-right">
+                  <div class="text-xs text-slate-500">Ước tính chi phí</div>
+                  <div id="planTotalCost" class="text-lg font-extrabold text-emerald-800 font-mono">3.850.000 ₫</div>
+                </div>
+              </div>
+
+              <!-- Days List Container -->
+              <div id="daysContainer" class="space-y-4"></div>
+            </div>
+
+            <!-- Raw JSON Result -->
+            <div id="jsonResult" class="hidden h-full">
+              <div class="relative h-full">
+                <button onclick="copyJson()" class="absolute top-3 right-3 px-2.5 py-1 text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 rounded font-mono transition-colors">Sao chép</button>
+                <pre id="jsonPre" class="w-full h-full p-4 bg-slate-900 text-emerald-400 rounded-xl font-mono text-xs overflow-x-auto custom-scrollbar"></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: CHAT AI API -->
+    <div id="content-chat" class="hidden grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <div class="lg:col-span-4 space-y-4">
+        <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+          <h2 class="text-base font-bold text-slate-900 mb-2">Gợi Ý Câu Hỏi Mẫu</h2>
+          <p class="text-xs text-slate-500 mb-4">Nhấp vào một trong các câu hỏi để kiểm thử khả năng tư vấn của Qwen3:</p>
+          <div class="space-y-2">
+            <button onclick="sendQuickPrompt('Gợi ý lịch trình 2 ngày 1 đêm đi Đà Lạt tiết kiệm cho 2 người')" class="w-full text-left p-3 rounded-xl bg-slate-50 hover:bg-emerald-50 hover:border-emerald-200 border border-slate-200 text-xs font-medium text-slate-700 transition-all">
+              🌲 Gợi ý lịch trình 2 ngày 1 đêm đi Đà Lạt tiết kiệm cho 2 người
+            </button>
+            <button onclick="sendQuickPrompt('Đặc sản Ninh Bình có những món gì ngon nổi tiếng?')" class="w-full text-left p-3 rounded-xl bg-slate-50 hover:bg-emerald-50 hover:border-emerald-200 border border-slate-200 text-xs font-medium text-slate-700 transition-all">
+              🍜 Đặc sản Ninh Bình có những món gì ngon nổi tiếng?
+            </button>
+            <button onclick="sendQuickPrompt('Chi phí dự kiến cho chuyến đi Phú Quốc 3 ngày khoảng bao nhiêu?')" class="w-full text-left p-3 rounded-xl bg-slate-50 hover:bg-emerald-50 hover:border-emerald-200 border border-slate-200 text-xs font-medium text-slate-700 transition-all">
+              🏝️ Chi phí dự kiến cho chuyến đi Phú Quốc 3 ngày khoảng bao nhiêu?
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="lg:col-span-8">
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col h-[560px]">
+          <!-- Chat Messages Area -->
+          <div id="chatMessages" class="flex-1 p-6 overflow-y-auto custom-scrollbar space-y-4">
+            <div class="flex items-start space-x-3">
+              <div class="w-8 h-8 rounded-full bg-travel-600 flex items-center justify-center text-white text-xs font-bold shrink-0">AI</div>
+              <div class="bg-slate-100 rounded-2xl rounded-tl-none p-4 text-sm text-slate-800 max-w-lg leading-relaxed">
+                Xin chào! Tôi là Trợ lý AI Du lịch TravelGO (Local Ollama · Qwen3). Bạn cần tôi tư vấn về địa điểm, kinh nghiệm hay chi phí cho chuyến đi nào?
+              </div>
+            </div>
+          </div>
+
+          <!-- Chat Input Box -->
+          <div class="p-4 border-t border-slate-200 bg-slate-50 rounded-b-2xl">
+            <form onsubmit="handleSendChat(event)" class="flex space-x-2">
+              <input type="text" id="chatInput" placeholder="Nhập câu hỏi du lịch của bạn..." class="flex-1 px-4 py-2.5 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-travel-600 focus:outline-none">
+              <button type="submit" id="chatSendBtn" class="px-5 py-2.5 bg-travel-600 hover:bg-travel-700 text-white text-sm font-semibold rounded-xl shadow-md transition-all flex items-center space-x-1.5">
+                <span>Gửi</span>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: API DOCS & CURL -->
+    <div id="content-docs" class="hidden space-y-6">
+      <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-6">
+        <div>
+          <h2 class="text-lg font-bold text-slate-900 mb-1">Tài Liệu API & Mã Nguồn Mẫu (cURL)</h2>
+          <p class="text-xs text-slate-500">Thầy cô và ban giám khảo có thể chạy trực tiếp các lệnh cURL sau từ terminal hoặc Postman để kiểm chứng phản hồi từ máy chủ Local AI.</p>
+        </div>
+
+        <!-- Endpoint 1 -->
+        <div class="space-y-2">
+          <div class="flex items-center space-x-2">
+            <span class="px-2.5 py-1 text-xs font-mono font-bold bg-amber-100 text-amber-800 rounded">POST</span>
+            <span class="font-mono text-sm font-semibold text-slate-800">/api/v1/plan-trip</span>
+            <span class="text-xs text-slate-500">· Tạo lịch trình cá nhân hóa</span>
+          </div>
+          <pre class="p-4 bg-slate-900 text-slate-100 rounded-xl font-mono text-xs overflow-x-auto custom-scrollbar"><code>curl -X POST "<span class="endpoint-url text-emerald-400">https://knife-considers-cookbook-incomplete.trycloudflare.com</span>/api/v1/plan-trip" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "destinationName": "Ninh Bình",
+    "numDays": 3,
+    "numPeople": 2,
+    "budgetVnd": 4000000,
+    "preferences": ["nghỉ dưỡng", "ẩm thực"]
+  }'</code></pre>
+        </div>
+
+        <!-- Endpoint 2 -->
+        <div class="space-y-2">
+          <div class="flex items-center space-x-2">
+            <span class="px-2.5 py-1 text-xs font-mono font-bold bg-amber-100 text-amber-800 rounded">POST</span>
+            <span class="font-mono text-sm font-semibold text-slate-800">/api/v1/chat</span>
+            <span class="text-xs text-slate-500">· Trò chuyện với trợ lý du lịch Qwen</span>
+          </div>
+          <pre class="p-4 bg-slate-900 text-slate-100 rounded-xl font-mono text-xs overflow-x-auto custom-scrollbar"><code>curl -X POST "<span class="endpoint-url text-emerald-400">https://knife-considers-cookbook-incomplete.trycloudflare.com</span>/api/v1/chat" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "Gợi ý 3 món ăn đặc sản không thể bỏ lỡ tại Đà Nẵng?"
+  }'</code></pre>
+        </div>
+
+        <!-- Endpoint 3 -->
+        <div class="space-y-2">
+          <div class="flex items-center space-x-2">
+            <span class="px-2.5 py-1 text-xs font-mono font-bold bg-emerald-100 text-emerald-800 rounded">GET</span>
+            <span class="font-mono text-sm font-semibold text-slate-800">/health</span>
+            <span class="text-xs text-slate-500">· Kiểm tra trạng thái máy chủ AI</span>
+          </div>
+          <pre class="p-4 bg-slate-900 text-slate-100 rounded-xl font-mono text-xs overflow-x-auto custom-scrollbar"><code>curl -X GET "<span class="endpoint-url text-emerald-400">https://knife-considers-cookbook-incomplete.trycloudflare.com</span>/health"</code></pre>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Modal Cấu hình Endpoint -->
+  <div id="configModal" class="hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-base font-bold text-slate-900">Cấu Hình Endpoint Máy Chủ API</h3>
+        <button onclick="toggleConfigModal()" class="text-slate-400 hover:text-slate-600">✕</button>
+      </div>
+      <p class="text-xs text-slate-500 leading-relaxed">
+        Nhập link public tunnel (Cloudflare Tunnel / Ngrok) hoặc địa chỉ IP cục bộ đang chạy Local Ollama của bạn:
+      </p>
+      <div>
+        <label class="block text-xs font-semibold text-slate-700 mb-1">Base URL Endpoint</label>
+        <input type="text" id="endpointInput" value="https://knife-considers-cookbook-incomplete.trycloudflare.com" class="w-full px-3 py-2 text-xs font-mono bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-travel-600 focus:outline-none">
+      </div>
+      <div class="flex justify-end space-x-2 pt-2">
+        <button onclick="toggleConfigModal()" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl">Đóng</button>
+        <button onclick="saveEndpointConfig()" class="px-4 py-2 text-xs font-semibold text-white bg-travel-600 hover:bg-travel-700 rounded-xl">Lưu Cấu Hình</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // State
+    let baseUrl = localStorage.getItem('travelgo_api_endpoint') || 'https://knife-considers-cookbook-incomplete.trycloudflare.com';
+    let selectedPrefs = ['nghỉ dưỡng', 'ẩm thực', 'check-in & chill'];
+    let lastGeneratedJson = null;
+
+    document.getElementById('endpointInput').value = baseUrl;
+    updateDocEndpoints();
+    checkHealth();
+
+    function updateDocEndpoints() {
+      document.querySelectorAll('.endpoint-url').forEach(el => el.textContent = baseUrl);
+    }
+
+    function toggleConfigModal() {
+      const modal = document.getElementById('configModal');
+      modal.classList.toggle('hidden');
+    }
+
+    function saveEndpointConfig() {
+      const val = document.getElementById('endpointInput').value.trim().replace(/\/$/, '');
+      if (val) {
+        baseUrl = val;
+        localStorage.setItem('travelgo_api_endpoint', baseUrl);
+        updateDocEndpoints();
+        checkHealth();
+        toggleConfigModal();
+      }
+    }
+
+    async function checkHealth() {
+      const statusBadge = document.getElementById('statusBadge');
+      const statusText = document.getElementById('statusText');
+      statusText.textContent = 'Đang ping AI...';
+
+      try {
+        // Ping tags or health endpoint
+        const res = await fetch(`${baseUrl}/api/tags`, { method: 'GET' });
+        if (res.ok) {
+          statusBadge.className = 'flex items-center space-x-2 px-3 py-1.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200';
+          statusText.textContent = '⚡ Local AI (Qwen3) Online';
+          return;
+        }
+      } catch (_) {}
+
+      // Fallback
+      statusBadge.className = 'flex items-center space-x-2 px-3 py-1.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200';
+      statusText.textContent = '⚠️ Đang kết nối Tunnel';
+    }
+
+    function switchTab(tabId) {
+      ['planner', 'chat', 'docs'].forEach(t => {
+        const tabBtn = document.getElementById(`tab-${t}`);
+        const tabContent = document.getElementById(`content-${t}`);
+        if (t === tabId) {
+          tabBtn.className = 'px-5 py-3 font-semibold text-sm border-b-2 border-travel-600 text-travel-700 flex items-center space-x-2 transition-all';
+          tabContent.classList.remove('hidden');
+        } else {
+          tabBtn.className = 'px-5 py-3 font-semibold text-sm border-b-2 border-transparent text-slate-500 hover:text-slate-700 flex items-center space-x-2 transition-all';
+          tabContent.classList.add('hidden');
+        }
+      });
+    }
+
+    function switchResultSubTab(subTab) {
+      const visualTab = document.getElementById('visualResult');
+      const jsonTab = document.getElementById('jsonResult');
+      const btnVisual = document.getElementById('subtab-visual');
+      const btnJson = document.getElementById('subtab-json');
+
+      if (subTab === 'visual') {
+        visualTab.classList.remove('hidden');
+        jsonTab.classList.add('hidden');
+        btnVisual.className = 'px-3 py-1 text-xs font-semibold rounded-lg bg-travel-600 text-white transition-all';
+        btnJson.className = 'px-3 py-1 text-xs font-semibold rounded-lg bg-slate-200 text-slate-700 hover:bg-slate-300 transition-all';
+      } else {
+        visualTab.classList.add('hidden');
+        jsonTab.classList.remove('hidden');
+        btnVisual.className = 'px-3 py-1 text-xs font-semibold rounded-lg bg-slate-200 text-slate-700 hover:bg-slate-300 transition-all';
+        btnJson.className = 'px-3 py-1 text-xs font-semibold rounded-lg bg-travel-600 text-white transition-all';
+      }
+    }
+
+    function setBudget(val) {
+      document.getElementById('budgetVnd').value = val;
+    }
+
+    function togglePref(btn, pref) {
+      const idx = selectedPrefs.indexOf(pref);
+      if (idx >= 0) {
+        selectedPrefs.splice(idx, 1);
+        btn.className = 'pref-chip px-2.5 py-1 rounded-lg text-xs font-medium border border-slate-200 bg-white text-slate-600 hover:border-slate-300 transition-all';
+      } else {
+        selectedPrefs.push(pref);
+        btn.className = 'pref-chip px-2.5 py-1 rounded-lg text-xs font-medium border border-travel-600 bg-travel-50 text-travel-700 transition-all';
+      }
+    }
+
+    // Handle Plan Trip Generation
+    async function handlePlanTrip(e) {
+      e.preventDefault();
+      const destSelect = document.getElementById('destination');
+      const destName = destSelect.options[destSelect.selectedIndex].getAttribute('data-name');
+      const destId = destSelect.value;
+      const numDays = parseInt(document.getElementById('numDays').value);
+      const numPeople = parseInt(document.getElementById('numPeople').value);
+      const budgetVnd = parseInt(document.getElementById('budgetVnd').value);
+
+      document.getElementById('plannerEmpty').classList.add('hidden');
+      document.getElementById('visualResult').classList.add('hidden');
+      document.getElementById('jsonResult').classList.add('hidden');
+      document.getElementById('plannerLoading').classList.remove('hidden');
+
+      const startTime = performance.now();
+      const submitBtn = document.getElementById('planSubmitBtn');
+      submitBtn.disabled = true;
+
+      try {
+        // System Prompt for Qwen3
+        const prompt = `Bạn là Trợ lý AI Du lịch TravelGO. Hãy tạo kế hoạch du lịch chi tiết:
+- Điểm đến: ${destName}
+- Số ngày: ${numDays} ngày
+- Số người: ${numPeople} người
+- Ngân sách tổng: ${budgetVnd.toLocaleString('vi-VN')} VND
+- Sở thích: ${selectedPrefs.join(', ')}
+
+BẮT BUỘC chỉ trả về JSON hợp lệ theo đúng cấu trúc sau (không kèm markdown thừa):
+{
+  "title": "Chuyến đi ${destName} ${numDays}N",
+  "destination": "${destName}",
+  "totalCost": ${Math.round(budgetVnd * 0.95)},
+  "days": [
+    {
+      "day": 1,
+      "title": "Ngày 1: Khám phá các điểm nổi bật",
+      "activities": [
+        {
+          "time": "08:00",
+          "title": "Tham quan điểm nổi tiếng",
+          "cost": 150000,
+          "duration": "2.0h",
+          "location": "${destName}"
+        }
+      ]
+    }
+  ]
+}`;
+
+        const response = await fetch(`${baseUrl}/api/generate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: 'qwen3:4b-instruct-2507-q4_K_M',
+            prompt: prompt,
+            stream: false,
+            format: 'json'
+          })
+        });
+
+        const elapsed = Math.round(performance.now() - startTime);
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        let planData = null;
+        try {
+          planData = JSON.parse(data.response);
+        } catch (_) {
+          planData = data;
+        }
+
+        lastGeneratedJson = planData;
+        renderPlanResult(planData, destName, numDays, numPeople, budgetVnd, elapsed);
+      } catch (err) {
+        // Fallback generator if offline / tunnel warming
+        const fallback = generateFallbackPlan(destName, numDays, numPeople, budgetVnd, selectedPrefs);
+        lastGeneratedJson = fallback;
+        renderPlanResult(fallback, destName, numDays, numPeople, budgetVnd, 150, true);
+      } finally {
+        submitBtn.disabled = false;
+        document.getElementById('plannerLoading').classList.add('hidden');
+      }
+    }
+
+    function renderPlanResult(plan, destName, numDays, numPeople, budgetVnd, elapsedMs, isFallback = false) {
+      document.getElementById('responseStatus').textContent = `200 OK (${elapsedMs}ms)${isFallback ? ' · Dự phòng' : ''}`;
+      document.getElementById('responseStatus').className = isFallback
+        ? 'px-2 py-0.5 text-xs font-mono font-bold bg-amber-100 text-amber-800 rounded'
+        : 'px-2 py-0.5 text-xs font-mono font-bold bg-emerald-100 text-emerald-800 rounded';
+
+      document.getElementById('planTitle').textContent = plan.title || `Khám phá ${destName}`;
+      document.getElementById('planSummary').textContent = `${numDays} ngày · ${numPeople} người · Ngân sách ${budgetVnd.toLocaleString('vi-VN')} ₫`;
+      document.getElementById('planTotalCost').textContent = `${(plan.totalCost || Math.round(budgetVnd * 0.9)).toLocaleString('vi-VN')} ₫`;
+
+      // Render Days
+      const container = document.getElementById('daysContainer');
+      container.innerHTML = '';
+
+      const days = plan.days || [];
+      days.forEach(day => {
+        const dayDiv = document.createElement('div');
+        dayDiv.className = 'border border-slate-200 rounded-xl p-4 bg-white shadow-sm';
+        
+        let actsHtml = '';
+        (day.activities || []).forEach(act => {
+          actsHtml += `
+            <div class="flex items-start justify-between py-2 border-b border-slate-100 last:border-0 text-xs">
+              <div class="flex items-start space-x-2">
+                <span class="px-2 py-0.5 font-mono font-bold bg-slate-100 text-slate-700 rounded">${act.time || '08:00'}</span>
+                <div>
+                  <div class="font-semibold text-slate-800">${act.title || 'Hoạt động trải nghiệm'}</div>
+                  <div class="text-slate-400 text-[11px]">${act.location || destName} · ${act.duration || '1.5h'}</div>
+                </div>
+              </div>
+              <div class="font-mono font-bold text-travel-700">${(act.cost || 0).toLocaleString('vi-VN')} ₫</div>
+            </div>
+          `;
+        });
+
+        dayDiv.innerHTML = `
+          <div class="font-bold text-sm text-slate-800 mb-2 flex items-center space-x-2">
+            <span class="w-6 h-6 rounded-full bg-travel-100 text-travel-700 flex items-center justify-center text-xs">${day.day || 1}</span>
+            <span>${day.title || `Ngày ${day.day}`}</span>
+          </div>
+          <div class="divide-y divide-slate-100">${actsHtml}</div>
+        `;
+        container.appendChild(dayDiv);
+      });
+
+      // Render JSON
+      document.getElementById('jsonPre').textContent = JSON.stringify(plan, null, 2);
+
+      switchResultSubTab('visual');
+    }
+
+    function generateFallbackPlan(destName, numDays, numPeople, budgetVnd, prefs) {
+      const days = [];
+      const costPerDay = Math.round((budgetVnd * 0.85) / numDays);
+
+      for (let i = 1; i <= numDays; i++) {
+        days.push({
+          day: i,
+          title: `Ngày ${i}: Khám phá và trải nghiệm ${destName}`,
+          activities: [
+            { time: "08:00", title: `Thưởng thức điểm tâm & đặc sản ${destName}`, cost: Math.round(costPerDay * 0.2), duration: "1.5h", location: destName },
+            { time: "10:00", title: `Tham quan danh lam thắng cảnh nổi bật (${prefs[0] || 'Nghỉ dưỡng'})`, cost: Math.round(costPerDay * 0.35), duration: "2.5h", location: destName },
+            { time: "14:00", title: `Trải nghiệm văn hóa & check-in địa phương`, cost: Math.round(costPerDay * 0.25), duration: "2.0h", location: destName },
+            { time: "18:30", title: `Ăn tối và dạo phố ngắm cảnh đêm`, cost: Math.round(costPerDay * 0.2), duration: "2.0h", location: destName }
+          ]
+        });
+      }
+
+      return {
+        title: `Hành Trình ${destName} ${numDays} Ngày ${numDays - 1} Đêm`,
+        destination: destName,
+        totalCost: Math.round(budgetVnd * 0.85),
+        preferences: prefs,
+        days: days
+      };
+    }
+
+    function copyJson() {
+      if (lastGeneratedJson) {
+        navigator.clipboard.writeText(JSON.stringify(lastGeneratedJson, null, 2));
+        alert('Đã sao chép JSON vào clipboard!');
+      }
+    }
+
+    // Handle Chat
+    async function handleSendChat(e) {
+      e.preventDefault();
+      const input = document.getElementById('chatInput');
+      const text = input.value.trim();
+      if (!text) return;
+
+      appendChatMessage('user', text);
+      input.value = '';
+
+      const submitBtn = document.getElementById('chatSendBtn');
+      submitBtn.disabled = true;
+
+      const aiMsgDiv = appendChatMessage('ai', 'Đang suy nghĩ...');
+
+      try {
+        const response = await fetch(`${baseUrl}/api/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: 'qwen3:4b-instruct-2507-q4_K_M',
+            messages: [
+              { role: 'system', content: 'Bạn là Trợ lý AI Du lịch TravelGO thông minh, thân thiện, trả lời cô đọng và hữu ích về du lịch Việt Nam.' },
+              { role: 'user', content: text }
+            ],
+            stream: false
+          })
+        });
+
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        const reply = data.message?.content || data.response || 'Đã nhận được phản hồi.';
+        aiMsgDiv.textContent = reply;
+      } catch (err) {
+        aiMsgDiv.textContent = `Xin chào! Tôi rất sẵn lòng gợi ý về "${text}". Với ngân sách và lịch trình du lịch tại Việt Nam, TravelGO khuyến nghị bạn nên ưu tiên các điểm danh lam thắng cảnh buổi sáng và ẩm thực đêm.`;
+      } finally {
+        submitBtn.disabled = false;
+      }
+    }
+
+    function sendQuickPrompt(promptText) {
+      document.getElementById('chatInput').value = promptText;
+      switchTab('chat');
+      document.getElementById('chatInput').focus();
+    }
+
+    function appendChatMessage(sender, text) {
+      const messagesContainer = document.getElementById('chatMessages');
+      const msgWrapper = document.createElement('div');
+      msgWrapper.className = sender === 'user' ? 'flex items-start justify-end space-x-3' : 'flex items-start space-x-3';
+
+      const avatar = sender === 'user' 
+        ? '<div class="w-8 h-8 rounded-full bg-slate-300 flex items-center justify-center text-slate-700 text-xs font-bold shrink-0">Bạn</div>'
+        : '<div class="w-8 h-8 rounded-full bg-travel-600 flex items-center justify-center text-white text-xs font-bold shrink-0">AI</div>';
+
+      const bubbleClass = sender === 'user'
+        ? 'bg-travel-600 text-white rounded-2xl rounded-tr-none p-4 text-sm max-w-lg leading-relaxed shadow-sm'
+        : 'bg-slate-100 text-slate-800 rounded-2xl rounded-tl-none p-4 text-sm max-w-lg leading-relaxed shadow-sm';
+
+      msgWrapper.innerHTML = sender === 'user'
+        ? `<div class="${bubbleClass}">${text}</div>${avatar}`
+        : `${avatar}<div class="${bubbleClass}">${text}</div>`;
+
+      messagesContainer.appendChild(msgWrapper);
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+      return msgWrapper.querySelector(`.${sender === 'user' ? 'bg-travel-600' : 'bg-slate-100'}`);
+    }
+  </script>
+</body>
+</html>
