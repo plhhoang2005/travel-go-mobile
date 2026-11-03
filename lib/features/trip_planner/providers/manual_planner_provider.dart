@@ -327,6 +327,30 @@ class ManualPlannerProvider extends ChangeNotifier {
     return await _save(value);
   }
 
+  void clearPendingSave() {
+    _pending = null;
+    _saving = false;
+    _error = null;
+    if (_state == ManualPlannerState.uncertain) {
+      _state = ManualPlannerState.editing;
+    }
+    _notify();
+  }
+
+  void detachBaseForNewSave() {
+    _base = null;
+    _commands.clear();
+    _pending = null;
+    _saving = false;
+    _error = null;
+    if (_state == ManualPlannerState.uncertain ||
+        _state == ManualPlannerState.conflict ||
+        _state == ManualPlannerState.error) {
+      _state = ManualPlannerState.editing;
+    }
+    _notify();
+  }
+
   Future<bool> retrySave() async {
     final value = _pending;
     if (value == null ||
@@ -418,6 +442,26 @@ class ManualPlannerProvider extends ChangeNotifier {
           error.kind == EditableRemoteFailure.deploymentBlocked) {
         _state = ManualPlannerState.error;
         _error = 'Chức năng lưu tài khoản chưa sẵn sàng trên máy chủ.';
+      } else if (error is EditableRemoteException &&
+          (error.code == 'trip_unavailable' ||
+              error.code == 'unauthorized' ||
+              error.code == 'source_unavailable')) {
+        _pending = null;
+        _state = ManualPlannerState.error;
+        _error = 'Không có quyền cập nhật chuyến đi này hoặc chuyến đi không khả dụng. Lịch trình vẫn được giữ trên màn hình.';
+      } else if (error is EditableRemoteException &&
+          (error.code == 'invalid_command' ||
+              error.code == 'invalid_request' ||
+              error.code == 'invalid_document' ||
+              error.code == 'invalid_input' ||
+              error.code == 'request_rejected')) {
+        _pending = null;
+        _state = ManualPlannerState.error;
+        _error = 'Yêu cầu cập nhật chưa được máy chủ chấp nhận. Lịch trình vẫn được giữ trên màn hình.';
+      } else if (error is StateError && error.message.contains('stale')) {
+        _pending = null;
+        _state = ManualPlannerState.error;
+        _error = 'Phiên làm việc vừa được cập nhật. Hãy xem lại trước khi lưu.';
       } else if (value.isAccount) {
         _state = ManualPlannerState.uncertain;
         _error = 'Chưa xác nhận được kết quả lưu. Thử lại sẽ dùng đúng yêu cầu đã gửi.';

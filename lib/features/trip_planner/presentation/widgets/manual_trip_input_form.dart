@@ -18,18 +18,39 @@ class ManualTripInputResult {
   final List<ItemMove> moves;
   final List<String> removedItemIds;
   final String baseDigest;
+  final List<TripDay>? initialDays;
+
   ManualTripInputResult({
     required this.input,
     required List<TripDay> days,
     required List<ItemMove> moves,
     required List<String> removedItemIds,
     required this.baseDigest,
+    this.initialDays,
   }) : days = List.unmodifiable(days),
        moves = List.unmodifiable(moves),
        removedItemIds = List.unmodifiable(removedItemIds);
+
+  bool get _daysUnchanged {
+    final original = initialDays;
+    if (original == null) return false;
+    if (original.length != days.length) return false;
+    if (moves.isNotEmpty || removedItemIds.isNotEmpty) return false;
+    for (var i = 0; i < days.length; i++) {
+      if (original[i].id != days[i].id ||
+          original[i].date != days[i].date ||
+          original[i].ordinal != days[i].ordinal ||
+          original[i].notes != days[i].notes) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   List<EditableCommand> get commands => [
     SetTripInputCommand(input),
-    ResizeDaysCommand(days: days, moves: moves, removedItemIds: removedItemIds),
+    if (!_daysUnchanged)
+      ResizeDaysCommand(days: days, moves: moves, removedItemIds: removedItemIds),
   ];
 }
 
@@ -349,6 +370,7 @@ class _ManualTripInputFormState extends State<ManualTripInputForm> {
       moves: moves,
       removedItemIds: removed,
       baseDigest: EditableTripCodec.digest(widget.initialDocument),
+      initialDays: widget.initialDocument.days,
     );
   }
 
