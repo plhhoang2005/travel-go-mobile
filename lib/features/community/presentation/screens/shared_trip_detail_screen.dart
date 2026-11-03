@@ -1448,6 +1448,7 @@ class _SharedTripDetailScreenState extends State<SharedTripDetailScreen> {
                                 foregroundColor: AppTheme.primaryColor,
                               ),
                             ),
+
                           ),
                         ],
                       ),

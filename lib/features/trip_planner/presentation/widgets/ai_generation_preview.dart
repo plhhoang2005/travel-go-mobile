@@ -317,6 +317,7 @@ class _AiGenerationPreviewState extends State<AiGenerationPreview> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
+
                       'Lưu ý bảo mật & dữ liệu',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
@@ -335,6 +336,7 @@ class _AiGenerationPreviewState extends State<AiGenerationPreview> {
                           ? 'Mô hình Local AI (Ollama - Qwen) xử lý dữ liệu trực tiếp trên máy tính. Hoàn toàn riêng tư và không gửi ra internet.'
                           : 'Kết quả AI được lưu tạm trên máy chủ tối đa 24 giờ để kiểm tra lại yêu cầu. Gemini xử lý thông tin bạn đồng ý gửi.',
                       style: const TextStyle(fontSize: 11, height: 1.3),
+
                     ),
                   ],
                 ),
@@ -371,6 +373,7 @@ class _AiGenerationPreviewState extends State<AiGenerationPreview> {
                           : _error == null
                           ? (widget.isLocalAi ? 'Tạo lịch bằng Local AI ⚡' : 'Tạo đề xuất')
                           : (widget.isLocalAi ? 'Thử lại với Local AI ⚡' : 'Thử lại'),
+
                     ),
                   ),
                 ),

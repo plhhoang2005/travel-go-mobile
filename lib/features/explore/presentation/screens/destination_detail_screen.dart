@@ -907,12 +907,14 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
                     _PlaceSource(
                       place: place,
                       source: catalogue.sourceOrNull(place.sourceId),
+
                     )
                   else
                     PlaceVisitDetailsWidget(
                       key: ValueKey('visit-place-${place.id}'),
                       place: place,
                       referenceSource: catalogue.sourceOrNull(place.sourceId),
+
                       details: visitSnapshot?.catalogue.places[place.id],
                       snapshot: visitSnapshot,
                       showReleaseInfo: false,

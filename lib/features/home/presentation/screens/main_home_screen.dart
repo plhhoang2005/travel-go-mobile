@@ -235,6 +235,7 @@ class _HomePlanningEntry extends StatelessWidget {
             icon: const Icon(Icons.auto_awesome, size: 18),
             label: const Text('Tạo chuyến đi nhanh'),
             style: FilledButton.styleFrom(
+
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(24),
               ),
@@ -278,6 +279,7 @@ class _HomePlanningEntry extends StatelessWidget {
                 ),
               ),
             ],
+
           ),
         ],
       ),
