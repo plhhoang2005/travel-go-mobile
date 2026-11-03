@@ -297,8 +297,14 @@ class CommunityService {
     if (rating < 1 || rating > 5) {
       throw ArgumentError('Điểm đánh giá phải từ 1 đến 5 sao.');
     }
-    if (comment != null && comment.length > 5000) {
-      throw ArgumentError('Nhận xét không được vượt quá 5.000 ký tự.');
+    if (comment != null) {
+      final words = comment.trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).length;
+      if (words > 1000) {
+        throw ArgumentError('Nhận xét không được vượt quá 1.000 từ (hiện có $words từ).');
+      }
+      if (comment.length > 20000) {
+        throw ArgumentError('Nhận xét không được vượt quá 20.000 ký tự.');
+      }
     }
 
     final currentUser = client.auth.currentUser;

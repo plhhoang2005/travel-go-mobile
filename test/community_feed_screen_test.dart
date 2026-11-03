@@ -198,6 +198,7 @@ void main() {
         expect(find.text('4 ngày'), findsOneWidget);
         expect(find.text('24'), findsOneWidget); // like count (thống kê hiển thị)
         expect(find.byIcon(Icons.favorite_rounded), findsOneWidget);
+        expect(find.byIcon(Icons.print_outlined), findsOneWidget); // Nút In
 
         // Chạm vào thẻ
         await tester.tap(find.byType(CommunityTripCard));

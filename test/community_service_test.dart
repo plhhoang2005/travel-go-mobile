@@ -427,6 +427,17 @@ void main() {
 
       final service = CommunityService(client: client);
 
+      // Validate comment quá 1000 từ
+      final over1000Words = List.generate(1001, (i) => 'từ$i').join(' ');
+      expect(
+        () => service.submitTripReview(
+          tripId: testTripId,
+          rating: 5,
+          comment: over1000Words,
+        ),
+        throwsA(isA<ArgumentError>()),
+      );
+
       // Validate invalid rating (0 sao hoặc 6 sao)
       expect(
         () => service.submitTripReview(tripId: testTripId, rating: 0),
