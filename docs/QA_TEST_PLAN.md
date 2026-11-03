@@ -39,11 +39,11 @@ flutter run
 
 | Test ID | Chức năng kiểm thử | Các bước thao tác | Kết quả mong đợi | Đánh giá | Người test & Ghi chú |
 | :--- | :--- | :--- | :--- | :---: | :--- |
-| **TC-01** | Danh sách điểm đến nổi bật | Mở tab **Khám phá** (Tab 1) | Hiển thị danh sách các điểm đến Việt Nam (Hà Nội, Hạ Long, Đà Nẵng, Huế,...) với ảnh bìa rõ nét. | `[ ] PASS`<br>`[ ] FAIL` | |
-| **TC-02** | Tìm kiếm điểm đến | Nhập từ khóa (vd: "Đà Nẵng", "Huế") vào thanh tìm kiếm | Danh sách lọc tức thì theo từ khóa nhập vào, không đơ lag. | `[ ] PASS`<br>`[ ] FAIL` | |
-| **TC-03** | Lọc theo thẻ (Filter Chips) | Bấm chọn các chip lọc (Biển, Văn hóa, Ẩm thực,...) | Lọc chính xác danh sách các điểm đến thuộc chủ đề tương ứng. | `[ ] PASS`<br>`[ ] FAIL` | |
-| **TC-04** | Chi tiết điểm đến & Nguồn ảnh | Chạm vào một thẻ điểm đến bất kỳ | Chuyển sang màn hình chi tiết, ảnh lớn có nút icon tròn hiển thị thông tin bản quyền/nguồn ảnh minh bạch. | `[ ] PASS`<br>`[ ] FAIL` | |
-| **TC-05** | Nút CTA "Lập lịch trình" | Tại màn hình chi tiết điểm đến, bấm nút **"Lập lịch trình cho điểm đến này"** | Tự động chuyển sang màn hình Lập lịch với Điểm đến đã được điền sẵn. | `[ ] PASS`<br>`[ ] FAIL` | |
+| **TC-01** | Danh sách điểm đến nổi bật | Mở tab **Khám phá** (Tab 1) | Hiển thị danh sách các điểm đến Việt Nam (Hà Nội, Hạ Long, Đà Nẵng, Huế,...) với ảnh bìa rõ nét. | `[x] PASS`<br>`[ ] FAIL` | Chi Hậu (Owner) - Đạt |
+| **TC-02** | Tìm kiếm điểm đến | Nhập từ khóa (vd: "Đà Nẵng", "Huế") vào thanh tìm kiếm | Danh sách lọc tức thì theo từ khóa nhập vào, không đơ lag. | `[x] PASS`<br>`[ ] FAIL` | Chi Hậu (Owner) - Đạt |
+| **TC-03** | Lọc theo thẻ (Filter Chips) | Bấm chọn các chip lọc (Biển, Văn hóa, Ẩm thực,...) | Lọc chính xác danh sách các điểm đến thuộc chủ đề tương ứng. | `[x] PASS`<br>`[ ] FAIL` | Chi Hậu (Owner) - Đạt |
+| **TC-04** | Chi tiết điểm đến & Nguồn ảnh | Chạm vào một thẻ điểm đến bất kỳ | Chuyển sang màn hình chi tiết, ảnh lớn có nút icon tròn hiển thị thông tin bản quyền/nguồn ảnh minh bạch. | `[x] PASS`<br>`[ ] FAIL` | Chi Hậu (Owner) - Đạt |
+| **TC-05** | Nút CTA "Lập lịch trình" | Tại màn hình chi tiết điểm đến, bấm nút **"Lập lịch trình cho điểm đến này"** | Tự động chuyển sang màn hình Lập lịch với Điểm đến đã được điền sẵn. | `[x] PASS`<br>`[ ] FAIL` | Chi Hậu (Owner) - Đạt |
 
 ---
 
@@ -64,12 +64,12 @@ flutter run
 
 | Test ID | Chức năng kiểm thử | Các bước thao tác | Kết quả mong đợi | Đánh giá | Người test & Ghi chú |
 | :--- | :--- | :--- | :--- | :---: | :--- |
-| **TC-12** | Trải nghiệm chế độ Khách (Guest) | Mở app lần đầu hoặc bấm "Tiếp tục với tư cách Khách" | Dùng được đầy đủ tính năng khám phá, xem bản đồ, tạo lịch trình nháp không bị chặn. | `[ ] PASS`<br>`[ ] FAIL` | |
-| **TC-13** | Đăng nhập / Đăng ký tài khoản | Vào màn hình Đăng nhập từ Avatar góc phải AppBar, nhập email/mật khẩu | Đăng nhập thành công, hiển thị thông báo chào mừng và cập nhật Avatar. | `[ ] PASS`<br>`[ ] FAIL` | |
-| **TC-14** | Nhập lịch trình Guest vào Account | Soạn 1 lịch ở Guest -> Bấm Lưu chuyến đi -> App yêu cầu đăng nhập -> Đăng nhập | Hiển thị màn hình xác nhận nhập (Import preview) chuyến đi nháp vào tài khoản đã đăng nhập. | `[ ] PASS`<br>`[ ] FAIL` | |
-| **TC-15** | Đăng xuất tài khoản | Bấm Đăng xuất từ màn hình Cá nhân (Profile) | Đưa về trạng thái Khách sạch, danh sách chuyến đi của tài khoản cũ bị ẩn ngay lập tức. | `[ ] PASS`<br>`[ ] FAIL` | |
-| **TC-16** | Đưa app xuống nền & Mở lại (Lifecycle) | Đang mở app, bấm nút Home để app xuống background 10 giây rồi mở lại | Không bị văng app (crash), giữ nguyên màn hình và trạng thái đăng nhập. | `[ ] PASS`<br>`[ ] FAIL` | |
-| **TC-17** | Avatar góc trên AppBar | Bấm vào biểu tượng Avatar ở góc trên cùng bên phải màn hình | Mở nhanh trang Thông tin cá nhân (nếu đã đăng nhập) hoặc trang Đăng nhập (nếu là Khách). | `[ ] PASS`<br>`[ ] FAIL` | |
+| **TC-12** | Trải nghiệm chế độ Khách (Guest) | Mở app lần đầu hoặc bấm "Tiếp tục với tư cách Khách" | Dùng được đầy đủ tính năng khám phá, xem bản đồ, tạo lịch trình nháp không bị chặn. | `[x] PASS`<br>`[ ] FAIL` | Chi Hậu (Owner) - Đạt |
+| **TC-13** | Đăng nhập / Đăng ký tài khoản | Vào màn hình Đăng nhập từ Avatar góc phải AppBar, nhập email/mật khẩu | Đăng nhập thành công, hiển thị thông báo chào mừng và cập nhật Avatar. | `[x] PASS`<br>`[ ] FAIL` | Chi Hậu (Owner) - Đạt |
+| **TC-14** | Nhập lịch trình Guest vào Account | Soạn 1 lịch ở Guest -> Bấm Lưu chuyến đi -> App yêu cầu đăng nhập -> Đăng nhập | Hiển thị màn hình xác nhận nhập (Import preview) chuyến đi nháp vào tài khoản đã đăng nhập. | `[x] PASS`<br>`[ ] FAIL` | Chi Hậu (Owner) - Đạt |
+| **TC-15** | Đăng xuất tài khoản | Bấm Đăng xuất từ màn hình Cá nhân (Profile) | Đưa về trạng thái Khách sạch, danh sách chuyến đi của tài khoản cũ bị ẩn ngay lập tức. | `[x] PASS`<br>`[ ] FAIL` | Chi Hậu (Owner) - Đạt |
+| **TC-16** | Đưa app xuống nền & Mở lại (Lifecycle) | Đang mở app, bấm nút Home để app xuống background 10 giây rồi mở lại | Không bị văng app (crash), giữ nguyên màn hình và trạng thái đăng nhập. | `[x] PASS`<br>`[ ] FAIL` | Chi Hậu (Owner) - Đạt |
+| **TC-17** | Avatar góc trên AppBar | Bấm vào biểu tượng Avatar ở góc trên cùng bên phải màn hình | Mở nhanh trang Thông tin cá nhân (nếu đã đăng nhập) hoặc trang Đăng nhập (nếu là Khách). | `[x] PASS`<br>`[ ] FAIL` | Chi Hậu (Owner) - Đạt |
 
 ---
 
