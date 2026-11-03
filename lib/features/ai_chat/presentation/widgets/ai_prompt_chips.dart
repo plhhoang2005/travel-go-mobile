@@ -18,6 +18,11 @@ class AiPromptChips extends StatelessWidget {
       'prompt': 'Hãy lên giúp tôi lịch trình du lịch Đà Lạt 3 ngày 2 đêm chi tiết cho 2 người với ngân sách vừa phải.',
     },
     {
+      'icon': '☕',
+      'label': 'Quán cafe view đẹp',
+      'prompt': 'Gợi ý cho tôi các quán cafe đẹp nhất để ngắm hoàng hôn và chụp ảnh chill.',
+    },
+    {
       'icon': '🏔️',
       'label': 'Kinh nghiệm du lịch Sa Pa',
       'prompt': 'Tôi sắp đi Sa Pa, hãy gợi ý các điểm tham quan đẹp nhất và kinh nghiệm chuẩn bị trang phục.',
@@ -26,6 +31,11 @@ class AiPromptChips extends StatelessWidget {
       'icon': '🍜',
       'label': 'Ẩm thực phố cổ Hà Nội',
       'prompt': 'Gợi ý cho tôi danh sách các quán ăn đặc sản ngon nức tiếng tại khu vực phố cổ Hà Nội.',
+    },
+    {
+      'icon': '⚽',
+      'label': 'Ronaldo sinh năm bao nhiêu?',
+      'prompt': 'Ronaldo sinh năm bao nhiêu và quê hương Madeira có địa điểm du lịch nào thú vị?',
     },
     {
       'icon': '💰',
@@ -37,6 +47,7 @@ class AiPromptChips extends StatelessWidget {
   static const List<String> followupPrompts = [
     'Chi tiết hơn nữa 📝',
     'Ước tính chi phí 💵',
+    'Tìm thêm quán cafe đẹp ☕',
     'Tìm thêm quán ăn ngon 🍜',
     'Địa điểm chụp ảnh đẹp 📸',
     'Phương tiện di chuyển 🛵',

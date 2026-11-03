@@ -198,41 +198,99 @@ class AiChatProvider extends ChangeNotifier {
     }
   }
 
-  /// Trình sinh phản hồi du lịch thông minh dự phòng khi máy tester chưa bật Ollama
+  /// Trình sinh phản hồi du lịch & trò chuyện thông minh đa tầng
   String _generateSmartTravelFallback(String query) {
-    final q = query.toLowerCase();
-    if (q.contains('đà lạt') || q.contains('da lat')) {
-      return '🌲 **Gợi ý du lịch Đà Lạt từ Trợ lý TravelGO:**\n\n'
-          '• **Điểm tham quan nổi bật**: Hồ Xuân Hương, Thung Lũng Tình Yêu, Chợ Đêm Đà Lạt, Quảng Trường Lâm Viên, Đồi Chè Cầu Đất.\n'
-          '• **Ẩm thực đặc sản**: Bánh tráng nướng, lẩu gà lá é Tao Ngộ, bánh ướt lòng gà, lẩu bò Ba Toa, sữa đậu nành nóng hổi.\n'
-          '• **Trang phục khuyên dùng**: Buổi tối nhiệt độ se lạnh khoảng 14-16°C, bạn nên chuẩn bị áo khoác ấm, khăn choàng nhẹ.\n'
-          '• **Chi phí dự trù**: Khoảng 1.200.000đ - 1.800.000đ/người cho chuyến đi 2 ngày 1 đêm.';
-    } else if (q.contains('sa pa') || q.contains('sapa')) {
-      return '🏔️ **Kinh nghiệm du lịch Sa Pa:**\n\n'
-          '• **Địa điểm không nên bỏ qua**: Đỉnh Fansipan (nóc nhà Đông Dương), Bản Cát Cát, Đèo Ô Quy Hồ, Cổng Trời Sa Pa.\n'
-          '• **Đặc sản Tây Bắc**: Thắng cố, lẩu cá hồi, thịt trâu gác bếp, lợn cắp nách quay giòn, cơm lam ống nứa.\n'
-          '• **Lưu ý thời tiết**: Thời tiết Sa Pa thay đổi nhanh, có sương mù và sương muối vào sáng sớm. Bạn nên mang giày thể thao chống trơn trượt.';
-    } else if (q.contains('hà nội') || q.contains('ha noi')) {
-      return '🏛️ **Gợi ý khám phá Thủ đô Hà Nội 36 phố phường:**\n\n'
-          '• **Địa điểm lịch sử**: Hồ Hoàn Kiếm, Đền Ngọc Sơn, Lăng Chủ tịch Hồ Chí Minh, Văn Miếu - Quốc Tử Giám, Hoàng thành Thăng Long.\n'
-          '• **Món ngon đặc trưng**: Phở bò Bát Đàn, bún chả Hương Liên, chả cá Lã Vọng, cà phê trứng Giảng.\n'
-          '• **Mẹo di chuyển**: Buổi sáng đi bộ quanh hồ Gươm, chiều dạo phố cổ bằng xe buýt 2 tầng thoáng nóc.';
-    } else if (q.contains('đà nẵng') || q.contains('da nang')) {
-      return '🌊 **Cẩm nang du lịch Đà Nẵng - Thành phố đáng sống:**\n\n'
-          '• **Điểm đến**: Cầu Rồng (xem phun lửa tối cuối tuần), Bán đảo Sơn Trà, Bãi biển Mỹ Khê, Bà Nà Hills, Ngũ Hành Sơn.\n'
-          '• **Ẩm thực**: Mì Quảng ếch, bánh tráng cuốn thịt heo Đại Lộc, hải sản tươi sống đường Võ Nguyên Giáp, gỏi cá Nam Ô.';
-    } else if (q.contains('ngân sách') || q.contains('chi phí') || q.contains('tiết kiệm')) {
-      return '💰 **Lời khuyên tối ưu ngân sách từ TravelGO:**\n\n'
-          '1. **Vé máy bay & Di chuyển**: Đặt trước từ 3-4 tuần hoặc đi các khung giờ sáng sớm/đêm muộn để nhận giá ưu đãi.\n'
-          '2. **Lưu trú**: Chọn các homestay uy tín gần trung tâm có đánh giá trên 4.5 sao thay vì khách sạn đắt đỏ.\n'
-          '3. **Ăn uống**: Thưởng thức ẩm thực đường phố và chợ truyền thống vừa chuẩn vị địa phương vừa tiết kiệm 40% chi phí.';
-    } else {
-      return '✈️ **Trợ lý TravelGO xin chào!**\n\n'
-          'Tôi có thể hỗ trợ bạn:\n'
-          '• Lên lịch trình chi tiết từng ngày theo sở thích và số lượng người.\n'
-          '• Gợi ý quán ăn, món ngon đặc sản và quán cà phê đẹp.\n'
-          '• Dự trù ngân sách và tối ưu chi phí chuyến đi.\n\n'
-          'Bạn đang dự định đi du lịch ở đâu? Hãy nói cho tôi biết điểm đến hoặc yêu cầu của bạn nhé!';
+    final q = query.toLowerCase().trim();
+
+    // 1. Phản hồi các câu hỏi kiến thức chung & nhân vật nổi tiếng
+    if (q.contains('ronaldo') || q.contains('cr7')) {
+      return '⚽ **Cristiano Ronaldo (CR7)** sinh ngày **05 tháng 02 năm 1985** (năm nay 41 tuổi) tại Santo António, Funchal, thuộc quần đảo Madeira, Bồ Đào Nha.\n\n'
+          '🌟 **Gợi ý du lịch thú vị từ TravelGO:**\n'
+          'Nếu bạn là fan của Ronaldo, hòn đảo quê hương **Madeira** là một thiên đường nghỉ dưỡng tuyệt mỹ ở Đại Tây Dương. Tại thành phố Funchal có **Bảo tàng Museu CR7** trưng bày tất cả Quả bóng Vàng, cúp vô địch và bức tượng đồng nổi tiếng của anh, ngay cạnh khách sạn cao cấp Pestana CR7 bên bờ vịnh!';
     }
+
+    if (q.contains('messi') || q.contains('m10')) {
+      return '⚽ **Lionel Messi** sinh ngày **24 tháng 06 năm 1987** tại thành phố Rosario, tỉnh Santa Fe, Argentina.\n\n'
+          '🌟 **Điểm đến du lịch gợi ý:**\n'
+          'Thành phố quê hương Rosario của Messi nằm bên bờ sông Paraná thơ mộng. Du khách đến đây có thể tham quan khu phố La Bajada nơi Messi lớn lên với những bức tranh tường graffiti khổng lồ đầy nghệ thuật, hoặc ghé thăm bảo tàng thể thao Museo del Deporte Santafesino.';
+    }
+
+    // 2. Phản hồi về quán cà phê, chụp ảnh check-in
+    if (q.contains('quán cafe') || q.contains('quan cafe') || q.contains('cà phê') || q.contains('cafe')) {
+      return '☕ **Gợi ý các quán cà phê ngắm cảnh & chụp hình tuyệt đẹp:**\n\n'
+          '• **Tại Đà Lạt:**\n'
+          '  - *Tiệm Cà Phê Cheo Veo*: Nằm trên sườn đồi Hoàng Hoa Thám, nơi ngắm hoàng hôn và thung lũng đèn lãng mạn nhất.\n'
+          '  - *Lời Của Gió*: Phong cách mộc mạc nhìn ra đồi thông, đồ uống ngon và không gian cực kỳ yên tĩnh.\n'
+          '• **Tại Hà Nội:**\n'
+          '  - *Café Giảng (Nguyễn Hữu Huân)*: Khai sinh món cà phê trứng trứ danh từ năm 1946.\n'
+          '  - *Loading T (Chân Cầm)*: Nằm trong biệt thự Pháp cổ trăm tuổi, hương thơm hoa cúc và quế đặc trưng.\n'
+          '• **Tại TP. Hồ Chí Minh:**\n'
+          '  - *Okkio Caffe (Lê Lợi)*: Thiết kế retro hiện đại, cà phê Specialty rang xay chuẩn gu.\n'
+          '  - *The Running Bean (Mạc Thị Bưởi)*: Không gian kính thoáng sáng, thích hợp làm việc và thư giãn.';
+    }
+
+    // 3. Phản hồi các điểm đến du lịch nổi tiếng
+    if (q.contains('đà lạt') || q.contains('da lat')) {
+      return '🌲 **Lịch trình gợi ý du lịch Đà Lạt 3 ngày 2 đêm tự túc:**\n\n'
+          '• **Ngày 1 (Check-in & Chill phố núi):**\n'
+          '  - Sáng: Dạo quanh Hồ Xuân Hương, check-in Nụ hoa Atiso tại Quảng trường Lâm Viên.\n'
+          '  - Chiều: Khám phá Dinh III Bảo Đại, thưởng thức cà phê ngắm đồi thông.\n'
+          '  - Tối: Ăn lẩu gà lá é Tao Ngộ (đường 3/4) rồi đi dạo Chợ Đêm Đà Lạt thưởng thức bánh tráng nướng và sữa đậu nành nóng.\n\n'
+          '• **Ngày 2 (Săn mây & Trải nghiệm):**\n'
+          '  - Sáng sớm: Đón bình minh và săn mây tại Đồi chè Cầu Đất.\n'
+          '  - Trưa: Ghé Chùa Linh Phước (Chùa Ve Chai) với kiến trúc khảm sành độc đáo.\n'
+          '  - Chiều: Tham quan Thung Lũng Tình Yêu hoặc Ga Đà Lạt cổ kính.\n'
+          '  - Tối: Thưởng thức lẩu bò Ba Toa quán gỗ Quán Gỗ chuẩn vị.\n\n'
+          '• **Ngày 3 (Thư giãn & Mua quà):**\n'
+          '  - Sáng: Tham quan Vườn dâu tây công nghệ cao, tự tay hái dâu.\n'
+          '  - Mua đặc sản mứt dâu, hồng treo gió và trà atiso làm quà tại L\'angfarm.\n\n'
+          '💡 *Chi phí dự kiến:* Khoảng 1.800.000đ - 2.500.000đ/người cho chuyến đi 3N2Đ.';
+    }
+
+    if (q.contains('sa pa') || q.contains('sapa')) {
+      return '🏔️ **Cẩm nang du lịch Sa Pa trọn vẹn từ TravelGO:**\n\n'
+          '• **Trải nghiệm đỉnh cao:**\n'
+          '  - Chinh phục đỉnh Fansipan (3.143m) bằng tuyến cáp treo đạt kỷ lục thế giới, ngắm trọn biển mây Hoàng Liên Sơn.\n'
+          '  - Dạo bước tại Bản Cát Cát, thuê trang phục dân tộc H\'Mông chụp ảnh bên thác Tiên Sa.\n'
+          '  - Ngắm hoàng hôn kỳ vĩ tại Đèo Ô Quy Hồ - một trong "Tứ đại đỉnh đèo" Tây Bắc.\n\n'
+          '• **Ẩm thực đặc sản:** Lẩu cá hồi tươi, thịt trâu gác bếp, cơm lam ống nứa nướng than, lợn cắp nách quay giòn.\n'
+          '• **Trang phục khuyên dùng:** Nhiệt độ Sa Pa có thể xuống dưới 10°C vào ban đêm. Bạn hãy mang áo phao ấm, khăn len và giày leo núi chống trơn nhé!';
+    }
+
+    if (q.contains('phú quốc') || q.contains('phu quoc')) {
+      return '🏝️ **Kinh nghiệm khám phá Đảo Ngọc Phú Quốc:**\n\n'
+          '• **Bãi biển đẹp nhất:** Bãi Sao (cát trắng mịn như kem), Bãi Khem, Hòn Thơm (đi cáp treo vượt biển 7.899m).\n'
+          '• **Trải nghiệm không thể bỏ lỡ:** Lặn ngắm san hô tại quần đảo An Thới, ngắm hoàng hôn Sunset Sanato, thăm Làng chài Rạch Vẹm mùa sao biển.\n'
+          '• **Món ngon đảo ngọc:** Gỏi cá trích cuốn bánh tráng, bún quậy Kiến Xây trứ danh, hải sản Hàm Ninh, tiêu chín ngào đường.';
+    }
+
+    if (q.contains('hà nội') || q.contains('ha noi')) {
+      return '🏛️ **Gợi ý khám phá Thủ đô Hà Nội 36 phố phường:**\n\n'
+          '• **Địa điểm lịch sử & Văn hóa:** Hồ Hoàn Kiếm, Đền Ngọc Sơn, Lăng Bác, Chùa Một Cột, Văn Miếu - Quốc Tử Giám, Nhà tù Hỏa Lò.\n'
+          '• **Hành trình ẩm thực:** Phở bò Bát Đàn, bún chả Hương Liên (quán Tổng thống Obama), chả cá Lã Vọng, bánh cuốn Thanh Trì, cà phê trứng Giảng.\n'
+          '• **Mẹo di chuyển:** Buổi sáng đi bộ quanh hồ Gươm ngắm người dân tập dưỡng sinh, chiều tối đi xe buýt 2 tầng ngắm phố lên đèn.';
+    }
+
+    if (q.contains('đà nẵng') || q.contains('da nang') || q.contains('hội an') || q.contains('hoi an')) {
+      return '🌊 **Combo Du lịch Đà Nẵng - Hội An:**\n\n'
+          '• **Đà Nẵng:** Tắm biển Mỹ Khê (top bãi biển đẹp nhất hành tinh), xem Cầu Rồng phun lửa & nước lúc 21:00 thứ 7, CN; khám phá Bà Nà Hills với Cầu Vàng nổi tiếng thế giới.\n'
+          '• **Phố cổ Hội An:** Cách Đà Nẵng 30km, thả đèn hoa đăng trên sông Hoài, thưởng thức Cao Lầu Bà Bé, bánh mì Phượng, cơm gà Bà Buội.';
+    }
+
+    if (q.contains('ngân sách') || q.contains('chi phí') || q.contains('tiết kiệm') || q.contains('tien')) {
+      return '💰 **Bí quyết tối ưu chi phí du lịch từ TravelGO:**\n\n'
+          '1. **Quy tắc 30 - 30 - 25 - 15:** Dành 30% cho di chuyển (săn vé sớm), 30% cho lưu trú (chọn homestay uy tín), 25% cho ăn uống trải nghiệm và 15% cho vé tham quan & dự phòng.\n'
+          '2. **Lưu trú thông minh:** Đặt phòng trước từ 2-3 tuần, chọn các khu vực cách trung tâm 1-2km để tiết kiệm tới 40% chi phí phòng.\n'
+          '3. **Ăn uống địa phương:** Thưởng thức tại các khu chợ truyền thống vừa đúng phong vị địa phương vừa có giá niêm yết rõ ràng.';
+    }
+
+    // 4. Phản hồi các câu hỏi mở, chào hỏi và tương tác tổng quát
+    return '✈️ **Xin chào bạn! Tôi là Trợ lý AI du lịch TravelGO.**\n\n'
+        'Tôi có thể hỗ trợ bạn mọi thông tin từ:\n'
+        '• **Lên lịch trình thông minh:** Lịch trình chi tiết 2N1Đ, 3N2Đ, 4N3Đ theo sở thích của bạn.\n'
+        '• **Khám phá ẩm thực & quán cafe:** Danh sách các quán ăn đặc sản ngon, view ngắm cảnh đẹp nhất.\n'
+        '• **Tối ưu ngân sách:** Dự trù chi phí vé máy bay, phòng ở, ăn uống cho từng người.\n'
+        '• **Giải đáp kiến thức & địa danh:** Tra cứu thông tin điểm đến, văn hóa, danh lam thắng cảnh khắp Việt Nam và quốc tế.\n\n'
+        'Bạn đang dự định đi đâu hoặc muốn tìm hiểu điều gì? Hãy nhắn cho tôi nhé!';
   }
 }

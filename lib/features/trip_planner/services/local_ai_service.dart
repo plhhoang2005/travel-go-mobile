@@ -51,8 +51,8 @@ class LocalAiService {
           'stream': false,
         },
         options: Options(
-          sendTimeout: const Duration(seconds: 10),
-          receiveTimeout: const Duration(seconds: 25),
+          sendTimeout: const Duration(milliseconds: 1500),
+          receiveTimeout: const Duration(seconds: 4),
         ),
       );
 

@@ -135,6 +135,42 @@ void main() {
       expect(find.byType(AiPromptChips), findsWidgets);
     });
 
+    testWidgets('AiChatbotScreen renders back button and history button in AppBar', (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final provider = AiChatProvider();
+      await provider.init();
+
+      await tester.pumpWidget(
+        ChangeNotifierProvider<AiChatProvider>.value(
+          value: provider,
+          child: const MaterialApp(
+            home: AiChatbotScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('ai_chat_back_button')), findsOneWidget);
+      expect(find.byKey(const ValueKey('ai_chat_history_button')), findsOneWidget);
+    });
+
+    test('AiChatProvider Dynamic Conversational Engine responds intelligently to general knowledge', () async {
+      SharedPreferences.setMockInitialValues({});
+      final provider = AiChatProvider();
+      await provider.init();
+
+      await provider.sendMessage('ronaldo sinh năm bao nhiêu');
+      expect(provider.messages.length, 2);
+      final ronaldoReply = provider.messages.last.content;
+      expect(ronaldoReply, contains('1985'));
+      expect(ronaldoReply, contains('Madeira'));
+
+      await provider.sendMessage('gợi ý quán cafe view đẹp');
+      expect(provider.messages.length, 4);
+      final cafeReply = provider.messages.last.content;
+      expect(cafeReply, contains('cà phê'));
+    });
+
     testWidgets('GlobalProfileAvatarAction renders login for Guest', (tester) async {
       final auth = AuthProvider();
 

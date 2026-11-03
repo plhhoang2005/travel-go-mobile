@@ -71,12 +71,15 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       appBar: AppBar(
         elevation: 0,
         backgroundColor: colorScheme.surface,
-        leading: Builder(
-          builder: (ctx) => IconButton(
-            icon: const Icon(Icons.menu_rounded),
-            tooltip: 'Lịch sử hội thoại',
-            onPressed: () => Scaffold.of(ctx).openDrawer(),
-          ),
+        leading: IconButton(
+          key: const ValueKey('ai_chat_back_button'),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          tooltip: 'Quay lại',
+          onPressed: () {
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            }
+          },
         ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -131,6 +134,14 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                 ? 'Tìm kiếm web: Đang BẬT'
                 : 'Tìm kiếm web: Đang TẮT',
             onPressed: provider.toggleWebGrounding,
+          ),
+          Builder(
+            builder: (ctx) => IconButton(
+              key: const ValueKey('ai_chat_history_button'),
+              icon: const Icon(Icons.history_rounded),
+              tooltip: 'Lịch sử trò chuyện',
+              onPressed: () => Scaffold.of(ctx).openDrawer(),
+            ),
           ),
           IconButton(
             icon: const Icon(Icons.add_comment_outlined),
@@ -463,6 +474,17 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 16,
                   vertical: 12,
+                ),
+                suffixIcon: ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: _inputController,
+                  builder: (context, value, _) {
+                    if (value.text.isEmpty) return const SizedBox.shrink();
+                    return IconButton(
+                      icon: const Icon(Icons.clear_rounded, size: 18),
+                      tooltip: 'Xóa nội dung',
+                      onPressed: () => _inputController.clear(),
+                    );
+                  },
                 ),
                 filled: true,
                 fillColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),

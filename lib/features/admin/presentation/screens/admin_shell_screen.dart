@@ -7,6 +7,7 @@ import 'package:travelgo_mobile/core/constants/supabase_constants.dart';
 import 'package:travelgo_mobile/features/admin/presentation/screens/admin_catalogue_screen.dart';
 import 'package:travelgo_mobile/features/admin/presentation/screens/admin_draft_history_screen.dart';
 import 'package:travelgo_mobile/features/admin/presentation/screens/admin_users_screen.dart';
+import 'package:travelgo_mobile/features/admin/presentation/screens/admin_ai_management_screen.dart';
 import 'package:travelgo_mobile/features/admin/providers/admin_account_provider.dart';
 import 'package:travelgo_mobile/features/admin/providers/admin_catalogue_provider.dart';
 import 'package:travelgo_mobile/features/admin/providers/admin_publication_provider.dart';
@@ -265,6 +266,19 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
                             icon: const Icon(Icons.refresh, size: 18),
                             label: const Text('Thử lại'),
                           ),
+                          const SizedBox(width: 8),
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.amber.shade800,
+                              foregroundColor: Colors.white,
+                            ),
+                            onPressed: () async {
+                              await auth.switchToAdminDemoSession();
+                              await _initAndCheckAccess();
+                            },
+                            icon: const Icon(Icons.science_outlined, size: 18),
+                            label: const Text('Vào Demo Sandbox'),
+                          ),
                         ],
                       ),
                     ],
@@ -281,6 +295,7 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
             AdminUsersScreen(),
             AdminCatalogueScreen(),
             AdminDraftHistoryScreen(),
+            AdminAiManagementScreen(),
           ];
 
           final demoBanner = auth.isDemoSession
@@ -341,6 +356,11 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
                         selectedIcon: Icon(Icons.history),
                         label: Text('Lịch sử'),
                       ),
+                      NavigationRailDestination(
+                        icon: Icon(Icons.psychology_outlined),
+                        selectedIcon: Icon(Icons.psychology),
+                        label: Text('Quản trị AI'),
+                      ),
                     ],
                   ),
                   const VerticalDivider(thickness: 1, width: 1),
@@ -393,6 +413,11 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
                   icon: Icon(Icons.history_outlined),
                   selectedIcon: Icon(Icons.history),
                   label: 'Lịch sử',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.psychology_outlined),
+                  selectedIcon: Icon(Icons.psychology),
+                  label: 'Quản trị AI',
                 ),
               ],
             ),
