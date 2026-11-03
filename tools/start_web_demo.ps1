@@ -68,9 +68,12 @@ if ($tunnelUrl) {
     Write-Host "1. Da sao chep duong link tren vao Clipboard." -ForegroundColor White
     Write-Host "2. Thay co co the mo link tren bang trinh duyet bat ky (dien thoai / laptop)." -ForegroundColor White
     Write-Host "3. Giao dien Web API Playground cho phep:" -ForegroundColor White
-    Write-Host "   - Test API Tao lich trinh ca nhan hoa (POST /api/v1/plan-trip)" -ForegroundColor Cyan
-    Write-Host "   - Test API Chatbot du lich Local AI (POST /api/v1/chat)" -ForegroundColor Cyan
-    Write-Host "   - Xem payload JSON, ma nguon cURL va ket qua thuc te tu Qwen3 4B." -ForegroundColor Cyan
+    Write-Host "   - Test API Tao lich trinh ca nhan hoa (POST /plan-trip)" -ForegroundColor Cyan
+    Write-Host "   - Test API Chatbot du lich Local AI (POST /chat)" -ForegroundColor Cyan
+    Write-Host "   - Test API Danh muc diem den (GET /destinations)" -ForegroundColor Cyan
+    Write-Host "   - Test API Danh gia & Phan hoi cong dong (GET & POST /reviews, /reply)" -ForegroundColor Cyan
+    Write-Host "   - Test API Xac thuc & Ho so du lich (POST /auth/login, GET /profile)" -ForegroundColor Cyan
+    Write-Host "   - Xem payload JSON, ma nguon cURL va ket qua truc quan." -ForegroundColor Cyan
     Write-Host "==========================================================" -ForegroundColor Green
     Write-Host "Nhan Ctrl+C de dung server khi ket thuc buoi bao cao.`n" -ForegroundColor Gray
 

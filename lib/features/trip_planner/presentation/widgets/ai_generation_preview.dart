@@ -334,7 +334,7 @@ class _AiGenerationPreviewState extends State<AiGenerationPreview> {
                     Text(
                       widget.isLocalAi
                           ? 'Mô hình Local AI (Ollama - Qwen) xử lý dữ liệu trực tiếp trên máy tính. Hoàn toàn riêng tư và không gửi ra internet.'
-                          : 'Kết quả AI được lưu tạm trên máy chủ tối đa 24 giờ để kiểm tra lại yêu cầu. Gemini xử lý thông tin bạn đồng ý gửi.',
+                          : 'Kết quả AI được lưu tạm trên máy chủ tối đa 24 giờ để kiểm tra lại yêu cầu. Hệ thống AI xử lý thông tin bạn đồng ý gửi.',
                       style: const TextStyle(fontSize: 11, height: 1.3),
 
                     ),
@@ -352,7 +352,7 @@ class _AiGenerationPreviewState extends State<AiGenerationPreview> {
                   title: Text(
                     widget.isLocalAi
                         ? 'Đồng ý tạo lịch trình bằng Local AI (Ollama - Qwen)'
-                        : 'Đồng ý gửi các thông tin trên đến Gemini',
+                        : 'Đồng ý gửi các thông tin trên đến Hệ thống AI',
                   ),
                   subtitle: Text(
                     widget.isLocalAi
