@@ -1,13 +1,18 @@
-# 🌍 TravelGO Mobile - Smart Travel Decision Intelligence
+# 🌍 TravelGO Mobile - Smart Travel Itinerary & Decision Assistant
 
 ![Flutter](https://img.shields.io/badge/Flutter-02569B?style=for-the-badge&logo=flutter&logoColor=white)
 ![Dart](https://img.shields.io/badge/Dart-0175C2?style=for-the-badge&logo=dart&logoColor=white)
+![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20iOS%20%7C%20Web-green?style=for-the-badge)
 
-**TravelGO** là ứng dụng di động hỗ trợ ra quyết định du lịch thông minh, mang đến trải nghiệm **Interactive Mobile Dashboard**, giúp người dùng trực quan hóa lịch trình, tối ưu hóa cung đường và theo dõi ngân sách.
+**TravelGO** là ứng dụng di động hỗ trợ thiết kế lịch trình du lịch thông minh, tối ưu hóa ngân sách và kết nối cộng đồng chia sẻ chuyến đi, tích hợp Trợ lý Trí tuệ Nhân tạo (Local AI Qwen3 / Cloud).
+
+> 🖥️ **Backend Repository (Server & Database API):** [https://github.com/plhhoang2005/travel-go-backend](https://github.com/plhhoang2005/travel-go-backend)  
+> 📄 **Tài liệu Swagger UI (OpenAPI 3.0):** [https://plhhoang2005.github.io/travel-go-mobile/swagger/](https://plhhoang2005.github.io/travel-go-mobile/swagger/)  
+> 🌐 **Giao diện Web API Playground:** [https://plhhoang2005.github.io/travel-go-mobile/api-playground/](https://plhhoang2005.github.io/travel-go-mobile/api-playground/)
 
 ---
 
-## ⚙️ Hướng Dẫn Cài Đặt (Dành cho Giảng Viên)
+## ⚙️ Hướng Dẫn Cài Đặt Ứng Dụng (Dành Cho Giảng Viên & Nhóm)
 
 Dự án này đã được đóng gói API Key (Supabase) trực tiếp vào mã nguồn để thuận tiện cho việc chấm điểm (Không cần cài đặt file `.env`). Thầy/Cô chỉ cần thực hiện 3 bước sau:
 
