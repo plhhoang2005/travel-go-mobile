@@ -330,7 +330,7 @@ class _ManualExpenseFormState extends State<ManualExpenseForm> {
                       title: item.title,
                       dayId: item.dayId,
                       date: widget.document.days
-                          .firstWhere((d) => d.id == item.dayId)
+                          .firstWhere((d) => d.id == item.dayId, orElse: () => widget.document.days.first)
                           .date,
                     ),
               provenance: provenance,

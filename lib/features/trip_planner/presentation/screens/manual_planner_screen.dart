@@ -827,7 +827,10 @@ class _EditorSections extends StatelessWidget {
                   onAdd: (d) => run(() => screen._activity(d)),
                   onEdit: (i) => run(
                     () => screen._activity(
-                      doc.days.firstWhere((d) => d.id == i.dayId),
+                      doc.days.firstWhere(
+                        (d) => d.id == i.dayId,
+                        orElse: () => doc.days.first,
+                      ),
                       item: i,
                     ),
                   ),

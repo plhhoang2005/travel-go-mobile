@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:travelgo_mobile/features/explore/providers/discovery_provider.dart';
+import 'package:travelgo_mobile/features/explore/models/catalogue_reference.dart';
 import 'package:travelgo_mobile/features/explore/services/catalogue_parser.dart';
 import 'package:travelgo_mobile/features/explore/presentation/screens/destination_detail_screen.dart';
 import 'package:travelgo_mobile/features/trip_planner/providers/trip_provider.dart';
@@ -178,6 +179,60 @@ void main() {
       expect(find.text('Chưa xác minh tính khả thi'), findsOneWidget);
       expect(find.text('Synthetic test condition'), findsOneWidget);
       expect(find.text('Ngày 1'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'expanding place with missing or empty sourceId does not crash (no Bad state: No element)',
+    (tester) async {
+      final catalogue = CatalogueParser().parse(jsonEncode(catalogueData()));
+      final destinationWithUnknownSource = DestinationReference(
+        id: 'test-dest',
+        name: 'Điểm đến thử nghiệm',
+        region: 'Miền Trung',
+        places: [
+          const PlaceReference(
+            id: 'place-no-source',
+            name: 'Địa điểm không có nguồn',
+            sourceId: 'non-existent-source-id',
+          ),
+        ],
+        sample: SampleReference.unavailable(id: 'test-dest'),
+      );
+
+      final discovery = DiscoveryProvider();
+      final trip = TripProvider(apiService: DraftApi());
+      addTearDown(discovery.dispose);
+      addTearDown(trip.dispose);
+
+      await pumpDiscovery(
+        tester,
+        discovery,
+        trip,
+        screen: DestinationDetailScreen(
+          catalogue: catalogue,
+          destination: destinationWithUnknownSource,
+        ),
+      );
+
+      // Switch to Attractions tab
+      await tester.tap(find.textContaining('Điểm tham quan'));
+      await tester.pumpAndSettle();
+
+      // Tap to expand the place accordion card
+      final toggleButton = find.byKey(
+        const ValueKey('toggle-place-place-no-source'),
+      );
+      expect(toggleButton, findsOneWidget);
+      await tester.ensureVisible(toggleButton);
+      await tester.tap(toggleButton);
+      await tester.pumpAndSettle();
+
+      // Must render details and reviews section without throwing Bad state: No element
+      expect(find.text('Địa điểm không có nguồn'), findsWidgets);
+      expect(find.textContaining('Thông tin tổng hợp TravelGO'), findsOneWidget);
+      expect(find.byKey(const ValueKey('place-reviews-place-no-source')), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );

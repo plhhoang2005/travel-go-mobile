@@ -62,7 +62,7 @@ class ManualItineraryTimeline extends StatelessWidget {
     final doc = planner.document;
     if (doc == null) return const SizedBox.shrink();
     final ordinal = selectedDayOrdinal.clamp(1, doc.days.length);
-    final day = doc.days.firstWhere((d) => d.ordinal == ordinal);
+    final day = doc.days.firstWhere((d) => d.ordinal == ordinal, orElse: () => doc.days.first);
     final items = doc.items.where((i) => i.dayId == day.id).toList()
       ..sort((a, b) => a.position.compareTo(b.position));
     final editable = planner.isEditable, generation = planner.editorGeneration;

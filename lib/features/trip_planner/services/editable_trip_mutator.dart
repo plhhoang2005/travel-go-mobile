@@ -48,7 +48,7 @@ class EditableTripMutator {
 
   static EditableTripDocumentV2 _remove(EditableTripDocumentV2 doc, String id) {
     final removed = _item(doc, id);
-    final day = doc.days.firstWhere((d) => d.id == removed.dayId);
+    final day = doc.days.firstWhere((d) => d.id == removed.dayId, orElse: () => doc.days.first);
     final next = doc.copyWith(
       items: doc.items.where((i) => i.id != id).toList(),
       estimates: doc.estimates

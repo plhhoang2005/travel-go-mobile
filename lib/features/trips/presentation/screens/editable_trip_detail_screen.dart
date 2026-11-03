@@ -811,7 +811,7 @@ class _LegacyTripCopyScreenState extends State<LegacyTripCopyScreen> {
         metadata = snapshot.cachedPayload.metadata;
     final destination = _destination == null
         ? null
-        : _catalogue!.destinations.firstWhere((d) => d.id == _destination);
+        : _catalogue?.destinations.where((d) => d.id == _destination).firstOrNull;
     _preview = LegacyTripCopyAdapter().preview(
       snapshot.cachedPayload,
       sourceTripId: snapshot.tripId,

@@ -906,13 +906,13 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
                   if (!hasVisits)
                     _PlaceSource(
                       place: place,
-                      source: catalogue.source(place.sourceId),
+                      source: catalogue.sourceOrNull(place.sourceId),
                     )
                   else
                     PlaceVisitDetailsWidget(
                       key: ValueKey('visit-place-${place.id}'),
                       place: place,
-                      referenceSource: catalogue.source(place.sourceId),
+                      referenceSource: catalogue.sourceOrNull(place.sourceId),
                       details: visitSnapshot?.catalogue.places[place.id],
                       snapshot: visitSnapshot,
                       showReleaseInfo: false,
@@ -974,13 +974,14 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
                   for (final id in day.placeIds)
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Text(destination.place(id).name),
+                      child: Text(destination.placeOrNull(id)?.name ?? id),
                     ),
                   const SizedBox(height: 16),
                 ],
                 Text('Review biên tập: ${sample.editorialReview.reviewedAt}'),
                 for (final id in sample.editorialReview.sourceIds)
-                  SelectableText(catalogue.source(id).url),
+                  if (catalogue.sourceOrNull(id) case final src?)
+                    SelectableText(src.url),
               ],
             ),
           ),
@@ -992,8 +993,8 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
 
 class _PlaceSource extends StatelessWidget {
   final PlaceReference place;
-  final SourceReference source;
-  const _PlaceSource({required this.place, required this.source});
+  final SourceReference? source;
+  const _PlaceSource({required this.place, this.source});
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(bottom: 16),
@@ -1003,15 +1004,19 @@ class _PlaceSource extends StatelessWidget {
         Text(place.name, style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 4),
         const Text('Hoạt động đón khách: Chưa xác minh'),
-        Text('Nguồn: ${source.title} · ${source.publisher}'),
-        SelectableText(
-          source.url,
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-        Text(
-          'Ngày kiểm tên/nguồn: ${source.checkedAt}',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
+        if (source != null && source!.url.isNotEmpty) ...[
+          Text('Nguồn: ${source!.title} · ${source!.publisher}'),
+          SelectableText(
+            source!.url,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          Text(
+            'Ngày kiểm tên/nguồn: ${source!.checkedAt}',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ] else ...[
+          const Text('Nguồn: Thông tin tổng hợp TravelGO'),
+        ],
         const SizedBox(height: 16),
         const Divider(height: 1),
       ],

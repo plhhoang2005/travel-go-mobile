@@ -9,7 +9,24 @@ class CatalogueReference {
     required List<DestinationReference> destinations,
   }) : sources = List.unmodifiable(sources),
        destinations = List.unmodifiable(destinations);
-  SourceReference source(String id) => sources.firstWhere((s) => s.id == id);
+  SourceReference source(String id) => sources.firstWhere(
+    (s) => s.id == id,
+    orElse: () => SourceReference(
+      id: id,
+      title: 'Nguồn tham khảo',
+      url: '',
+      publisher: 'TravelGO',
+      checkedAt: checkedAt,
+    ),
+  );
+
+  SourceReference? sourceOrNull(String? id) {
+    if (id == null || id.isEmpty) return null;
+    return sources.cast<SourceReference?>().firstWhere(
+      (s) => s?.id == id,
+      orElse: () => null,
+    );
+  }
 }
 
 class SourceReference {
@@ -44,7 +61,22 @@ class DestinationReference {
     this.sourceRefs = const [],
   }) : places = List.unmodifiable(places);
 
-  PlaceReference place(String id) => places.firstWhere((p) => p.id == id);
+  PlaceReference place(String id) => places.firstWhere(
+    (p) => p.id == id,
+    orElse: () => PlaceReference(
+      id: id,
+      name: id,
+      sourceId: '',
+    ),
+  );
+
+  PlaceReference? placeOrNull(String? id) {
+    if (id == null || id.isEmpty) return null;
+    return places.cast<PlaceReference?>().firstWhere(
+      (p) => p?.id == id,
+      orElse: () => null,
+    );
+  }
 }
 
 class PlaceReference {

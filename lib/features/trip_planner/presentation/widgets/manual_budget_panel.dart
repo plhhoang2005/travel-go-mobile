@@ -115,7 +115,7 @@ class ManualBudgetPanel extends StatelessWidget {
 
   static String _link(EditableTripDocumentV2 doc, String? id) => id == null
       ? 'Khoản riêng của chuyến đi'
-      : doc.items.firstWhere((i) => i.id == id).title;
+      : (doc.items.where((i) => i.id == id).firstOrNull?.title ?? 'Hoạt động đã xóa');
 }
 
 class ManualBudgetSummary extends StatelessWidget {
