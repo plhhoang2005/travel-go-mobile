@@ -14,6 +14,7 @@ class LocalAiSettings {
   final String systemPrompt;
   final double temperature;
   final int dailyQuota;
+  final bool isChatbotEnabled;
 
   LocalAiSettings({
     String baseUrl = ApiConstants.localOllamaHost,
@@ -21,6 +22,7 @@ class LocalAiSettings {
     String systemPrompt = defaultPrompt,
     this.temperature = 0.7,
     this.dailyQuota = 10,
+    this.isChatbotEnabled = true,
   }) : baseUrl = _normalizeUrl(baseUrl),
        modelName = modelName.trim(),
        systemPrompt = systemPrompt.trim() {
@@ -59,6 +61,7 @@ class LocalAiSettings {
     'systemPrompt': systemPrompt,
     'temperature': temperature,
     'dailyQuota': dailyQuota,
+    'isChatbotEnabled': isChatbotEnabled,
   };
 
   factory LocalAiSettings.fromJson(Map<String, dynamic> json) =>
@@ -66,7 +69,8 @@ class LocalAiSettings {
         baseUrl: json['baseUrl'] as String,
         modelName: json['modelName'] as String,
         systemPrompt: json['systemPrompt'] as String,
-        temperature: (json['temperature'] as num).toDouble(),
+        temperature: (json['temperature'] as num?)?.toDouble() ?? 0.7,
         dailyQuota: (json['dailyQuota'] as num?)?.toInt() ?? 10,
+        isChatbotEnabled: json['isChatbotEnabled'] as bool? ?? true,
       );
 }

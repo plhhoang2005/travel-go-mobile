@@ -169,13 +169,15 @@ void main() {
         auth: auth,
         visits: visits,
       );
-      expect(find.text('Lập chuyến đi'), findsOneWidget);
+      expect(find.text('Tạo chuyến đi nhanh'), findsOneWidget);
+      await tester.ensureVisible(find.widgetWithText(ChoiceChip, 'Văn hóa'));
+      await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(ChoiceChip, 'Văn hóa'));
       await tester.pumpAndSettle();
       await tester.scrollUntilVisible(
         find.text('Huế'),
         400,
-        scrollable: find.byType(Scrollable).last,
+        scrollable: find.byType(Scrollable).first,
       );
       await tester.ensureVisible(find.text('Huế'));
       await tester.pumpAndSettle();
@@ -224,7 +226,7 @@ void main() {
       await tester.scrollUntilVisible(
         find.widgetWithText(ChoiceChip, 'Văn hóa'),
         -400,
-        scrollable: find.byType(Scrollable).last,
+        scrollable: find.byType(Scrollable).first,
       );
       expect(
         tester

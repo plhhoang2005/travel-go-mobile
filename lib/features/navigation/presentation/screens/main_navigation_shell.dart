@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/widgets/go_ai_mascot.dart';
 
 import '../../../ai_chat/presentation/screens/ai_chatbot_screen.dart';
+import '../../../ai_chat/providers/ai_chat_provider.dart';
 import '../../../community/presentation/screens/community_feed_screen.dart';
 import '../../../home/presentation/screens/main_home_screen.dart';
 import '../../../explore/presentation/screens/explore_screen.dart';
@@ -53,51 +55,56 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
 
   @override
   Widget build(BuildContext context) {
+    final isChatbotEnabled =
+        context.watch<AiChatProvider?>()?.settings.isChatbotEnabled ?? true;
+
     return Scaffold(
       body: IndexedStack(index: _currentIndex, children: _screens),
-      floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 6.0, right: 2.0),
-        child: FloatingActionButton(
-          key: const ValueKey('global_ai_chatbot_fab'),
-          heroTag: 'global_ai_chatbot_fab',
-          tooltip: 'Trợ lý GoAI TravelGO',
-          elevation: 4,
-          highlightElevation: 6,
-          shape: const CircleBorder(),
-          backgroundColor: Colors.white,
-          onPressed: () => Navigator.push(
-            context,
-            MaterialPageRoute<void>(
-              builder: (_) => const AiChatbotScreen(),
-            ),
-          ),
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              const GoAiMascot(size: 44),
-              Positioned(
-                top: 2,
-                right: 2,
-                child: Container(
-                  width: 13,
-                  height: 13,
-                  decoration: const BoxDecoration(
-                    color: AppTheme.coralColor,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Center(
-                    child: Icon(
-                      Icons.auto_awesome,
-                      color: Colors.white,
-                      size: 8,
-                    ),
+      floatingActionButton: isChatbotEnabled
+          ? Padding(
+              padding: const EdgeInsets.only(bottom: 6.0, right: 2.0),
+              child: FloatingActionButton(
+                key: const ValueKey('global_ai_chatbot_fab'),
+                heroTag: 'global_ai_chatbot_fab',
+                tooltip: 'Trợ lý GoAI TravelGO',
+                elevation: 4,
+                highlightElevation: 6,
+                shape: const CircleBorder(),
+                backgroundColor: Colors.white,
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => const AiChatbotScreen(),
                   ),
                 ),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    const GoAiMascot(size: 44),
+                    Positioned(
+                      top: 2,
+                      right: 2,
+                      child: Container(
+                        width: 13,
+                        height: 13,
+                        decoration: const BoxDecoration(
+                          color: AppTheme.coralColor,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Center(
+                          child: Icon(
+                            Icons.auto_awesome,
+                            color: Colors.white,
+                            size: 8,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ],
-          ),
-        ),
-      ),
+            )
+          : null,
       bottomNavigationBar: NavigationBarTheme(
         data: NavigationBarTheme.of(context).copyWith(
           labelTextStyle: WidgetStateProperty.resolveWith((states) {

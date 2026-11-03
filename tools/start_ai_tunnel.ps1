@@ -41,6 +41,10 @@ while ($sw.Elapsed.TotalSeconds -lt $timeoutSeconds -and -not $tunnelUrl) {
 }
 
 if ($tunnelUrl) {
+    # Save URL to current_tunnel_url.txt
+    $tunnelFile = Join-Path $PSScriptRoot "current_tunnel_url.txt"
+    $tunnelUrl | Out-File -FilePath $tunnelFile -Encoding utf8 -NoNewline
+
     Write-Host "`n==========================================================" -ForegroundColor Green
     Write-Host " [THANH CONG] DUONG LINK HTTPS CHO CA NHOM:" -ForegroundColor Green
     Write-Host " $tunnelUrl" -ForegroundColor Yellow
@@ -52,8 +56,17 @@ if ($tunnelUrl) {
     Write-Host "`n[Luu y] De nguyen cua so nay chay ngam khi ca nhom dang test." -ForegroundColor DarkGray
     Set-Clipboard $tunnelUrl -ErrorAction SilentlyContinue
     
-    # Wait until process exits
-    $proc.WaitForExit()
+    # Drain stderr continuously so pipe buffer never deadlocks
+    try {
+        while (-not $proc.HasExited) {
+            $null = $proc.StandardError.ReadLine()
+            Start-Sleep -Milliseconds 200
+        }
+    } finally {
+        if (-not $proc.HasExited) {
+            $proc.Kill()
+        }
+    }
 } else {
     Write-Host "Khong the lay link tu Cloudflare Tunnel. Kiem tra ket noi mang." -ForegroundColor Red
     pause

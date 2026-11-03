@@ -286,7 +286,7 @@ void main() {
             expect(find.byType(ManualSavePreview), findsNothing);
             // In C1: guest import banner is removed from MyTripsScreen; guest empty state is rendered
             expect(find.text('Mở bản nháp tự lập'), findsNothing);
-            expect(find.text('Đăng nhập để lưu chuyến đi'), findsOneWidget);
+            expect(find.text('Đăng nhập để đồng bộ chuyến đi'), findsOneWidget);
             expect(bundle.drafts.drafts.single.draftId, draftId);
             expect(bundle.drafts.drafts.single.revision, 1);
             expect(ctx.server.creates, 0);

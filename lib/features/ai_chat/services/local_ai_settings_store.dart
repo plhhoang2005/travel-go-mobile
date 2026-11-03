@@ -47,6 +47,7 @@ class LocalAiSettingsStore {
         systemPrompt: prompt,
         temperature: loaded.temperature,
         dailyQuota: loaded.dailyQuota,
+        isChatbotEnabled: loaded.isChatbotEnabled,
       );
     } catch (_) {
       _loadWarning = 'Cấu hình AI đã lưu không hợp lệ. Đang dùng cấu hình mặc định; vui lòng kiểm tra lại.';
