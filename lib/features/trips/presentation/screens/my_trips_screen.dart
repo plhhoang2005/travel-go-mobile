@@ -7,6 +7,10 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
 import '../../../auth/providers/auth_provider.dart';
 import '../../../trip_planner/presentation/screens/home_planner_screen.dart';
+import '../../../../core/widgets/go_ai_mascot.dart';
+import '../../../trip_planner/presentation/widgets/smart_trip_wizard_sheet.dart';
+import '../../../trip_planner/presentation/widgets/trip_template_preview_sheet.dart';
+import '../../../trip_planner/services/trip_template_repository.dart';
 import '../../../community/presentation/screens/community_feed_screen.dart';
 import '../../models/editable_remote_records.dart';
 import '../../models/saved_trip_model.dart';
@@ -488,6 +492,8 @@ class _MyTripsScreenState extends State<MyTripsScreen>
 
   Widget _buildEmptyState(BuildContext context, String title) {
     final auth = context.watch<AuthProvider>();
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Center(
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -495,40 +501,68 @@ class _MyTripsScreenState extends State<MyTripsScreen>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              Icons.luggage_outlined,
-              size: 48,
-              color: Theme.of(context).colorScheme.primary,
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: colorScheme.primaryContainer.withValues(alpha: 0.5),
+                shape: BoxShape.circle,
+              ),
+              child: const GoAiMascot(size: 56, isWaving: true),
             ),
             const SizedBox(height: 16),
             Text(
               title,
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleLarge,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            const Text(
-              'Chọn điểm đến và tạo lịch trình riêng, thêm hoạt động rồi theo dõi ngân sách.',
+            Text(
+              'Lên kế hoạch dễ dàng chỉ trong 3 bước cùng GoAI, hoặc khám phá các lịch trình mẫu được thiết kế sẵn.',
               textAlign: TextAlign.center,
+              style: TextStyle(color: colorScheme.onSurfaceVariant),
             ),
             const SizedBox(height: 24),
-            if (auth.isGuest || auth.currentUser == null) ...[
-              FilledButton.icon(
+            FilledButton.icon(
+              onPressed: () => SmartTripWizardSheet.show(context),
+              icon: const Icon(Icons.auto_awesome),
+              label: const Text('Tạo chuyến đi nhanh (GoAI)'),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              ),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: () {
+                final templates = TripTemplateRepository().getCuratedTemplates();
+                if (templates.isNotEmpty) {
+                  TripTemplatePreviewSheet.show(context, templates.first);
+                }
+              },
+              icon: const Icon(Icons.bookmark_added_outlined),
+              label: const Text('Khám phá lịch trình mẫu'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              ),
+            ),
+            const SizedBox(height: 10),
+            if (auth.isGuest || auth.currentUser == null)
+              TextButton.icon(
                 onPressed: () => Navigator.of(
                   context,
                 ).push(MaterialPageRoute(builder: (_) => const LoginScreen())),
-                icon: const Icon(Icons.login),
-                label: const Text('Đăng nhập để lưu chuyến đi'),
+                icon: const Icon(Icons.login, size: 16),
+                label: const Text('Đăng nhập để đồng bộ chuyến đi'),
+              )
+            else
+              TextButton.icon(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const HomePlannerScreen()),
+                ),
+                icon: const Icon(Icons.tune_rounded, size: 16),
+                label: const Text('Lập chi tiết với thanh trượt'),
               ),
-              const SizedBox(height: 8),
-            ],
-            OutlinedButton.icon(
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const HomePlannerScreen()),
-              ),
-              icon: const Icon(Icons.edit_calendar_outlined),
-              label: const Text('Lập chuyến đi'),
-            ),
           ],
         ),
       ),

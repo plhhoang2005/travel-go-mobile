@@ -15,6 +15,10 @@ import '../../../explore/presentation/screens/destination_detail_screen.dart';
 import '../../../explore/presentation/screens/explore_screen.dart';
 import '../../../explore/presentation/widgets/destination_reference_list_tile.dart';
 import '../../../trip_planner/presentation/screens/home_planner_screen.dart';
+import 'package:intl/intl.dart';
+import '../../../trip_planner/presentation/widgets/smart_trip_wizard_sheet.dart';
+import '../../../trip_planner/presentation/widgets/trip_template_preview_sheet.dart';
+import '../../../trip_planner/services/trip_template_repository.dart';
 import '../../../profile/presentation/screens/profile_screen.dart';
 
 
@@ -66,6 +70,8 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
                       const _HomeGreeting(),
                       const SizedBox(height: 24),
                       const _HomePlanningEntry(),
+                      const SizedBox(height: 20),
+                      const _HomeCuratedTemplatesSection(),
                       const SizedBox(height: 24),
                       Text(
                         'Khám phá theo sở thích',
@@ -224,14 +230,11 @@ class _HomePlanningEntry extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          OutlinedButton.icon(
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute<void>(builder: (_) => const ExploreScreen()),
-            ),
-            icon: const Icon(Icons.search_rounded, size: 18),
-            label: const Text('Tìm điểm đến'),
-            style: OutlinedButton.styleFrom(
+          FilledButton.icon(
+            onPressed: () => SmartTripWizardSheet.show(context),
+            icon: const Icon(Icons.auto_awesome, size: 18),
+            label: const Text('Tạo chuyến đi nhanh'),
+            style: FilledButton.styleFrom(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(24),
               ),
@@ -239,19 +242,42 @@ class _HomePlanningEntry extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          FilledButton.icon(
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute<void>(builder: (_) => const HomePlannerScreen()),
-            ),
-            icon: const Icon(Icons.add_rounded, size: 18),
-            label: const Text('Lập chuyến đi'),
-            style: FilledButton.styleFrom(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(24),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(builder: (_) => const ExploreScreen()),
+                  ),
+                  icon: const Icon(Icons.search_rounded, size: 16),
+                  label: const Text('Tìm điểm đến'),
+                  style: OutlinedButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                ),
               ),
-              padding: const EdgeInsets.symmetric(vertical: 12),
-            ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(builder: (_) => const HomePlannerScreen()),
+                  ),
+                  icon: const Icon(Icons.tune_rounded, size: 16),
+                  label: const Text('Lập chi tiết'),
+                  style: OutlinedButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -324,6 +350,151 @@ class _HomeCatalogue extends StatelessWidget {
           );
         },
       ),
+    );
+  }
+}
+
+class _HomeCuratedTemplatesSection extends StatelessWidget {
+  const _HomeCuratedTemplatesSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final templates = TripTemplateRepository().getCuratedTemplates();
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Lịch trình gợi ý sẵn',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Thiết kế chuẩn bởi TravelGO · 1 chạm sao chép',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 185,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: templates.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            itemBuilder: (context, index) {
+              final template = templates[index];
+              return InkWell(
+                onTap: () => TripTemplatePreviewSheet.show(context, template),
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  width: 250,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: colorScheme.surface,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppTheme.border),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.03),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: colorScheme.primaryContainer,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              template.destinationName,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: colorScheme.onPrimaryContainer,
+                              ),
+                            ),
+                          ),
+                          const Spacer(),
+                          Text(
+                            '${template.numDays} ngày',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: colorScheme.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        template.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          height: 1.25,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        template.tagline,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: colorScheme.onSurfaceVariant,
+                          height: 1.2,
+                        ),
+                      ),
+                      const Spacer(),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            '${NumberFormat.compact().format(template.estimatedBudgetVnd)}đ/người',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: colorScheme.secondary,
+                            ),
+                          ),
+                          Icon(
+                            Icons.arrow_forward_rounded,
+                            size: 16,
+                            color: colorScheme.primary,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }
