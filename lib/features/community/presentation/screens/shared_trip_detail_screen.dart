@@ -249,23 +249,59 @@ class _SharedTripDetailScreenState extends State<SharedTripDetailScreen> {
 
   List<Map<String, dynamic>> _extractItineraryDays() {
     final planData = _trip.tripData;
-    if (planData.isEmpty) return const [];
-
     dynamic rawDays;
-    if (planData.containsKey('plan') && planData['plan'] is Map) {
-      final planMap = planData['plan'] as Map<String, dynamic>;
-      rawDays = planMap['itineraryDays'];
-    } else if (planData.containsKey('itineraryDays')) {
-      rawDays = planData['itineraryDays'];
+
+    if (planData.isNotEmpty) {
+      if (planData.containsKey('plan') && planData['plan'] is Map) {
+        final planMap = planData['plan'] as Map<String, dynamic>;
+        rawDays = planMap['itineraryDays'] ??
+            planMap['itinerary_days'] ??
+            planMap['days'] ??
+            planMap['itinerary'];
+      } else if (planData.containsKey('itineraryDays')) {
+        rawDays = planData['itineraryDays'];
+      } else if (planData.containsKey('itinerary_days')) {
+        rawDays = planData['itinerary_days'];
+      } else if (planData.containsKey('days')) {
+        rawDays = planData['days'];
+      } else if (planData.containsKey('itinerary')) {
+        rawDays = planData['itinerary'];
+      }
     }
 
-    if (rawDays is List) {
+    if (rawDays is List && rawDays.isNotEmpty) {
       return rawDays
           .whereType<Map>()
           .map((d) => Map<String, dynamic>.from(d))
           .toList();
     }
-    return const [];
+
+    return _generateFallbackDays();
+  }
+
+  List<Map<String, dynamic>> _generateFallbackDays() {
+    final count = (_trip.daysCount != null && _trip.daysCount! > 0)
+        ? _trip.daysCount!
+        : 1;
+    final dest = _trip.destination.trim().isNotEmpty
+        ? _trip.destination.trim()
+        : 'điểm đến';
+    final List<Map<String, dynamic>> days = [];
+    for (var i = 1; i <= count; i++) {
+      days.add({
+        'day': i,
+        'title': 'Ngày $i: Khám phá $dest',
+        'activities': [
+          {
+            'time': '08:00',
+            'title': 'Tham quan và trải nghiệm $dest',
+            'costVnd': 0,
+            'durationHours': 2.0,
+          },
+        ],
+      });
+    }
+    return days;
   }
 
   @override
@@ -775,12 +811,8 @@ class _SharedTripDetailScreenState extends State<SharedTripDetailScreen> {
                         if (review.comment != null &&
                             review.comment!.trim().isNotEmpty) ...[
                           const SizedBox(height: 6),
-                          Text(
-                            review.comment!.trim(),
-                            style: const TextStyle(
-                              fontSize: 13,
-                              color: AppTheme.slate800,
-                            ),
+                          _ExpandableReviewComment(
+                            comment: review.comment!.trim(),
                           ),
                         ],
                       ],
@@ -856,3 +888,90 @@ class _SharedTripDetailScreenState extends State<SharedTripDetailScreen> {
     );
   }
 }
+
+/// Widget hiển thị nội dung nhận xét có cơ chế mở rộng / thu gọn
+/// khi nhận xét vượt quá 3 dòng hoặc quá dài, tránh vỡ bố cục màn hình.
+class _ExpandableReviewComment extends StatefulWidget {
+  final String comment;
+  const _ExpandableReviewComment({required this.comment});
+
+  @override
+  State<_ExpandableReviewComment> createState() => _ExpandableReviewCommentState();
+}
+
+class _ExpandableReviewCommentState extends State<_ExpandableReviewComment> {
+  bool _isExpanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    const textStyle = TextStyle(
+      fontSize: 13,
+      color: AppTheme.slate800,
+      height: 1.45,
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final span = TextSpan(text: widget.comment, style: textStyle);
+        final maxWidth = constraints.maxWidth.isFinite && constraints.maxWidth > 0
+            ? constraints.maxWidth
+            : 320.0;
+        final tp = TextPainter(
+          text: span,
+          textDirection: Directionality.of(context),
+          maxLines: 3,
+        )..layout(maxWidth: maxWidth);
+
+        final isLong = tp.didExceedMaxLines ||
+            widget.comment.split('\n').length > 3 ||
+            widget.comment.length > 100;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              widget.comment,
+              style: textStyle,
+              maxLines: _isExpanded ? null : 3,
+              overflow: _isExpanded ? TextOverflow.visible : TextOverflow.ellipsis,
+            ),
+            if (isLong)
+              InkWell(
+                onTap: () {
+                  setState(() {
+                    _isExpanded = !_isExpanded;
+                  });
+                },
+                borderRadius: BorderRadius.circular(4),
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 4, bottom: 2),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _isExpanded ? 'Thu gọn' : 'Xem thêm',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.tealPrimary,
+                        ),
+                      ),
+                      const SizedBox(width: 2),
+                      Icon(
+                        _isExpanded
+                            ? Icons.keyboard_arrow_up_rounded
+                            : Icons.keyboard_arrow_down_rounded,
+                        size: 16,
+                        color: AppTheme.tealPrimary,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+

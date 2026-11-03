@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -24,117 +25,267 @@ class CustomerProfileScreen extends StatelessWidget {
     );
   }
 
+  static ImageProvider? _resolveAvatarImage(String? avatarUrl) {
+    if (avatarUrl == null || avatarUrl.trim().isEmpty) return null;
+    final clean = avatarUrl.trim();
+    if (clean.startsWith('http://') || clean.startsWith('https://')) {
+      return NetworkImage(clean);
+    }
+    final file = File(clean);
+    if (file.existsSync()) {
+      return FileImage(file);
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final user = auth.currentUser;
     final guest = auth.isGuest || user == null;
     final name = guest ? 'Khách Vãng Lai' : user.fullName;
-    final theme = Theme.of(context);
+    final avatarImage = _resolveAvatarImage(user?.avatarUrl);
     return Scaffold(
-      appBar: AppBar(title: const Text('Tài Khoản')),
+      backgroundColor: AppTheme.bgSurface,
+      appBar: AppBar(
+        title: const Text('Tài Khoản', style: TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: AppTheme.bgSurface,
+      ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                CircleAvatar(
-                  radius: 28,
-                  backgroundColor: theme.colorScheme.primaryContainer,
-                  foregroundColor: theme.colorScheme.onPrimaryContainer,
-                  child: Text(
-                    name.isEmpty ? 'G' : name.characters.first.toUpperCase(),
-                    style: theme.textTheme.headlineSmall,
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppTheme.border),
+              ),
+              child: Row(
+                children: [
+                  GestureDetector(
+                    onTap: guest ? null : () => _showAvatarPickerModal(context, auth, user),
+                    child: Stack(
+                      children: [
+                        CircleAvatar(
+                          radius: 34,
+                          backgroundColor: AppTheme.primarySoft,
+                          foregroundColor: AppTheme.primaryColor,
+                          backgroundImage: avatarImage,
+                          child: avatarImage != null
+                              ? null
+                              : Text(
+                                  name.isEmpty ? 'G' : name.characters.first.toUpperCase(),
+                                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                                ),
+                        ),
+                        if (!guest)
+                          Positioned(
+                            bottom: 0,
+                            right: 0,
+                            child: Container(
+                              padding: const EdgeInsets.all(5),
+                              decoration: BoxDecoration(
+                                color: AppTheme.primaryColor,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white, width: 2),
+                              ),
+                              child: const Icon(
+                                Icons.camera_alt_rounded,
+                                size: 12,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(name, style: theme.textTheme.titleLarge),
-                      Text(guest ? 'Chưa đăng nhập tài khoản' : user.email),
-                      const SizedBox(height: 8),
-                      Text(
-                        guest ? 'GUEST' : user.role.badgeName,
-                        style: theme.textTheme.labelLarge,
-                      ),
-                      if (auth.isDemoSession) const Text('Tài khoản minh họa'),
-                    ],
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          name,
+                          style: const TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.textMain,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          guest ? 'Chưa đăng nhập tài khoản' : user.email,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: AppTheme.textMuted,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: (!guest && user.role == UserRole.admin)
+                                    ? AppTheme.mintDark.withValues(alpha: 0.15)
+                                    : AppTheme.primarySoft,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                guest ? 'GUEST' : user.role.badgeName,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: (!guest && user.role == UserRole.admin)
+                                      ? AppTheme.mintDark
+                                      : AppTheme.primaryColor,
+                                ),
+                              ),
+                            ),
+                            if (auth.isDemoSession) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.coralColor.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Text(
+                                  'Tài khoản minh họa',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppTheme.coralColor,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
             if (guest) ...[
-              const Text(
-                'Bạn đang khám phá ở chế độ Khách. Đăng nhập để mở các chuyến đi của tài khoản.',
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppTheme.warmCream,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppTheme.amberAccent.withValues(alpha: 0.3)),
+                ),
+                child: const Text(
+                  'Bạn đang khám phá ở chế độ Khách. Đăng nhập để mở các chuyến đi của tài khoản.',
+                  style: TextStyle(fontSize: 13, color: AppTheme.textMain),
+                ),
               ),
               const SizedBox(height: 16),
             ],
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.person_outline),
-              title: const Text('Thông tin cá nhân'),
-              subtitle: Text(
-                guest
-                    ? 'Cần đăng nhập để cập nhật hồ sơ'
-                    : 'Họ tên, số điện thoại và địa chỉ',
+            Material(
+              color: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: const BorderSide(color: AppTheme.border),
               ),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () {
-                if (guest) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Vui lòng đăng nhập để cập nhật thông tin cá nhân',
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                children: [
+                  ListTile(
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primarySoft,
+                        shape: BoxShape.circle,
                       ),
+                      child: const Icon(Icons.person_outline_rounded, color: AppTheme.primaryColor, size: 20),
                     ),
-                  );
-                } else {
-                  _showEditProfileDialog(context, auth, user);
-                }
-              },
-            ),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.tune),
-              title: const Text('Sở thích du lịch'),
-              subtitle: Text(
-                guest
-                    ? 'Đăng nhập để lưu hồ sơ du lịch'
-                    : 'Sở thích, ngân sách thường dùng và phong cách',
+                    title: const Text('Thông tin cá nhân', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                    subtitle: Text(
+                      guest
+                          ? 'Cần đăng nhập để cập nhật hồ sơ'
+                          : 'Họ tên, số điện thoại và địa chỉ',
+                      style: const TextStyle(fontSize: 12, color: AppTheme.textMuted),
+                    ),
+                    trailing: const Icon(Icons.chevron_right_rounded, color: AppTheme.textMuted),
+                    onTap: () {
+                      if (guest) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Vui lòng đăng nhập để cập nhật thông tin cá nhân',
+                            ),
+                          ),
+                        );
+                      } else {
+                        _showEditProfileDialog(context, auth, user);
+                      }
+                    },
+                  ),
+                  const Divider(height: 1, indent: 56, color: AppTheme.slate100),
+                  ListTile(
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppTheme.coralColor.withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.tune_rounded, color: AppTheme.coralColor, size: 20),
+                    ),
+                    title: const Text('Sở thích du lịch', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                    subtitle: Text(
+                      guest
+                          ? 'Đăng nhập để lưu hồ sơ du lịch'
+                          : 'Sở thích, ngân sách thường dùng và phong cách',
+                      style: const TextStyle(fontSize: 12, color: AppTheme.textMuted),
+                    ),
+                    trailing: const Icon(Icons.chevron_right_rounded, color: AppTheme.textMuted),
+                    onTap: guest
+                        ? null
+                        : () => _showTravelPreferences(context, auth, user.id),
+                  ),
+                  if (!guest && user.role == UserRole.admin) ...[
+                    const Divider(height: 1, indent: 56, color: AppTheme.slate100),
+                    ListTile(
+                      leading: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: AppTheme.mintDark.withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.admin_panel_settings_outlined, color: AppTheme.mintDark, size: 20),
+                      ),
+                      title: const Text('Quản trị', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                      subtitle: const Text('Quản lý người dùng và địa điểm', style: TextStyle(fontSize: 12, color: AppTheme.textMuted)),
+                      trailing: const Icon(Icons.chevron_right_rounded, color: AppTheme.textMuted),
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => const AdminShellScreen()),
+                        );
+                      },
+                    ),
+                  ],
+                  const Divider(height: 1, indent: 56, color: AppTheme.slate100),
+                  ListTile(
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.withValues(alpha: 0.08),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.language_rounded, color: Colors.blue, size: 20),
+                    ),
+                    title: const Text('Tiếng Việt · VND', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                    subtitle: const Text('Ngôn ngữ và đơn vị tiền đang hiển thị', style: TextStyle(fontSize: 12, color: AppTheme.textMuted)),
+                    trailing: const Icon(Icons.chevron_right_rounded, color: AppTheme.textMuted),
+                  ),
+                ],
               ),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: guest
-                  ? null
-                  : () => _showTravelPreferences(context, auth, user.id),
             ),
-            if (!guest && user.role == UserRole.admin) ...[
-              const Divider(height: 24),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.admin_panel_settings_outlined),
-                title: const Text('Quản trị'),
-                subtitle: const Text('Quản lý người dùng và địa điểm'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const AdminShellScreen()),
-                  );
-                },
-              ),
-            ],
-            const Divider(height: 24),
-            const ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: Icon(Icons.language),
-              title: Text('Tiếng Việt · VND'),
-              subtitle: Text('Ngôn ngữ và đơn vị tiền đang hiển thị'),
-            ),
-            
             const SizedBox(height: 24),
             if (auth.isLoggingOut || auth.logoutNeedsRetry)
               OutlinedButton.icon(
@@ -142,6 +293,12 @@ class CustomerProfileScreen extends StatelessWidget {
                     ? null
                     : () => _logout(context, auth),
                 icon: const Icon(Icons.logout),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.red,
+                  side: const BorderSide(color: Color(0xFFFFCDD2)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
                 label: Text(
                   auth.isLoggingOut
                       ? 'Đang đăng xuất…'
@@ -159,7 +316,13 @@ class CustomerProfileScreen extends StatelessWidget {
             else
               OutlinedButton.icon(
                 onPressed: () => _logout(context, auth),
-                icon: const Icon(Icons.logout),
+                icon: const Icon(Icons.logout, color: Colors.red),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.red,
+                  side: const BorderSide(color: Color(0xFFFFCDD2)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
                 label: const Text('Đăng xuất'),
               ),
           ],
@@ -169,6 +332,143 @@ class CustomerProfileScreen extends StatelessWidget {
   }
 
   
+  Future<void> _showAvatarPickerModal(
+    BuildContext context,
+    AuthProvider auth,
+    UserEntity user,
+  ) async {
+    final urlController = TextEditingController(text: user.avatarUrl ?? '');
+    final presets = [
+      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
+      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200',
+      'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200',
+      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200',
+      'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200',
+      'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200',
+    ];
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          left: 20,
+          right: 20,
+          top: 20,
+          bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Đổi ảnh đại diện',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(ctx),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            const Text(
+              'Chọn ảnh đại diện du lịch mẫu:',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.slate800,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: presets.map((url) {
+                final isSelected = user.avatarUrl == url;
+                return GestureDetector(
+                  onTap: () async {
+                    Navigator.pop(ctx);
+                    final ok = await auth.updateProfile(avatarUrl: url);
+                    if (context.mounted && ok) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Đã cập nhật ảnh đại diện thành công!')),
+                      );
+                    }
+                  },
+                  child: Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: isSelected ? AppTheme.primaryColor : Colors.transparent,
+                        width: 3,
+                      ),
+                    ),
+                    child: CircleAvatar(
+                      radius: 26,
+                      backgroundImage: NetworkImage(url),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 16),
+            const Divider(),
+            const SizedBox(height: 8),
+            const Text(
+              'Hoặc dán đường dẫn ảnh trực tiếp:',
+              style: TextStyle(fontSize: 13, color: AppTheme.textMuted),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: urlController,
+              decoration: InputDecoration(
+                hintText: 'https://example.com/avatar.jpg',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              '💡 Ghi chú: Bạn có thể chọn ảnh từ máy, ảnh mẫu hoặc đường dẫn ảnh trực tiếp.',
+              style: TextStyle(fontSize: 11, color: AppTheme.textMuted),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppTheme.primaryColor,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: () async {
+                  final newUrl = urlController.text.trim();
+                  if (newUrl.isNotEmpty) {
+                    Navigator.pop(ctx);
+                    final ok = await auth.updateProfile(avatarUrl: newUrl);
+                    if (context.mounted && ok) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Đã cập nhật ảnh đại diện!')),
+                      );
+                    }
+                  }
+                },
+                child: const Text('Lưu ảnh đại diện'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    urlController.dispose();
+  }
+
   Future<void> _showTravelPreferences(
     BuildContext context,
     AuthProvider auth,
