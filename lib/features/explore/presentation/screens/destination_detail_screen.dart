@@ -16,6 +16,7 @@ import '../../../trip_planner/presentation/widgets/planner_workspace_actions.dar
 import '../../providers/public_catalogue_provider.dart';
 import '../../models/public_catalogue_snapshot.dart';
 import '../../services/place_visit_details_repository.dart';
+import '../../../reviews/presentation/widgets/place_reviews_section.dart';
 
 class DestinationDetailScreen extends StatefulWidget {
   final CatalogueReference catalogue;
@@ -250,7 +251,7 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
                 child: const Text('Xem ví dụ tham khảo'),
               ),
             const SizedBox(height: 16),
-            for (final place in destination.places)
+            for (final place in destination.places) ...[
               if (!hasVisits)
                 _PlaceSource(
                   place: place,
@@ -265,6 +266,12 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
                   snapshot: visitSnapshot,
                   showReleaseInfo: false,
                 ),
+              PlaceReviewsSection(
+                key: ValueKey('place-reviews-${place.id}'),
+                placeId: place.id,
+                placeName: place.name,
+              ),
+            ],
           ],
         ),
       ),

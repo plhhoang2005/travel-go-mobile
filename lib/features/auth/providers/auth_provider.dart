@@ -1505,11 +1505,11 @@ class AuthProvider extends ChangeNotifier {
       _refreshTimer?.cancel();
       if (state == AppLifecycleState.detached) {
         _lifecycle?.invalidateAccountContext();
+        onLocalAccountInvalidated();
       } else if (state == AppLifecycleState.inactive ||
           state == AppLifecycleState.hidden) {
         unawaited(_lifecycle?.suspendForegroundContext() ?? Future.value());
       }
-      onLocalAccountInvalidated();
     }
     final result = Completer<void>();
     _appTail = _appTail.then((_) async {

@@ -7,6 +7,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:travelgo_mobile/features/admin/models/admin_account_models.dart';
 import 'package:travelgo_mobile/features/admin/services/admin_account_service.dart';
+import 'package:travelgo_mobile/features/admin/services/demo_admin_services.dart';
 import 'package:travelgo_mobile/features/auth/providers/auth_provider.dart';
 
 class AdminAccountProvider extends ChangeNotifier {
@@ -62,6 +63,7 @@ class AdminAccountProvider extends ChangeNotifier {
   }
 
   // Getters
+  bool get isDemoMode => service is DemoAdminAccountService;
   bool get hasAdminAccess => _hasAdminAccess;
   List<UserSummary> get users => List.unmodifiable(_users);
   bool get hasMoreUsers => _nextCursor != null;
@@ -87,7 +89,7 @@ class AdminAccountProvider extends ChangeNotifier {
         newRole != _currentRole ||
         _authEpoch != authProvider.authEpoch ||
         authProvider.isLoggingOut ||
-        authProvider.isDemoSession) {
+        (authProvider.isDemoSession && !isDemoMode)) {
       _currentOwnerId = newOwnerId;
       _currentRole = newRole;
       _authEpoch = authProvider.authEpoch;
@@ -136,7 +138,7 @@ class AdminAccountProvider extends ChangeNotifier {
     _error = null;
     if (_currentOwnerId == null ||
         _currentRole != 'admin' ||
-        authProvider.isDemoSession ||
+        (authProvider.isDemoSession && !isDemoMode) ||
         authProvider.isLoggingOut) {
       invalidate();
       return;

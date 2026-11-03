@@ -12,6 +12,8 @@ import '../../../explore/presentation/screens/destination_detail_screen.dart';
 import '../../../explore/presentation/screens/explore_screen.dart';
 import '../../../explore/presentation/widgets/destination_reference_list_tile.dart';
 import '../../../trip_planner/presentation/screens/home_planner_screen.dart';
+import '../../../profile/presentation/screens/profile_screen.dart';
+
 
 class MainHomeScreen extends StatefulWidget {
   const MainHomeScreen({super.key});
@@ -144,6 +146,25 @@ class _HomeGreeting extends StatelessWidget {
             ),
             icon: const Icon(Icons.person_outline),
             label: const Text('Đăng nhập'),
+          )
+        else
+          InkWell(
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute<void>(
+                builder: (_) => const CustomerProfileScreen(),
+              ),
+            ),
+            borderRadius: BorderRadius.circular(24),
+            child: CircleAvatar(
+              radius: 20,
+              backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+              child: Icon(
+                Icons.person_rounded,
+                color: Theme.of(context).colorScheme.primary,
+                size: 22,
+              ),
+            ),
           ),
       ],
     );

@@ -37,6 +37,7 @@ class TravelImage extends StatelessWidget {
                           kIsWeb ? 'Api-User-Agent' : 'User-Agent': 'TravelGO/1.0 (https://github.com/plhhoang2005/travel-go-mobile)',
                         },
                         fit: BoxFit.cover,
+                        cacheWidth: (height * 3).round().clamp(400, 1080),
                         frameBuilder: (_, child, frame, synchronous) =>
                             synchronous || frame != null
                             ? child

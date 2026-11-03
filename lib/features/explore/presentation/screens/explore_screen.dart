@@ -1,3 +1,4 @@
+import '../../../profile/presentation/screens/profile_screen.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -63,6 +64,16 @@ class _ExploreScreenState extends State<ExploreScreen> {
           overflow: TextOverflow.ellipsis,
         ),
         actions: [
+          IconButton(
+            tooltip: 'Hồ sơ cá nhân',
+            icon: const Icon(Icons.account_circle_outlined),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute<void>(
+                builder: (_) => const CustomerProfileScreen(),
+              ),
+            ),
+          ),
           IconButton(
             tooltip: 'Đọc lại danh mục',
             icon: const Icon(Icons.refresh),
