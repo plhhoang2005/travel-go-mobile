@@ -12,6 +12,7 @@ class AiGenerationPreview extends StatefulWidget {
   final Future<Object> Function(String requestId) generate;
   final Listenable authority;
   final bool Function() isCurrent;
+  final bool isLocalAi;
 
   const AiGenerationPreview({
     super.key,
@@ -19,6 +20,7 @@ class AiGenerationPreview extends StatefulWidget {
     required this.generate,
     required this.authority,
     required this.isCurrent,
+    this.isLocalAi = false,
   });
 
   @override
@@ -200,7 +202,32 @@ class _AiGenerationPreviewState extends State<AiGenerationPreview> {
       final envelope = _envelope;
 
       return AlertDialog(
-        title: const Text('Đề xuất lịch từ AI'),
+        title: widget.isLocalAi
+            ? Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 8,
+                runSpacing: 4,
+                children: [
+                  const Text('Đề xuất lịch từ AI'),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: Colors.teal.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.teal.withValues(alpha: 0.3)),
+                    ),
+                    child: const Text(
+                      'Ollama · Qwen',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.teal,
+                      ),
+                    ),
+                  ),
+                ],
+              )
+            : const Text('Đề xuất lịch từ AI'),
         scrollable: true,
         content: SizedBox(
           width: 440,

@@ -587,6 +587,8 @@ class AiGenerationFailure implements Exception {
     'pending' || 'outcome_pending' => 'Chưa xác nhận được kết quả AI. Thử kiểm tra lại; nội dung chuyến đi chưa thay đổi.',
     'stale' =>
       'Chuyến đi hoặc phiên đã thay đổi. Hãy mở lại đề xuất từ bản hiện tại.',
+    'ollama_connection' => 'Không thể kết nối tới Ollama cục bộ. Hãy kiểm tra Ollama và kết nối mạng/Cloudflare trên máy tính.',
+    'ollama_timeout' => 'Mô hình Ollama cục bộ phản hồi quá lâu. Vui lòng thử lại.',
     _ => 'Chưa thể tạo lịch AI hợp lệ. Bản nháp được giữ nguyên; bạn vẫn có thể tự chỉnh lịch.',
   };
   @override
