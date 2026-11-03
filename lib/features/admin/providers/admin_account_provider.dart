@@ -170,15 +170,18 @@ class AdminAccountProvider extends ChangeNotifier {
       _currentOwnerId == authProvider.currentUser?.id &&
       _currentRole == authProvider.currentUser?.role.name;
 
+  static bool _isRevocationCode(String code) => const {
+    'unauthorized',
+    'forbidden',
+    'admin_required',
+    'account_locked',
+    'actor_role_revoked',
+    'stale_session',
+    'invalid_session',
+  }.contains(code);
+
   void _fail(AdminFailure failure) {
-    if (const {
-      'unauthorized',
-      'forbidden',
-      'admin_required',
-      'account_locked',
-      'stale_session',
-      'invalid_session',
-    }.contains(failure.code)) {
+    if (_isRevocationCode(failure.code)) {
       invalidate();
     }
     _error = failure;
@@ -254,10 +257,7 @@ class AdminAccountProvider extends ChangeNotifier {
       _nextCursor = page.nextCursor;
     } on AdminFailure catch (f) {
       if (gen != _usersGeneration || !_isCurrent(context)) return;
-      if (f.code == 'account_locked' ||
-          f.code == 'unauthorized' ||
-          f.code == 'forbidden' ||
-          f.code == 'actor_role_revoked') {
+      if (_isRevocationCode(f.code)) {
         _fail(f);
       } else {
         _error = f;
@@ -312,10 +312,7 @@ class AdminAccountProvider extends ChangeNotifier {
       }
     } on AdminFailure catch (f) {
       if (gen != _detailGeneration || !_isCurrent(context)) return;
-      if (f.code == 'account_locked' ||
-          f.code == 'unauthorized' ||
-          f.code == 'forbidden' ||
-          f.code == 'actor_role_revoked') {
+      if (_isRevocationCode(f.code)) {
         _fail(f);
       } else {
         _error = f;
@@ -344,10 +341,7 @@ class AdminAccountProvider extends ChangeNotifier {
       _dashboardSnapshot = snapshot;
     } on AdminFailure catch (f) {
       if (gen != _dashboardGeneration || !_isCurrent(context)) return;
-      if (f.code == 'account_locked' ||
-          f.code == 'unauthorized' ||
-          f.code == 'forbidden' ||
-          f.code == 'actor_role_revoked') {
+      if (_isRevocationCode(f.code)) {
         _fail(f);
       } else {
         _error = f;
