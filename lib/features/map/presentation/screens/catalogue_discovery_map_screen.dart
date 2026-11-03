@@ -1,4 +1,5 @@
 import '../../../../core/widgets/global_profile_avatar_action.dart';
+import '../../../../core/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -424,89 +425,122 @@ class _CatalogueDiscoveryMapScreenState
                         ),
                     ],
                   ),
-                  const SizedBox(height: 16),
-                  const Divider(),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Vị trí địa lý',
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.explore_outlined,
-                        size: 16,
-                        color: Colors.grey,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Tọa độ: ${marker.point.latitude.toStringAsFixed(4)}, ${marker.point.longitude.toStringAsFixed(4)}',
-                        style: theme.textTheme.bodyMedium,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Thông tin tham quan',
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 14),
+                  // Section: Tọa độ địa lý
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                     decoration: BoxDecoration(
-                      color: colorScheme.surfaceContainerHighest.withValues(
-                        alpha: 0.5,
-                      ),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: colorScheme.outlineVariant),
+                      color: AppTheme.bgSurface,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppTheme.border.withValues(alpha: 0.8)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.near_me_rounded,
+                          size: 18,
+                          color: AppTheme.tealPrimary,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Tọa độ địa lý',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppTheme.slate500,
+                                ),
+                              ),
+                              Text(
+                                '${marker.point.latitude.toStringAsFixed(4)}, ${marker.point.longitude.toStringAsFixed(4)}',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppTheme.slate800,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // Section: Thông tin tham quan & nguồn
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppTheme.border.withValues(alpha: 0.8)),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
+                        const Row(
                           children: [
-                            const Icon(
-                              Icons.info_outline,
-                              size: 16,
-                              color: Colors.teal,
+                            Icon(
+                              Icons.verified_outlined,
+                              size: 18,
+                              color: AppTheme.tealPrimary,
                             ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'Giờ mở cửa & giá vé: Theo nguồn tham khảo',
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                ),
+                            SizedBox(width: 8),
+                            Text(
+                              'Thông tin tham quan',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: AppTheme.slate900,
                               ),
                             ),
                           ],
                         ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Giờ mở cửa & giá vé: Theo nguồn tham khảo',
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w500,
+                            color: AppTheme.slate700,
+                          ),
+                        ),
                         if (source != null) ...[
+                          const SizedBox(height: 8),
+                          Divider(height: 1, color: AppTheme.border.withValues(alpha: 0.5)),
                           const SizedBox(height: 8),
                           Text(
                             'Nguồn: ${source.title} (${source.publisher})',
-                            style: theme.textTheme.bodySmall,
+                            style: const TextStyle(fontSize: 11.5, color: AppTheme.slate600),
                           ),
+                          const SizedBox(height: 2),
                           Text(
                             'Kiểm tra ngày: ${source.checkedAt}',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: colorScheme.onSurfaceVariant,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: AppTheme.slate400,
                             ),
                           ),
                         ],
                       ],
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 20),
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppTheme.tealPrimary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
                       onPressed: () async {
                         Navigator.of(sheetContext).pop();
                         final accepted = await replacePlannerWorkspace(
@@ -521,14 +555,25 @@ class _CatalogueDiscoveryMapScreenState
                           ),
                         );
                       },
-                      icon: const Icon(Icons.edit_calendar),
-                      label: const Text('Chuẩn bị chuyến đi tới đây'),
+                      icon: const Icon(Icons.edit_calendar_rounded, size: 18),
+                      label: const Text(
+                        'Chuẩn bị chuyến đi tới đây',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 8),
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppTheme.slate700,
+                        side: const BorderSide(color: AppTheme.border),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
                       onPressed: () {
                         Navigator.of(sheetContext).pop();
                         if (catalogue != null) {
@@ -542,8 +587,11 @@ class _CatalogueDiscoveryMapScreenState
                           );
                         }
                       },
-                      icon: const Icon(Icons.location_city),
-                      label: Text('Xem toàn cảnh ${dest.name}'),
+                      icon: const Icon(Icons.location_city_rounded, size: 18),
+                      label: Text(
+                        'Xem toàn cảnh ${dest.name}',
+                        style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w500),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 16),

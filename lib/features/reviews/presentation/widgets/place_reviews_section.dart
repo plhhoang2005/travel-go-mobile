@@ -30,6 +30,8 @@ class PlaceReviewsSection extends StatefulWidget {
 
 class _PlaceReviewsSectionState extends State<PlaceReviewsSection> {
   late final PlaceReviewsProvider provider;
+  int _currentPage = 0;
+  static const int _pageSize = 3;
 
   @override
   void initState() {
@@ -110,10 +112,62 @@ class _PlaceReviewsSectionState extends State<PlaceReviewsSection> {
                 ),
                 if (provider.reviews.isNotEmpty) ...[
                   const SizedBox(height: 8),
-                  for (final review in provider.reviews.take(2)) ...[
-                    PlaceReviewTile(review: review),
-                    const Divider(height: 1),
-                  ],
+                  () {
+                    final allReviews = provider.reviews;
+                    final totalPages = (allReviews.length / _pageSize).ceil();
+                    final safePage = _currentPage.clamp(0, totalPages > 0 ? totalPages - 1 : 0);
+                    final pageReviews = allReviews.skip(safePage * _pageSize).take(_pageSize).toList();
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        for (final review in pageReviews) ...[
+                          PlaceReviewTile(review: review),
+                          const Divider(height: 1),
+                        ],
+                        if (totalPages > 1) ...[
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              OutlinedButton.icon(
+                                onPressed: safePage > 0
+                                    ? () => setState(() => _currentPage = safePage - 1)
+                                    : null,
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  minimumSize: Size.zero,
+                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                icon: const Icon(Icons.arrow_back_rounded, size: 14),
+                                label: const Text('Trang trước', style: TextStyle(fontSize: 12)),
+                              ),
+                              Text(
+                                'Trang ${safePage + 1} / $totalPages',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 12,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                              OutlinedButton.icon(
+                                onPressed: safePage < totalPages - 1
+                                    ? () => setState(() => _currentPage = safePage + 1)
+                                    : null,
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  minimumSize: Size.zero,
+                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                icon: const Icon(Icons.arrow_forward_rounded, size: 14),
+                                label: const Text('Trang sau', style: TextStyle(fontSize: 12)),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    );
+                  }(),
                 ],
               ],
               const SizedBox(height: 8),

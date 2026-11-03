@@ -5,6 +5,7 @@ import '../../models/ai_chat_session.dart';
 import '../../providers/ai_chat_provider.dart';
 import '../widgets/ai_chat_drawer.dart';
 import '../widgets/ai_prompt_chips.dart';
+import '../../../../core/widgets/go_ai_mascot.dart';
 
 /// Màn hình Chatbot AI TravelGO đơn nhất chuẩn ChatGPT/Gemini
 class AiChatbotScreen extends StatefulWidget {
@@ -227,18 +228,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: colorScheme.primaryContainer.withValues(alpha: 0.6),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.auto_awesome_rounded,
-                size: 48,
-                color: colorScheme.primary,
-              ),
-            ),
+            const GoAiMascot(size: 80, isWaving: true, withShadow: true),
             const SizedBox(height: 16),
             Text(
               'Trợ Lý Du Lịch TravelGO',
@@ -246,11 +236,11 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                 fontWeight: FontWeight.bold,
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32),
+              padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Text(
-                'Lên lịch trình, gợi ý quán ngon, dự toán ngân sách và giải đáp mọi thắc mắc về chuyến đi của bạn.',
+                'Xin chào! Mình là GoAI - trợ lý du lịch của bạn! ✨\nLên lịch trình, gợi ý điểm đến và giải đáp mọi thắc mắc.',
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: colorScheme.onSurfaceVariant,
@@ -284,15 +274,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (!isUser) ...[
-            CircleAvatar(
-              radius: 16,
-              backgroundColor: colorScheme.primaryContainer,
-              child: Icon(
-                Icons.auto_awesome,
-                size: 16,
-                color: colorScheme.primary,
-              ),
-            ),
+            const GoAiMascot(size: 32),
             const SizedBox(width: 8),
           ],
           Flexible(
@@ -391,15 +373,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CircleAvatar(
-            radius: 16,
-            backgroundColor: colorScheme.primaryContainer,
-            child: Icon(
-              Icons.auto_awesome,
-              size: 16,
-              color: colorScheme.primary,
-            ),
-          ),
+          const GoAiMascot(size: 32),
           const SizedBox(width: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),

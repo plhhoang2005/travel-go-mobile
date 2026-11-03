@@ -193,6 +193,37 @@ class _ManualPlannerScreenState extends State<ManualPlannerScreen> {
 
   Future<void> _aiHelp() async {
     if (!supportsAi) {
+      final destId = planner.document?.input.destinationId;
+      if (destId == null) {
+        await showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            icon: Icon(
+              Icons.auto_awesome,
+              size: 32,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            title: const Text('Cần chọn điểm đến'),
+            content: const Text(
+              'Để GoAI có thể tạo lịch trình và gợi ý các hoạt động phù hợp, bạn cần chọn điểm đến cho chuyến đi trước.\n\nHãy nhấn "Chọn điểm đến ngay" để thiết lập thông tin chuyến đi.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Để sau'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  _input();
+                },
+                child: const Text('Chọn điểm đến ngay'),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
@@ -330,6 +361,37 @@ class _ManualPlannerScreenState extends State<ManualPlannerScreen> {
 
   Future<void> _aiAssistant() async {
     if (!supportsAi) {
+      final destId = planner.document?.input.destinationId;
+      if (destId == null) {
+        await showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            icon: Icon(
+              Icons.auto_awesome,
+              size: 32,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            title: const Text('Cần chọn điểm đến'),
+            content: const Text(
+              'Để GoAI có thể trò chuyện và tư vấn theo ngữ cảnh điểm đến, bạn cần chọn điểm đến cho chuyến đi trước.\n\nHãy nhấn "Chọn điểm đến ngay" để thiết lập thông tin chuyến đi.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Để sau'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  _input();
+                },
+                child: const Text('Chọn điểm đến ngay'),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
@@ -725,7 +787,7 @@ class _ManualPlannerScreenState extends State<ManualPlannerScreen> {
                 IconButton(
                   key: const ValueKey('ai-assistant-open'),
                   tooltip: 'Chat, gợi ý và chỉnh lịch AI',
-                  onPressed: supportsAi ? _aiAssistant : null,
+                  onPressed: _aiAssistant,
                   icon: const Icon(Icons.chat_bubble_outline),
                 ),
             ],
@@ -934,6 +996,43 @@ class _EditorHeader extends StatelessWidget {
                 ? 'Chưa chọn ngày'
                 : '${input.startDate} – ${input.endDate ?? 'Chưa chọn ngày kết thúc'}',
           ),
+          if (input.destinationId == null) ...[
+            const SizedBox(height: 6),
+            InkWell(
+              onTap: onInput,
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.35),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.35),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.auto_awesome,
+                      size: 14,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Chưa chọn điểm đến · Bấm "Sửa thông tin" để chọn và kích hoạt GoAI',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Theme.of(context).colorScheme.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
           Semantics(liveRegion: true, child: Text(_status)),
           if (planner.errorMessage != null)
             Text(
@@ -964,8 +1063,14 @@ class _EditorHeader extends StatelessWidget {
               ),
               if (onAiHelp != null)
                 TextButton.icon(
-                  onPressed: supportsAi ? onAiHelp : null,
-                  icon: const Icon(Icons.help_outline),
+                  onPressed: onAiHelp,
+                  icon: Icon(
+                    Icons.auto_awesome,
+                    size: 16,
+                    color: supportsAi
+                        ? Theme.of(context).colorScheme.primary
+                        : Theme.of(context).colorScheme.outline,
+                  ),
                   label: const Text('Trợ giúp AI'),
                 ),
             ],

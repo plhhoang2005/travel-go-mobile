@@ -10,6 +10,7 @@ import '../../providers/trip_provider.dart';
 import '../../../trips/models/local_trip_records.dart';
 import '../../../trips/models/trip_payload_codec.dart';
 import '../widgets/selected_destination_controls.dart';
+import 'package:travelgo_mobile/core/theme/app_theme.dart';
 
 /// Shared local save entry point; the state owns and disposes its title controller.
 Future<void> showGuestDraftSaveDialog(BuildContext context) async {
@@ -454,7 +455,7 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
               onManualPlanner: () => openManualPlanner(context),
             ),
             // Origin Selector Card
-            Card(
+            Card(elevation: 0, color: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: AppTheme.border)),
               child: Padding(
                 padding: const EdgeInsets.all(12.0),
                 child: Column(
@@ -519,7 +520,7 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
             const SizedBox(height: 16),
             // Quick Presets
             if (!provider.hasSelectedDestination)
-              Card(
+              Card(elevation: 0, color: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: AppTheme.border)),
                 child: Padding(
                   padding: const EdgeInsets.all(12.0),
                   child: Column(
@@ -574,7 +575,7 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
             const SizedBox(height: 16),
 
             // Parameters Section (Budget, Duration, Travelers)
-            Card(
+            Card(elevation: 0, color: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: AppTheme.border)),
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
@@ -711,7 +712,7 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
             const SizedBox(height: 16),
 
             // Companion Type
-            Card(
+            Card(elevation: 0, color: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: AppTheme.border)),
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
@@ -754,7 +755,7 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
             const SizedBox(height: 16),
 
             // Preferences
-            Card(
+            Card(elevation: 0, color: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: AppTheme.border)),
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
@@ -819,7 +820,7 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
             const SizedBox(height: 16),
 
             // Priority
-            Card(
+            Card(elevation: 0, color: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: AppTheme.border)),
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
@@ -858,7 +859,15 @@ class _HomePlannerScreenState extends State<HomePlannerScreen> {
             // Primary Planning CTA
             SizedBox(
               width: double.infinity,
+              height: 52,
               child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryColor,
+                  foregroundColor: Colors.white,
+                  elevation: 2,
+                  shadowColor: AppTheme.primaryColor.withValues(alpha: 0.3),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
                 onPressed: provider.canReplaceWorkspace
                     ? () => openManualPlanner(context)
                     : null,

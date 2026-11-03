@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/go_ai_mascot.dart';
 import '../../../ai_chat/presentation/screens/ai_chatbot_screen.dart';
 import '../../../community/presentation/screens/community_feed_screen.dart';
 import '../../../home/presentation/screens/main_home_screen.dart';
@@ -51,34 +53,73 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Scaffold(
       body: IndexedStack(index: _currentIndex, children: _screens),
-      floatingActionButton: FloatingActionButton.extended(
-        heroTag: 'global_ai_chatbot_fab',
-        tooltip: 'Trợ lý AI TravelGO',
-        onPressed: () => Navigator.push(
-          context,
-          MaterialPageRoute<void>(
-            builder: (_) => const AiChatbotScreen(),
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 6.0, right: 2.0),
+        child: FloatingActionButton(
+          key: const ValueKey('global_ai_chatbot_fab'),
+          heroTag: 'global_ai_chatbot_fab',
+          tooltip: 'Trợ lý GoAI TravelGO',
+          elevation: 4,
+          highlightElevation: 6,
+          shape: const CircleBorder(),
+          backgroundColor: Colors.white,
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute<void>(
+              builder: (_) => const AiChatbotScreen(),
+            ),
+          ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              const GoAiMascot(size: 44),
+              Positioned(
+                top: 2,
+                right: 2,
+                child: Container(
+                  width: 13,
+                  height: 13,
+                  decoration: const BoxDecoration(
+                    color: AppTheme.coralColor,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Center(
+                    child: Icon(
+                      Icons.auto_awesome,
+                      color: Colors.white,
+                      size: 8,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
-        icon: const Icon(Icons.auto_awesome, size: 20),
-        label: const Text(
-          'Hỏi AI',
-          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-        ),
-        backgroundColor: Theme.of(context).colorScheme.primary,
-        foregroundColor: Theme.of(context).colorScheme.onPrimary,
       ),
       bottomNavigationBar: NavigationBarTheme(
         data: NavigationBarTheme.of(context).copyWith(
+          indicatorColor: colorScheme.primary.withValues(alpha: 0.12),
+          surfaceTintColor: Colors.transparent,
           labelTextStyle: WidgetStateProperty.resolveWith((states) {
             final isSelected = states.contains(WidgetState.selected);
             return TextStyle(
               fontSize: 12.0,
               fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+              color: isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant,
               letterSpacing: 0.0,
               overflow: TextOverflow.ellipsis,
+            );
+          }),
+          iconTheme: WidgetStateProperty.resolveWith((states) {
+            final isSelected = states.contains(WidgetState.selected);
+            return IconThemeData(
+              size: 24,
+              color: isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant,
             );
           }),
         ),
@@ -91,9 +132,9 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                 _currentIndex = index;
               });
             },
-            backgroundColor: Theme.of(context).colorScheme.surface,
-            elevation: 0,
-            indicatorColor: Theme.of(context).colorScheme.primaryContainer,
+            backgroundColor: Colors.white,
+            elevation: 8,
+            shadowColor: Colors.black.withValues(alpha: 0.08),
             destinations: [
               const NavigationDestination(
                 icon: Icon(Icons.home_outlined),
@@ -101,8 +142,8 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                 label: 'Trang chủ',
               ),
               const NavigationDestination(
-                icon: Icon(Icons.search_rounded),
-                selectedIcon: Icon(Icons.search_rounded),
+                icon: Icon(Icons.travel_explore_outlined),
+                selectedIcon: Icon(Icons.travel_explore_rounded),
                 label: 'Khám phá',
               ),
               if (widget.enableMapTab)

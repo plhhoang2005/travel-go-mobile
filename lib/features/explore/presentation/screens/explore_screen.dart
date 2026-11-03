@@ -233,6 +233,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 catalogue: catalogue,
                 destination: items[index],
                 visitProvider: context.read<PlaceVisitDetailsProvider?>(),
+                initialTabIndex: provider.matchingPlaceNames(items[index]).isNotEmpty ? 1 : 0,
               ),
             ),
           ),

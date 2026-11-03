@@ -75,31 +75,9 @@ class SelectedDestinationControls extends StatelessWidget {
           if (hasSelectedDestination) ...[
             Text(
               'Điểm đến đã chọn',
-              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Builder(
-              builder: (context) {
-                PublicCatalogueProvider? pub;
-                try {
-                  pub = context.watch<PublicCatalogueProvider>();
-                } catch (_) {}
-                final snapshot = pub?.snapshot;
-                final isSupported = metadata.destinationId == null ||
-                    (snapshot != null
-                        ? PlannerInputProvider.isAiEligibleDestination(
-                            metadata.destinationId,
-                            snapshot,
-                          )
-                        : supportsAi);
-                return Text(
-                  isSupported
-                      ? 'Hệ thống sẽ đồng hành cùng bạn khi lập lịch trình cho ${metadata.destinationName ?? "điểm đến này"}.'
-                      : 'Tính năng tự động và AI chưa hỗ trợ điểm đến này. Bạn có thể tự lập lịch trình.',
-                );
-              },
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
             ),
             const SizedBox(height: 8),
             OutlinedButton(
@@ -109,31 +87,97 @@ class SelectedDestinationControls extends StatelessWidget {
               child: const Text('Để app gợi ý điểm đến'),
             ),
             const SizedBox(height: 8),
-            const Text(
-              'Đây là thông tin đầu vào. Bạn có thể điều chỉnh các giá trị bên dưới.',
-            ),
-          ],
-          if (isAccountWorkspace) ...[
-            const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(
-                  alpha: 0.5,
+                  alpha: 0.35,
                 ),
                 borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Theme.of(context).colorScheme.outlineVariant.withValues(
+                    alpha: 0.4,
+                  ),
+                ),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text(
-                    'Thông tin này chưa được lưu',
-                    style: TextStyle(fontWeight: FontWeight.w600),
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.info_outline,
+                        size: 16,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Builder(
+                          builder: (context) {
+                            PublicCatalogueProvider? pub;
+                            try {
+                              pub = context.watch<PublicCatalogueProvider>();
+                            } catch (_) {}
+                            final snapshot = pub?.snapshot;
+                            final isSupported = metadata.destinationId == null ||
+                                (snapshot != null
+                                    ? PlannerInputProvider.isAiEligibleDestination(
+                                        metadata.destinationId,
+                                        snapshot,
+                                      )
+                                    : supportsAi);
+                            return Text(
+                              isSupported
+                                  ? 'Hệ thống sẽ đồng hành cùng bạn khi lập lịch trình cho ${metadata.destinationName ?? "điểm đến này"}.'
+                                  : 'Tính năng tự động và AI chưa hỗ trợ điểm đến này. Bạn có thể tự lập lịch trình.',
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    height: 1.35,
+                                  ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
                   ),
-                  SizedBox(height: 4),
-                  Text(
-                    'Nội dung hiện chỉ được giữ trong phiên làm việc của ứng dụng.',
-                  ),
+                  if (isAccountWorkspace) ...[
+                    const SizedBox(height: 8),
+                    Divider(
+                      height: 1,
+                      color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.4),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.save_outlined,
+                          size: 16,
+                          color: Theme.of(context).colorScheme.secondary,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: const [
+                              Text(
+                                'Thông tin này chưa được lưu',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                'Nội dung hiện chỉ được giữ trong phiên làm việc của ứng dụng.',
+                                style: TextStyle(fontSize: 11),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),

@@ -36,7 +36,6 @@ void main() {
           visitProvider: visits,
         ),
       );
-      expect(find.textContaining('70.000 ₫'), findsOneWidget);
       expect(find.text('Ví dụ đang được rà soát'), findsOneWidget);
       expect(find.text('Ngày 1'), findsNothing);
       expect(
@@ -45,6 +44,20 @@ void main() {
         ),
         findsNothing,
       );
+
+      // Switch to Attractions tab to view places & details
+      await tester.tap(find.textContaining('Điểm tham quan'));
+      await tester.pumpAndSettle();
+
+      // Tap on Van Mieu to expand its details & reviews
+      final toggleVanMieu = find.byKey(
+        const ValueKey('toggle-place-ha-noi/van-mieu'),
+      );
+      await tester.ensureVisible(toggleVanMieu);
+      await tester.tap(toggleVanMieu);
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('70.000 ₫'), findsWidgets);
       final source = find.byKey(const ValueKey('visit-source-ha-noi/van-mieu'));
       await tester.ensureVisible(source);
       await tester.tap(source);
@@ -85,6 +98,11 @@ void main() {
         find.textContaining('Chưa tải được thông tin tham quan'),
         findsOneWidget,
       );
+
+      // Switch to Attractions tab where place cards display pricing
+      await tester.tap(find.textContaining('Điểm tham quan'));
+      await tester.pumpAndSettle();
+
       expect(find.text('Chưa xác minh giá vé'), findsNWidgets(6));
       final prepare = tester.widget<FilledButton>(
         find.widgetWithText(FilledButton, 'Chuẩn bị chuyến đi'),
@@ -93,6 +111,7 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
   for (final width in [360.0, 390.0]) {
     testWidgets(
       'pending hides days/semantics, sources wrap at $width scale 1.5',
@@ -116,11 +135,25 @@ void main() {
         expect(find.text('Ví dụ đang được rà soát'), findsOneWidget);
         expect(find.text('Ngày 1'), findsNothing);
         expect(find.textContaining('Chưa xác minh'), findsWidgets);
+
+        // Switch to Attractions tab and expand first place to see source url
+        await tester.tap(find.textContaining('Điểm tham quan'));
+        await tester.pumpAndSettle();
+        final firstToggle = find.byKey(
+          ValueKey(
+            'toggle-place-${catalogue.destinations.first.places.first.id}',
+          ),
+        );
+        await tester.ensureVisible(firstToggle);
+        await tester.tap(firstToggle);
+        await tester.pumpAndSettle();
+
         expect(find.textContaining('vietnam.travel'), findsWidgets);
         expect(tester.takeException(), isNull);
       },
     );
   }
+
   testWidgets(
     'conditional synthetic sample previews with warnings and conditions',
     (tester) async {

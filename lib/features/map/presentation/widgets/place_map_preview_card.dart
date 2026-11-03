@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../core/theme/app_theme.dart';
 import '../../models/catalogue_map_marker.dart';
 
 class PlaceMapPreviewCard extends StatelessWidget {
@@ -24,33 +25,49 @@ class PlaceMapPreviewCard extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return Card(
-      elevation: 8,
+    return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: marker.isTopRated
-            ? const BorderSide(color: Colors.amber, width: 2)
-            : BorderSide.none,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: marker.isTopRated
+              ? Colors.amber.shade300
+              : AppTheme.border.withValues(alpha: 0.8),
+          width: marker.isTopRated ? 1.5 : 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            offset: const Offset(0, 4),
+            blurRadius: 16,
+            spreadRadius: 0,
+          ),
+        ],
       ),
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(14.0),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Row 1: Icon, Title, Subtitle, Close Button
             Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Container(
-                  padding: const EdgeInsets.all(8),
+                  width: 42,
+                  height: 42,
                   decoration: BoxDecoration(
-                    color: marker.markerColor.withValues(alpha: 0.15),
+                    color: marker.markerColor.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(
-                    marker.iconData,
-                    color: marker.markerColor,
-                    size: 24,
+                  child: Center(
+                    child: Icon(
+                      marker.iconData,
+                      color: marker.markerColor,
+                      size: 22,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -60,8 +77,10 @@ class PlaceMapPreviewCard extends StatelessWidget {
                     children: [
                       Text(
                         marker.title,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.slate900,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -70,8 +89,9 @@ class PlaceMapPreviewCard extends StatelessWidget {
                         const SizedBox(height: 2),
                         Text(
                           marker.subtitle!,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppTheme.slate500,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -82,86 +102,106 @@ class PlaceMapPreviewCard extends StatelessWidget {
                 ),
                 if (onClosePressed != null)
                   IconButton(
-                    icon: const Icon(Icons.close, size: 20),
+                    icon: const Icon(Icons.close_rounded, size: 20, color: AppTheme.slate400),
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                     onPressed: onClosePressed,
                   ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
+            // Row 2: Badges & Action CTA Button
             Row(
               children: [
                 Expanded(
                   child: Wrap(
                     crossAxisAlignment: WrapCrossAlignment.center,
-                    spacing: 8,
+                    spacing: 6,
                     runSpacing: 4,
                     children: [
                       if (marker.type == MarkerType.place) ...[
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.star, color: Colors.amber, size: 18),
-                            const SizedBox(width: 4),
-                            Text(
-                              marker.averageRating > 0
-                                  ? marker.averageRating.toStringAsFixed(1)
-                                  : 'Mới',
-                              style: const TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                            if (marker.reviewCount > 0) ...[
-                              const SizedBox(width: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEF3C7),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.star_rounded, color: Color(0xFFD97706), size: 16),
+                              const SizedBox(width: 3),
                               Text(
-                                '(${marker.reviewCount} đánh giá)',
-                                style: theme.textTheme.bodySmall,
+                                marker.averageRating > 0
+                                    ? marker.averageRating.toStringAsFixed(1)
+                                    : 'Mới',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                  color: Color(0xFF92400E),
+                                ),
                               ),
+                              if (marker.reviewCount > 0) ...[
+                                const SizedBox(width: 4),
+                                Text(
+                                  '(${marker.reviewCount} đánh giá)',
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: Color(0xFF92400E),
+                                  ),
+                                ),
+                              ],
                             ],
-                          ],
+                          ),
                         ),
                         if (marker.isTopRated)
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
-                              color: Colors.amber.shade100,
-                              borderRadius: BorderRadius.circular(6),
+                              color: Colors.amber.shade50,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.amber.shade200),
                             ),
                             child: const Text(
                               '⭐ Nổi Bật',
                               style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.deepOrange,
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFFB45309),
                               ),
                             ),
                           ),
                       ] else if (marker.type == MarkerType.destination) ...[
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
-                            color: colorScheme.primaryContainer,
-                            borderRadius: BorderRadius.circular(6),
+                            color: colorScheme.primaryContainer.withValues(alpha: 0.6),
+                            borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
                             'Điểm đến du lịch',
                             style: TextStyle(
                               fontSize: 11,
                               color: colorScheme.onPrimaryContainer,
-                              fontWeight: FontWeight.bold,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ),
                       ] else ...[
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
-                            color: Colors.red.shade100,
-                            borderRadius: BorderRadius.circular(6),
+                            color: Colors.red.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.red.shade200),
                           ),
                           child: Text(
                             'Lãnh thổ Việt Nam',
                             style: TextStyle(
                               fontSize: 11,
-                              color: Colors.red.shade900,
-                              fontWeight: FontWeight.bold,
+                              color: Colors.red.shade800,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ),
@@ -172,37 +212,38 @@ class PlaceMapPreviewCard extends StatelessWidget {
                 const SizedBox(width: 8),
                 ElevatedButton.icon(
                   onPressed: onDetailsPressed,
-                  icon: const Icon(Icons.arrow_forward, size: 15),
+                  icon: const Icon(Icons.arrow_forward_rounded, size: 14),
                   label: Text(
                     marker.type == MarkerType.destination ? 'Xem các điểm' : 'Xem chi tiết',
-                    style: const TextStyle(fontSize: 13),
+                    style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
                   ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: marker.isTopRated ? Colors.amber.shade700 : colorScheme.primary,
+                    backgroundColor: marker.isTopRated ? const Color(0xFFD97706) : AppTheme.tealPrimary,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(10),
                     ),
                   ),
                 ),
               ],
             ),
             if (isAdmin && marker.type == MarkerType.place) ...[
-              const SizedBox(height: 12),
-              const Divider(height: 1),
               const SizedBox(height: 10),
+              Divider(height: 1, color: AppTheme.border.withValues(alpha: 0.6)),
+              const SizedBox(height: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 decoration: BoxDecoration(
                   color: isPlaceHidden
-                      ? Colors.red.withValues(alpha: 0.08)
-                      : colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                      ? Colors.red.withValues(alpha: 0.06)
+                      : AppTheme.bgSurface,
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
                     color: isPlaceHidden
-                        ? Colors.red.shade300
-                        : colorScheme.outlineVariant,
+                        ? Colors.red.shade200
+                        : AppTheme.border,
                     width: 1,
                   ),
                 ),
@@ -210,12 +251,12 @@ class PlaceMapPreviewCard extends StatelessWidget {
                   children: [
                     Icon(
                       isPlaceHidden
-                          ? Icons.visibility_off
+                          ? Icons.visibility_off_rounded
                           : Icons.admin_panel_settings_outlined,
                       size: 16,
                       color: isPlaceHidden
                           ? Colors.red.shade700
-                          : colorScheme.primary,
+                          : AppTheme.tealPrimary,
                     ),
                     const SizedBox(width: 8),
                     Expanded(
@@ -226,20 +267,21 @@ class PlaceMapPreviewCard extends StatelessWidget {
                             isPlaceHidden
                                 ? 'Đang ẩn với khách'
                                 : 'Quản trị địa điểm',
-                            style: theme.textTheme.labelMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
                               color: isPlaceHidden
                                   ? Colors.red.shade800
-                                  : colorScheme.onSurface,
+                                  : AppTheme.slate800,
                             ),
                           ),
                           Text(
                             isPlaceHidden
                                 ? 'Khách không nhìn thấy trên bản đồ'
                                 : 'Đang hiển thị công khai',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              fontSize: 11,
-                              color: colorScheme.onSurfaceVariant,
+                            style: const TextStyle(
+                              fontSize: 10.5,
+                              color: AppTheme.slate500,
                             ),
                           ),
                         ],
@@ -249,17 +291,20 @@ class PlaceMapPreviewCard extends StatelessWidget {
                       key: const ValueKey('admin-toggle-place-visibility-btn'),
                       onPressed: onAdminToggleHide,
                       icon: Icon(
-                        isPlaceHidden ? Icons.visibility : Icons.visibility_off,
-                        size: 16,
+                        isPlaceHidden ? Icons.visibility_rounded : Icons.visibility_off_rounded,
+                        size: 15,
                       ),
-                      label: Text(isPlaceHidden ? 'Hiện lại' : 'Ẩn địa điểm'),
+                      label: Text(
+                        isPlaceHidden ? 'Hiện lại' : 'Ẩn địa điểm',
+                        style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
+                      ),
                       style: FilledButton.styleFrom(
                         backgroundColor: isPlaceHidden
-                            ? Colors.teal.shade700
-                            : Colors.deepOrange.shade700,
+                            ? AppTheme.tealPrimary
+                            : Colors.deepOrange.shade600,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
+                          horizontal: 10,
                           vertical: 6,
                         ),
                         minimumSize: Size.zero,

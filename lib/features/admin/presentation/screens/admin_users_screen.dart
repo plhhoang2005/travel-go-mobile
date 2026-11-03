@@ -164,7 +164,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
             ),
             const SizedBox(height: 8),
 
-            if (error != null)
+            if (error != null && users.isNotEmpty)
               Container(
                 margin: const EdgeInsets.symmetric(
                   horizontal: 16.0,
@@ -173,7 +173,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                 padding: const EdgeInsets.all(12.0),
                 decoration: BoxDecoration(
                   color: theme.colorScheme.errorContainer,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 child: Row(
                   children: [
@@ -205,38 +205,100 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                     ? const Center(child: CircularProgressIndicator())
                     : users.isEmpty && error != null
                     ? Center(
-                        child: Padding(
+                        child: SingleChildScrollView(
                           padding: const EdgeInsets.all(24.0),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(Icons.cloud_off_outlined, size: 48, color: Colors.grey),
-                              const SizedBox(height: 12),
-                              const Text(
-                                'Chưa tải được danh sách người dùng từ máy chủ.',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(fontWeight: FontWeight.w600),
-                              ),
-                              const SizedBox(height: 8),
-                              const Text(
-                                'Bạn có thể chuyển sang Chế độ Demo Sandbox để thử nghiệm quản lý tài khoản.',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(fontSize: 12, color: Colors.grey),
-                              ),
-                              const SizedBox(height: 16),
-                              ElevatedButton.icon(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.amber.shade800,
-                                  foregroundColor: Colors.white,
+                          child: Container(
+                            padding: const EdgeInsets.all(24.0),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: AppTheme.border),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.04),
+                                  blurRadius: 16,
+                                  offset: const Offset(0, 4),
                                 ),
-                                onPressed: () {
-                                  final auth = context.read<AuthProvider>();
-                                  auth.switchToAdminDemoSession();
-                                },
-                                icon: const Icon(Icons.science_outlined, size: 18),
-                                label: const Text('Thử nghiệm với Demo Sandbox'),
-                              ),
-                            ],
+                              ],
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 56,
+                                  height: 56,
+                                  decoration: BoxDecoration(
+                                    color: Colors.amber.shade50,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(
+                                    Icons.cloud_off_rounded,
+                                    size: 28,
+                                    color: Colors.amber.shade800,
+                                  ),
+                                ),
+                                const SizedBox(height: 14),
+                                const Text(
+                                  'Chưa kết nối máy chủ quản trị',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppTheme.slate800,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                const Text(
+                                  'Chưa tải được danh sách người dùng từ máy chủ.\nBạn có thể chuyển sang Chế độ Demo Sandbox để thử nghiệm quản lý tài khoản.',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 12.5,
+                                    color: AppTheme.slate500,
+                                    height: 1.4,
+                                  ),
+                                ),
+                                const SizedBox(height: 20),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton.icon(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.amber.shade800,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(vertical: 12),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                    ),
+                                    onPressed: () {
+                                      final auth = context.read<AuthProvider>();
+                                      auth.switchToAdminDemoSession();
+                                    },
+                                    icon: const Icon(Icons.science_outlined, size: 18),
+                                    label: const Text(
+                                      'Thử nghiệm với Demo Sandbox',
+                                      style: TextStyle(fontWeight: FontWeight.w600),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: OutlinedButton.icon(
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: AppTheme.slate700,
+                                      side: const BorderSide(color: AppTheme.border),
+                                      padding: const EdgeInsets.symmetric(vertical: 12),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                    ),
+                                    onPressed: () => provider.loadUsers(nextPage: false),
+                                    icon: const Icon(Icons.refresh_rounded, size: 18),
+                                    label: const Text('Thử kết nối lại'),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       )

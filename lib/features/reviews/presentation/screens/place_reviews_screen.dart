@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../providers/place_reviews_provider.dart';
 import '../widgets/place_review_tile.dart';
 
-class PlaceReviewsScreen extends StatelessWidget {
+class PlaceReviewsScreen extends StatefulWidget {
   final String placeName;
   final PlaceReviewsProvider provider;
   const PlaceReviewsScreen({
@@ -13,16 +13,28 @@ class PlaceReviewsScreen extends StatelessWidget {
   });
 
   @override
+  State<PlaceReviewsScreen> createState() => _PlaceReviewsScreenState();
+}
+
+class _PlaceReviewsScreenState extends State<PlaceReviewsScreen> {
+  int _page = 0;
+  static const int _pageSize = 5;
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Đánh giá · $placeName')),
+      appBar: AppBar(title: Text('Đánh giá · ${widget.placeName}')),
       body: SafeArea(
         child: ListenableBuilder(
-          listenable: provider,
+          listenable: widget.provider,
           builder: (context, _) {
-            final reviews = provider.visibleReviews;
+            final reviews = widget.provider.visibleReviews;
+            final totalPages = (reviews.length / _pageSize).ceil();
+            final safePage = _page.clamp(0, totalPages > 0 ? totalPages - 1 : 0);
+            final pageReviews = reviews.skip(safePage * _pageSize).take(_pageSize).toList();
+
             return RefreshIndicator(
-              onRefresh: provider.load,
+              onRefresh: widget.provider.load,
               child: CustomScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 slivers: [
@@ -35,30 +47,35 @@ class PlaceReviewsScreen extends StatelessWidget {
                         children: [
                           _FilterChip(
                             label: 'Tất cả',
-                            selected: provider.ratingFilter == null,
-                            onSelected: () => provider.setRatingFilter(null),
+                            selected: widget.provider.ratingFilter == null,
+                            onSelected: () {
+                              setState(() => _page = 0);
+                              widget.provider.setRatingFilter(null);
+                            },
                           ),
                           for (var rating = 5; rating >= 1; rating--)
                             _FilterChip(
                               label: '$rating sao',
-                              selected: provider.ratingFilter == rating,
-                              onSelected: () =>
-                                  provider.setRatingFilter(rating),
+                              selected: widget.provider.ratingFilter == rating,
+                              onSelected: () {
+                                setState(() => _page = 0);
+                                widget.provider.setRatingFilter(rating);
+                              },
                             ),
                         ],
                       ),
                     ),
                   ),
-                  if (provider.isLoading && provider.reviews.isEmpty)
+                  if (widget.provider.isLoading && widget.provider.reviews.isEmpty)
                     const SliverFillRemaining(
                       hasScrollBody: false,
                       child: Center(child: CircularProgressIndicator()),
                     )
-                  else if (provider.errorCode != null &&
-                      provider.reviews.isEmpty)
+                  else if (widget.provider.errorCode != null &&
+                      widget.provider.reviews.isEmpty)
                     SliverFillRemaining(
                       hasScrollBody: false,
-                      child: _ReviewError(onRetry: provider.load),
+                      child: _ReviewError(onRetry: widget.provider.load),
                     )
                   else if (reviews.isEmpty)
                     const SliverFillRemaining(
@@ -70,16 +87,46 @@ class PlaceReviewsScreen extends StatelessWidget {
                         ),
                       ),
                     )
-                  else
+                  else ...[
                     SliverPadding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       sliver: SliverList.separated(
-                        itemCount: reviews.length,
+                        itemCount: pageReviews.length,
                         itemBuilder: (_, index) =>
-                            PlaceReviewTile(review: reviews[index]),
+                            PlaceReviewTile(review: pageReviews[index]),
                         separatorBuilder: (_, _) => const Divider(height: 1),
                       ),
                     ),
+                    if (totalPages > 1)
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              OutlinedButton.icon(
+                                onPressed: safePage > 0
+                                    ? () => setState(() => _page = safePage - 1)
+                                    : null,
+                                icon: const Icon(Icons.arrow_back_rounded, size: 16),
+                                label: const Text('Trang trước'),
+                              ),
+                              Text(
+                                'Trang ${safePage + 1} / $totalPages',
+                                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                              ),
+                              OutlinedButton.icon(
+                                onPressed: safePage < totalPages - 1
+                                    ? () => setState(() => _page = safePage + 1)
+                                    : null,
+                                icon: const Icon(Icons.arrow_forward_rounded, size: 16),
+                                label: const Text('Trang sau'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
                 ],
               ),
             );

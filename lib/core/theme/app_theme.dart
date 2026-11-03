@@ -15,6 +15,14 @@ class AppTheme {
   static const Color ratingBg = Color(0xFFFFF3DC);
   static const Color ratingText = Color(0xFFA65B0B);
 
+  // New Brand Palette from Demo Image (anhdemo.png)
+  static const Color tealPrimary = Color(0xFF086C61);
+  static const Color mintLight = Color(0xFF83C5BE);
+  static const Color mintDark = Color(0xFF006D77);
+  static const Color coralColor = Color(0xFFFF7657);
+  static const Color warmCream = Color(0xFFFFF3E0);
+  static const Color amberAccent = Color(0xFFF59E0B);
+
   // Classic slate & legacy aliases
   static const Color navy = Color(0xFF092D39);
   static const Color accentOrange = Color(0xFFFF7657);
@@ -68,25 +76,36 @@ class AppTheme {
       inputDecorationTheme: InputDecorationThemeData(
         filled: true,
         fillColor: Colors.white,
-        contentPadding: const EdgeInsets.all(16),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(24)),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(24),
           borderSide: const BorderSide(color: border),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(24),
+          borderSide: const BorderSide(color: primaryColor, width: 1.5),
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           minimumSize: const Size(48, 48),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(24),
           ),
-          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
-        style: OutlinedButton.styleFrom(minimumSize: const Size(48, 48)),
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(48, 48),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
@@ -99,7 +118,7 @@ class AppTheme {
         thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10),
       ),
       chipTheme: ChipThemeData(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         selectedColor: primaryColor.withValues(alpha: 0.15),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
@@ -107,10 +126,10 @@ class AppTheme {
           backgroundColor: primaryColor,
           foregroundColor: Colors.white,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(24),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
         ),
       ),
     );
