@@ -375,7 +375,6 @@ class _SmartTripWizardSheetState extends State<SmartTripWizardSheet> {
   Widget _buildStep2DurationAndWho(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final currencyFmt = NumberFormat.currency(locale: 'vi', symbol: 'đ', decimalDigits: 0);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

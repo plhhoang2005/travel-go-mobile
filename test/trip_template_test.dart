@@ -1,5 +1,4 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:travelgo_mobile/features/trip_planner/models/trip_template.dart';
 import 'package:travelgo_mobile/features/trip_planner/services/editable_trip_validator.dart';
 import 'package:travelgo_mobile/features/trip_planner/services/trip_template_repository.dart';
 
