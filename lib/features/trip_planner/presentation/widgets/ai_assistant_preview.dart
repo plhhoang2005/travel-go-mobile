@@ -293,7 +293,7 @@ class _AiAssistantPreviewState extends State<AiAssistantPreview> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Không gửi tên chuyến đi, ghi chú, khoản đã chi, GPS hay hồ sơ. Câu hỏi và tối đa 2 cặp chat gần nhất chỉ ở RAM của app. Gemini xử lý dữ liệu được đồng ý gửi.',
+                        'Không gửi tên chuyến đi, ghi chú, khoản đã chi, GPS hay hồ sơ. Câu hỏi và tối đa 2 cặp chat gần nhất chỉ ở RAM của app. Trợ lý AI xử lý dữ liệu được đồng ý gửi.',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 11),
                       ),
                     ],
@@ -396,7 +396,7 @@ class _AiAssistantPreviewState extends State<AiAssistantPreview> {
                       ? null
                       : (v) => setState(() => _consent = v == true),
                   title: const Text(
-                    'Đồng ý gửi câu hỏi và ngữ cảnh trên đến Gemini',
+                    'Đồng ý gửi câu hỏi và ngữ cảnh trên đến Trợ lý AI',
                   ),
                 ),
                 FilledButton(
