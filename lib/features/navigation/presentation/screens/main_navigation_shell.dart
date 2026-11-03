@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/go_ai_mascot.dart';
 
 import '../../../ai_chat/presentation/screens/ai_chatbot_screen.dart';
 import '../../../community/presentation/screens/community_feed_screen.dart';
@@ -53,22 +55,48 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: IndexedStack(index: _currentIndex, children: _screens),
-      floatingActionButton: FloatingActionButton.extended(
-        heroTag: 'global_ai_chatbot_fab',
-        tooltip: 'Trợ lý AI TravelGO',
-        onPressed: () => Navigator.push(
-          context,
-          MaterialPageRoute<void>(
-            builder: (_) => const AiChatbotScreen(),
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 6.0, right: 2.0),
+        child: FloatingActionButton(
+          key: const ValueKey('global_ai_chatbot_fab'),
+          heroTag: 'global_ai_chatbot_fab',
+          tooltip: 'Trợ lý GoAI TravelGO',
+          elevation: 4,
+          highlightElevation: 6,
+          shape: const CircleBorder(),
+          backgroundColor: Colors.white,
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute<void>(
+              builder: (_) => const AiChatbotScreen(),
+            ),
+          ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              const GoAiMascot(size: 44),
+              Positioned(
+                top: 2,
+                right: 2,
+                child: Container(
+                  width: 13,
+                  height: 13,
+                  decoration: const BoxDecoration(
+                    color: AppTheme.coralColor,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Center(
+                    child: Icon(
+                      Icons.auto_awesome,
+                      color: Colors.white,
+                      size: 8,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
-        icon: const Icon(Icons.auto_awesome, size: 20),
-        label: const Text(
-          'Hỏi AI',
-          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-        ),
-        backgroundColor: Theme.of(context).colorScheme.primary,
-        foregroundColor: Theme.of(context).colorScheme.onPrimary,
       ),
       bottomNavigationBar: NavigationBarTheme(
         data: NavigationBarTheme.of(context).copyWith(

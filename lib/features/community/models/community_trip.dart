@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 class CommunityTrip {
   final String id;
   final String title;
@@ -46,11 +48,17 @@ class CommunityTrip {
     final rawPlan = json['ai_plan_data'] ??
         json['trip_plan_data'] ??
         json['trip_data'];
-    final planMap = rawPlan is Map<String, dynamic>
-        ? Map<String, dynamic>.from(rawPlan)
-        : (rawPlan is Map
-            ? Map<String, dynamic>.from(rawPlan)
-            : <String, dynamic>{});
+    Map<String, dynamic> planMap = <String, dynamic>{};
+    if (rawPlan is Map) {
+      planMap = Map<String, dynamic>.from(rawPlan);
+    } else if (rawPlan is String && rawPlan.trim().isNotEmpty) {
+      try {
+        final decoded = jsonDecode(rawPlan);
+        if (decoded is Map) {
+          planMap = Map<String, dynamic>.from(decoded);
+        }
+      } catch (_) {}
+    }
 
     final numDaysRaw = json['num_days'] ?? json['days_count'];
     final budgetRaw = json['budget_total'] ?? json['estimated_cost_vnd'];

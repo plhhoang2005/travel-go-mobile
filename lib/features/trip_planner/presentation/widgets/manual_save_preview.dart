@@ -303,28 +303,50 @@ class _PreviewOverview extends StatelessWidget {
             p.document.input.title.isEmpty
                 ? 'Chuyến đi chưa đặt tên'
                 : p.document.input.title,
-            style: Theme.of(context).textTheme.titleLarge,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
           ),
-          const SizedBox(height: 16),
-          Text(
-            '${p.document.input.destinationName ?? 'Chưa chọn điểm đến'} · ${p.document.input.origin}',
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.35),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${p.document.input.destinationName ?? 'Chưa chọn điểm đến'} · ${p.document.input.origin}',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${p.document.input.startDate ?? 'Chưa chọn ngày'} – ${p.document.input.endDate ?? 'Chưa chọn ngày'}',
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${p.document.days.length} ngày · ${p.document.input.travelerCount} người',
+                ),
+                const SizedBox(height: 2),
+                Text('Sở thích: ${p.document.input.interests.join(', ')}'),
+                const SizedBox(height: 2),
+                Text(
+                  'Ưu tiên: ${switch (p.document.input.priority) {
+                    'cheapest' => 'Rẻ nhất',
+                    'fastest' => 'Nhanh nhất',
+                    'comfortable' => 'Thoải mái',
+                    _ => 'Cân bằng',
+                  }}',
+                ),
+              ],
+            ),
           ),
-          Text(
-            '${p.document.input.startDate ?? 'Chưa chọn ngày'} – ${p.document.input.endDate ?? 'Chưa chọn ngày'}',
-          ),
-          Text(
-            '${p.document.days.length} ngày · ${p.document.input.travelerCount} người',
-          ),
-          Text('Sở thích: ${p.document.input.interests.join(', ')}'),
-          Text(
-            'Ưu tiên: ${switch (p.document.input.priority) {
-              'cheapest' => 'Rẻ nhất',
-              'fastest' => 'Nhanh nhất',
-              'comfortable' => 'Thoải mái',
-              _ => 'Cân bằng',
-            }}',
-          ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           ManualBudgetSummary(
             totals: p.totals,
             budget: p.document.input.totalBudgetVnd,
@@ -355,45 +377,106 @@ class _IssueRow extends StatelessWidget {
     final titles = state.preview.document.items
         .where((i) => issue.itemIds.contains(i.id))
         .map((i) => i.title);
+    final isError = issue.isBlocking && !issue.acknowledged;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            '${issue.acknowledged
-                ? 'Đã ghi lý do'
-                : issue.isBlocking
-                ? 'Cần xử lý'
-                : 'Lưu ý'}: ${issue.message}',
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: (isError
+                  ? Theme.of(context).colorScheme.errorContainer
+                  : issue.acknowledged
+                      ? Theme.of(context).colorScheme.surfaceContainerHighest
+                      : Colors.amber.shade50)
+              .withValues(alpha: 0.4),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: (isError
+                    ? Theme.of(context).colorScheme.error
+                    : issue.acknowledged
+                        ? Theme.of(context).colorScheme.outlineVariant
+                        : Colors.amber.shade300)
+                .withValues(alpha: 0.6),
           ),
-          if (titles.isNotEmpty) Text(titles.join(' · ')),
-          if (state._current &&
-              !state.planner.isSaving &&
-              (issue.itemIds.isNotEmpty ||
-                  issue.path.startsWith('items.') ||
-                  issue.path.startsWith('input.')))
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton(
-                onPressed: () => state._resolve(issue),
-                child: const Text('Đi sửa nội dung'),
-              ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  isError
+                      ? Icons.error_outline
+                      : issue.acknowledged
+                          ? Icons.check_circle_outline
+                          : Icons.warning_amber_rounded,
+                  size: 18,
+                  color: isError
+                      ? Theme.of(context).colorScheme.error
+                      : issue.acknowledged
+                          ? Theme.of(context).colorScheme.primary
+                          : Colors.amber.shade800,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '${issue.acknowledged ? 'Đã ghi lý do' : issue.isBlocking ? 'Cần xử lý' : 'Lưu ý'}: ${issue.message}',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                      color: isError ? Theme.of(context).colorScheme.error : null,
+                    ),
+                  ),
+                ),
+              ],
             ),
-          if (state._current &&
-              !state.planner.isSaving &&
-              !issue.acknowledged &&
-              {'overlap', 'time_order'}.contains(issue.code))
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton(
-                onPressed: () {
-                  state._selectIssue(issue);
-                },
-                child: const Text('Ghi lý do chấp nhận'),
+            if (titles.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Padding(
+                padding: const EdgeInsets.only(left: 26),
+                child: Text(
+                  titles.join(' · '),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
               ),
-            ),
-        ],
+            ],
+            if (state._current &&
+                !state.planner.isSaving &&
+                (issue.itemIds.isNotEmpty ||
+                    issue.path.startsWith('items.') ||
+                    issue.path.startsWith('input.'))) ...[
+              const SizedBox(height: 4),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  icon: const Icon(Icons.edit_outlined, size: 14),
+                  onPressed: () => state._resolve(issue),
+                  label: const Text('Đi sửa nội dung'),
+                ),
+              ),
+            ],
+            if (state._current &&
+                !state.planner.isSaving &&
+                !issue.acknowledged &&
+                {'overlap', 'time_order'}.contains(issue.code)) ...[
+              const SizedBox(height: 4),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  icon: const Icon(Icons.note_alt_outlined, size: 14),
+                  onPressed: () {
+                    state._selectIssue(issue);
+                  },
+                  label: const Text('Ghi lý do chấp nhận'),
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -446,13 +529,61 @@ class _ChangeRow extends StatelessWidget {
   final _PreviewChange change;
   const _ChangeRow({required this.change});
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: EdgeInsets.fromLTRB(16, change.heading ? 24 : 8, 16, 0),
-    child: Text(
-      change.text,
-      style: change.heading ? Theme.of(context).textTheme.titleMedium : null,
-    ),
-  );
+  Widget build(BuildContext context) {
+    if (change.heading) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 6),
+        child: Row(
+          children: [
+            Icon(
+              Icons.change_history,
+              size: 18,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                change.text,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Icon(
+                Icons.fiber_manual_record,
+                size: 8,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                change.text,
+                style: const TextStyle(fontSize: 13),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 List<_PreviewChange> _previewChanges(SavePreview preview) {
@@ -462,13 +593,25 @@ List<_PreviewChange> _previewChanges(SavePreview preview) {
   final rows = <_PreviewChange>[
     const _PreviewChange('Thông tin và lịch trình', heading: true),
   ];
-  if (before == null ||
-      different(before.input.toJson(), after.input.toJson())) {
-    rows.add(
-      _PreviewChange(
-        before == null ? 'Tạo chuyến đi mới' : 'Cập nhật thông tin chuyến đi',
-      ),
-    );
+  if (before == null) {
+    rows.add(const _PreviewChange('Tạo chuyến đi mới'));
+  } else if (different(before.input.toJson(), after.input.toJson())) {
+    rows.add(const _PreviewChange('Cập nhật thông tin chuyến đi'));
+    if (before.input.title != after.input.title && after.input.title.isNotEmpty) {
+      rows.add(_PreviewChange('Tên chuyến: "${before.input.title}" → "${after.input.title}"'));
+    }
+    if (before.input.destinationName != after.input.destinationName && after.input.destinationName != null) {
+      rows.add(_PreviewChange('Điểm đến: ${before.input.destinationName ?? "Chưa chọn"} → ${after.input.destinationName}'));
+    }
+    if (before.input.travelerCount != after.input.travelerCount) {
+      rows.add(_PreviewChange('Số người: ${before.input.travelerCount} người → ${after.input.travelerCount} người'));
+    }
+    if (before.input.startDate != after.input.startDate || before.input.endDate != after.input.endDate) {
+      rows.add(_PreviewChange('Thời gian: ${before.input.startDate ?? "Chưa rõ"} – ${before.input.endDate ?? "Chưa rõ"} → ${after.input.startDate ?? "Chưa rõ"} – ${after.input.endDate ?? "Chưa rõ"}'));
+    }
+    if (before.input.totalBudgetVnd != after.input.totalBudgetVnd) {
+      rows.add(_PreviewChange('Ngân sách: ${manualMoney(before.input.totalBudgetVnd)} → ${manualMoney(after.input.totalBudgetVnd)}'));
+    }
   }
   final oldDays = {for (final day in before?.days ?? <TripDay>[]) day.id: day};
   final newDays = {for (final day in after.days) day.id: day};
@@ -566,6 +709,9 @@ List<_PreviewChange> _previewChanges(SavePreview preview) {
     )),
   )) {
     rows.add(_PreviewChange('Lý do chấp nhận cảnh báo: ${e.reason}'));
+  }
+  if (before != null && rows.length == 1) {
+    rows.add(const _PreviewChange('Bạn chưa thay đổi thông tin nào.'));
   }
   return List.unmodifiable(rows);
 }
