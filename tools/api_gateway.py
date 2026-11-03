@@ -33,6 +33,7 @@ PORT = 8080
 OLLAMA_HOST = "http://127.0.0.1:11434"
 DOCS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs")
 PLAYGROUND_HTML = os.path.join(DOCS_DIR, "api-playground", "index.html")
+SWAGGER_HTML = os.path.join(DOCS_DIR, "swagger", "index.html")
 
 # In-memory Mock Datastore
 DESTINATIONS = [
@@ -258,6 +259,19 @@ class TravelGoApiHandler(http.server.BaseHTTPRequestHandler):
             else:
                 self._set_cors_headers(404, "text/plain")
                 self.wfile.write(b"Playground HTML not found.")
+                return
+
+        # Serve Swagger UI
+        if path in ("/swagger", "/swagger/", "/swagger/index.html", "/docs"):
+            if os.path.exists(SWAGGER_HTML):
+                with open(SWAGGER_HTML, "rb") as f:
+                    content = f.read()
+                self._set_cors_headers(200, "text/html")
+                self.wfile.write(content)
+                return
+            else:
+                self._set_cors_headers(404, "text/plain")
+                self.wfile.write(b"Swagger HTML not found.")
                 return
 
         # 1. API Điểm Đến (Destinations)

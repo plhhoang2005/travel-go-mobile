@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TravelGO · Official Swagger OpenAPI Specification</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✈️</text></svg>">
+  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui.css" />
+  <style>
+    body {
+      margin: 0;
+      background: #fafafa;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    .top-nav {
+      background: #00796B;
+      color: white;
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .top-nav a {
+      color: white;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 13px;
+      padding: 6px 14px;
+      border-radius: 6px;
+      background: rgba(255,255,255,0.15);
+      transition: background 0.2s;
+    }
+    .top-nav a:hover {
+      background: rgba(255,255,255,0.25);
+    }
+    .swagger-ui .topbar { display: none; }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="top-nav">
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <span style="font-size: 20px;">✈️</span>
+      <span style="font-weight: bold; font-size: 16px;">TravelGO API Specification (Swagger UI)</span>
+      <span style="font-size: 11px; background: #004D40; padding: 2px 8px; border-radius: 12px;">OpenAPI 3.0</span>
+    </div>
+    <div style="display: flex; gap: 10px;">
+      <a href="../api-playground/">Sang Giao Diện Trực Quan (API Playground) →</a>
+    </div>
+  </div>
+
+  <div id="swagger-ui"></div>
+
+  <script src="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-bundle.js"></script>
+  <script src="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-standalone-preset.js"></script>
+  <script>
+    const spec = {
+      "openapi": "3.0.3",
+      "info": {
+        "title": "TravelGO Mobile Backend & AI Gateway API",
+        "version": "1.0.0",
+        "description": "Tài liệu đặc tả kỹ thuật chính thức toàn bộ hệ thống Web API của đồ án TravelGO (Mobile Client, Supabase RESTful Core, và Trợ lý Trí tuệ nhân tạo Local AI Qwen3)."
+      },
+      "servers": [
+        {
+          "url": "http://localhost:8080",
+          "description": "Local API Gateway (Khi chạy tools/start_web_demo.bat)"
+        },
+        {
+          "url": "https://plhhoang2005.github.io/travel-go-mobile/api-playground",
+          "description": "Live Public Web Demo (GitHub Pages)"
+        }
+      ],
+      "tags": [
+        { "name": "AI Services", "description": "Trí tuệ nhân tạo lập lịch trình và đàm thoại tư vấn du lịch" },
+        { "name": "Destinations", "description": "Danh mục điểm đến, toạ độ GPS và hình ảnh" },
+        { "name": "Community Reviews", "description": "Đánh giá cộng đồng và phản hồi bình luận chuyến đi" },
+        { "name": "Auth & Profile", "description": "Xác thực JWT và quản lý hồ sơ cá nhân hóa" }
+      ],
+      "paths": {
+        "/plan-trip": {
+          "post": {
+            "tags": ["AI Services"],
+            "summary": "Tạo lịch trình du lịch thông minh bằng AI",
+            "description": "Tiếp nhận điểm đến, số ngày, số người, ngân sách và sở thích du lịch; phân bổ ngân sách tối ưu và sắp xếp hoạt động theo từng ngày.",
+            "requestBody": {
+              "required": true,
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/PlanTripRequest"
+                  }
+                }
+              }
+            },
+            "responses": {
+              "200": {
+                "description": "Tạo lịch trình thành công",
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/PlanTripResponse"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "/chat": {
+          "post": {
+            "tags": ["AI Services"],
+            "summary": "Chatbot tư vấn du lịch thông minh",
+            "description": "Hỏi đáp tự nhiên về kinh nghiệm du lịch, ẩm thực bản địa, thời gian khởi hành tối ưu và kinh nghiệm tiết kiệm chi phí.",
+            "requestBody": {
+              "required": true,
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "message": { "type": "string", "example": "Gợi ý 3 món ăn đặc sản không thể bỏ qua ở Ninh Bình?" }
+                    },
+                    "required": ["message"]
+                  }
+                }
+              }
+            },
+            "responses": {
+              "200": {
+                "description": "Câu trả lời từ trợ lý AI",
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "type": "object",
+                      "properties": {
+                        "reply": { "type": "string" },
+                        "model": { "type": "string", "example": "qwen3:4b-instruct-2507-q4_K_M" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "/destinations": {
+          "get": {
+            "tags": ["Destinations"],
+            "summary": "Lấy danh mục điểm đến du lịch",
+            "description": "Truy xuất danh sách địa danh chính thức kèm vùng miền, toạ độ GPS, mô tả và các hoạt động trải nghiệm đặc sắc.",
+            "parameters": [
+              {
+                "name": "q",
+                "in": "query",
+                "description": "Từ khóa tìm kiếm theo tên hoặc mô tả",
+                "schema": { "type": "string" }
+              },
+              {
+                "name": "region",
+                "in": "query",
+                "description": "Lọc theo vùng miền (Bắc, Trung, Nam, Tây Nguyên)",
+                "schema": { "type": "string" }
+              }
+            ],
+            "responses": {
+              "200": {
+                "description": "Danh sách điểm đến",
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "type": "object",
+                      "properties": {
+                        "total": { "type": "integer", "example": 6 },
+                        "destinations": {
+                          "type": "array",
+                          "items": { "$ref": "#/components/schemas/Destination" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "/reviews": {
+          "get": {
+            "tags": ["Community Reviews"],
+            "summary": "Lấy danh sách đánh giá cộng đồng",
+            "description": "Truy xuất danh sách các bài đánh giá chuyến đi kèm số sao, bình luận, avatar và danh sách phản hồi (replies).",
+            "parameters": [
+              {
+                "name": "trip_id",
+                "in": "query",
+                "description": "ID chuyến đi cần lọc đánh giá",
+                "schema": { "type": "string" }
+              }
+            ],
+            "responses": {
+              "200": {
+                "description": "Danh sách đánh giá",
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "type": "object",
+                      "properties": {
+                        "total": { "type": "integer", "example": 3 },
+                        "reviews": {
+                          "type": "array",
+                          "items": { "$ref": "#/components/schemas/Review" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "post": {
+            "tags": ["Community Reviews"],
+            "summary": "Gửi đánh giá chuyến đi mới",
+            "description": "Đăng tải nhận xét và xếp hạng điểm sao (1 - 5 sao) cho chuyến đi đã trải nghiệm.",
+            "requestBody": {
+              "required": true,
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/CreateReviewRequest"
+                  }
+                }
+              }
+            },
+            "responses": {
+              "201": {
+                "description": "Tạo đánh giá thành công",
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "type": "object",
+                      "properties": {
+                        "message": { "type": "string", "example": "Tạo đánh giá thành công" },
+                        "review": { "$ref": "#/components/schemas/Review" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "/reviews/reply": {
+          "post": {
+            "tags": ["Community Reviews"],
+            "summary": "Phản hồi/Trả lời một bài đánh giá",
+            "description": "Cho phép người dùng hoặc tác giả chuyến đi gửi bình luận trả lời trực tiếp vào một review có sẵn.",
+            "requestBody": {
+              "required": true,
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/CreateReplyRequest"
+                  }
+                }
+              }
+            },
+            "responses": {
+              "201": {
+                "description": "Phản hồi thành công",
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "type": "object",
+                      "properties": {
+                        "message": { "type": "string", "example": "Phản hồi đánh giá thành công" },
+                        "reply": { "$ref": "#/components/schemas/Reply" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "/auth/login": {
+          "post": {
+            "tags": ["Auth & Profile"],
+            "summary": "Xác thực đăng nhập tài khoản",
+            "description": "Đăng nhập bằng Email/Mật khẩu hoặc chuyển đổi Persona mẫu; trả về JWT token và thông tin hồ sơ người dùng.",
+            "requestBody": {
+              "required": true,
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "persona": { "type": "string", "enum": ["minh_solo", "linh_family", "admin"], "example": "minh_solo" },
+                      "email": { "type": "string", "example": "minh.solo@travelgo.vn" }
+                    }
+                  }
+                }
+              }
+            },
+            "responses": {
+              "200": {
+                "description": "Đăng nhập thành công",
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "type": "object",
+                      "properties": {
+                        "token": { "type": "string" },
+                        "user": { "$ref": "#/components/schemas/UserProfile" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "/profile": {
+          "get": {
+            "tags": ["Auth & Profile"],
+            "summary": "Lấy thông tin hồ sơ & sở thích du lịch",
+            "description": "Truy xuất thông tin cá nhân, vai trò (Customer/Admin), thống kê chuyến đi và cấu hình TravelPreferences.",
+            "responses": {
+              "200": {
+                "description": "Thông tin hồ sơ",
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/UserProfile"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "components": {
+        "schemas": {
+          "PlanTripRequest": {
+            "type": "object",
+            "required": ["destination", "numDays", "numPeople", "budgetVnd"],
+            "properties": {
+              "destination": { "type": "string", "example": "Ninh Bình" },
+              "numDays": { "type": "integer", "example": 3 },
+              "numPeople": { "type": "integer", "example": 2 },
+              "budgetVnd": { "type": "integer", "example": 4000000 },
+              "preferences": {
+                "type": "array",
+                "items": { "type": "string" },
+                "example": ["nghỉ dưỡng", "ẩm thực", "check-in & chill"]
+              }
+            }
+          },
+          "PlanTripResponse": {
+            "type": "object",
+            "properties": {
+              "title": { "type": "string", "example": "Chuyến đi Ninh Bình 3N" },
+              "destination": { "type": "string", "example": "Ninh Bình" },
+              "totalCost": { "type": "integer", "example": 3800000 },
+              "days": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "day": { "type": "integer", "example": 1 },
+                    "title": { "type": "string", "example": "Ngày 1: Khám phá các điểm nổi bật" },
+                    "activities": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "time": { "type": "string", "example": "08:00" },
+                          "title": { "type": "string", "example": "Tham quan Quần thể Tràng An" },
+                          "cost": { "type": "integer", "example": 250000 },
+                          "duration": { "type": "string", "example": "3.0h" },
+                          "location": { "type": "string", "example": "Tràng An, Ninh Bình" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "Destination": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string", "example": "ninh-binh" },
+              "name": { "type": "string", "example": "Ninh Bình" },
+              "region": { "type": "string", "example": "Bắc" },
+              "description": { "type": "string" },
+              "imageUrl": { "type": "string" },
+              "coordinates": {
+                "type": "object",
+                "properties": {
+                  "lat": { "type": "number", "example": 20.2506 },
+                  "lng": { "type": "number", "example": 105.9744 }
+                }
+              },
+              "popularActivities": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            }
+          },
+          "Review": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string", "example": "rev-001" },
+              "tripId": { "type": "string", "example": "trip-ninh-binh-3n2d" },
+              "userName": { "type": "string", "example": "Minh Nguyễn (Solo)" },
+              "rating": { "type": "integer", "minimum": 1, "maximum": 5, "example": 5 },
+              "comment": { "type": "string", "example": "Lịch trình Ninh Bình 3N2Đ do AI tạo quá xuất sắc!" },
+              "createdAt": { "type": "string", "format": "date-time" },
+              "replies": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/Reply" }
+              }
+            }
+          },
+          "CreateReviewRequest": {
+            "type": "object",
+            "required": ["tripId", "userName", "rating", "comment"],
+            "properties": {
+              "tripId": { "type": "string", "example": "trip-ninh-binh-3n2d" },
+              "userName": { "type": "string", "example": "Minh Nguyễn (Bạn)" },
+              "rating": { "type": "integer", "minimum": 1, "maximum": 5, "example": 5 },
+              "comment": { "type": "string", "example": "Chuyến đi rất vui và tiết kiệm!" }
+            }
+          },
+          "Reply": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string", "example": "rep-001" },
+              "reviewId": { "type": "string", "example": "rev-001" },
+              "userName": { "type": "string", "example": "Tác giả chuyến đi" },
+              "comment": { "type": "string", "example": "Cảm ơn bạn đã trải nghiệm!" },
+              "createdAt": { "type": "string", "format": "date-time" }
+            }
+          },
+          "CreateReplyRequest": {
+            "type": "object",
+            "required": ["reviewId", "userName", "comment"],
+            "properties": {
+              "reviewId": { "type": "string", "example": "rev-001" },
+              "userName": { "type": "string", "example": "Thành viên TravelGO" },
+              "comment": { "type": "string", "example": "Bạn đi vào mùa nào thế ạ?" }
+            }
+          },
+          "UserProfile": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string", "example": "usr-minh-01" },
+              "email": { "type": "string", "example": "minh.solo@travelgo.vn" },
+              "fullName": { "type": "string", "example": "Minh Nguyễn" },
+              "role": { "type": "string", "enum": ["customer", "admin"], "example": "customer" },
+              "roleBadge": { "type": "string", "example": "CUSTOMER" },
+              "avatarUrl": { "type": "string" },
+              "preferences": {
+                "type": "object",
+                "properties": {
+                  "interests": { "type": "array", "items": { "type": "string" } },
+                  "typicalBudgetVnd": { "type": "integer", "example": 4000000 },
+                  "travelStyle": { "type": "string", "example": "Solo & Khám phá văn hóa" }
+                }
+              },
+              "stats": {
+                "type": "object",
+                "properties": {
+                  "tripsCount": { "type": "integer", "example": 5 },
+                  "reviewsCount": { "type": "integer", "example": 3 }
+                }
+              }
+            }
+          }
+        }
+      }
+    };
+
+    window.onload = function() {
+      SwaggerUIBundle({
+        spec: spec,
+        dom_id: '#swagger-ui',
+        deepLinking: true,
+        presets: [
+          SwaggerUIBundle.presets.apis,
+          SwaggerUIStandalonePreset
+        ],
+        layout: "BaseLayout"
+      });
+    };
+  </script>
+</body>
+</html>
