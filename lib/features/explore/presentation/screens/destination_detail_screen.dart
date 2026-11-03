@@ -621,6 +621,39 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
                                   fontSize: 11,
                                 ),
                               ),
+                              if (destination.places.isNotEmpty) ...[
+                                const SizedBox(height: 6),
+                                Wrap(
+                                  spacing: 6,
+                                  runSpacing: 4,
+                                  children: destination.places
+                                      .map(
+                                        (p) => Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 6,
+                                            vertical: 2,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: colorScheme.surface,
+                                            borderRadius: BorderRadius.circular(6),
+                                            border: Border.all(
+                                              color: colorScheme.outlineVariant
+                                                  .withValues(alpha: 0.4),
+                                            ),
+                                          ),
+                                          child: Text(
+                                            p.name,
+                                            style: TextStyle(
+                                              fontSize: 10.5,
+                                              fontWeight: FontWeight.w600,
+                                              color: colorScheme.onSurface,
+                                            ),
+                                          ),
+                                        ),
+                                      )
+                                      .toList(),
+                                ),
+                              ],
                             ],
                           ),
                         ),
