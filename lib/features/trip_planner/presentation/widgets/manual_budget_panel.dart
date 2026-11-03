@@ -136,7 +136,129 @@ class ManualBudgetSummary extends StatelessWidget {
       ),
       const SizedBox(height: 16),
       _BudgetComparison(budget: budget, totals: totals),
-      const SizedBox(height: 24),
+      const SizedBox(height: 16),
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.6),
+          ),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                children: [
+                  Text(
+                    'Ngân sách',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    manualMoney(budget),
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.outline,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  const Text('Mục tiêu', style: TextStyle(fontSize: 10)),
+                ],
+              ),
+            ),
+            Container(width: 1, height: 40, color: Theme.of(context).colorScheme.outlineVariant),
+            Expanded(
+              child: Column(
+                children: [
+                  Text(
+                    'Dự kiến',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    manualMoney(totals.knownEstimate),
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    totals.estimateRemaining >= 0
+                        ? 'Còn ${manualMoney(totals.estimateRemaining)}'
+                        : 'Vượt ${manualMoney(-totals.estimateRemaining)}',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: totals.estimateRemaining < 0
+                          ? Theme.of(context).colorScheme.error
+                          : Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            Container(width: 1, height: 40, color: Theme.of(context).colorScheme.outlineVariant),
+            Expanded(
+              child: Column(
+                children: [
+                  Text(
+                    'Đã chi',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(context).colorScheme.secondary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    manualMoney(totals.actualTotal),
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.secondary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    totals.actualRemaining >= 0
+                        ? 'Còn ${manualMoney(totals.actualRemaining)}'
+                        : 'Vượt ${manualMoney(-totals.actualRemaining)}',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: totals.actualRemaining < 0
+                          ? Theme.of(context).colorScheme.error
+                          : Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      const SizedBox(height: 20),
       Text('Dự kiến đã biết: ${manualMoney(totals.knownEstimate)}'),
       Text('Còn theo dự kiến: ${manualMoney(totals.estimateRemaining)}'),
       if (totals.estimateRemaining < 0)

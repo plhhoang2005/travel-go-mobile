@@ -1,3 +1,4 @@
+import '../../../../core/widgets/global_profile_avatar_action.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -122,6 +123,7 @@ class _MyTripsScreenState extends State<MyTripsScreen>
               );
             },
           ),
+          const GlobalProfileAvatarAction(),
         ],
         bottom: TabBar(
           controller: _tabController,

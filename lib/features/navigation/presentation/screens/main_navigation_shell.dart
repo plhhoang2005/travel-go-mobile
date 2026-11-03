@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../ai_chat/presentation/screens/ai_chatbot_screen.dart';
 import '../../../community/presentation/screens/community_feed_screen.dart';
 import '../../../home/presentation/screens/main_home_screen.dart';
 import '../../../explore/presentation/screens/explore_screen.dart';
@@ -52,6 +53,23 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: IndexedStack(index: _currentIndex, children: _screens),
+      floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'global_ai_chatbot_fab',
+        tooltip: 'Trợ lý AI TravelGO',
+        onPressed: () => Navigator.push(
+          context,
+          MaterialPageRoute<void>(
+            builder: (_) => const AiChatbotScreen(),
+          ),
+        ),
+        icon: const Icon(Icons.auto_awesome, size: 20),
+        label: const Text(
+          'Hỏi AI',
+          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+        ),
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        foregroundColor: Theme.of(context).colorScheme.onPrimary,
+      ),
       bottomNavigationBar: NavigationBarTheme(
         data: NavigationBarTheme.of(context).copyWith(
           labelTextStyle: WidgetStateProperty.resolveWith((states) {
