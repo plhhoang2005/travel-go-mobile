@@ -94,6 +94,92 @@ class _AiGenerationPreviewState extends State<AiGenerationPreview> {
       ? 'chưa rõ'
       : '${(minute ~/ 60).toString().padLeft(2, '0')}:${(minute % 60).toString().padLeft(2, '0')}';
 
+  List<Widget> _buildGroupedActivities(
+    BuildContext context,
+    List<AiProposedActivity> activities,
+  ) {
+    final byDay = <int, List<AiProposedActivity>>{};
+    for (final a in activities) {
+      byDay.putIfAbsent(a.day, () => []).add(a);
+    }
+    final days = byDay.keys.toList()..sort();
+    final widgets = <Widget>[];
+
+    for (final day in days) {
+      final dayActivities = byDay[day]!;
+      widgets.add(
+        Padding(
+          padding: const EdgeInsets.only(top: 12, bottom: 6),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  'Ngày $day',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.onPrimaryContainer,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Divider(
+                  color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.5),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      for (final a in dayActivities) {
+        widgets.add(
+          Card(
+            elevation: 0,
+            margin: const EdgeInsets.only(bottom: 8),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+              side: BorderSide(
+                color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.5),
+              ),
+            ),
+            color: Theme.of(context).colorScheme.surface,
+            child: Padding(
+              padding: const EdgeInsets.all(10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    a.title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${_clock(a.startMinute)} – ${_clock(a.endMinute)} · ${a.costVnd == null ? 'Chi phí chưa rõ' : 'Ước tính ${a.costVnd} VND'}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }
+    }
+    return widgets;
+  }
+
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: widget.authority,
@@ -122,19 +208,107 @@ class _AiGenerationPreviewState extends State<AiGenerationPreview> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Điểm đến: ${widget.input.destinationId} · ${widget.input.numDays} ngày · ${widget.input.numPeople} người',
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.4),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.place_outlined,
+                          size: 16,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'Điểm đến: ${widget.input.destinationId} · ${widget.input.numDays} ngày · ${widget.input.numPeople} người',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.payments_outlined,
+                          size: 16,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'Ngân sách gửi AI: ${widget.input.budgetVnd} VND',
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.interests_outlined,
+                          size: 16,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'Sở thích gửi AI: ${widget.input.interests.isEmpty ? 'chưa đặt' : widget.input.interests.join(', ')}',
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-              Text('Ngân sách gửi AI: ${widget.input.budgetVnd} VND'),
-              Text(
-                'Sở thích gửi AI: ${widget.input.interests.isEmpty ? 'chưa đặt' : widget.input.interests.join(', ')}',
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'AI chỉ đề xuất thêm hoạt động và ước tính vào bản nháp. Chưa lưu lên tài khoản; hoạt động và khoản đã chi hiện có được giữ nguyên.',
-              ),
-              const Text(
-                'Kết quả AI được lưu tạm trên máy chủ tối đa 24 giờ để kiểm tra lại yêu cầu. Gemini xử lý thông tin bạn đồng ý gửi.',
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Text(
+                      'Lưu ý bảo mật & dữ liệu',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 11,
+                        color: Colors.blueGrey,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'AI chỉ đề xuất thêm hoạt động và ước tính vào bản nháp. Chưa lưu lên tài khoản; hoạt động và khoản đã chi hiện có được giữ nguyên.',
+                      style: TextStyle(fontSize: 11, height: 1.3),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'Kết quả AI được lưu tạm trên máy chủ tối đa 24 giờ để kiểm tra lại yêu cầu. Gemini xử lý thông tin bạn đồng ý gửi.',
+                      style: TextStyle(fontSize: 11, height: 1.3),
+                    ),
+                  ],
+                ),
               ),
               if (proposal == null) ...[
                 CheckboxListTile(
@@ -149,15 +323,20 @@ class _AiGenerationPreviewState extends State<AiGenerationPreview> {
                     'Không gửi tên chuyến đi, ghi chú, khoản đã chi, GPS, thông tin liên hệ hay hồ sơ tài khoản. Vùng xuất phát chưa xác định.',
                   ),
                 ),
-                FilledButton(
-                  key: const ValueKey('ai-generate'),
-                  onPressed: _consent && !_loading ? _generate : null,
-                  child: Text(
-                    _loading
-                        ? 'Đang tạo đề xuất…'
-                        : _error == null
-                        ? 'Tạo đề xuất'
-                        : 'Thử lại',
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    key: const ValueKey('ai-generate'),
+                    icon: const Icon(Icons.auto_awesome, size: 18),
+                    onPressed: _consent && !_loading ? _generate : null,
+                    label: Text(
+                      _loading
+                          ? 'Đang tạo đề xuất…'
+                          : _error == null
+                          ? 'Tạo đề xuất'
+                          : 'Thử lại',
+                    ),
                   ),
                 ),
                 if (_loading)
@@ -181,8 +360,34 @@ class _AiGenerationPreviewState extends State<AiGenerationPreview> {
                 ),
               if (proposal != null) ...[
                 const Divider(height: 24),
-                Text(proposal.summary),
-                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.25),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+                    ),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.lightbulb_outline,
+                        size: 18,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          proposal.summary,
+                          style: const TextStyle(fontSize: 13, height: 1.35),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
                 if (envelope != null) ...[
                   if (envelope.evidence.any((e) => e.origin == EvidenceOrigin.web)) ...[
                     Container(
@@ -215,9 +420,11 @@ class _AiGenerationPreviewState extends State<AiGenerationPreview> {
                       children: [
                         const Icon(Icons.verified, size: 16, color: Colors.green),
                         const SizedBox(width: 6),
-                        Text(
-                          'Đã đối chiếu Catalogue (${envelope.evidence.length} nguồn)',
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        Expanded(
+                          child: Text(
+                            'Đã đối chiếu Catalogue (${envelope.evidence.length} nguồn)',
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                          ),
                         ),
                       ],
                     ),
@@ -240,39 +447,114 @@ class _AiGenerationPreviewState extends State<AiGenerationPreview> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                ] else
-                  const Text(
-                    'Chưa xác minh giá, địa điểm, giờ mở cửa, đường đi và thời tiết. Kiểm tra trước khi sử dụng.',
-                  ),
-                ...proposal.activities.map(
-                  (a) => Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    child: Text(
-                      'Ngày ${a.day}: ${a.title}\n${_clock(a.startMinute)}–${_clock(a.endMinute)} · ${a.costVnd == null ? 'Chi phí chưa rõ' : 'Ước tính ${a.costVnd} VND'}',
+                ] else ...[
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text(
+                      'Chưa xác minh giá, địa điểm, giờ mở cửa, đường đi và thời tiết. Kiểm tra trước khi sử dụng.',
+                      style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic),
                     ),
                   ),
-                ),
+                  const SizedBox(height: 8),
+                ],
+                ..._buildGroupedActivities(context, proposal.activities),
                 ...proposal.warnings.map(
-                  (w) => Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Text(w),
+                  (w) => Container(
+                    margin: const EdgeInsets.only(top: 8),
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.amber.shade300),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.warning_amber_rounded, size: 16, color: Colors.amber.shade800),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            w,
+                            style: TextStyle(fontSize: 12, color: Colors.amber.shade900),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 ..._issues
                     .take(12)
                     .map(
-                      (i) => Text(
-                        i.message,
-                        style: TextStyle(
-                          color: i.isBlocking
-                              ? Theme.of(context).colorScheme.error
-                              : null,
+                      (i) => Container(
+                        margin: const EdgeInsets.only(top: 8),
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: (i.isBlocking
+                                  ? Theme.of(context).colorScheme.errorContainer
+                                  : Theme.of(context).colorScheme.surfaceContainerHighest)
+                              .withValues(alpha: 0.5),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: (i.isBlocking
+                                    ? Theme.of(context).colorScheme.error
+                                    : Theme.of(context).colorScheme.outlineVariant)
+                                .withValues(alpha: 0.5),
+                          ),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              i.isBlocking ? Icons.error_outline : Icons.info_outline,
+                              size: 16,
+                              color: i.isBlocking
+                                  ? Theme.of(context).colorScheme.error
+                                  : Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                i.message,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: i.isBlocking
+                                      ? Theme.of(context).colorScheme.error
+                                      : null,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
                 if (!_canApply)
-                  const Text(
-                    'Đề xuất còn lỗi chặn. Hủy để chỉnh lịch hiện tại rồi tạo đề xuất mới.',
+                  Container(
+                    margin: const EdgeInsets.only(top: 10),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.errorContainer.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.block, size: 16, color: Theme.of(context).colorScheme.error),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Đề xuất còn lỗi chặn. Hủy để chỉnh lịch hiện tại rồi tạo đề xuất mới.',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Theme.of(context).colorScheme.error,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
               ],
             ],

@@ -3,6 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/go_ai_mascot.dart';
+import '../../../ai_chat/presentation/screens/ai_chatbot_screen.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
 import '../../../auth/providers/auth_provider.dart';
 import '../../../explore/models/catalogue_reference.dart';
@@ -12,6 +15,7 @@ import '../../../explore/presentation/screens/destination_detail_screen.dart';
 import '../../../explore/presentation/screens/explore_screen.dart';
 import '../../../explore/presentation/widgets/destination_reference_list_tile.dart';
 import '../../../trip_planner/presentation/screens/home_planner_screen.dart';
+import '../../../profile/presentation/screens/profile_screen.dart';
 
 class MainHomeScreen extends StatefulWidget {
   const MainHomeScreen({super.key});
@@ -45,7 +49,9 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
     final items = all
         .where((d) => allowed == null || allowed.contains(d.id))
         .toList();
+
     return Scaffold(
+      backgroundColor: AppTheme.bgSurface,
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: () => discovery.load(force: true),
@@ -53,18 +59,21 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
               SliverPadding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
                 sliver: SliverToBoxAdapter(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       const _HomeGreeting(),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 16),
                       const _HomePlanningEntry(),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 20),
                       Text(
                         'Khám phá theo sở thích',
-                        style: Theme.of(context).textTheme.titleLarge,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.textMain,
+                            ),
                       ),
                       const SizedBox(height: 12),
                       Wrap(
@@ -80,16 +89,22 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
                             ),
                         ],
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 20),
                       Text(
                         'Điểm đến nổi bật',
-                        style: Theme.of(context).textTheme.titleMedium,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.textMain,
+                            ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         '${items.length} điểm đến · ảnh và nguồn tham khảo',
-                        style: Theme.of(context).textTheme.bodyMedium,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: AppTheme.textMuted,
+                            ),
                       ),
+                      const SizedBox(height: 12),
                     ],
                   ),
                 ),
@@ -105,46 +120,129 @@ class _MainHomeScreenState extends State<MainHomeScreen> {
 
 class _HomeGreeting extends StatelessWidget {
   const _HomeGreeting();
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final user = auth.currentUser;
     final guest = auth.isGuest || user == null;
-    final name = guest ? 'Quý khách' : user.fullName.trim().split(' ').last;
+    final name = guest
+        ? 'Quý khách'
+        : (user.fullName.trim().isNotEmpty
+            ? user.fullName.trim().split(' ').last
+            : 'Thành viên');
+
     return Wrap(
       alignment: WrapAlignment.spaceBetween,
       crossAxisAlignment: WrapCrossAlignment.center,
-      spacing: 16,
+      spacing: 12,
       runSpacing: 8,
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              'TravelGO',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                color: Theme.of(context).colorScheme.primary,
-                fontWeight: FontWeight.w700,
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: AppTheme.primarySoft,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(
+                Icons.terrain_rounded,
+                color: AppTheme.primaryColor,
+                size: 20,
               ),
             ),
-            const SizedBox(height: 4),
-            Text(
-              'Xin chào, ${name.isEmpty ? 'Thành viên' : name}',
-              style: Theme.of(context).textTheme.bodyLarge,
+            const SizedBox(width: 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'TravelGO',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: -0.5,
+                    color: AppTheme.primaryColor,
+                  ),
+                ),
+                Text(
+                  'Xin chào, $name',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppTheme.textMuted,
+                  ),
+                ),
+                if (guest)
+                  const Text(
+                    'Vãng lai',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: AppTheme.textMuted,
+                    ),
+                  ),
+              ],
             ),
-            if (guest)
-              Text('Vãng lai', style: Theme.of(context).textTheme.bodySmall),
           ],
         ),
-        if (guest)
-          TextButton.icon(
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute<void>(builder: (_) => const LoginScreen()),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (guest)
+              TextButton.icon(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(builder: (_) => const LoginScreen()),
+                ),
+                icon: const Icon(Icons.person_outline, size: 18),
+                label: const Text('Đăng nhập'),
+              )
+            else
+              InkWell(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => const CustomerProfileScreen(),
+                  ),
+                ),
+                borderRadius: BorderRadius.circular(20),
+                child: CircleAvatar(
+                  radius: 16,
+                  backgroundColor: AppTheme.primarySoft,
+                  child: Text(
+                    user.fullName.trim().isNotEmpty
+                        ? user.fullName.trim().characters.first.toUpperCase()
+                        : 'U',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.primaryColor,
+                    ),
+                  ),
+                ),
+              ),
+            const SizedBox(width: 6),
+            InkWell(
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute<void>(builder: (_) => const AiChatbotScreen()),
+              ),
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white,
+                  border: Border.all(
+                    color: AppTheme.mintLight,
+                    width: 1.5,
+                  ),
+                ),
+                child: const GoAiMascot(size: 26),
+              ),
             ),
-            icon: const Icon(Icons.person_outline),
-            label: const Text('Đăng nhập'),
-          ),
+          ],
+        ),
       ],
     );
   }
@@ -152,40 +250,97 @@ class _HomeGreeting extends StatelessWidget {
 
 class _HomePlanningEntry extends StatelessWidget {
   const _HomePlanningEntry();
+
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      Text(
-        'Bạn muốn khám phá đâu?',
-        style: Theme.of(context).textTheme.headlineSmall,
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppTheme.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
-      const SizedBox(height: 16),
-      OutlinedButton.icon(
-        onPressed: () => Navigator.push(
-          context,
-          MaterialPageRoute<void>(builder: (_) => const ExploreScreen()),
-        ),
-        icon: const Icon(Icons.search),
-        label: const Text('Tìm điểm đến'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Bạn muốn khám phá đâu?',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.textMain,
+                          ),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Lên kế hoạch thông minh cùng GoAI',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: AppTheme.textMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const GoAiMascot(size: 42, isWaving: true),
+            ],
+          ),
+          const SizedBox(height: 16),
+          OutlinedButton.icon(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute<void>(builder: (_) => const ExploreScreen()),
+            ),
+            icon: const Icon(Icons.search_rounded, size: 18),
+            label: const Text('Tìm điểm đến'),
+            style: OutlinedButton.styleFrom(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+              ),
+              padding: const EdgeInsets.symmetric(vertical: 12),
+            ),
+          ),
+          const SizedBox(height: 8),
+          FilledButton.icon(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute<void>(builder: (_) => const HomePlannerScreen()),
+            ),
+            icon: const Icon(Icons.add_rounded, size: 18),
+            label: const Text('Lập chuyến đi'),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppTheme.tealPrimary,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+              ),
+              padding: const EdgeInsets.symmetric(vertical: 12),
+            ),
+          ),
+        ],
       ),
-      const SizedBox(height: 8),
-      FilledButton.icon(
-        onPressed: () => Navigator.push(
-          context,
-          MaterialPageRoute<void>(builder: (_) => const HomePlannerScreen()),
-        ),
-        icon: const Icon(Icons.add),
-        label: const Text('Lập chuyến đi'),
-      ),
-    ],
-  );
+    );
+  }
 }
+
 
 class _HomeCatalogue extends StatelessWidget {
   final DiscoveryProvider discovery;
   final List<DestinationReference> items;
   const _HomeCatalogue({required this.discovery, required this.items});
+
   @override
   Widget build(BuildContext context) {
     final catalogue = discovery.catalogue;
@@ -229,7 +384,7 @@ class _HomeCatalogue extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
       sliver: SliverList.separated(
         itemCount: items.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 24),
+        separatorBuilder: (_, _) => const SizedBox(height: 16),
         itemBuilder: (context, index) {
           final destination = items[index];
           return DestinationReferenceListTile(

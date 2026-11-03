@@ -110,12 +110,6 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Hà Nội'));
       await tester.pumpAndSettle();
-      expect(find.byType(PlaceVisitDetailsWidget), findsNWidgets(6));
-      expect(find.textContaining('70.000 ₫'), findsOneWidget);
-      expect(
-        find.byKey(const ValueKey('visit-price-ha-noi/van-mieu')),
-        findsOneWidget,
-      );
       expect(
         identical(
           tester
@@ -126,6 +120,23 @@ void main() {
           visits,
         ),
         true,
+      );
+      await tester.tap(find.textContaining('Điểm tham quan'));
+      await tester.pumpAndSettle();
+      final detail1 = tester.widget<DestinationDetailScreen>(
+        find.byType(DestinationDetailScreen),
+      );
+      for (final place in detail1.destination.places) {
+        final toggle = find.byKey(ValueKey('toggle-place-${place.id}'));
+        await tester.ensureVisible(toggle);
+        await tester.tap(toggle);
+        await tester.pumpAndSettle();
+      }
+      expect(find.byType(PlaceVisitDetailsWidget), findsNWidgets(6));
+      expect(find.textContaining('70.000 ₫'), findsWidgets);
+      expect(
+        find.byKey(const ValueKey('visit-price-ha-noi/van-mieu')),
+        findsOneWidget,
       );
       await tester.pageBack();
       await tester.pumpAndSettle();
@@ -190,6 +201,17 @@ void main() {
         ),
         true,
       );
+      await tester.tap(find.textContaining('Điểm tham quan'));
+      await tester.pumpAndSettle();
+      final detail2 = tester.widget<DestinationDetailScreen>(
+        find.byType(DestinationDetailScreen),
+      );
+      for (final place in detail2.destination.places) {
+        final toggle = find.byKey(ValueKey('toggle-place-${place.id}'));
+        await tester.ensureVisible(toggle);
+        await tester.tap(toggle);
+        await tester.pumpAndSettle();
+      }
       expect(find.byType(PlaceVisitDetailsWidget), findsNWidgets(6));
       expect(
         find.byKey(const ValueKey('visit-price-hue/citadel')),

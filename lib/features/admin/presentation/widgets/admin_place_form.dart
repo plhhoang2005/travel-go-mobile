@@ -235,7 +235,9 @@ class _AdminPlaceFormState extends State<AdminPlaceForm> {
                     return DropdownMenuItem<String>(
                       value: d.id,
                       child: Text(
-                        '${d.name} (${d.region})',
+                        d.region.trim().isNotEmpty
+                            ? '${d.name} (${d.region})'
+                            : d.name,
                         overflow: TextOverflow.ellipsis,
                       ),
                     );

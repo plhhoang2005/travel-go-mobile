@@ -638,6 +638,22 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  /// Kích hoạt phiên quản trị Demo Sandbox ngoại tuyến cho môi trường kiểm thử
+  Future<void> switchToAdminDemoSession() async {
+    _handleRecoveryCancellation();
+    _requestGeneration++;
+    _authEpoch++;
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    _currentUser = UserEntity.demoAdmin();
+    _isGuest = false;
+    _isDemoSession = true;
+    _isLoading = false;
+    notifyListeners();
+  }
+
   /// Helper retained strictly for unit test fixtures
   @visibleForTesting
   Future<void> quickDemoLogin(UserRole role) async {
@@ -1505,11 +1521,11 @@ class AuthProvider extends ChangeNotifier {
       _refreshTimer?.cancel();
       if (state == AppLifecycleState.detached) {
         _lifecycle?.invalidateAccountContext();
+        onLocalAccountInvalidated();
       } else if (state == AppLifecycleState.inactive ||
           state == AppLifecycleState.hidden) {
         unawaited(_lifecycle?.suspendForegroundContext() ?? Future.value());
       }
-      onLocalAccountInvalidated();
     }
     final result = Completer<void>();
     _appTail = _appTail.then((_) async {

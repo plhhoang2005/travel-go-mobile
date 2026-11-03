@@ -1,3 +1,4 @@
+import '../../../../core/widgets/global_profile_avatar_action.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -6,6 +7,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../auth/presentation/screens/login_screen.dart';
 import '../../../auth/providers/auth_provider.dart';
 import '../../../trip_planner/presentation/screens/home_planner_screen.dart';
+import '../../../community/presentation/screens/community_feed_screen.dart';
 import '../../models/editable_remote_records.dart';
 import '../../models/saved_trip_model.dart';
 import '../../providers/saved_trips_provider.dart';
@@ -108,6 +110,21 @@ class _MyTripsScreenState extends State<MyTripsScreen>
         ),
         backgroundColor: Theme.of(context).colorScheme.surface,
         elevation: 0,
+        actions: [
+          IconButton(
+            key: const ValueKey('nav-to-community-feed'),
+            icon: const Icon(Icons.people_alt_outlined),
+            tooltip: 'Cộng đồng xê dịch',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const CommunityFeedScreen(),
+                ),
+              );
+            },
+          ),
+          const GlobalProfileAvatarAction(),
+        ],
         bottom: TabBar(
           controller: _tabController,
           labelColor: Theme.of(context).colorScheme.primary,

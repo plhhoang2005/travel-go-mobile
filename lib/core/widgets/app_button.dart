@@ -63,7 +63,7 @@ class AppButton extends StatelessWidget {
 
     final buttonStyle = ButtonStyle(
       shape: WidgetStateProperty.all(
-        RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       ),
       elevation: WidgetStateProperty.all(0),
       padding: WidgetStateProperty.all(

@@ -337,6 +337,33 @@ class _AdminCatalogueScreenState extends State<AdminCatalogueScreen>
               ),
             ),
 
+            if (provider.lastErrorMessage != null || provider.outcomeUncertain)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                color: Colors.red.shade50,
+                child: Row(
+                  children: [
+                    Icon(Icons.warning_amber_rounded, size: 20, color: Colors.red.shade800),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        provider.lastErrorMessage ?? 'Có thao tác lưu trước đó chưa hoàn tất.',
+                        style: TextStyle(fontSize: 12, color: Colors.red.shade900),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    TextButton(
+                      style: TextButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                      ),
+                      onPressed: () => provider.resetSaveOutcome(),
+                      child: const Text('Bỏ qua', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+              ),
             // Search bar
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
