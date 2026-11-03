@@ -227,4 +227,36 @@ void main() {
     final saved = await store.load();
     expect(saved.dailyQuota, 30);
   });
+
+  testWidgets('admin can toggle AI chatbot visibility', (tester) async {
+    final store = LocalAiSettingsStore();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: AdminAiManagementScreen(
+          settingsStore: store,
+          service: ProbeAi(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final switchFinder = find.byKey(const Key('toggle_ai_chatbot_switch'));
+    expect(switchFinder, findsOneWidget);
+    expect(find.text('Hiển thị Trợ lý GoAI Chatbot'), findsOneWidget);
+
+    // Tap switch to disable
+    final switchWidgetFinder = find.byType(Switch);
+    await tester.ensureVisible(switchWidgetFinder);
+    expect(tester.widget<Switch>(switchWidgetFinder).value, isTrue);
+    await tester.tap(switchWidgetFinder);
+    await tester.pumpAndSettle();
+    expect(tester.widget<Switch>(switchWidgetFinder).value, isFalse);
+
+    await tapAdminButton(tester, 'Lưu cấu hình');
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Đã lưu cấu hình trên thiết bị'), findsOneWidget);
+    final saved = await store.load();
+    expect(saved.isChatbotEnabled, isFalse);
+  });
 }

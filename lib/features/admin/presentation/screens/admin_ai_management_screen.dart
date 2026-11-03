@@ -25,7 +25,8 @@ class _AdminAiManagementScreenState extends State<AdminAiManagementScreen> {
   final _dailyQuota = TextEditingController();
   late final LocalAiSettingsStore _store;
   late final LocalAiService _service;
-  double _temperature = 0.7;
+  final double _temperature = 0.7;
+  bool _isChatbotEnabled = true;
   bool _loading = true;
   bool _saving = false;
   bool _testing = false;
@@ -49,8 +50,8 @@ class _AdminAiManagementScreenState extends State<AdminAiManagementScreen> {
       _host.text = settings.baseUrl;
       _model.text = settings.modelName;
       _prompt.text = settings.systemPrompt;
-      _temperature = settings.temperature;
       _dailyQuota.text = settings.dailyQuota.toString();
+      _isChatbotEnabled = settings.isChatbotEnabled;
       _status = _store.loadWarning;
     } catch (_) {
       if (!mounted) return;
@@ -58,6 +59,7 @@ class _AdminAiManagementScreenState extends State<AdminAiManagementScreen> {
       _model.text = LocalAiSettings().modelName;
       _prompt.text = LocalAiSettings.defaultPrompt;
       _dailyQuota.text = LocalAiSettings().dailyQuota.toString();
+      _isChatbotEnabled = true;
       _status = 'Không đọc được cấu hình đã lưu. Hãy kiểm tra và lưu lại.';
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -81,6 +83,7 @@ class _AdminAiManagementScreenState extends State<AdminAiManagementScreen> {
     systemPrompt: _prompt.text,
     temperature: _temperature,
     dailyQuota: int.tryParse(_dailyQuota.text.trim()) ?? 10,
+    isChatbotEnabled: _isChatbotEnabled,
   );
 
   Future<void> _save() async {
@@ -267,17 +270,21 @@ class _AdminAiManagementScreenState extends State<AdminAiManagementScreen> {
                       },
                     ),
                     const SizedBox(height: 16),
-                    Text('Độ sáng tạo: ${_temperature.toStringAsFixed(1)}'),
-                    Slider(
-                      value: _temperature,
-                      min: 0,
-                      max: 1,
-                      divisions: 10,
-                      label: _temperature.toStringAsFixed(1),
+                    SwitchListTile(
+                      key: const Key('toggle_ai_chatbot_switch'),
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text(
+                        'Hiển thị Trợ lý GoAI Chatbot',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      subtitle: const Text(
+                        'Bật hoặc ẩn nút linh vật GoAI Chatbot nổi trên màn hình chính của ứng dụng.',
+                      ),
+                      value: _isChatbotEnabled,
                       onChanged: _saving
                           ? null
                           : (value) {
-                              _temperature = value;
+                              _isChatbotEnabled = value;
                               _changed();
                             },
                     ),
