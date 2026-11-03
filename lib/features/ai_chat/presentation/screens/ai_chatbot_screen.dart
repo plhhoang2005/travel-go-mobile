@@ -8,6 +8,7 @@ import '../../models/ai_chat_session.dart';
 import '../../providers/ai_chat_provider.dart';
 import '../widgets/ai_chat_drawer.dart';
 import '../widgets/ai_prompt_chips.dart';
+import '../widgets/ai_markdown_text.dart';
 import '../../../../core/widgets/go_ai_mascot.dart';
 
 /// Chat interface for the local Ollama service.
@@ -316,10 +317,17 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     );
   }
 
+  String _formatTime(DateTime time) {
+    final hour = time.hour.toString().padLeft(2, '0');
+    final minute = time.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
+  }
+
   Widget _buildMessageBubble(BuildContext context, AiChatMessage msg) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final isUser = msg.isUser;
+    final provider = context.watch<AiChatProvider>();
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
@@ -335,12 +343,12 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
           ],
           Flexible(
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
               decoration: BoxDecoration(
                 color: isUser
                     ? colorScheme.primary
                     : colorScheme.surfaceContainerHighest.withValues(
-                        alpha: 0.8,
+                        alpha: 0.75,
                       ),
                 borderRadius: BorderRadius.only(
                   topLeft: const Radius.circular(16),
@@ -348,41 +356,74 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                   bottomLeft: Radius.circular(isUser ? 16 : 4),
                   bottomRight: Radius.circular(isUser ? 4 : 16),
                 ),
+                border: isUser
+                    ? null
+                    : Border.all(
+                        color: colorScheme.outlineVariant.withValues(alpha: 0.45),
+                        width: 1,
+                      ),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  SelectableText(
-                    msg.content,
-                    style: TextStyle(
-                      fontSize: 14.5,
-                      height: 1.45,
-                      color: isUser
-                          ? colorScheme.onPrimary
-                          : colorScheme.onSurface,
-                    ),
+                  AiMarkdownText(
+                    text: msg.content,
+                    isUser: isUser,
                   ),
-                  if (!isUser) ...[
-                    const SizedBox(height: 4),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: IconButton(
-                        icon: const Icon(Icons.copy_rounded, size: 14),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        tooltip: 'Sao chép',
-                        onPressed: () {
-                          Clipboard.setData(ClipboardData(text: msg.content));
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Đã sao chép vào bộ nhớ tạm'),
-                              duration: Duration(seconds: 1),
+                  if (isUser)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          _formatTime(msg.timestamp),
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            color: colorScheme.onPrimary.withValues(alpha: 0.75),
+                            fontWeight: FontWeight.w400,
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Text(
+                            _formatTime(msg.timestamp),
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: colorScheme.outline,
+                              fontWeight: FontWeight.w400,
                             ),
-                          );
-                        },
+                          ),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: Icon(
+                                  Icons.refresh_rounded,
+                                  size: 16,
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
+                                padding: const EdgeInsets.all(4),
+                                constraints: const BoxConstraints(),
+                                tooltip: 'Tạo lại câu trả lời',
+                                onPressed: provider.isLoading
+                                    ? null
+                                    : () => provider.regenerateAiReply(msg.id),
+                              ),
+                              const SizedBox(width: 4),
+                              _CopyButton(text: msg.content.trim()),
+                            ],
+                          ),
+                        ],
                       ),
                     ),
-                  ],
                 ],
               ),
             ),
@@ -523,6 +564,66 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
           ),
         ],
       ),
+    );
+  }
+}
+
+
+class _CopyButton extends StatefulWidget {
+  final String text;
+
+  const _CopyButton({required this.text});
+
+  @override
+  State<_CopyButton> createState() => _CopyButtonState();
+}
+
+class _CopyButtonState extends State<_CopyButton> {
+  bool _copied = false;
+
+  void _handleCopy() {
+    Clipboard.setData(ClipboardData(text: widget.text));
+    HapticFeedback.lightImpact();
+    setState(() => _copied = true);
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Đã sao chép vào bộ nhớ tạm'),
+        duration: Duration(seconds: 1),
+      ),
+    );
+    Future.delayed(const Duration(milliseconds: 1500), () {
+      if (mounted) {
+        setState(() => _copied = false);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return IconButton(
+      icon: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 200),
+        child: _copied
+            ? Icon(
+                Icons.check_rounded,
+                key: const ValueKey('copied'),
+                size: 15,
+                color: colorScheme.primary,
+              )
+            : Icon(
+                Icons.copy_rounded,
+                key: const ValueKey('copy'),
+                size: 15,
+                color: colorScheme.onSurfaceVariant,
+              ),
+      ),
+      padding: const EdgeInsets.all(4),
+      constraints: const BoxConstraints(),
+      tooltip: _copied ? 'Đã sao chép' : 'Sao chép',
+      onPressed: _handleCopy,
     );
   }
 }
