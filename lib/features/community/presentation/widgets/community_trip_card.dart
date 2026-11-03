@@ -14,7 +14,9 @@ class CommunityTripCard extends StatefulWidget {
   final VoidCallback? onTap;
   final VoidCallback? onLike;
   final VoidCallback? onPrint;
+  final VoidCallback? onDelete;
   final bool isLiked;
+  final bool isAuthor;
 
   const CommunityTripCard({
     super.key,
@@ -22,7 +24,9 @@ class CommunityTripCard extends StatefulWidget {
     this.onTap,
     this.onLike,
     this.onPrint,
+    this.onDelete,
     this.isLiked = false,
+    this.isAuthor = false,
   });
 
   static TravelMediaReference? resolveDestinationMedia(String destination) {
@@ -416,6 +420,20 @@ class _CommunityTripCardState extends State<CommunityTripCard> {
                           ),
                         ),
                       ),
+                      if (widget.isAuthor && widget.onDelete != null) ...[
+                        const SizedBox(width: 4),
+                        IconButton(
+                          onPressed: widget.onDelete,
+                          icon: const Icon(
+                            Icons.delete_outline_rounded,
+                            size: 18,
+                            color: Color(0xFFEF4444),
+                          ),
+                          tooltip: 'Xóa khỏi cộng đồng',
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                        ),
+                      ],
                     ],
                   ),
                 ],

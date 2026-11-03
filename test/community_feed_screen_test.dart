@@ -172,6 +172,15 @@ void main() {
       },
     );
 
+    test('normalizeSearch removes diacritics, spaces, and punctuation for fuzzy search', () {
+      expect(CommunityFeedScreen.normalizeSearch('Sa Pa'), 'sapa');
+      expect(CommunityFeedScreen.normalizeSearch('sapa'), 'sapa');
+      expect(CommunityFeedScreen.normalizeSearch('  sa   pa  '), 'sapa');
+      expect(CommunityFeedScreen.normalizeSearch('Đà Nẵng'), 'danang');
+      expect(CommunityFeedScreen.normalizeSearch('da-nang'), 'danang');
+      expect(CommunityFeedScreen.normalizeSearch('hà nội'), 'hanoi');
+    });
+
     testWidgets(
       'CommunityTripCard renders title, author, rating, destination, duration and read-only like count',
       (tester) async {

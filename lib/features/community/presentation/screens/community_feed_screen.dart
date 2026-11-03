@@ -1,3 +1,4 @@
+import '../../../auth/providers/auth_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -15,6 +16,24 @@ class CommunityFeedScreen extends StatefulWidget {
   final CommunityService? service;
 
   const CommunityFeedScreen({super.key, this.service});
+
+  static String normalizeSearch(String text) {
+    var result = text.trim().toLowerCase();
+    const groups = {
+      'a': 'àáạảãâầấậẩẫăằắặẳẵ',
+      'e': 'èéẹẻẽêềếệểễ',
+      'i': 'ìíịỉĩ',
+      'o': 'òóọỏõôồốộổỗơờớợởỡ',
+      'u': 'ùúụủũưừứựửữ',
+      'y': 'ỳýỵỷỹ',
+      'd': 'đ',
+    };
+    for (final group in groups.entries) {
+      result = result.replaceAll(RegExp('[${group.value}]'), group.key);
+    }
+    result = result.replaceAll(RegExp(r'[̀-ͯ]'), '');
+    return result.replaceAll(RegExp(r'[\s\-_\.]+'), '');
+  }
 
   @override
   State<CommunityFeedScreen> createState() => _CommunityFeedScreenState();
@@ -100,20 +119,78 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
       }).toList();
     }
 
-    // Lọc theo từ khóa tìm kiếm (tiêu đề hoặc điểm đến hoặc tác giả)
+    // Lọc theo từ khóa tìm kiếm (tiêu đề hoặc điểm đến hoặc tác giả) - Fuzzy Search
     if (_searchQuery.trim().isNotEmpty) {
-      final query = _searchQuery.trim().toLowerCase();
+      final rawQuery = _searchQuery.trim().toLowerCase();
+      final normQuery = CommunityFeedScreen.normalizeSearch(_searchQuery);
+
       result = result.where((trip) {
         final title = trip.title.toLowerCase();
         final dest = trip.destination.toLowerCase();
         final author = (trip.authorName ?? '').toLowerCase();
-        return title.contains(query) ||
-            dest.contains(query) ||
-            author.contains(query);
+
+        final matchNormalized = CommunityFeedScreen.normalizeSearch(title).contains(normQuery) ||
+            CommunityFeedScreen.normalizeSearch(dest).contains(normQuery) ||
+            CommunityFeedScreen.normalizeSearch(author).contains(normQuery);
+
+        final matchDirect = title.contains(rawQuery) ||
+            dest.contains(rawQuery) ||
+            author.contains(rawQuery);
+
+        return matchNormalized || matchDirect;
       }).toList();
     }
 
     return result;
+  }
+
+  Future<void> _confirmDeleteTrip(CommunityTrip trip) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Xác nhận xóa'),
+        content: const Text(
+          'Bạn có chắc chắn muốn xóa chuyến đi này khỏi cộng đồng không?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Xóa'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      try {
+        await _service.deleteCommunityTrip(trip.id);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Đã xóa chuyến đi khỏi cộng đồng thành công.'),
+              backgroundColor: AppTheme.accentEmerald,
+            ),
+          );
+          _loadTrips();
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Không thể xóa chuyến đi: $e'),
+              backgroundColor: const Color(0xFFEF4444),
+            ),
+          );
+        }
+      }
+    }
   }
 
   @override
@@ -373,8 +450,13 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
       itemCount: trips.length,
       itemBuilder: (context, index) {
         final trip = trips[index];
+        final currentUserId = context.watch<AuthProvider?>()?.currentUser?.id ?? _service.currentUserId;
+        final isAuthor = currentUserId != null && currentUserId == trip.authorId;
+
         return CommunityTripCard(
           trip: trip,
+          isAuthor: isAuthor,
+          onDelete: () => _confirmDeleteTrip(trip),
           onTap: () {
             Navigator.of(context).push(
               MaterialPageRoute<void>(

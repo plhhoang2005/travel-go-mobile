@@ -25,6 +25,14 @@ class CommunityService {
     }
   }
 
+  String? get currentUserId {
+    try {
+      return _client?.auth.currentUser?.id;
+    } catch (_) {
+      return null;
+    }
+  }
+
   SupabaseClient _getRequiredClient() {
     final client = _client;
     if (client == null) {
@@ -380,5 +388,10 @@ class CommunityService {
         .single();
 
     return CommunityTrip.fromJson(response);
+  }
+
+  /// Xóa / gỡ chuyến đi khỏi bảng tin cộng đồng (chỉ tác giả mới có quyền)
+  Future<void> deleteCommunityTrip(String tripId) async {
+    await toggleTripPublic(tripId: tripId, isPublic: false);
   }
 }
