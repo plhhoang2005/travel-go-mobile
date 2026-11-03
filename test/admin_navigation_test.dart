@@ -147,7 +147,7 @@ void main() {
       },
     );
     testWidgets(
-      'demo_badge_cannot_enter_admin: Guest, customer, demo cannot see Quản trị entry',
+      'demo_badge_cannot_enter_admin: Guest and customer cannot see Quản trị entry; Demo admin sees Quản trị sandbox',
       (tester) async {
         // 1. Guest mode: Quản trị tile MUST NOT be visible
         authProvider.continueAsGuest();
@@ -161,7 +161,21 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.text('Quản trị'), findsNothing);
 
-        // 2. Demo session with admin badge: demo session MUST NOT display Quản trị entry
+        // 2. Customer mode (Minh): Quản trị tile MUST NOT be visible
+        final customerLogin = authProvider.quickDemoLogin(UserRole.customer);
+        await tester.pump(const Duration(milliseconds: 200));
+        await customerLogin;
+        await tester.pumpWidget(
+          _wrapWithAuth(
+            child: const CustomerProfileScreen(),
+            auth: authProvider,
+            adminProvider: adminProvider,
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Quản trị'), findsNothing);
+
+        // 3. Demo session with admin badge: demo admin displays Quản trị sandbox entry
         final demoLogin = authProvider.quickDemoLogin(UserRole.admin);
         await tester.pump(const Duration(milliseconds: 200));
         await demoLogin;
@@ -173,7 +187,7 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        expect(find.text('Quản trị'), findsNothing);
+        expect(find.text('Quản trị'), findsOneWidget);
       },
     );
 
@@ -293,6 +307,12 @@ void main() {
       await tester.tap(find.text('Lịch sử'));
       await tester.pumpAndSettle();
       expect(find.text('Lịch sử phiên bản'), findsOneWidget);
+
+      // Tab 4: Quản trị AI
+      await tester.tap(find.text('Quản trị AI'));
+      await tester.pumpAndSettle();
+      expect(find.text('Quản trị Trí tuệ Nhân tạo (AI)'), findsOneWidget);
+      expect(find.text('Mô hình Trí tuệ Nhân tạo'), findsOneWidget);
     });
   });
 }

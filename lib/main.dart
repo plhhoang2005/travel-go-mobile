@@ -52,6 +52,7 @@ import 'features/trips/services/local_account_lifecycle_service.dart';
 import 'features/trips/services/guest_import_service.dart';
 import 'features/trips/services/trip_snapshot_service.dart';
 import 'features/navigation/presentation/screens/main_navigation_shell.dart';
+import 'features/ai_chat/providers/ai_chat_provider.dart';
 
 /// Shared connection; resolving the native path is deferred until a draft action.
 class LocalTripStoreRuntime {
@@ -730,6 +731,7 @@ class _TravelGoAppState extends State<TravelGoApp> with WidgetsBindingObserver {
             return d;
           },
         ),
+        ChangeNotifierProvider<AiChatProvider>(create: (_) => AiChatProvider()..init()),
         ChangeNotifierProxyProvider<PublicCatalogueProvider, PlaceVisitDetailsProvider>(
           create: (_) => PlaceVisitDetailsProvider(
             now: DateTime.now,
@@ -839,7 +841,7 @@ class _AuthBootstrapState extends State<_AuthBootstrap> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final destination = widget.auth.isAuthenticated || widget.auth.isGuest
-          ? const MainNavigationShell()
+          ? const MainNavigationShell(enableCommunityTab: true, enableMapTab: true)
           : const OnboardingScreen();
       _navigatorKey.currentState?.pushAndRemoveUntil(
         MaterialPageRoute<void>(builder: (_) => destination),

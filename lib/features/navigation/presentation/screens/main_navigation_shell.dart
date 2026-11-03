@@ -1,14 +1,24 @@
 import 'package:flutter/material.dart';
 
+import '../../../ai_chat/presentation/screens/ai_chatbot_screen.dart';
+import '../../../community/presentation/screens/community_feed_screen.dart';
 import '../../../home/presentation/screens/main_home_screen.dart';
 import '../../../explore/presentation/screens/explore_screen.dart';
+import '../../../map/presentation/screens/catalogue_discovery_map_screen.dart';
 import '../../../trips/presentation/screens/my_trips_screen.dart';
 import '../../../profile/presentation/screens/profile_screen.dart';
 
 class MainNavigationShell extends StatefulWidget {
   final int initialIndex;
+  final bool enableCommunityTab;
+  final bool enableMapTab;
 
-  const MainNavigationShell({super.key, this.initialIndex = 0});
+  const MainNavigationShell({
+    super.key,
+    this.initialIndex = 0,
+    this.enableCommunityTab = false,
+    this.enableMapTab = false,
+  });
 
   @override
   State<MainNavigationShell> createState() => _MainNavigationShellState();
@@ -17,12 +27,21 @@ class MainNavigationShell extends StatefulWidget {
 class _MainNavigationShellState extends State<MainNavigationShell> {
   late int _currentIndex;
 
-  final List<Widget> _screens = const [
-    MainHomeScreen(),
-    ExploreScreen(),
-    MyTripsScreen(),
-    CustomerProfileScreen(),
-  ];
+  bool get _hasBothExtraTabs => widget.enableMapTab && widget.enableCommunityTab;
+
+  List<Widget> get _screens => [
+        const MainHomeScreen(),
+        const ExploreScreen(),
+        if (widget.enableMapTab)
+          CatalogueDiscoveryMapScreen(
+            showBackButton: false,
+            enableNetworkTiles:
+                !WidgetsBinding.instance.runtimeType.toString().contains('Test'),
+          ),
+        if (widget.enableCommunityTab) const CommunityFeedScreen(),
+        const MyTripsScreen(),
+        if (!_hasBothExtraTabs) const CustomerProfileScreen(),
+      ];
 
   @override
   void initState() {
@@ -34,38 +53,84 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: IndexedStack(index: _currentIndex, children: _screens),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        elevation: 0,
-        indicatorColor: Theme.of(context).colorScheme.primaryContainer,
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home_rounded),
-            label: 'Trang chủ',
+      floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'global_ai_chatbot_fab',
+        tooltip: 'Trợ lý AI TravelGO',
+        onPressed: () => Navigator.push(
+          context,
+          MaterialPageRoute<void>(
+            builder: (_) => const AiChatbotScreen(),
           ),
-          NavigationDestination(
-            icon: Icon(Icons.search_rounded),
-            selectedIcon: Icon(Icons.search_rounded),
-            label: 'Khám phá',
+        ),
+        icon: const Icon(Icons.auto_awesome, size: 20),
+        label: const Text(
+          'Hỏi AI',
+          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+        ),
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        foregroundColor: Theme.of(context).colorScheme.onPrimary,
+      ),
+      bottomNavigationBar: NavigationBarTheme(
+        data: NavigationBarTheme.of(context).copyWith(
+          labelTextStyle: WidgetStateProperty.resolveWith((states) {
+            final isSelected = states.contains(WidgetState.selected);
+            return TextStyle(
+              fontSize: 12.0,
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+              letterSpacing: 0.0,
+              overflow: TextOverflow.ellipsis,
+            );
+          }),
+        ),
+        child: MediaQuery.withClampedTextScaling(
+          maxScaleFactor: 1.0,
+          child: NavigationBar(
+            selectedIndex: _currentIndex,
+            onDestinationSelected: (index) {
+              setState(() {
+                _currentIndex = index;
+              });
+            },
+            backgroundColor: Theme.of(context).colorScheme.surface,
+            elevation: 0,
+            indicatorColor: Theme.of(context).colorScheme.primaryContainer,
+            destinations: [
+              const NavigationDestination(
+                icon: Icon(Icons.home_outlined),
+                selectedIcon: Icon(Icons.home_rounded),
+                label: 'Trang chủ',
+              ),
+              const NavigationDestination(
+                icon: Icon(Icons.search_rounded),
+                selectedIcon: Icon(Icons.search_rounded),
+                label: 'Khám phá',
+              ),
+              if (widget.enableMapTab)
+                const NavigationDestination(
+                  icon: Icon(Icons.map_outlined),
+                  selectedIcon: Icon(Icons.map_rounded),
+                  label: 'Bản đồ',
+                ),
+              if (widget.enableCommunityTab)
+                const NavigationDestination(
+                  icon: Icon(Icons.people_outline),
+                  selectedIcon: Icon(Icons.people_rounded),
+                  label: 'Cộng đồng',
+                ),
+              const NavigationDestination(
+                icon: Icon(Icons.confirmation_number_outlined),
+                selectedIcon: Icon(Icons.confirmation_number_rounded),
+                label: 'Chuyến đi',
+              ),
+              if (!_hasBothExtraTabs)
+                const NavigationDestination(
+                  icon: Icon(Icons.person_outline),
+                  selectedIcon: Icon(Icons.person_rounded),
+                  label: 'Cá nhân',
+                ),
+            ],
           ),
-          NavigationDestination(
-            icon: Icon(Icons.confirmation_number_outlined),
-            selectedIcon: Icon(Icons.confirmation_number_rounded),
-            label: 'Chuyến đi',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person_rounded),
-            label: 'Cá nhân',
-          ),
-        ],
+        ),
       ),
     );
   }

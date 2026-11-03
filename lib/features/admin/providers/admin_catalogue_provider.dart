@@ -75,10 +75,24 @@ class AdminCatalogueProvider extends ChangeNotifier {
 
   bool get isLoading => _isLoading;
   bool get isSaving => _isSaving;
+  bool get outcomeUncertain => _outcomeUncertain;
   AdminFailure? get error => _error;
   String? get lastErrorMessage => _lastErrorMessage;
   AdminCatalogueSavePhase get savePhase => _savePhase;
   int? get savedRevision => _savedRevision;
+
+  /// Làm mới và xóa cờ kẹt lưu sau khi gặp lỗi RPC xuất bản
+  void resetSaveOutcome() {
+    _outcomeUncertain = false;
+    _clearPublicationAttempt();
+    _savedRevision = null;
+    _commandFingerprint = null;
+    _pendingCommandArgs = null;
+    _savePhase = AdminCatalogueSavePhase.idle;
+    _error = null;
+    _lastErrorMessage = null;
+    if (!_disposed) notifyListeners();
+  }
 
   void _handleAuthChange() {
     final newOwnerId = authProvider.currentUser?.id;

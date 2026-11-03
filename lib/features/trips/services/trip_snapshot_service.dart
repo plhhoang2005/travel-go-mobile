@@ -189,14 +189,13 @@ class TripSnapshotService {
       final result = await readOwnedSnapshot(proof: proof, tripId: id);
       _check(proof);
       if (result.status == SnapshotLookupStatus.deleted ||
-          result.status == SnapshotLookupStatus.unavailable) {
+          result.status == SnapshotLookupStatus.unavailable ||
+          result.status == SnapshotLookupStatus.rejected) {
         continue;
       }
       if (result.status != SnapshotLookupStatus.ready ||
           result.snapshot?.tripId != id) {
-        throw const SnapshotRejectedException(
-          'Legacy ID snapshot is unavailable.',
-        );
+        continue;
       }
       snapshots.add(result.snapshot!);
     }

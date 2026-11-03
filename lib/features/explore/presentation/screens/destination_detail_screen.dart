@@ -16,6 +16,7 @@ import '../../../trip_planner/presentation/widgets/planner_workspace_actions.dar
 import '../../providers/public_catalogue_provider.dart';
 import '../../models/public_catalogue_snapshot.dart';
 import '../../services/place_visit_details_repository.dart';
+import '../../../reviews/presentation/widgets/place_reviews_section.dart';
 
 class DestinationDetailScreen extends StatefulWidget {
   final CatalogueReference catalogue;
@@ -196,14 +197,36 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 8),
-            if (!hasVisits)
-              const Text(
-                'Tên và nguồn địa điểm để bạn tìm hiểu. Giá, giờ mở cửa, thời lượng và vị trí chính xác: Chưa xác minh.',
-              )
-            else ...[
-              const Text(
-                'Giá, giờ và điều kiện được ghi theo nguồn của từng địa điểm. Thời lượng và vị trí chính xác: Chưa xác minh.',
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.5),
+                ),
               ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    size: 16,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      !hasVisits
+                          ? 'Tên và nguồn địa điểm để bạn tìm hiểu. Giá, giờ mở cửa, thời lượng và vị trí chính xác: Chưa xác minh.'
+                          : 'Giá, giờ và điều kiện được ghi theo nguồn của từng địa điểm. Thời lượng và vị trí chính xác: Chưa xác minh.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (hasVisits) ...[
               const SizedBox(height: 8),
               VisitCatalogueStatus(
                 snapshot: visitSnapshot,
@@ -250,7 +273,7 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
                 child: const Text('Xem ví dụ tham khảo'),
               ),
             const SizedBox(height: 16),
-            for (final place in destination.places)
+            for (final place in destination.places) ...[
               if (!hasVisits)
                 _PlaceSource(
                   place: place,
@@ -265,6 +288,12 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
                   snapshot: visitSnapshot,
                   showReleaseInfo: false,
                 ),
+              PlaceReviewsSection(
+                key: ValueKey('place-reviews-${place.id}'),
+                placeId: place.id,
+                placeName: place.name,
+              ),
+            ],
           ],
         ),
       ),

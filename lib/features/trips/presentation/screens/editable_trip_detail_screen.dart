@@ -26,6 +26,8 @@ import '../../providers/saved_trips_provider.dart';
 import '../../services/editable_trip_service.dart';
 import '../../services/legacy_trip_copy_adapter.dart';
 import '../../services/local_account_lifecycle_service.dart';
+import '../../../community/services/community_service.dart';
+import '../../../community/presentation/screens/community_feed_screen.dart';
 
 bool _owner(BuildContext context, String id) {
   final auth = context.read<AuthProvider>();
@@ -294,6 +296,66 @@ class _EditableTripDetailScreenState extends State<EditableTripDetailScreen> {
     }
   }
 
+  Future<void> _shareToCommunity() async {
+    if (!_current || _busy) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: const Text('Chia sẻ lên Cộng đồng'),
+        content: const Text(
+          'Chuyến đi này sẽ được chia sẻ công khai lên Bảng tin Cộng đồng. Mọi người có thể xem, đánh giá và sao chép lịch trình này.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialog, false),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialog, true),
+            child: const Text('Chia sẻ'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted || !_current) return;
+    setState(() => _busy = true);
+    try {
+      final auth = context.read<AuthProvider>();
+      await CommunityService().toggleTripPublic(
+        tripId: widget.tripId,
+        isPublic: true,
+        authorName: auth.currentUser?.fullName,
+      );
+      if (mounted && _current) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              'Đã chia sẻ chuyến đi thành công lên Bảng tin Cộng đồng!',
+            ),
+            action: SnackBarAction(
+              label: 'Xem ngay',
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const CommunityFeedScreen(),
+                  ),
+                );
+              },
+            ),
+          ),
+        );
+      }
+    } catch (error) {
+      if (mounted && _current) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Không thể chia sẻ: $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     context.watch<AuthProvider>();
@@ -365,6 +427,27 @@ class _EditableTripDetailScreenState extends State<EditableTripDetailScreen> {
                         ? _delete
                         : null,
                     child: const Text('Xóa chuyến và sổ chi'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed:
+                        !_busy &&
+                            !_conflict &&
+                            view.state == EditableTripViewState.online
+                        ? _shareToCommunity
+                        : null,
+                    icon: const Icon(Icons.share_outlined),
+                    label: const Text('Chia sẻ cộng đồng'),
+                  ),
+                  FilledButton.tonalIcon(
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const CommunityFeedScreen(),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.people_alt_outlined),
+                    label: const Text('Xem Bảng tin Cộng đồng'),
                   ),
                   TextButton(
                     onPressed: _busy ? null : _load,
