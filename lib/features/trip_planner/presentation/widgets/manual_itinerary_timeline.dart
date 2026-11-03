@@ -196,17 +196,28 @@ class _ActivityPhoto extends StatelessWidget {
   Widget build(BuildContext context) {
     final media = TravelMediaCatalog.forPlace(item.placeId);
     return media == null
-        ? Row(
-            children: [
-              const Icon(Icons.image_not_supported_outlined, size: 20),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Chưa có ảnh địa điểm',
-                  style: Theme.of(context).textTheme.bodySmall,
+        ? Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.image_outlined,
+                  size: 16,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
-              ),
-            ],
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Chưa có ảnh địa điểm',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+              ],
+            ),
           )
         : TravelImage(
             media: media,

@@ -307,6 +307,12 @@ void main() {
       await tester.tap(find.text('Lịch sử'));
       await tester.pumpAndSettle();
       expect(find.text('Lịch sử phiên bản'), findsOneWidget);
+
+      // Tab 4: Quản trị AI
+      await tester.tap(find.text('Quản trị AI'));
+      await tester.pumpAndSettle();
+      expect(find.text('Quản trị Trí tuệ Nhân tạo (AI)'), findsOneWidget);
+      expect(find.text('Mô hình Trí tuệ Nhân tạo'), findsOneWidget);
     });
   });
 }
