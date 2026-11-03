@@ -395,12 +395,32 @@ class _LedgerHeader extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(title, style: Theme.of(context).textTheme.titleLarge),
-        if (empty) const Text('Chưa có khoản nào.'),
+        const SizedBox(height: 8),
+        if (empty)
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.receipt_outlined,
+                  size: 16,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: 8),
+                const Text('Chưa có khoản nào.'),
+              ],
+            ),
+          ),
         if (!empty && onAdd == null)
           const Text(
             'Không thể thêm khoản trong trạng thái hiện tại hoặc đã đủ 1000 khoản.',
           ),
-        if (onAdd != null)
+        if (onAdd != null) ...[
+          const SizedBox(height: 4),
           Align(
             alignment: Alignment.centerLeft,
             child: OutlinedButton.icon(
@@ -409,6 +429,7 @@ class _LedgerHeader extends StatelessWidget {
               label: Text(label),
             ),
           ),
+        ],
       ],
     ),
   );
@@ -425,19 +446,55 @@ class _ExpenseRow extends StatelessWidget {
   });
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 16),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const Divider(height: 24),
-        Text(title, style: Theme.of(context).textTheme.titleMedium),
-        Text(detail),
-        if (onEdit != null)
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton(onPressed: onEdit, child: Text(label)),
-          ),
-      ],
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+    child: Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.45),
+        ),
+      ),
+      color: Theme.of(context).colorScheme.surface,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                ),
+                if (onEdit != null)
+                  TextButton.icon(
+                    style: TextButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    ),
+                    icon: const Icon(Icons.edit_outlined, size: 14),
+                    onPressed: onEdit,
+                    label: Text(label),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              detail,
+              style: TextStyle(
+                fontSize: 13,
+                height: 1.4,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
     ),
   );
 }
