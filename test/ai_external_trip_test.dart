@@ -255,7 +255,7 @@ void main() {
     );
 
     // Initial state: consent checkbox and generate button
-    expect(find.text('Đồng ý gửi các thông tin trên đến Gemini'), findsOneWidget);
+    expect(find.text('Đồng ý gửi các thông tin trên đến Hệ thống AI'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('ai-consent')));
     await tester.pumpAndSettle();
 
