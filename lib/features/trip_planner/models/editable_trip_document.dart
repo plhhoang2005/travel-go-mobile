@@ -157,6 +157,26 @@ class EstimatedExpense {
   final bool active;
   final String description;
   final FieldProvenance provenance;
+
+  /// Ngày dự kiến (nếu có được lưu, định dạng YYYY-MM-DD)
+  String? get estimateDate {
+    final match = RegExp(r'\[Thời gian:\s*(\d{4}-\d{2}-\d{2})').firstMatch(description);
+    return match?.group(1);
+  }
+
+  /// Giờ bắt đầu dự kiến (định dạng HH:mm)
+  String? get startTime {
+    final rangeMatch = RegExp(r'([012]?\d:[0-5]\d)\s*(?:–|-|đến)').firstMatch(description);
+    if (rangeMatch != null) return rangeMatch.group(1);
+    final singleMatch = RegExp(r'\[Thời gian:[^\]]*?([012]?\d:[0-5]\d)').firstMatch(description);
+    return singleMatch?.group(1);
+  }
+
+  /// Giờ kết thúc dự kiến (định dạng HH:mm)
+  String? get endTime {
+    final match = RegExp(r'(?:–|-|đến)\s*([012]?\d:[0-5]\d)').firstMatch(description);
+    return match?.group(1);
+  }
   EstimatedExpense({
     required this.id,
     required this.itemId,

@@ -213,5 +213,44 @@ void main() {
 
       expect(find.text(errorMessage), findsOneWidget);
     });
+
+    testWidgets('omitted coordinates submits null latitude and longitude without silent default', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(400, 1000));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      AdminPlaceDraft? submittedDraft;
+
+      await tester.pumpWidget(
+        buildApp(
+          AdminPlaceForm(
+            destinations: const [
+              AdminDestinationDraft(
+                id: 'dest-dn',
+                name: 'Đà Nẵng',
+                slug: 'da-nang',
+                region: 'Miền Trung',
+                description: 'TP Đà Nẵng',
+              ),
+            ],
+            onSubmit: (draft, reason) async {
+              submittedDraft = draft;
+              return true;
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byKey(const Key('place_name_field')), 'Địa điểm không có toạ độ');
+      await tester.enterText(find.byKey(const Key('place_desc_field')), 'Mô tả địa điểm');
+      final submitBtn = find.byKey(const Key('place_submit_button'));
+      await tester.ensureVisible(submitBtn);
+      await tester.tap(submitBtn);
+      await tester.pumpAndSettle();
+
+      expect(submittedDraft, isNotNull);
+      expect(submittedDraft!.latitude, isNull);
+      expect(submittedDraft!.longitude, isNull);
+    });
   });
 }

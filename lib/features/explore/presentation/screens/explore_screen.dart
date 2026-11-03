@@ -1,3 +1,4 @@
+import '../../../../core/widgets/global_profile_avatar_action.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -63,6 +64,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
           overflow: TextOverflow.ellipsis,
         ),
         actions: [
+          const GlobalProfileAvatarAction(),
           IconButton(
             tooltip: 'Đọc lại danh mục',
             icon: const Icon(Icons.refresh),

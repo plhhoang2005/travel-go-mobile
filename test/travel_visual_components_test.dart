@@ -43,8 +43,10 @@ void main() {
         height: 180,
       ),
     );
-    final provider =
-        tester.widget<Image>(find.byType(Image)).image as NetworkImage;
+    final rawImage = tester.widget<Image>(find.byType(Image)).image;
+    final NetworkImage provider = rawImage is ResizeImage
+        ? rawImage.imageProvider as NetworkImage
+        : rawImage as NetworkImage;
     expect(
       provider.headers?['User-Agent'],
       'TravelGO/1.0 (https://github.com/plhhoang2005/travel-go-mobile)',

@@ -7,6 +7,7 @@ import 'package:travelgo_mobile/core/theme/app_theme.dart';
 import 'package:travelgo_mobile/features/admin/models/admin_account_models.dart';
 import 'package:travelgo_mobile/features/admin/presentation/screens/admin_user_detail_screen.dart';
 import 'package:travelgo_mobile/features/admin/providers/admin_account_provider.dart';
+import 'package:travelgo_mobile/features/auth/providers/auth_provider.dart';
 
 class AdminUsersScreen extends StatefulWidget {
   const AdminUsersScreen({super.key});
@@ -203,8 +204,41 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                 child: users.isEmpty && isLoading
                     ? const Center(child: CircularProgressIndicator())
                     : users.isEmpty && error != null
-                    ? const Center(
-                        child: Text('Chưa tải được danh sách người dùng.'),
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24.0),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.cloud_off_outlined, size: 48, color: Colors.grey),
+                              const SizedBox(height: 12),
+                              const Text(
+                                'Chưa tải được danh sách người dùng từ máy chủ.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(fontWeight: FontWeight.w600),
+                              ),
+                              const SizedBox(height: 8),
+                              const Text(
+                                'Bạn có thể chuyển sang Chế độ Demo Sandbox để thử nghiệm quản lý tài khoản.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(fontSize: 12, color: Colors.grey),
+                              ),
+                              const SizedBox(height: 16),
+                              ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.amber.shade800,
+                                  foregroundColor: Colors.white,
+                                ),
+                                onPressed: () {
+                                  final auth = context.read<AuthProvider>();
+                                  auth.switchToAdminDemoSession();
+                                },
+                                icon: const Icon(Icons.science_outlined, size: 18),
+                                label: const Text('Thử nghiệm với Demo Sandbox'),
+                              ),
+                            ],
+                          ),
+                        ),
                       )
                     : users.isEmpty && !isLoading
                     ? const Center(

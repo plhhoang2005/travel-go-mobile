@@ -941,18 +941,39 @@ class _EditorHeader extends StatelessWidget {
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
           if (planner.state == ManualPlannerState.uncertain)
+            Wrap(
+              spacing: 8,
+              children: [
+                TextButton(
+                  onPressed: planner.isSaving
+                      ? null
+                      : () {
+                          if (planner.editorGeneration == generation &&
+                              planner.state == ManualPlannerState.uncertain) {
+                            planner.retrySave();
+                          }
+                        },
+                  child: const Text('Thử lại lần lưu trước'),
+                ),
+                TextButton(
+                  onPressed: planner.isSaving
+                      ? null
+                      : () => planner.clearPendingSave(),
+                  child: const Text('Hủy chờ lưu để sửa tiếp'),
+                ),
+              ],
+            ),
+          if (planner.errorMessage != null &&
+              planner.state != ManualPlannerState.saving &&
+              planner.state != ManualPlannerState.uncertain)
             Align(
               alignment: Alignment.centerLeft,
-              child: TextButton(
+              child: TextButton.icon(
                 onPressed: planner.isSaving
                     ? null
-                    : () {
-                        if (planner.editorGeneration == generation &&
-                            planner.state == ManualPlannerState.uncertain) {
-                          planner.retrySave();
-                        }
-                      },
-                child: const Text('Thử lại lần lưu trước'),
+                    : () => planner.detachBaseForNewSave(),
+                icon: const Icon(Icons.add_circle_outline, size: 16),
+                label: const Text('Lưu thành chuyến đi mới của tôi'),
               ),
             ),
           Wrap(

@@ -28,6 +28,10 @@ class ApiConstants {
   static const String mapsRoutes = '/maps/routes';
   static const String health = '/health';
 
+  // Local Ollama AI Constants
+  static const String localOllamaHost = 'https://relief-retrieve-robertson-nextel.trycloudflare.com';
+  static const String localOllamaModel = 'qwen3:4b-instruct-2507-q4_K_M';
+
   static const Duration connectTimeout = Duration(seconds: 15);
   static const Duration receiveTimeout = Duration(seconds: 30);
 }

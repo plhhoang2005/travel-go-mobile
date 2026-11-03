@@ -676,6 +676,12 @@ GRANT ALL ON ALL TABLES IN SCHEMA auth TO anon,authenticated,service_role;
                 $c7RetryMigration = Get-ChildItem -LiteralPath (Join-Path $repoRoot 'supabase/migrations') -Filter '*_coursework_catalogue_publication_retry.sql'
                 if (@($c7RetryMigration).Count -ne 1) { throw 'Expected exactly one C7 publication retry migration' }
                 Invoke-Sql 'C7 retry migration' -File $c7RetryMigration.FullName -Connection $conn
+
+                $digestMigration = Get-ChildItem -Path (Join-Path $repoRoot 'supabase/migrations') -Filter '*_fix_pgcrypto_digest.sql' -ErrorAction SilentlyContinue | Select-Object -First 1
+                if ($digestMigration) {
+                    Invoke-Sql 'fix_pgcrypto_digest migration' -File $digestMigration.FullName -Connection $conn
+                }
+
                 Invoke-Sql 'coursework_catalogue_publication_retry.sql' -File (Join-Path $repoRoot 'supabase/tests/coursework_catalogue_publication_retry.sql') -Connection $conn
 
                 $tripIdsMigration = Get-ChildItem -Path (Join-Path $repoRoot 'supabase/migrations') -Filter '*_manual_dynamic_destination_ids.sql' -ErrorAction SilentlyContinue | Select-Object -First 1

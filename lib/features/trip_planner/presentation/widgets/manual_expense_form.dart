@@ -51,8 +51,17 @@ class _ManualExpenseFormState extends State<ManualExpenseForm> {
   final _moneyFocus = FocusNode(),
       _dateFocus = FocusNode(),
       _quantityFocus = FocusNode(),
-      _descriptionFocus = FocusNode();
-  late final TextEditingController _amount, _date, _quantity, _description;
+      _descriptionFocus = FocusNode(),
+      _estimateDateFocus = FocusNode(),
+      _startTimeFocus = FocusNode(),
+      _endTimeFocus = FocusNode();
+  late final TextEditingController _amount,
+      _date,
+      _quantity,
+      _description,
+      _estimateDate,
+      _startTime,
+      _endTime;
   late final String _id;
   String _category = 'other', _basis = 'trip_total';
   String? _itemId, _error;
@@ -86,14 +95,29 @@ class _ManualExpenseFormState extends State<ManualExpenseForm> {
     _quantity = TextEditingController(
       text: e?.customQuantity?.toString() ?? '',
     );
-    _description = TextEditingController(
-      text: e?.description ?? a?.description ?? '',
-    );
+
+    // Trích xuất ngày và giờ dự kiến (bắt đầu - kết thúc) đã lưu trước đó (nếu có)
+    _estimateDate = TextEditingController(text: e?.estimateDate ?? '');
+    _startTime = TextEditingController(text: e?.startTime ?? '');
+    _endTime = TextEditingController(text: e?.endTime ?? '');
+
+    final cleanDesc = (e?.description ?? a?.description ?? '')
+        .replaceAll(RegExp(r'\[Thời gian:[^\]]+\]\s*'), '')
+        .trim();
+    _description = TextEditingController(text: cleanDesc);
   }
 
   @override
   void dispose() {
-    for (final c in [_amount, _date, _quantity, _description]) {
+    for (final c in [
+      _amount,
+      _date,
+      _quantity,
+      _description,
+      _estimateDate,
+      _startTime,
+      _endTime,
+    ]) {
       c.dispose();
     }
     for (final f in [
@@ -101,6 +125,9 @@ class _ManualExpenseFormState extends State<ManualExpenseForm> {
       _dateFocus,
       _quantityFocus,
       _descriptionFocus,
+      _estimateDateFocus,
+      _startTimeFocus,
+      _endTimeFocus,
     ]) {
       f.dispose();
     }
@@ -114,6 +141,79 @@ class _ManualExpenseFormState extends State<ManualExpenseForm> {
   void _selectPaidDate(DateTime date) {
     _date.text = DateFormat('yyyy-MM-dd').format(date);
     _changed();
+  }
+
+  int? _minute(String text) {
+    if (!RegExp(r'^(?:[01]\d|2[0-3]):[0-5]\d$').hasMatch(text.trim())) {
+      return null;
+    }
+    final parts = text.trim().split(':');
+    return int.parse(parts[0]) * 60 + int.parse(parts[1]);
+  }
+
+  String? _timeError(String? raw, {bool end = false}) {
+    if (!estimate) return null;
+    final value = (raw ?? '').trim();
+    if (value.isEmpty) return null;
+    final minute = _minute(value);
+    if (minute == null) return 'Giờ theo HH:mm (00:00 - 23:59).';
+    if (end) {
+      final start = _minute(_startTime.text);
+      if (start != null && minute <= start) {
+        return 'Giờ kết thúc phải sau giờ bắt đầu.';
+      }
+    }
+    return null;
+  }
+
+  Future<void> _pickEstimateDate() async {
+    final now = DateTime.now();
+    final tripStart = DateTime.tryParse(widget.document.input.startDate ?? '');
+    final current = DateTime.tryParse(_estimateDate.text.trim()) ?? tripStart ?? now;
+
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: current,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2035),
+      helpText: 'Chọn ngày dự kiến',
+    );
+    if (picked != null) {
+      _estimateDate.text = DateFormat('yyyy-MM-dd').format(picked);
+      _changed();
+    }
+  }
+
+  Future<void> _pickTime({required bool isStart}) async {
+    final currentText = isStart ? _startTime.text.trim() : _endTime.text.trim();
+    TimeOfDay initial = isStart
+        ? const TimeOfDay(hour: 8, minute: 0)
+        : const TimeOfDay(hour: 10, minute: 0);
+    if (RegExp(r'^(?:[01]\d|2[0-3]):[0-5]\d$').hasMatch(currentText)) {
+      final parts = currentText.split(':');
+      initial = TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
+    } else if (!isStart && _startTime.text.trim().isNotEmpty) {
+      final startMin = _minute(_startTime.text);
+      if (startMin != null) {
+        initial = TimeOfDay(hour: ((startMin + 60) ~/ 60) % 24, minute: startMin % 60);
+      }
+    }
+
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: initial,
+      helpText: isStart ? 'Chọn giờ bắt đầu' : 'Chọn giờ kết thúc',
+    );
+    if (picked != null) {
+      final formatted =
+          '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
+      if (isStart) {
+        _startTime.text = formatted;
+      } else {
+        _endTime.text = formatted;
+      }
+      _changed();
+    }
   }
 
   int? _integer(String text, int max, {int min = 0}) {
@@ -153,6 +253,10 @@ class _ManualExpenseFormState extends State<ManualExpenseForm> {
           ? _moneyFocus
           : !estimate && _dateError(_date.text) != null
           ? _dateFocus
+          : estimate && _timeError(_startTime.text) != null
+          ? _startTimeFocus
+          : estimate && _timeError(_endTime.text, end: true) != null
+          ? _endTimeFocus
           : estimate && _quantityError(_quantity.text) != null
           ? _quantityFocus
           : _descriptionFocus;
@@ -172,6 +276,28 @@ class _ManualExpenseFormState extends State<ManualExpenseForm> {
     final item = widget.document.items
         .where((i) => i.id == _itemId)
         .firstOrNull;
+    // Chuẩn bị mô tả đính kèm thời gian dự kiến (ngày, giờ bắt đầu – kết thúc)
+    var desc = _description.text.trim();
+    if (estimate) {
+      final d = _estimateDate.text.trim();
+      final st = _startTime.text.trim();
+      final et = _endTime.text.trim();
+      if (d.isNotEmpty || st.isNotEmpty || et.isNotEmpty) {
+        desc = desc.replaceAll(RegExp(r'\[Thời gian:[^\]]+\]\s*'), '').trim();
+        final timeParts = <String>[];
+        if (d.isNotEmpty) timeParts.add(d);
+        if (st.isNotEmpty && et.isNotEmpty) {
+          timeParts.add('$st – $et');
+        } else if (st.isNotEmpty) {
+          timeParts.add(st);
+        } else if (et.isNotEmpty) {
+          timeParts.add(et);
+        }
+        final tag = '[Thời gian: ${timeParts.join(', ')}]';
+        desc = desc.isEmpty ? tag : '$tag $desc';
+      }
+    }
+
     final EditableCommand command = estimate
         ? PutEstimateCommand(
             EstimatedExpense(
@@ -184,7 +310,7 @@ class _ManualExpenseFormState extends State<ManualExpenseForm> {
                   ? _integer(_quantity.text, EditableTripCodec.maxCount, min: 1)
                   : null,
               active: _active,
-              description: _description.text,
+              description: desc,
               provenance: provenance,
             ),
           )
@@ -257,6 +383,11 @@ class _ManualExpenseFormState extends State<ManualExpenseForm> {
           'Nhập tổng số tiền thực tế của khoản này. Không nhân theo người hoặc ngày.',
         ),
       _ExpenseMoneyFields(form: this),
+      if (estimate) ...[
+        const SizedBox(height: 12),
+        _EstimatedExpenseTimeFields(form: this),
+      ],
+      const SizedBox(height: 12),
       _ExpenseDetails(form: this),
       if (estimate)
         SwitchListTile(
@@ -389,7 +520,7 @@ class _ExpenseDetails extends StatelessWidget {
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       Text(
-        '2. Nhóm và liên kết',
+        form.estimate ? '3. Nhóm và liên kết' : '2. Nhóm và liên kết',
         style: Theme.of(context).textTheme.titleLarge,
       ),
       const SizedBox(height: 16),
@@ -443,4 +574,112 @@ class _ExpenseDetails extends StatelessWidget {
       ),
     ],
   );
+}
+
+/// [UI KHÔI PHỤC THỜI GIAN BẮT ĐẦU VÀ KẾT THÚC CHO KHOẢN DỰ KIẾN]
+class _EstimatedExpenseTimeFields extends StatelessWidget {
+  final _ManualExpenseFormState form;
+  const _EstimatedExpenseTimeFields({required this.form});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          '2. Thời gian dự kiến',
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          'Ngày và khung giờ dự kiến (giờ bắt đầu – kết thúc)',
+          style: TextStyle(fontSize: 13, color: Colors.grey),
+        ),
+        const SizedBox(height: 16),
+        // Ngày dự kiến (tùy chọn)
+        TextFormField(
+          key: const ValueKey('expense.estimateDate'),
+          controller: form._estimateDate,
+          focusNode: form._estimateDateFocus,
+          readOnly: true,
+          onTap: form._pickEstimateDate,
+          decoration: InputDecoration(
+            labelText: 'Ngày dự kiến (tùy chọn)',
+            hintText: 'YYYY-MM-DD',
+            prefixIcon: const Icon(Icons.calendar_today_outlined, size: 20),
+            suffixIcon: form._estimateDate.text.isNotEmpty
+                ? IconButton(
+                    icon: const Icon(Icons.clear, size: 18),
+                    onPressed: () {
+                      form._estimateDate.clear();
+                      form._changed();
+                    },
+                  )
+                : null,
+          ),
+        ),
+        const SizedBox(height: 16),
+        // Khung giờ: Bắt đầu lúc & Kết thúc lúc
+        Row(
+          children: [
+            Expanded(
+              child: TextFormField(
+                key: const ValueKey('expense.startTime'),
+                controller: form._startTime,
+                focusNode: form._startTimeFocus,
+                keyboardType: TextInputType.datetime,
+                decoration: InputDecoration(
+                  labelText: 'Bắt đầu (HH:mm)',
+                  hintText: '08:00',
+                  prefixIcon: IconButton(
+                    icon: const Icon(Icons.access_time, size: 20),
+                    onPressed: () => form._pickTime(isStart: true),
+                  ),
+                  suffixIcon: form._startTime.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear, size: 16),
+                          onPressed: () {
+                            form._startTime.clear();
+                            form._changed();
+                          },
+                        )
+                      : null,
+                ),
+                validator: form._timeError,
+                onChanged: (_) => form._changed(),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: TextFormField(
+                key: const ValueKey('expense.endTime'),
+                controller: form._endTime,
+                focusNode: form._endTimeFocus,
+                keyboardType: TextInputType.datetime,
+                decoration: InputDecoration(
+                  labelText: 'Kết thúc (HH:mm)',
+                  hintText: '11:30',
+                  prefixIcon: IconButton(
+                    icon: const Icon(Icons.schedule, size: 20),
+                    onPressed: () => form._pickTime(isStart: false),
+                  ),
+                  suffixIcon: form._endTime.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear, size: 16),
+                          onPressed: () {
+                            form._endTime.clear();
+                            form._changed();
+                          },
+                        )
+                      : null,
+                ),
+                validator: (v) => form._timeError(v, end: true),
+                onChanged: (_) => form._changed(),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
 }

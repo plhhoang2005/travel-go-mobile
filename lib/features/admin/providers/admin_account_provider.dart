@@ -7,6 +7,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:travelgo_mobile/features/admin/models/admin_account_models.dart';
 import 'package:travelgo_mobile/features/admin/services/admin_account_service.dart';
+import 'package:travelgo_mobile/features/admin/services/demo_admin_services.dart';
 import 'package:travelgo_mobile/features/auth/providers/auth_provider.dart';
 
 class AdminAccountProvider extends ChangeNotifier {
@@ -62,6 +63,7 @@ class AdminAccountProvider extends ChangeNotifier {
   }
 
   // Getters
+  bool get isDemoMode => service is DemoAdminAccountService;
   bool get hasAdminAccess => _hasAdminAccess;
   List<UserSummary> get users => List.unmodifiable(_users);
   bool get hasMoreUsers => _nextCursor != null;
@@ -87,7 +89,7 @@ class AdminAccountProvider extends ChangeNotifier {
         newRole != _currentRole ||
         _authEpoch != authProvider.authEpoch ||
         authProvider.isLoggingOut ||
-        authProvider.isDemoSession) {
+        (authProvider.isDemoSession && !isDemoMode)) {
       _currentOwnerId = newOwnerId;
       _currentRole = newRole;
       _authEpoch = authProvider.authEpoch;
@@ -136,7 +138,7 @@ class AdminAccountProvider extends ChangeNotifier {
     _error = null;
     if (_currentOwnerId == null ||
         _currentRole != 'admin' ||
-        authProvider.isDemoSession ||
+        (authProvider.isDemoSession && !isDemoMode) ||
         authProvider.isLoggingOut) {
       invalidate();
       return;
@@ -168,15 +170,18 @@ class AdminAccountProvider extends ChangeNotifier {
       _currentOwnerId == authProvider.currentUser?.id &&
       _currentRole == authProvider.currentUser?.role.name;
 
+  static bool _isRevocationCode(String code) => const {
+    'unauthorized',
+    'forbidden',
+    'admin_required',
+    'account_locked',
+    'actor_role_revoked',
+    'stale_session',
+    'invalid_session',
+  }.contains(code);
+
   void _fail(AdminFailure failure) {
-    if (const {
-      'unauthorized',
-      'forbidden',
-      'admin_required',
-      'account_locked',
-      'stale_session',
-      'invalid_session',
-    }.contains(failure.code)) {
+    if (_isRevocationCode(failure.code)) {
       invalidate();
     }
     _error = failure;
@@ -252,7 +257,11 @@ class AdminAccountProvider extends ChangeNotifier {
       _nextCursor = page.nextCursor;
     } on AdminFailure catch (f) {
       if (gen != _usersGeneration || !_isCurrent(context)) return;
-      _fail(f);
+      if (_isRevocationCode(f.code)) {
+        _fail(f);
+      } else {
+        _error = f;
+      }
     } catch (e) {
       if (gen != _usersGeneration || !_isCurrent(context)) return;
       _error = AdminFailure(code: 'unknown', message: e.toString());
@@ -303,7 +312,11 @@ class AdminAccountProvider extends ChangeNotifier {
       }
     } on AdminFailure catch (f) {
       if (gen != _detailGeneration || !_isCurrent(context)) return;
-      _fail(f);
+      if (_isRevocationCode(f.code)) {
+        _fail(f);
+      } else {
+        _error = f;
+      }
     } catch (e) {
       if (gen != _detailGeneration || !_isCurrent(context)) return;
       _error = AdminFailure(code: 'unknown', message: e.toString());
@@ -328,7 +341,11 @@ class AdminAccountProvider extends ChangeNotifier {
       _dashboardSnapshot = snapshot;
     } on AdminFailure catch (f) {
       if (gen != _dashboardGeneration || !_isCurrent(context)) return;
-      _fail(f);
+      if (_isRevocationCode(f.code)) {
+        _fail(f);
+      } else {
+        _error = f;
+      }
     } catch (e) {
       if (gen != _dashboardGeneration || !_isCurrent(context)) return;
       _error = AdminFailure(code: 'unknown', message: e.toString());

@@ -41,6 +41,109 @@ class _AdminPlaceFormState extends State<AdminPlaceForm> {
 
   bool get isEditing => widget.initial?.id != null;
 
+  static const Map<String, ({double lat, double lng})> _defaultCoordinates = {
+    'ha-noi': (lat: 21.0285, lng: 105.8542),
+    'da-nang': (lat: 16.0544, lng: 108.2022),
+    'ho-chi-minh': (lat: 10.8231, lng: 106.6297),
+    'sa-pa': (lat: 22.3364, lng: 103.8438),
+    'ninh-binh': (lat: 20.2506, lng: 105.9745),
+    'hue': (lat: 16.4637, lng: 107.5909),
+    'hoi-an': (lat: 15.8801, lng: 108.3380),
+    'nha-trang': (lat: 12.2388, lng: 109.1967),
+    'da-lat': (lat: 11.9404, lng: 108.4583),
+    'quang-ninh': (lat: 20.9505, lng: 107.0734),
+    'ha-long': (lat: 20.9505, lng: 107.0734),
+    'can-tho': (lat: 10.0452, lng: 105.7469),
+    'phu-quoc': (lat: 10.2899, lng: 103.9840),
+  };
+
+  static const Map<String, List<({String name, String desc, double lat, double lng})>> _presetPlaces = {
+    'ha-noi': [
+      (name: 'Hồ Hoàn Kiếm', desc: 'Trái tim của thủ đô Hà Nội, gắn liền với truyền thuyết rùa vàng.', lat: 21.0288, lng: 105.8524),
+      (name: 'Phố Cổ Hà Nội', desc: '36 phố phường lưu giữ nét văn hóa kinh kỳ ngàn năm văn hiến.', lat: 21.0345, lng: 105.8502),
+      (name: 'Văn Miếu - Quốc Tử Giám', desc: 'Trường đại học đầu tiên của Việt Nam, biểu tượng hiếu học.', lat: 21.0293, lng: 105.8358),
+    ],
+    'da-nang': [
+      (name: 'Cầu Rồng', desc: 'Cây cầu biểu tượng phun lửa và nước vào dịp cuối tuần.', lat: 16.0611, lng: 108.2272),
+      (name: 'Cầu Vàng', desc: 'Cây cầu bàn tay khổng lồ nổi tiếng trên đỉnh núi Chúa.', lat: 15.9980, lng: 107.9868),
+      (name: 'Bán đảo Sơn Trà', desc: 'Lá phổi xanh của Đà Nẵng với Chùa Linh Ứng uy nghiêm.', lat: 16.1037, lng: 108.2764),
+    ],
+    'ho-chi-minh': [
+      (name: 'Chợ Bến Thành', desc: 'Biểu tượng lịch sử và trung tâm mua sắm sầm uất tại TP.HCM.', lat: 10.7725, lng: 106.6980),
+      (name: 'Dinh Độc Lập', desc: 'Di tích lịch sử quốc gia đặc biệt ghi dấu ngày thống nhất đất nước.', lat: 10.7770, lng: 106.6953),
+      (name: 'Landmark 81', desc: 'Tòa nhà chọc trời cao nhất Việt Nam, biểu tượng hiện đại.', lat: 10.7951, lng: 106.7218),
+    ],
+    'sa-pa': [
+      (name: 'Đỉnh Fansipan', desc: 'Nóc nhà Đông Dương với độ cao 3.143m hùng vĩ.', lat: 22.3033, lng: 103.7753),
+      (name: 'Bản Cát Cát', desc: 'Ngôi làng cổ kính đậm đà bản sắc của đồng bào H\'Mông.', lat: 22.3302, lng: 103.8315),
+    ],
+  };
+
+  ({double lat, double lng}) _resolveDefaultCoords(String? destinationId) {
+    if (destinationId != null) {
+      final key = destinationId.toLowerCase().replaceAll('_', '-');
+      for (final entry in _defaultCoordinates.entries) {
+        if (key.contains(entry.key) || entry.key.contains(key)) {
+          return entry.value;
+        }
+      }
+      final dest = widget.destinations.where((d) => d.id == destinationId).firstOrNull;
+      if (dest != null) {
+        final name = dest.name.toLowerCase();
+        if (name.contains('hà nội')) return _defaultCoordinates['ha-noi']!;
+        if (name.contains('đà nẵng')) return _defaultCoordinates['da-nang']!;
+        if (name.contains('hồ chí minh') || name.contains('sài gòn')) return _defaultCoordinates['ho-chi-minh']!;
+        if (name.contains('sa pa') || name.contains('sapa')) return _defaultCoordinates['sa-pa']!;
+        if (name.contains('quảng ninh') || name.contains('hạ long')) return _defaultCoordinates['quang-ninh']!;
+        if (name.contains('huế')) return _defaultCoordinates['hue']!;
+        if (name.contains('hội an')) return _defaultCoordinates['hoi-an']!;
+        if (name.contains('nha trang')) return _defaultCoordinates['nha-trang']!;
+        if (name.contains('đà lạt')) return _defaultCoordinates['da-lat']!;
+        if (name.contains('ninh bình')) return _defaultCoordinates['ninh-binh']!;
+        if (name.contains('phú quốc')) return _defaultCoordinates['phu-quoc']!;
+        if (name.contains('cần thơ')) return _defaultCoordinates['can-tho']!;
+      }
+    }
+    return (lat: 21.0285, lng: 105.8542);
+  }
+
+  List<({String name, String desc, double lat, double lng})> _getPresetPlacesFor(String? destinationId) {
+    if (destinationId == null) return const [];
+    final key = destinationId.toLowerCase().replaceAll('_', '-');
+    for (final entry in _presetPlaces.entries) {
+      if (key.contains(entry.key) || entry.key.contains(key)) {
+        return entry.value;
+      }
+    }
+    final dest = widget.destinations.where((d) => d.id == destinationId).firstOrNull;
+    if (dest != null) {
+      final name = dest.name.toLowerCase();
+      if (name.contains('hà nội')) return _presetPlaces['ha-noi'] ?? const [];
+      if (name.contains('đà nẵng')) return _presetPlaces['da-nang'] ?? const [];
+      if (name.contains('hồ chí minh') || name.contains('sài gòn')) return _presetPlaces['ho-chi-minh'] ?? const [];
+      if (name.contains('sa pa') || name.contains('sapa')) return _presetPlaces['sa-pa'] ?? const [];
+    }
+    return const [];
+  }
+
+  void _applyPreset(({String name, String desc, double lat, double lng}) preset) {
+    setState(() {
+      _nameController.text = preset.name;
+      _descController.text = preset.desc;
+      _latController.text = preset.lat.toString();
+      _lngController.text = preset.lng.toString();
+      _slugController.text = _generateSlug(preset.name);
+    });
+  }
+
+  void _fillDefaultCoordinates() {
+    final coords = _resolveDefaultCoords(_selectedDestinationId);
+    setState(() {
+      _latController.text = coords.lat.toString();
+      _lngController.text = coords.lng.toString();
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -235,13 +338,22 @@ class _AdminPlaceFormState extends State<AdminPlaceForm> {
                     return DropdownMenuItem<String>(
                       value: d.id,
                       child: Text(
-                        '${d.name} (${d.region})',
+                        d.region.trim().isNotEmpty
+                            ? '${d.name} (${d.region})'
+                            : d.name,
                         overflow: TextOverflow.ellipsis,
                       ),
                     );
                   }).toList(),
                   onChanged: (val) {
-                    setState(() => _selectedDestinationId = val);
+                    setState(() {
+                      _selectedDestinationId = val;
+                      if (!isEditing && (_latController.text.isEmpty || _lngController.text.isEmpty)) {
+                        final coords = _resolveDefaultCoords(val);
+                        _latController.text = coords.lat.toString();
+                        _lngController.text = coords.lng.toString();
+                      }
+                    });
                   },
                   validator: (val) {
                     if (val == null || val.isEmpty) return 'Vui lòng chọn điểm đến';
@@ -249,6 +361,42 @@ class _AdminPlaceFormState extends State<AdminPlaceForm> {
                   },
                 ),
                 const SizedBox(height: 14),
+
+                if (!isEditing && _getPresetPlacesFor(_selectedDestinationId).isNotEmpty) ...[
+                  Row(
+                    children: [
+                      Icon(Icons.auto_awesome, size: 14, color: theme.colorScheme.primary),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          'Địa danh gợi ý (1-chạm điền nhanh):',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: theme.colorScheme.primary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: _getPresetPlacesFor(_selectedDestinationId).map((preset) {
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 6.0),
+                          child: ActionChip(
+                            avatar: const Icon(Icons.place_outlined, size: 14),
+                            label: Text(preset.name, style: const TextStyle(fontSize: 12)),
+                            onPressed: () => _applyPreset(preset),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                ],
 
                 // Name field (1-180 chars)
                 TextFormField(
@@ -315,7 +463,7 @@ class _AdminPlaceFormState extends State<AdminPlaceForm> {
                         controller: _latController,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
                         decoration: const InputDecoration(
-                          labelText: 'Vĩ độ (Latitude)',
+                          labelText: 'Vĩ độ (Tuỳ chọn)',
                           hintText: 'VD: 16.0544',
                           border: OutlineInputBorder(),
                         ),
@@ -345,7 +493,7 @@ class _AdminPlaceFormState extends State<AdminPlaceForm> {
                         controller: _lngController,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
                         decoration: const InputDecoration(
-                          labelText: 'Kinh độ (Longitude)',
+                          labelText: 'Kinh độ (Tuỳ chọn)',
                           hintText: 'VD: 108.2022',
                           border: OutlineInputBorder(),
                         ),
@@ -371,6 +519,18 @@ class _AdminPlaceFormState extends State<AdminPlaceForm> {
                   ],
                 ),
                 const SizedBox(height: 14),
+
+                Wrap(
+                  alignment: WrapAlignment.end,
+                  children: [
+                    TextButton.icon(
+                      onPressed: _fillDefaultCoordinates,
+                      icon: const Icon(Icons.my_location, size: 16),
+                      label: const Text('Toạ độ mẫu', style: TextStyle(fontSize: 12)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
 
                 // Image URL field
                 TextFormField(
