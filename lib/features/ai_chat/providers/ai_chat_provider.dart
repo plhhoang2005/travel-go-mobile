@@ -286,6 +286,44 @@ class AiChatProvider extends ChangeNotifier {
     await _sendExisting(message);
   }
 
+  Future<void> regenerateAiReply(String messageId) async {
+    if (_isLoading ||
+        !isReady ||
+        _currentSession == null ||
+        _lastFailure?.code == LocalAiFailureCode.storage) {
+      return;
+    }
+    final targetIndex =
+        _messages.indexWhere((m) => m.id == messageId && !m.isUser);
+    if (targetIndex == -1) return;
+
+    final allowed = await quotaService.canSend(
+      dailyQuota: _settings.dailyQuota,
+      isAdmin: _isAdmin,
+    );
+    if (!allowed) {
+      _lastFailure = LocalAiFailure(
+        LocalAiFailureCode.quotaExceeded,
+        'Bạn đã dùng hết  lượt hỏi AI hôm nay. Vui lòng quay lại vào ngày mai!',
+      );
+      _notify();
+      return;
+    }
+
+    AiChatMessage? precedingUserMessage;
+    for (int i = targetIndex - 1; i >= 0; i--) {
+      if (_messages[i].isUser) {
+        precedingUserMessage = _messages[i];
+        break;
+      }
+    }
+    if (precedingUserMessage == null) return;
+
+    _messages.removeAt(targetIndex);
+    _notify();
+    await _sendExisting(precedingUserMessage);
+  }
+
   void _updateSession(AiChatSession session) {
     _currentSession = session;
     final index = _sessions.indexWhere((s) => s.id == session.id);
