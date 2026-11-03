@@ -9,14 +9,20 @@ import '../../models/community_trip.dart';
 /// Thẻ hiển thị tóm tắt chuyến đi công khai trong Bảng tin Cộng đồng (Community Feed).
 /// Bao gồm: Ảnh đại diện điểm đến, Tiêu đề, Điểm đến, Thời lượng, Dự toán chi phí,
 /// Tác giả, Điểm đánh giá ⭐ và Thống kê lượt thích ❤️.
-class CommunityTripCard extends StatelessWidget {
+class CommunityTripCard extends StatefulWidget {
   final CommunityTrip trip;
   final VoidCallback? onTap;
+  final VoidCallback? onLike;
+  final VoidCallback? onPrint;
+  final bool isLiked;
 
   const CommunityTripCard({
     super.key,
     required this.trip,
     this.onTap,
+    this.onLike,
+    this.onPrint,
+    this.isLiked = false,
   });
 
   static TravelMediaReference? resolveDestinationMedia(String destination) {
@@ -61,6 +67,62 @@ class CommunityTripCard extends StatelessWidget {
   }
 
   @override
+  State<CommunityTripCard> createState() => _CommunityTripCardState();
+}
+
+class _CommunityTripCardState extends State<CommunityTripCard> {
+  late bool _liked;
+  late int _likeCount;
+
+  @override
+  void initState() {
+    super.initState();
+    _liked = widget.isLiked;
+    _likeCount = widget.trip.likeCount;
+  }
+
+  @override
+  void didUpdateWidget(CommunityTripCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isLiked != widget.isLiked) {
+      _liked = widget.isLiked;
+    }
+    if (oldWidget.trip.likeCount != widget.trip.likeCount) {
+      _likeCount = widget.trip.likeCount;
+    }
+  }
+
+  void _handleLikeToggle() {
+    setState(() {
+      _liked = !_liked;
+      _likeCount = _liked ? _likeCount + 1 : (_likeCount > 0 ? _likeCount - 1 : 0);
+    });
+    if (widget.onLike != null) {
+      widget.onLike!();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_liked ? 'Đã thích chuyến đi!' : 'Đã bỏ thích chuyến đi.'),
+          duration: const Duration(seconds: 1),
+        ),
+      );
+    }
+  }
+
+  void _handlePrint() {
+    if (widget.onPrint != null) {
+      widget.onPrint!();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Chuẩn bị in lịch trình: ${widget.trip.title}'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final currencyFmt = NumberFormat.currency(
       locale: 'vi_VN',
@@ -68,6 +130,7 @@ class CommunityTripCard extends StatelessWidget {
       decimalDigits: 0,
     );
 
+    final trip = widget.trip;
     final destination = trip.destination.trim().isNotEmpty
         ? trip.destination.trim()
         : 'Việt Nam';
@@ -82,7 +145,7 @@ class CommunityTripCard extends StatelessWidget {
         ? trip.averageRating.toStringAsFixed(1)
         : 'Mới';
 
-    final media = resolveDestinationMedia(destination);
+    final media = CommunityTripCard.resolveDestinationMedia(destination);
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -94,7 +157,7 @@ class CommunityTripCard extends StatelessWidget {
       color: Colors.white,
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: onTap,
+        onTap: widget.onTap,
         borderRadius: BorderRadius.circular(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -307,25 +370,51 @@ class CommunityTripCard extends StatelessWidget {
                           ],
                         ),
                       ),
-                      // Thống kê lượt thích hiển thị số (read-only statistics, không tương tác ghi)
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.favorite_rounded,
-                            size: 15,
-                            color: Color(0xFFEF4444),
+                      // Nút In (Print Icon Button)
+                      IconButton(
+                        onPressed: _handlePrint,
+                        icon: const Icon(
+                          Icons.print_outlined,
+                          size: 18,
+                          color: AppTheme.slate600,
+                        ),
+                        tooltip: 'In lịch trình',
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                      ),
+                      const SizedBox(width: 4),
+                      // Biểu tượng Thả tim tương tác (Interactive Like Button)
+                      InkWell(
+                        onTap: _handleLikeToggle,
+                        borderRadius: BorderRadius.circular(12),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                (_liked || _likeCount > 0)
+                                    ? Icons.favorite_rounded
+                                    : Icons.favorite_border_rounded,
+                                size: 16,
+                                color: (_liked || _likeCount > 0)
+                                    ? const Color(0xFFEF4444)
+                                    : AppTheme.slate500,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                '$_likeCount',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: (_liked || _likeCount > 0)
+                                      ? const Color(0xFFEF4444)
+                                      : AppTheme.slate600,
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: 4),
-                          Text(
-                            '${trip.likeCount}',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: AppTheme.slate600,
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
                     ],
                   ),

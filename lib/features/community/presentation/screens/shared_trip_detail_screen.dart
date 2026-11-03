@@ -1,3 +1,4 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -48,16 +49,27 @@ class _SharedTripDetailScreenState extends State<SharedTripDetailScreen> {
   // Trạng thái cho nút vàng Clone Trip
   bool _isCloning = false;
 
+  int _countWords(String text) {
+    if (text.trim().isEmpty) return 0;
+    return text.trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).length;
+  }
+
   @override
   void initState() {
     super.initState();
     _service = widget.service ?? CommunityService();
     _trip = widget.trip;
+    _commentController.addListener(_onCommentChanged);
     _loadReviews();
+  }
+
+  void _onCommentChanged() {
+    setState(() {});
   }
 
   @override
   void dispose() {
+    _commentController.removeListener(_onCommentChanged);
     _commentController.dispose();
     super.dispose();
   }
@@ -89,6 +101,21 @@ class _SharedTripDetailScreenState extends State<SharedTripDetailScreen> {
   Future<void> _submitReview() async {
     final comment = _commentController.text.trim();
     if (_isSubmittingReview) return;
+
+    if (comment.isNotEmpty) {
+      final words = _countWords(comment);
+      if (words > 1000) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Nội dung nhận xét tối đa 1.000 từ (hiện có $words từ). Vui lòng rút gọn.',
+            ),
+            backgroundColor: const Color(0xFFEF4444),
+          ),
+        );
+        return;
+      }
+    }
 
     setState(() => _isSubmittingReview = true);
 
@@ -137,13 +164,28 @@ class _SharedTripDetailScreenState extends State<SharedTripDetailScreen> {
       }
     } catch (e) {
       if (mounted) {
+        String errorMessage;
+        if (e is StateError) {
+          errorMessage = e.message;
+        } else if (e is ArgumentError) {
+          errorMessage = e.message;
+        } else if (e is PostgrestException) {
+          errorMessage = 'Lỗi máy chủ (${e.code ?? "CSDL"}): ${e.message}';
+        } else {
+          final errStr = e.toString();
+          if (errStr.contains('JWT') ||
+              errStr.contains('auth') ||
+              errStr.contains('session') ||
+              errStr.contains('đăng nhập')) {
+            errorMessage =
+                'Gửi đánh giá không thành công. Vui lòng kiểm tra đăng nhập.';
+          } else {
+            errorMessage = 'Gửi đánh giá không thành công: $errStr';
+          }
+        }
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              e is StateError
-                  ? e.message
-                  : 'Gửi đánh giá không thành công. Vui lòng kiểm tra đăng nhập.',
-            ),
+            content: Text(errorMessage),
             backgroundColor: const Color(0xFFEF4444),
           ),
         );
@@ -566,48 +608,79 @@ class _SharedTripDetailScreenState extends State<SharedTripDetailScreen> {
                 borderRadius: BorderRadius.circular(16),
                 side: const BorderSide(color: AppTheme.border),
               ),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Chia sẻ cảm nhận về chuyến đi này:',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.slate800,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Center(
-                      child: RatingStarsWidget(
-                        rating: _userRating.toDouble(),
-                        interactive: true,
-                        size: 28,
-                        onRatingChanged: (newRating) {
-                          setState(() => _userRating = newRating);
-                        },
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _commentController,
-                      maxLines: 2,
-                      decoration: InputDecoration(
-                        hintText: 'Nhận xét của bạn về lịch trình này…',
-                        hintStyle: const TextStyle(fontSize: 13),
-                        contentPadding: const EdgeInsets.all(12),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: AppTheme.border),
+              child: Builder(
+                builder: (context) {
+                  final wordCount = _countWords(_commentController.text);
+                  final isOverLimit = wordCount > 1000;
+                  return Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Chia sẻ cảm nhận về chuyến đi này:',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.slate800,
+                          ),
                         ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: AppTheme.border),
+                        const SizedBox(height: 8),
+                        Center(
+                          child: RatingStarsWidget(
+                            rating: _userRating.toDouble(),
+                            interactive: true,
+                            size: 28,
+                            onRatingChanged: (newRating) {
+                              setState(() => _userRating = newRating);
+                            },
+                          ),
                         ),
-                      ),
-                    ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _commentController,
+                          maxLines: 4,
+                          minLines: 2,
+                          decoration: InputDecoration(
+                            hintText: 'Nhận xét của bạn về lịch trình này…',
+                            hintStyle: const TextStyle(fontSize: 13),
+                            contentPadding: const EdgeInsets.all(12),
+                            helperText: 'Tối đa 1.000 từ ($wordCount/1.000 từ)',
+                            helperStyle: TextStyle(
+                              fontSize: 11,
+                              color: isOverLimit
+                                  ? const Color(0xFFEF4444)
+                                  : AppTheme.slate500,
+                              fontWeight:
+                                  isOverLimit ? FontWeight.bold : FontWeight.normal,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: isOverLimit
+                                    ? const Color(0xFFEF4444)
+                                    : AppTheme.border,
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: isOverLimit
+                                    ? const Color(0xFFEF4444)
+                                    : AppTheme.border,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: isOverLimit
+                                    ? const Color(0xFFEF4444)
+                                    : AppTheme.primaryColor,
+                                width: 1.5,
+                              ),
+                            ),
+                          ),
+                        ),
                     const SizedBox(height: 12),
                     SizedBox(
                       width: double.infinity,
@@ -633,8 +706,10 @@ class _SharedTripDetailScreenState extends State<SharedTripDetailScreen> {
                     ),
                   ],
                 ),
-              ),
-            ),
+              );
+            },
+          ),
+        ),
             const SizedBox(height: 16),
 
             // Danh sách các nhận xét từ người dùng
