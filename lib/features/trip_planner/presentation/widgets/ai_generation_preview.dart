@@ -12,6 +12,7 @@ class AiGenerationPreview extends StatefulWidget {
   final Future<Object> Function(String requestId) generate;
   final Listenable authority;
   final bool Function() isCurrent;
+  final bool isLocalAi;
 
   const AiGenerationPreview({
     super.key,
@@ -19,6 +20,7 @@ class AiGenerationPreview extends StatefulWidget {
     required this.generate,
     required this.authority,
     required this.isCurrent,
+    this.isLocalAi = false,
   });
 
   @override
@@ -200,7 +202,32 @@ class _AiGenerationPreviewState extends State<AiGenerationPreview> {
       final envelope = _envelope;
 
       return AlertDialog(
-        title: const Text('Đề xuất lịch từ AI'),
+        title: widget.isLocalAi
+            ? Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 8,
+                runSpacing: 4,
+                children: [
+                  const Text('Đề xuất lịch từ AI'),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: Colors.teal.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.teal.withValues(alpha: 0.3)),
+                    ),
+                    child: const Text(
+                      'Ollama · Qwen',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.teal,
+                      ),
+                    ),
+                  ),
+                ],
+              )
+            : const Text('Đề xuất lịch từ AI'),
         scrollable: true,
         content: SizedBox(
           width: 440,
@@ -288,8 +315,9 @@ class _AiGenerationPreviewState extends State<AiGenerationPreview> {
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                    Text(
+                  children: [
+                    const Text(
+
                       'Lưu ý bảo mật & dữ liệu',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
@@ -297,15 +325,18 @@ class _AiGenerationPreviewState extends State<AiGenerationPreview> {
                         color: Colors.blueGrey,
                       ),
                     ),
-                    SizedBox(height: 4),
-                    Text(
+                    const SizedBox(height: 4),
+                    const Text(
                       'AI chỉ đề xuất thêm hoạt động và ước tính vào bản nháp. Chưa lưu lên tài khoản; hoạt động và khoản đã chi hiện có được giữ nguyên.',
                       style: TextStyle(fontSize: 11, height: 1.3),
                     ),
-                    SizedBox(height: 4),
+                    const SizedBox(height: 4),
                     Text(
-                      'Kết quả AI được lưu tạm trên máy chủ tối đa 24 giờ để kiểm tra lại yêu cầu. Gemini xử lý thông tin bạn đồng ý gửi.',
-                      style: TextStyle(fontSize: 11, height: 1.3),
+                      widget.isLocalAi
+                          ? 'Mô hình Local AI (Ollama - Qwen) xử lý dữ liệu trực tiếp trên máy tính. Hoàn toàn riêng tư và không gửi ra internet.'
+                          : 'Kết quả AI được lưu tạm trên máy chủ tối đa 24 giờ để kiểm tra lại yêu cầu. Gemini xử lý thông tin bạn đồng ý gửi.',
+                      style: const TextStyle(fontSize: 11, height: 1.3),
+
                     ),
                   ],
                 ),
@@ -318,9 +349,15 @@ class _AiGenerationPreviewState extends State<AiGenerationPreview> {
                   onChanged: _loading
                       ? null
                       : (v) => setState(() => _consent = v == true),
-                  title: const Text('Đồng ý gửi các thông tin trên đến Gemini'),
-                  subtitle: const Text(
-                    'Không gửi tên chuyến đi, ghi chú, khoản đã chi, GPS, thông tin liên hệ hay hồ sơ tài khoản. Vùng xuất phát chưa xác định.',
+                  title: Text(
+                    widget.isLocalAi
+                        ? 'Đồng ý tạo lịch trình bằng Local AI (Ollama - Qwen)'
+                        : 'Đồng ý gửi các thông tin trên đến Gemini',
+                  ),
+                  subtitle: Text(
+                    widget.isLocalAi
+                        ? 'Tự động kết hợp sở thích từ Hồ sơ cá nhân và thông số chuyến đi để tạo lịch trình tối ưu.'
+                        : 'Không gửi tên chuyến đi, ghi chú, khoản đã chi, GPS, thông tin liên hệ hay hồ sơ tài khoản. Vùng xuất phát chưa xác định.',
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -332,10 +369,11 @@ class _AiGenerationPreviewState extends State<AiGenerationPreview> {
                     onPressed: _consent && !_loading ? _generate : null,
                     label: Text(
                       _loading
-                          ? 'Đang tạo đề xuất…'
+                          ? (widget.isLocalAi ? 'Local AI đang lập lịch…' : 'Đang tạo đề xuất…')
                           : _error == null
-                          ? 'Tạo đề xuất'
-                          : 'Thử lại',
+                          ? (widget.isLocalAi ? 'Tạo lịch bằng Local AI ⚡' : 'Tạo đề xuất')
+                          : (widget.isLocalAi ? 'Thử lại với Local AI ⚡' : 'Thử lại'),
+
                     ),
                   ),
                 ),

@@ -565,7 +565,7 @@ class ManualPlaceLocations {
               String sourceUrl = '';
               if (place.sourceRefs.isNotEmpty) {
                 try {
-                  sourceUrl = snapshot.catalogue.source(place.sourceRefs.first).url;
+                  sourceUrl = snapshot.catalogue.sourceOrNull(place.sourceRefs.first)?.url ?? '';
                 } catch (_) {}
               }
               final checkedAt = snapshot.manifest.publishedAt.toIso8601String().substring(0, 10);

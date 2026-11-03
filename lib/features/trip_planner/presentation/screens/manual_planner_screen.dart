@@ -14,6 +14,7 @@ import '../../providers/manual_planner_provider.dart';
 import '../../providers/planner_input_provider.dart';
 import '../../services/editable_trip_validator.dart';
 import '../../services/ai_generation_service.dart';
+import '../../services/local_ai_planner_service.dart';
 import '../../models/ai_grounded_proposal.dart';
 import '../../models/ai_grounded_assistant.dart';
 import '../../services/ai_assistant_service.dart';
@@ -263,39 +264,16 @@ class _ManualPlannerScreenState extends State<ManualPlannerScreen> {
         input: input,
         authority: Listenable.merge([planner, auth]),
         isCurrent: current,
+        isLocalAi: true,
         generate: (requestId) async {
           if (widget.generateAi != null) {
             return widget.generateAi!(snapshot, requestId);
           }
-          if (widget.snapshot != null) {
-            try {
-              return await generateAiWithEvidence(
-                auth: auth,
-                document: snapshot,
-                snapshot: widget.snapshot!,
-                requestId: requestId,
-                newId: _newId,
-                workspaceCurrent: current,
-              );
-            } catch (evidenceError) {
-              debugPrint('generateAiWithEvidence fallback: $evidenceError');
-              return await generateAiForDraft(
-                auth: auth,
-                document: snapshot,
-                requestId: requestId,
-                newId: _newId,
-                workspaceCurrent: current,
-                destination: dest,
-              );
-            }
-          }
-          return await generateAiForDraft(
-            auth: auth,
+          return await LocalAiPlannerService().generateItineraryWithLocalOllama(
             document: snapshot,
-            requestId: requestId,
+            auth: auth,
             newId: _newId,
-            workspaceCurrent: current,
-            destination: dest,
+            destinationName: dest?.name,
           );
         },
       ),
@@ -827,7 +805,10 @@ class _EditorSections extends StatelessWidget {
                   onAdd: (d) => run(() => screen._activity(d)),
                   onEdit: (i) => run(
                     () => screen._activity(
-                      doc.days.firstWhere((d) => d.id == i.dayId),
+                      doc.days.firstWhere(
+                        (d) => d.id == i.dayId,
+                        orElse: () => doc.days.first,
+                      ),
                       item: i,
                     ),
                   ),

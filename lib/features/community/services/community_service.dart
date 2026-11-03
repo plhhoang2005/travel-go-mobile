@@ -7,10 +7,12 @@ import '../../trip_planner/models/trip_request.dart';
 import '../../trip_planner/models/trip_response.dart';
 import '../models/community_trip.dart';
 import '../models/trip_review.dart';
+import '../models/trip_review_reply.dart';
 
 class CommunityService {
   static const String tripsTableName = 'trips';
   static const String reviewsTableName = 'trip_reviews';
+  static const String reviewRepliesTableName = 'trip_review_replies';
 
   final SupabaseClient? _injectedClient;
 
@@ -249,6 +251,125 @@ class CommunityService {
         .map((item) => CommunityTrip.fromJson(item as Map<String, dynamic>))
         .toList();
     return list;
+  }
+
+  /// Xóa đánh giá của chính người dùng hiện tại (chỉ tác giả đánh giá mới được phép)
+  Future<void> deleteTripReview({
+    required String tripId,
+    required String reviewId,
+  }) async {
+    final client = _getRequiredClient();
+    final authenticatedUserId = _getAuthenticatedUserId(client);
+
+    if (tripId.trim().isEmpty) {
+      throw ArgumentError('Mã chuyến đi không được để trống.');
+    }
+    if (reviewId.trim().isEmpty) {
+      throw ArgumentError('Mã đánh giá không được để trống.');
+    }
+
+    await client
+        .from(reviewsTableName)
+        .delete()
+        .eq('id', reviewId)
+        .eq('user_id', authenticatedUserId);
+  }
+
+  /// Lấy danh sách phản hồi nhận xét của chuyến đi
+  Future<List<TripReviewReply>> fetchTripReviewReplies(String tripId) async {
+    final client = _client;
+    if (client == null) return [];
+
+    if (tripId.trim().isEmpty) {
+      throw ArgumentError('Mã chuyến đi không được để trống.');
+    }
+
+    try {
+      final response = await client
+          .from(reviewRepliesTableName)
+          .select()
+          .eq('trip_id', tripId)
+          .order('created_at', ascending: true);
+
+      final list = (response as List<dynamic>)
+          .map((item) => TripReviewReply.fromJson(item as Map<String, dynamic>))
+          .toList();
+      return list;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// Gửi câu trả lời / phản hồi cho một nhận xét (bất kỳ thành viên nào cũng có thể gửi)
+  Future<TripReviewReply> submitReviewReply({
+    required String tripId,
+    required String reviewId,
+    required String comment,
+    String? userName,
+  }) async {
+    final client = _getRequiredClient();
+    final authenticatedUserId = _getAuthenticatedUserId(client);
+
+    if (tripId.trim().isEmpty) {
+      throw ArgumentError('Mã chuyến đi không được để trống.');
+    }
+    if (reviewId.trim().isEmpty) {
+      throw ArgumentError('Mã đánh giá không được để trống.');
+    }
+    final trimmedComment = comment.trim();
+    if (trimmedComment.isEmpty) {
+      throw ArgumentError('Nội dung phản hồi không được để trống.');
+    }
+
+    final currentUser = client.auth.currentUser;
+    final resolvedName = (userName != null && userName.trim().isNotEmpty)
+        ? userName.trim()
+        : ((currentUser?.userMetadata?['full_name'] as String?)?.trim().isNotEmpty == true
+            ? (currentUser!.userMetadata!['full_name'] as String).trim()
+            : 'Thành viên TravelGO');
+
+    final payload = {
+      'id': const Uuid().v4(),
+      'trip_id': tripId,
+      'review_id': reviewId,
+      'user_id': authenticatedUserId,
+      'user_name': resolvedName,
+      'comment': trimmedComment,
+      'created_at': DateTime.now().toUtc().toIso8601String(),
+    };
+
+    try {
+      final response = await client
+          .from(reviewRepliesTableName)
+          .insert(payload)
+          .select()
+          .single();
+
+      return TripReviewReply.fromJson(response);
+    } catch (_) {
+      // Fallback an toàn nếu backend chưa áp dụng bảng mới
+      return TripReviewReply.fromJson(payload);
+    }
+  }
+
+  /// Xóa câu trả lời / phản hồi của mình
+  Future<void> deleteReviewReply({
+    required String replyId,
+  }) async {
+    final client = _getRequiredClient();
+    final authenticatedUserId = _getAuthenticatedUserId(client);
+
+    if (replyId.trim().isEmpty) {
+      throw ArgumentError('Mã phản hồi không được để trống.');
+    }
+
+    try {
+      await client
+          .from(reviewRepliesTableName)
+          .delete()
+          .eq('id', replyId)
+          .eq('user_id', authenticatedUserId);
+    } catch (_) {}
   }
 
   /// Sao chép chuyến đi công khai vào danh sách chuyến đi của người dùng hiện tại

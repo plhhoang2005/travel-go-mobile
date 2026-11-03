@@ -269,7 +269,10 @@ class _ManualActivityFormState extends State<ManualActivityForm> {
     _place = value;
     _dirty = true;
     if (value != null) {
-      _title.text = widget.places.firstWhere((p) => p.id == value).name;
+      final found = widget.places.where((p) => p.id == value).firstOrNull;
+      if (found != null) {
+        _title.text = found.name;
+      }
     }
   });
   @override

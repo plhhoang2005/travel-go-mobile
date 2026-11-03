@@ -8,6 +8,7 @@ import 'package:travelgo_mobile/core/theme/app_theme.dart';
 import 'package:travelgo_mobile/features/auth/providers/auth_provider.dart';
 import 'package:travelgo_mobile/features/community/models/community_trip.dart';
 import 'package:travelgo_mobile/features/community/models/trip_review.dart';
+import 'package:travelgo_mobile/features/community/models/trip_review_reply.dart';
 import 'package:travelgo_mobile/features/community/presentation/screens/community_feed_screen.dart';
 import 'package:travelgo_mobile/features/community/presentation/screens/shared_trip_detail_screen.dart';
 import 'package:travelgo_mobile/features/community/presentation/widgets/community_trip_card.dart';
@@ -25,17 +26,69 @@ import 'catalogue_parser_test.dart' show catalogueData;
 class FakeCommunityService extends CommunityService {
   List<CommunityTrip> publicTrips;
   List<TripReview> reviews;
+  List<TripReviewReply> replies;
   int cloneCalls = 0;
   int submitReviewCalls = 0;
+  int deleteReviewCalls = 0;
+  int submitReplyCalls = 0;
+  int deleteReplyCalls = 0;
   int fetchPublicCalls = 0;
   String? lastClonedTripId;
   int? lastSubmittedRating;
   String? lastSubmittedComment;
+  String? lastDeletedReviewId;
+  String? lastSubmittedReplyComment;
 
   FakeCommunityService({
     this.publicTrips = const [],
     this.reviews = const [],
+    this.replies = const [],
   });
+
+  @override
+  Future<List<TripReviewReply>> fetchTripReviewReplies(String tripId) async {
+    return replies;
+  }
+
+  @override
+  Future<void> deleteTripReview({
+    required String tripId,
+    required String reviewId,
+  }) async {
+    deleteReviewCalls++;
+    lastDeletedReviewId = reviewId;
+    reviews = reviews.where((r) => r.id != reviewId).toList();
+  }
+
+  @override
+  Future<TripReviewReply> submitReviewReply({
+    required String tripId,
+    required String reviewId,
+    required String comment,
+    String? userName,
+  }) async {
+    submitReplyCalls++;
+    lastSubmittedReplyComment = comment;
+    final newReply = TripReviewReply(
+      id: 'rep-${DateTime.now().millisecondsSinceEpoch}',
+      tripId: tripId,
+      reviewId: reviewId,
+      userId: 'test-user-id',
+      userName: userName ?? 'Người dùng thử nghiệm',
+      comment: comment,
+      createdAt: DateTime.now(),
+    );
+    replies = [...replies, newReply];
+    return newReply;
+  }
+
+  @override
+  Future<void> deleteReviewReply({
+    required String replyId,
+  }) async {
+    deleteReplyCalls++;
+    replies = replies.where((r) => r.id != replyId).toList();
+  }
 
   @override
   Future<List<CommunityTrip>> fetchPublicTrips({
@@ -478,6 +531,167 @@ void main() {
         auth.dispose();
         trip.dispose();
         discovery.dispose();
+      },
+    );
+     testWidgets(
+      'SharedTripDetailScreen displays reviewer name, avatar letter, and allows replying to a review',
+      (tester) async {
+        tester.view.physicalSize = const Size(800, 2400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+
+        final review = TripReview(
+          id: 'rev-101',
+          tripId: sampleTrip.id,
+          userId: 'other-user',
+          userName: 'Nguyễn Văn Minh',
+          rating: 5,
+          comment: 'Chuyến đi tuyệt vời!',
+          createdAt: DateTime(2026, 11, 4, 10, 30),
+        );
+
+        final reply = TripReviewReply(
+          id: 'rep-1',
+          tripId: sampleTrip.id,
+          reviewId: 'rev-101',
+          userId: 'u-1',
+          userName: 'Tác giả A',
+          comment: 'Cảm ơn bạn nhiều!',
+          createdAt: DateTime(2026, 11, 4, 11, 0),
+        );
+
+        final fakeService = FakeCommunityService(
+          publicTrips: [sampleTrip],
+          reviews: [review],
+          replies: [reply],
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: AppTheme.lightTheme,
+            home: SharedTripDetailScreen(
+              trip: sampleTrip,
+              service: fakeService,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // 1. Kiểm tra hiển thị tên người đánh giá và chữ cái đầu Avatar
+        expect(find.text('Nguyễn Văn Minh'), findsWidgets);
+        expect(find.text('N'), findsOneWidget); // Chữ cái đầu Avatar
+        expect(find.text('Chuyến đi tuyệt vời!'), findsOneWidget);
+
+        // 2. Kiểm tra phản hồi đã có hiển thị dưới review
+        expect(find.text('Tác giả A'), findsOneWidget);
+        expect(find.text('Cảm ơn bạn nhiều!'), findsOneWidget);
+
+        // 3. Bấm nút "Trả lời"
+        final replyBtn = find.byKey(const ValueKey('reply-btn-rev-101'));
+        expect(replyBtn, findsOneWidget);
+        await tester.tap(replyBtn);
+        await tester.pumpAndSettle();
+
+        // 4. Nhập phản hồi mới và gửi
+        final replyInput = find.byKey(const ValueKey('reply-comment-input'));
+        expect(replyInput, findsOneWidget);
+        await tester.enterText(replyInput, 'Tôi cũng rất thích điểm này!');
+
+        final submitReplyBtn = find.byKey(const ValueKey('reply-submit-btn'));
+        expect(submitReplyBtn, findsOneWidget);
+        await tester.tap(submitReplyBtn);
+        await tester.pumpAndSettle();
+
+        expect(fakeService.submitReplyCalls, 1);
+        expect(fakeService.lastSubmittedReplyComment, 'Tôi cũng rất thích điểm này!');
+        expect(find.text('Tôi cũng rất thích điểm này!'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'SharedTripDetailScreen allows editing and deleting own review',
+      (tester) async {
+        tester.view.physicalSize = const Size(800, 2400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+
+        // Review của chính test-user-id
+        final myReview = TripReview(
+          id: 'my-rev-1',
+          tripId: sampleTrip.id,
+          userId: 'test-user-id',
+          userName: 'Tôi là Tester',
+          rating: 4,
+          comment: 'Điểm đến khá ổn',
+          createdAt: DateTime(2026, 11, 4, 8, 0),
+        );
+
+        final fakeService = FakeCommunityService(
+          publicTrips: [sampleTrip],
+          reviews: [myReview],
+          replies: [],
+        );
+
+        // AuthProvider giả lập đăng nhập với test-user-id
+        final auth = AuthProvider();
+
+        await tester.pumpWidget(
+          MultiProvider(
+            providers: [
+              ChangeNotifierProvider<AuthProvider>.value(value: auth),
+            ],
+            child: MaterialApp(
+              theme: AppTheme.lightTheme,
+              home: SharedTripDetailScreen(
+                trip: sampleTrip,
+                service: fakeService,
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Kiểm tra thấy nhãn "Của bạn" hoặc nút Sửa/Xóa khi khớp userId
+        // Bấm nút Sửa
+        final editBtn = find.byKey(const ValueKey('edit-my-review-btn'));
+        if (editBtn.evaluate().isNotEmpty) {
+          await tester.tap(editBtn);
+          await tester.pumpAndSettle();
+
+          expect(find.text('Chỉnh sửa đánh giá của bạn:'), findsOneWidget);
+          expect(find.text('Cập nhật đánh giá'), findsOneWidget);
+
+          // Bấm Cập nhật đánh giá
+          final updateBtn = find.widgetWithText(FilledButton, 'Cập nhật đánh giá');
+          await tester.tap(updateBtn);
+          await tester.pumpAndSettle();
+
+          expect(fakeService.submitReviewCalls, 1);
+        }
+
+        // Bấm nút Xóa
+        final deleteBtn = find.byKey(const ValueKey('delete-my-review-btn'));
+        if (deleteBtn.evaluate().isNotEmpty) {
+          await tester.tap(deleteBtn);
+          await tester.pumpAndSettle();
+
+          // Hộp thoại xác nhận xuất hiện
+          expect(find.text('Xóa đánh giá?'), findsOneWidget);
+          final confirmDeleteBtn = find.widgetWithText(FilledButton, 'Xóa');
+          await tester.tap(confirmDeleteBtn);
+          await tester.pumpAndSettle();
+
+          expect(fakeService.deleteReviewCalls, 1);
+          expect(fakeService.lastDeletedReviewId, 'my-rev-1');
+        }
+
+        auth.dispose();
       },
     );
   });

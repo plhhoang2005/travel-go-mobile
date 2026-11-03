@@ -112,6 +112,29 @@ void main() {
       await provider.sendMessage('Thời tiết Sa Pa tháng 11');
       expect(provider.messages.last.citations, isEmpty);
     });
+
+    test('regenerateAiReply replaces AI message with a new response', () async {
+      SharedPreferences.setMockInitialValues({});
+      final fakeAi = FakeLocalAi()..answer = () async => 'Câu trả lời ban đầu';
+      final provider = AiChatProvider(
+        storageService: AiChatStorageService(),
+        aiService: fakeAi,
+      );
+      await provider.init();
+      await provider.sendMessage('Món ngon Hà Nội');
+
+      expect(provider.messages.length, 2);
+      expect(provider.messages.last.content, 'Câu trả lời ban đầu');
+      final firstAiMsgId = provider.messages.last.id;
+
+      fakeAi.answer = () async => 'Câu trả lời mới đã tạo lại';
+      await provider.regenerateAiReply(firstAiMsgId);
+
+      expect(provider.messages.length, 2);
+      expect(provider.messages.first.isUser, isTrue);
+      expect(provider.messages.last.isUser, isFalse);
+      expect(provider.messages.last.content, 'Câu trả lời mới đã tạo lại');
+    });
   });
 
   group('AiChatbotScreen UI & Widgets Tests', () {

@@ -437,7 +437,7 @@ void _validateCandidate(
     if (operation.kind == 'remove') {
       items.removeWhere((a) => a['id'] == o['itemId']);
     } else if (operation.kind == 'edit') {
-      items.firstWhere((a) => a['id'] == o['itemId']).addAll({
+      items.where((a) => a['id'] == o['itemId']).firstOrNull?.addAll({
         'title': o['title'],
         'placeId': o['placeId'],
         'startMinute': o['startMinute'],
@@ -574,14 +574,16 @@ AiModificationPreview prepareAiModification(
   for (final operation in result.operations) {
     final o = operation.values;
     if (operation.kind == 'remove') {
-      final old = before.items.firstWhere((i) => i.id == o['itemId']);
+      final old = before.items.where((i) => i.id == o['itemId']).firstOrNull;
+      if (old == null) continue;
       commands.add(RemoveItemCommand(old.id));
       count--;
       differences.add(
         'Xóa hoạt động: ${_description(old.title, old.startMinute, old.endMinute, old.placeId)}. Khoản đã chi được giữ cùng ảnh chụp nguồn.',
       );
     } else if (operation.kind == 'edit') {
-      final old = before.items.firstWhere((i) => i.id == o['itemId']);
+      final old = before.items.where((i) => i.id == o['itemId']).firstOrNull;
+      if (old == null) continue;
       final titleChanged =
           _normalizeTitle(old.title) != _normalizeTitle(o['title'] as String);
       final placeChanged = old.placeId != o['placeId'];

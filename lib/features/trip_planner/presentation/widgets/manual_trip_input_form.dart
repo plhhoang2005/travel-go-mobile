@@ -314,7 +314,8 @@ class _ManualTripInputFormState extends State<ManualTripInputForm> {
       _days!,
     );
     _affected = preview.affectedItemIds
-        .map((id) => original.items.firstWhere((i) => i.id == id))
+        .map((id) => original.items.where((i) => i.id == id).firstOrNull)
+        .whereType<TripItem>()
         .toList();
     _choices.clear();
     _affectedIndex = 0;
