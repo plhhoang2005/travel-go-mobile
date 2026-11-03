@@ -8,6 +8,7 @@ import '../../trip_planner/models/local_ai_settings.dart';
 import '../../trip_planner/services/local_ai_service.dart';
 import '../models/ai_chat_session.dart';
 import '../services/ai_chat_storage_service.dart';
+import '../services/local_ai_quota_service.dart';
 import '../services/local_ai_settings_store.dart';
 
 class _ChatPersistenceState {
@@ -22,7 +23,10 @@ class AiChatProvider extends ChangeNotifier {
   final AiChatStorageService storageService;
   final LocalAiService aiService;
   final LocalAiSettingsStore settingsStore;
+  final LocalAiQuotaService quotaService;
   LocalAiSettings _settings = LocalAiSettings();
+  bool _isAdmin = false;
+  int _remainingQuota = 10;
   List<AiChatSession> _sessions = [];
   AiChatSession? _currentSession;
   List<AiChatMessage> _messages = [];
@@ -52,24 +56,48 @@ class AiChatProvider extends ChangeNotifier {
     AiChatStorageService? storageService,
     LocalAiService? aiService,
     LocalAiSettingsStore? settingsStore,
+    LocalAiQuotaService? quotaService,
   }) : storageService = storageService ?? AiChatStorageService(),
        aiService = aiService ?? LocalAiService(dio: Dio()),
-       settingsStore = settingsStore ?? LocalAiSettingsStore();
+       settingsStore = settingsStore ?? LocalAiSettingsStore(),
+       quotaService = quotaService ?? LocalAiQuotaService();
 
   List<AiChatSession> get sessions => List.unmodifiable(_sessions);
   AiChatSession? get currentSession => _currentSession;
   List<AiChatMessage> get messages => List.unmodifiable(_messages);
   bool get isLoading => _isLoading;
   bool get isReady => _initialized && !_navigating && !_disposed;
+  bool get isQuotaExhausted => !_isAdmin && _remainingQuota <= 0;
   bool get canSend =>
       isReady &&
       !_isLoading &&
+      !isQuotaExhausted &&
       _lastFailure?.code != LocalAiFailureCode.storage;
+  bool get isAdmin => _isAdmin;
+  int get remainingQuota => _remainingQuota;
   LocalAiSettings get settings => _settings;
   String get selectedModel => _settings.modelName;
   String? get settingsWarning => settingsStore.loadWarning;
   LocalAiFailure? get lastFailure => _lastFailure;
   String? get failedMessageId => _failedMessageId;
+
+  void updateRole({required bool isAdmin}) {
+    if (_isAdmin != isAdmin) {
+      _isAdmin = isAdmin;
+      unawaited(refreshQuota());
+    }
+  }
+
+  Future<void> refreshQuota() async {
+    final remaining = await quotaService.getRemainingQuota(
+      dailyQuota: _settings.dailyQuota,
+      isAdmin: _isAdmin,
+    );
+    if (!_disposed) {
+      _remainingQuota = remaining;
+      _notify();
+    }
+  }
 
   void _notify() {
     if (!_disposed) notifyListeners();
@@ -86,6 +114,7 @@ class AiChatProvider extends ChangeNotifier {
     final loaded = await settingsStore.load();
     if (_disposed) return;
     _settings = loaded;
+    await refreshQuota();
     _notify();
   }
 
@@ -226,6 +255,18 @@ class AiChatProvider extends ChangeNotifier {
         _lastFailure?.code == LocalAiFailureCode.storage) {
       return;
     }
+    final allowed = await quotaService.canSend(
+      dailyQuota: _settings.dailyQuota,
+      isAdmin: _isAdmin,
+    );
+    if (!allowed) {
+      _lastFailure = LocalAiFailure(
+        LocalAiFailureCode.quotaExceeded,
+        'Bạn đã dùng hết ${_settings.dailyQuota} lượt hỏi AI hôm nay. Vui lòng quay lại vào ngày mai!',
+      );
+      _notify();
+      return;
+    }
     final message = AiChatMessage(
       id: _id('msg'),
       sessionId: _currentSession!.id,
@@ -301,6 +342,8 @@ class AiChatProvider extends ChangeNotifier {
         cancelToken: token,
       );
       if (!_isCurrent(generation, sessionId)) return;
+      await quotaService.recordUsage(isAdmin: _isAdmin);
+      await refreshQuota();
       _messages.add(
         AiChatMessage(
           id: _id('msg'),

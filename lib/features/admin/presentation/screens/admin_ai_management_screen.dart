@@ -22,6 +22,7 @@ class _AdminAiManagementScreenState extends State<AdminAiManagementScreen> {
   final _host = TextEditingController();
   final _model = TextEditingController();
   final _prompt = TextEditingController();
+  final _dailyQuota = TextEditingController();
   late final LocalAiSettingsStore _store;
   late final LocalAiService _service;
   double _temperature = 0.7;
@@ -49,12 +50,14 @@ class _AdminAiManagementScreenState extends State<AdminAiManagementScreen> {
       _model.text = settings.modelName;
       _prompt.text = settings.systemPrompt;
       _temperature = settings.temperature;
+      _dailyQuota.text = settings.dailyQuota.toString();
       _status = _store.loadWarning;
     } catch (_) {
       if (!mounted) return;
       _host.text = LocalAiSettings().baseUrl;
       _model.text = LocalAiSettings().modelName;
       _prompt.text = LocalAiSettings.defaultPrompt;
+      _dailyQuota.text = LocalAiSettings().dailyQuota.toString();
       _status = 'Không đọc được cấu hình đã lưu. Hãy kiểm tra và lưu lại.';
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -77,6 +80,7 @@ class _AdminAiManagementScreenState extends State<AdminAiManagementScreen> {
     modelName: _model.text,
     systemPrompt: _prompt.text,
     temperature: _temperature,
+    dailyQuota: int.tryParse(_dailyQuota.text.trim()) ?? 10,
   );
 
   Future<void> _save() async {
@@ -157,6 +161,7 @@ class _AdminAiManagementScreenState extends State<AdminAiManagementScreen> {
     _host.dispose();
     _model.dispose();
     _prompt.dispose();
+    _dailyQuota.dispose();
     super.dispose();
   }
 
@@ -239,6 +244,27 @@ class _AdminAiManagementScreenState extends State<AdminAiManagementScreen> {
                           value == null || value.trim().isEmpty
                           ? 'Nhập chỉ dẫn cho trợ lý.'
                           : null,
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      key: const Key('ollama_quota_field'),
+                      controller: _dailyQuota,
+                      enabled: !_saving,
+                      onChanged: (_) => _changed(),
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Hạn mức lượt hỏi/ngày (User)',
+                        helperText: 'Số lượt hỏi tối đa mỗi ngày của tài khoản thường. Admin luôn không giới hạn.',
+                        helperMaxLines: 2,
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (value) {
+                        final parsed = int.tryParse(value?.trim() ?? '');
+                        if (parsed == null || parsed <= 0 || parsed > 1000) {
+                          return 'Nhập số nguyên từ 1 đến 1000.';
+                        }
+                        return null;
+                      },
                     ),
                     const SizedBox(height: 16),
                     Text('Độ sáng tạo: ${_temperature.toStringAsFixed(1)}'),

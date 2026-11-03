@@ -76,9 +76,9 @@ class UserSummary {
 
   factory UserSummary.fromJson(Map<String, dynamic> json) {
     final id = json['id'];
-    final fullName = json['fullName'];
-    final email = json['email'];
-    final role = json['role'];
+    final fullNameRaw = json['fullName'];
+    final emailRaw = json['email'];
+    final roleRaw = json['role'];
     final state = json['state'];
     final revision = json['revision'];
     final createdAtRaw = json['createdAt'];
@@ -88,14 +88,26 @@ class UserSummary {
     if (id is! String || id.isEmpty) {
       throw const FormatException('UserSummary invalid id');
     }
-    if (fullName is! String) {
-      throw const FormatException('UserSummary invalid fullName');
-    }
-    if (email is! String) {
-      throw const FormatException('UserSummary invalid email');
-    }
-    if (role is! String || (role != 'customer' && role != 'admin')) {
-      throw const FormatException('UserSummary unknown role');
+    final fullName = (fullNameRaw is String && fullNameRaw.trim().isNotEmpty)
+        ? fullNameRaw
+        : 'Chưa đặt tên';
+    final email = (emailRaw is String && emailRaw.trim().isNotEmpty)
+        ? emailRaw
+        : 'Chưa có email';
+
+    final String role;
+    if (roleRaw is String) {
+      if (roleRaw == 'admin') {
+        role = 'admin';
+      } else if (roleRaw == 'partner') {
+        role = 'partner';
+      } else if (roleRaw == 'customer') {
+        role = 'customer';
+      } else {
+        throw const FormatException('UserSummary unknown role');
+      }
+    } else {
+      throw const FormatException('UserSummary missing role');
     }
     if (state is! String ||
         (state != 'enabled' && state != 'locked' && state != 'unlocking')) {

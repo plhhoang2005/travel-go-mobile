@@ -54,25 +54,12 @@ class _CatalogueDiscoveryMapScreenState
   final Set<String> _hiddenPlaceIds = {};
 
   void _togglePlaceHide(CatalogueMapMarker marker) {
-    final willHide = !_hiddenPlaceIds.contains(marker.id);
-    setState(() {
-      if (willHide) {
-        _hiddenPlaceIds.add(marker.id);
-      } else {
-        _hiddenPlaceIds.remove(marker.id);
-      }
-    });
-
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
+      const SnackBar(
         content: Text(
-          willHide
-              ? 'Admin đã ẩn "${marker.title}" khỏi bản đồ!'
-              : 'Admin đã khôi phục "${marker.title}" trên bản đồ!',
+          'Để ẩn địa điểm này trên toàn hệ thống, vui lòng vào màn hình Quản trị viên để Ẩn và Xuất bản.',
         ),
-        backgroundColor:
-            willHide ? Colors.red.shade700 : Colors.teal.shade700,
-        duration: const Duration(seconds: 2),
+        duration: Duration(seconds: 3),
       ),
     );
   }
@@ -194,7 +181,7 @@ class _CatalogueDiscoveryMapScreenState
     );
   }
 
-  LatLng _resolvePlaceCoords(
+  LatLng? _resolvePlaceCoords(
     PlaceReference place,
     DestinationReference destination,
     int index,
@@ -209,10 +196,7 @@ class _CatalogueDiscoveryMapScreenState
     if (manual != null) {
       return LatLng(manual.position.latitude, manual.position.longitude);
     }
-    final center = _resolveDestinationCoords(destination);
-    final latOffset = (index % 3 - 1) * 0.015;
-    final lngOffset = ((index ~/ 3) % 3 - 1) * 0.015;
-    return LatLng(center.latitude + latOffset, center.longitude + lngOffset);
+    return null;
   }
 
   double _resolvePlaceRating(PlaceReference place) {
@@ -649,6 +633,9 @@ class _CatalogueDiscoveryMapScreenState
           continue;
         }
         final point = _resolvePlaceCoords(place, dest, i);
+        if (point == null) {
+          continue;
+        }
         final rating = _resolvePlaceRating(place);
 
         final markerData = CatalogueMapMarker(
@@ -772,6 +759,26 @@ class _CatalogueDiscoveryMapScreenState
     final catalogue = _resolveCatalogue(listen: true);
     final auth = context.watch<AuthProvider?>();
     final isAdmin = auth?.currentUser?.role == UserRole.admin;
+
+    if (catalogue != null && _selectedDestination != null) {
+      final updatedDest = catalogue.destinations
+          .where((d) => d.id == _selectedDestination!.id)
+          .firstOrNull;
+      if (updatedDest == null) {
+        _selectedDestination = null;
+        _selectedMarker = null;
+      } else {
+        _selectedDestination = updatedDest;
+        if (_selectedMarker != null && _selectedMarker!.type == MarkerType.place) {
+          final place = updatedDest.places
+              .where((p) => p.id == _selectedMarker!.id)
+              .firstOrNull;
+          if (place == null) {
+            _selectedMarker = null;
+          }
+        }
+      }
+    }
 
     return Scaffold(
       appBar: AppBar(

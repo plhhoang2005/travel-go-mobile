@@ -108,5 +108,88 @@ void main() {
 
       expect(find.text('Đà Lạt'), findsOneWidget);
     });
+    testWidgets('place without coordinates does not produce a map marker pin', (tester) async {
+      final mockCatalogue = CatalogueReference(
+        checkedAt: '2026-10-29',
+        sources: const [],
+        destinations: [
+          DestinationReference(
+            id: 'custom-dest',
+            name: 'Điểm Đến Test',
+            region: 'Miền Trung',
+            sample: SampleReference.unavailable(),
+            places: const [
+              PlaceReference(
+                id: 'p-no-coords',
+                name: 'Địa Điểm Chưa Có Toạ Độ',
+                sourceId: 's1',
+                latitude: null,
+                longitude: null,
+              ),
+            ],
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(MaterialApp(
+        home: CatalogueDiscoveryMapScreen(
+          initialCatalogue: mockCatalogue,
+          enableNetworkTiles: false,
+        ),
+      ));
+
+      // Tap on destination to drill down
+      await tester.tap(find.text('Điểm Đến Test'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Đang xem: Điểm Đến Test'), findsOneWidget);
+      // Place name should not appear as a marker pin on the map
+      expect(find.text('Địa Điểm Chưa Có Toạ Độ'), findsNothing);
+    });
+
+    testWidgets('hiding destination in updated catalogue unselects drilldown view', (tester) async {
+      final initialCatalogue = CatalogueReference(
+        checkedAt: '2026-10-29',
+        sources: const [],
+        destinations: [
+          DestinationReference(
+            id: 'dest-a',
+            name: 'Điểm Đến A',
+            region: 'Miền Bắc',
+            sample: SampleReference.unavailable(),
+            places: const [],
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(MaterialApp(
+        home: CatalogueDiscoveryMapScreen(
+          initialCatalogue: initialCatalogue,
+          enableNetworkTiles: false,
+        ),
+      ));
+
+      await tester.tap(find.text('Điểm Đến A'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Đang xem: Điểm Đến A'), findsOneWidget);
+
+      // New catalogue where dest-a was hidden/removed
+      final updatedCatalogue = CatalogueReference(
+        checkedAt: '2026-10-30',
+        sources: const [],
+        destinations: const [],
+      );
+
+      await tester.pumpWidget(MaterialApp(
+        home: CatalogueDiscoveryMapScreen(
+          initialCatalogue: updatedCatalogue,
+          enableNetworkTiles: false,
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      // Drilldown is reset back to national view
+      expect(find.textContaining('Đang xem: Điểm Đến A'), findsNothing);
+    });
   });
 }

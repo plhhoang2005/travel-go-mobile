@@ -156,6 +156,35 @@ void main() {
       expect(withSignIn.lastSignInAt, isNotNull);
       expect(withSignIn.authSynced, isFalse);
 
+      // Partner role parses cleanly
+      final partnerUser = UserSummary.fromJson({
+        'id': 'u-partner',
+        'fullName': 'Partner A',
+        'email': 'partner@example.com',
+        'role': 'partner',
+        'state': 'enabled',
+        'revision': 1,
+        'createdAt': '2026-10-23T10:00:00.000Z',
+        'lastSignInAt': null,
+        'authSynced': true,
+      });
+      expect(partnerUser.role, 'partner');
+
+      // Null or empty fullName and email fallback safely
+      final fallbackUser = UserSummary.fromJson({
+        'id': 'u-fallback',
+        'fullName': null,
+        'email': null,
+        'role': 'customer',
+        'state': 'enabled',
+        'revision': 1,
+        'createdAt': '2026-10-23T10:00:00.000Z',
+        'lastSignInAt': null,
+        'authSynced': true,
+      });
+      expect(fallbackUser.fullName, 'Chưa đặt tên');
+      expect(fallbackUser.email, 'Chưa có email');
+
       // Unknown role fails
       expect(
         () => UserSummary.fromJson({

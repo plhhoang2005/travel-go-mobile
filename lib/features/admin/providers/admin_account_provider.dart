@@ -254,7 +254,14 @@ class AdminAccountProvider extends ChangeNotifier {
       _nextCursor = page.nextCursor;
     } on AdminFailure catch (f) {
       if (gen != _usersGeneration || !_isCurrent(context)) return;
-      _fail(f);
+      if (f.code == 'account_locked' ||
+          f.code == 'unauthorized' ||
+          f.code == 'forbidden' ||
+          f.code == 'actor_role_revoked') {
+        _fail(f);
+      } else {
+        _error = f;
+      }
     } catch (e) {
       if (gen != _usersGeneration || !_isCurrent(context)) return;
       _error = AdminFailure(code: 'unknown', message: e.toString());
@@ -305,7 +312,14 @@ class AdminAccountProvider extends ChangeNotifier {
       }
     } on AdminFailure catch (f) {
       if (gen != _detailGeneration || !_isCurrent(context)) return;
-      _fail(f);
+      if (f.code == 'account_locked' ||
+          f.code == 'unauthorized' ||
+          f.code == 'forbidden' ||
+          f.code == 'actor_role_revoked') {
+        _fail(f);
+      } else {
+        _error = f;
+      }
     } catch (e) {
       if (gen != _detailGeneration || !_isCurrent(context)) return;
       _error = AdminFailure(code: 'unknown', message: e.toString());
@@ -330,7 +344,14 @@ class AdminAccountProvider extends ChangeNotifier {
       _dashboardSnapshot = snapshot;
     } on AdminFailure catch (f) {
       if (gen != _dashboardGeneration || !_isCurrent(context)) return;
-      _fail(f);
+      if (f.code == 'account_locked' ||
+          f.code == 'unauthorized' ||
+          f.code == 'forbidden' ||
+          f.code == 'actor_role_revoked') {
+        _fail(f);
+      } else {
+        _error = f;
+      }
     } catch (e) {
       if (gen != _dashboardGeneration || !_isCurrent(context)) return;
       _error = AdminFailure(code: 'unknown', message: e.toString());

@@ -333,13 +333,22 @@ class AdminCatalogueProvider extends ChangeNotifier {
       if (gen != _mutationGeneration || _disposed) return false;
       _error = f;
       _outcomeUncertain = f.outcomeUncertain;
+      if (f.message.contains('public.digest') || f.message.contains('42883')) {
+        _outcomeUncertain = false;
+      }
       if (!f.outcomeUncertain) {
         _clearPublicationAttempt();
         _pendingCommandArgs = null;
       }
       if (_savedRevision != null) {
         _savePhase = AdminCatalogueSavePhase.savedNotPublished;
-        _lastErrorMessage = 'Đã lưu, chưa xuất bản: ${f.message}';
+        final raw = f.message;
+        final cleanMsg = raw.contains('public.digest') || raw.contains('42883')
+            ? 'Bản nháp đã lưu thành công trên máy chủ. Tự động xuất bản chưa hoàn tất do cấu hình RPC trên máy chủ (bạn có thể xuất bản sau).'
+            : raw.contains('catalogue_record_shape')
+                ? 'Dữ liệu địa điểm không hợp lệ (kinh độ và vĩ độ là bắt buộc).'
+                : raw;
+        _lastErrorMessage = 'Đã lưu, chưa xuất bản: $cleanMsg';
       } else {
         _savePhase = AdminCatalogueSavePhase.idle;
         _lastErrorMessage = f.message;
@@ -352,7 +361,13 @@ class AdminCatalogueProvider extends ChangeNotifier {
       _error = f;
       if (_savedRevision != null) {
         _savePhase = AdminCatalogueSavePhase.savedNotPublished;
-        _lastErrorMessage = 'Đã lưu, chưa xuất bản: ${f.message}';
+        final raw = f.message;
+        final cleanMsg = raw.contains('public.digest') || raw.contains('42883')
+            ? 'Bản nháp đã lưu thành công trên máy chủ. Tự động xuất bản chưa hoàn tất do cấu hình RPC trên máy chủ (bạn có thể xuất bản sau).'
+            : raw.contains('catalogue_record_shape')
+                ? 'Dữ liệu địa điểm không hợp lệ (kinh độ và vĩ độ là bắt buộc).'
+                : raw;
+        _lastErrorMessage = 'Đã lưu, chưa xuất bản: $cleanMsg';
       } else {
         _savePhase = AdminCatalogueSavePhase.idle;
         _lastErrorMessage = f.message;

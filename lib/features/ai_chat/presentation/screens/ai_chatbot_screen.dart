@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import '../../../auth/models/user_model.dart';
+import '../../../auth/providers/auth_provider.dart';
 
 import '../../models/ai_chat_session.dart';
 import '../../providers/ai_chat_provider.dart';
@@ -25,10 +27,20 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provider = context.read<AiChatProvider>();
+      final auth = context.read<AuthProvider?>();
+      provider.updateRole(isAdmin: auth?.currentUser?.role == UserRole.admin);
       if (provider.sessions.isEmpty) {
         provider.init();
       }
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final auth = Provider.of<AuthProvider?>(context, listen: false);
+    final provider = Provider.of<AiChatProvider>(context, listen: false);
+    provider.updateRole(isAdmin: auth?.currentUser?.role == UserRole.admin);
   }
 
   @override
@@ -109,6 +121,35 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                       fontSize: 10,
                       fontWeight: FontWeight.w600,
                       color: colorScheme.primary,
+                    ),
+                  ),
+                ),
+                Container(
+                  key: const Key('ai_chat_quota_badge'),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: provider.isAdmin
+                        ? colorScheme.secondaryContainer
+                        : (provider.isQuotaExhausted
+                            ? colorScheme.errorContainer
+                            : colorScheme.surfaceContainerHighest),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    provider.isAdmin
+                        ? 'Admin · Không giới hạn'
+                        : 'Còn ${provider.remainingQuota}/${provider.settings.dailyQuota} lượt',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: provider.isAdmin
+                          ? colorScheme.onSecondaryContainer
+                          : (provider.isQuotaExhausted
+                              ? colorScheme.onErrorContainer
+                              : colorScheme.onSurfaceVariant),
                     ),
                   ),
                 ),
@@ -428,6 +469,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
 
   Widget _buildInputBar(BuildContext context, AiChatProvider provider) {
     final colorScheme = Theme.of(context).colorScheme;
+    final isExhausted = provider.isQuotaExhausted;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
@@ -449,13 +491,18 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
               focusNode: _focusNode,
               minLines: 1,
               maxLines: 4,
+              enabled: !isExhausted,
               textInputAction: TextInputAction.send,
               onSubmitted: (_) => _handleSend(provider),
               decoration: InputDecoration(
-                hintText: 'Hỏi Trợ lý AI TravelGO...',
+                hintText: isExhausted
+                    ? 'Đã hết ${provider.settings.dailyQuota} lượt hỏi hôm nay...'
+                    : 'Hỏi Trợ lý AI TravelGO...',
                 hintStyle: TextStyle(
                   fontSize: 14,
-                  color: colorScheme.onSurfaceVariant,
+                  color: isExhausted
+                      ? colorScheme.error
+                      : colorScheme.onSurfaceVariant,
                 ),
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 16,

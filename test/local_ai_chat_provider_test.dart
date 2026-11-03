@@ -271,4 +271,59 @@ void main() {
       provider.dispose();
     },
   );
+
+  test(
+    'quota exhaustion prevents inference for regular users and sets quotaExceeded failure',
+    () async {
+      final ai = FakeLocalAi();
+      final provider = AiChatProvider(aiService: ai);
+      await provider.init();
+      provider.updateRole(isAdmin: false);
+
+      // Consume all daily quota
+      for (int i = 0; i < provider.settings.dailyQuota; i++) {
+        await provider.quotaService.recordUsage(isAdmin: false);
+      }
+      await provider.refreshQuota();
+
+      expect(provider.remainingQuota, 0);
+      expect(provider.isQuotaExhausted, isTrue);
+
+      await provider.sendMessage('Đà Nẵng');
+
+      expect(ai.calls, 0); // No inference!
+      expect(provider.lastFailure, isNotNull);
+      expect(provider.lastFailure!.code, LocalAiFailureCode.quotaExceeded);
+      expect(provider.messages, isEmpty); // Request rejected before message added
+
+      provider.dispose();
+    },
+  );
+
+  test(
+    'admin bypasses quota exhaustion and inference succeeds',
+    () async {
+      final ai = FakeLocalAi();
+      final provider = AiChatProvider(aiService: ai);
+      await provider.init();
+      provider.updateRole(isAdmin: true);
+
+      // Simulate quota count already at max
+      for (int i = 0; i < provider.settings.dailyQuota; i++) {
+        await provider.quotaService.recordUsage(isAdmin: false);
+      }
+      await provider.refreshQuota();
+
+      expect(provider.isAdmin, isTrue);
+      expect(provider.isQuotaExhausted, isFalse);
+
+      await provider.sendMessage('Hà Nội');
+
+      expect(ai.calls, 1);
+      expect(provider.lastFailure, isNull);
+      expect(provider.messages, hasLength(2));
+
+      provider.dispose();
+    },
+  );
 }

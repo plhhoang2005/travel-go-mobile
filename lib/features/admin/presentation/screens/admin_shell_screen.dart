@@ -57,6 +57,16 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
     }
   }
 
+  Dio _createAdminDio() {
+    return Dio(
+      BaseOptions(
+        connectTimeout: const Duration(seconds: 15),
+        receiveTimeout: const Duration(seconds: 20),
+        sendTimeout: const Duration(seconds: 15),
+      ),
+    );
+  }
+
   AdminAccountProvider _getEffectiveProvider() {
     if (widget.provider != null) return widget.provider!;
     if (_ownedProvider != null) return _ownedProvider!;
@@ -80,7 +90,7 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
     }
 
     final service = AdminAccountService(
-      dio: Dio(),
+      dio: _createAdminDio(),
       projectOrigin: Uri.parse(SupabaseConstants.projectUrl),
       publicKey: SupabaseConstants.publishableKey,
       lifecycleLoader: lifecycleLoader,
@@ -117,7 +127,7 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
     }
 
     final service = AdminCatalogueService(
-      dio: Dio(),
+      dio: _createAdminDio(),
       projectOrigin: Uri.parse(SupabaseConstants.projectUrl),
       publicKey: SupabaseConstants.publishableKey,
       lifecycleLoader: lifecycleLoader,
@@ -165,7 +175,7 @@ class _AdminShellScreenState extends State<AdminShellScreen> {
     }
 
     final service = AdminPublicationService(
-      dio: Dio(),
+      dio: _createAdminDio(),
       projectOrigin: Uri.parse(SupabaseConstants.projectUrl),
       publicKey: SupabaseConstants.publishableKey,
       lifecycleLoader: lifecycleLoader,

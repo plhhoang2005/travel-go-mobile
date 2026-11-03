@@ -8,6 +8,7 @@ enum LocalAiFailureCode {
   invalidResponse,
   cancelled,
   storage,
+  quotaExceeded,
 }
 
 class LocalAiFailure implements Exception {

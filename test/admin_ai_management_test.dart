@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:travelgo_mobile/core/constants/api_constants.dart';
 import 'package:travelgo_mobile/features/admin/presentation/screens/admin_ai_management_screen.dart';
 import 'package:travelgo_mobile/features/ai_chat/providers/ai_chat_provider.dart';
 import 'package:travelgo_mobile/features/ai_chat/services/local_ai_settings_store.dart';
@@ -116,7 +117,7 @@ void main() {
       expect(find.textContaining('Kết nối Ollama thành công'), findsNothing);
       expect(
         (await LocalAiSettingsStore().load()).baseUrl,
-        'http://127.0.0.1:11434',
+        ApiConstants.localOllamaHost,
       );
     });
   }
@@ -193,5 +194,37 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     expect(find.textContaining('73 ms'), findsOneWidget);
+  });
+
+  testWidgets('admin can configure and validate daily quota', (tester) async {
+    final store = LocalAiSettingsStore();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: AdminAiManagementScreen(
+          settingsStore: store,
+          service: ProbeAi(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final quotaFinder = find.byKey(const Key('ollama_quota_field'));
+    expect(quotaFinder, findsOneWidget);
+    expect(find.text('10'), findsOneWidget);
+
+    // Enter invalid quota
+    await tester.enterText(quotaFinder, '0');
+    await tapAdminButton(tester, 'Lưu cấu hình');
+    await tester.pumpAndSettle();
+    expect(find.text('Nhập số nguyên từ 1 đến 1000.'), findsOneWidget);
+
+    // Enter valid quota and save
+    await tester.enterText(quotaFinder, '30');
+    await tapAdminButton(tester, 'Lưu cấu hình');
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Đã lưu cấu hình trên thiết bị'), findsOneWidget);
+    final saved = await store.load();
+    expect(saved.dailyQuota, 30);
   });
 }

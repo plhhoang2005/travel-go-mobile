@@ -4,8 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:travelgo_mobile/features/admin/models/admin_account_models.dart';
 import 'package:travelgo_mobile/features/admin/providers/admin_account_provider.dart';
 import 'package:travelgo_mobile/features/admin/services/admin_account_service.dart';
-import 'package:travelgo_mobile/features/auth/models/user_model.dart';
 import 'package:travelgo_mobile/features/auth/providers/auth_provider.dart';
+
+import 'coursework_admin_account_flow_test.dart' show CourseworkAdminAuth;
 
 class FakeAdminAccountService implements AdminAccountService {
   Completer<UserPage>? listUsersCompleter;
@@ -112,8 +113,7 @@ void main() {
 
     setUp(() async {
       fakeService = FakeAdminAccountService();
-      authProvider = AuthProvider();
-      await authProvider.quickDemoLogin(UserRole.admin);
+      authProvider = CourseworkAdminAuth();
       provider = AdminAccountProvider(
         service: fakeService,
         authProvider: authProvider,
@@ -133,7 +133,7 @@ void main() {
       expect(provider.isLoadingUsers, isTrue);
 
       // 2. Owner changes / logout while request is still pending
-      authProvider.continueAsGuest();
+      (authProvider as CourseworkAdminAuth).change(next: null);
 
       // Invariant: provider.users must be EMPTY immediately before resolving held response
       expect(provider.users, isEmpty);
@@ -261,6 +261,46 @@ void main() {
 
       // Both attempts must use the EXACT same requestId
       expect(fakeService.sentMutationRequestIds.toSet().length, 1);
+    });
+
+    test('loadUsers_forbidden_or_revoked_revokes_access_and_clears_users', () async {
+      await provider.enter();
+      await provider.loadUsers();
+      expect(provider.users.length, 1);
+      expect(provider.hasAdminAccess, isTrue);
+
+      fakeService.listUsersCompleter = Completer<UserPage>()
+        ..completeError(
+          const AdminFailure(
+            code: 'forbidden',
+            message: 'Admin revoked',
+          ),
+        );
+
+      await provider.loadUsers();
+      expect(provider.hasAdminAccess, isFalse);
+      expect(provider.users, isEmpty);
+      expect(provider.error?.code, 'forbidden');
+    });
+
+    test('loadUsers_transient_error_preserves_access_and_sets_error', () async {
+      await provider.enter();
+      await provider.loadUsers();
+      expect(provider.users.length, 1);
+      expect(provider.hasAdminAccess, isTrue);
+
+      fakeService.listUsersCompleter = Completer<UserPage>()
+        ..completeError(
+          const AdminFailure(
+            code: 'upstream_unavailable',
+            message: 'Timeout connecting to server',
+          ),
+        );
+
+      await provider.loadUsers();
+      expect(provider.hasAdminAccess, isTrue);
+      expect(provider.users.length, 1); // preserved
+      expect(provider.error?.code, 'upstream_unavailable');
     });
   });
 }
