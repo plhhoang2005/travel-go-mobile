@@ -15,6 +15,14 @@ class AppTheme {
   static const Color ratingBg = Color(0xFFFFF3DC);
   static const Color ratingText = Color(0xFFA65B0B);
 
+  // Brand Palette aliases & modern accents
+  static const Color tealPrimary = Color(0xFF086C61);
+  static const Color mintLight = Color(0xFF83C5BE);
+  static const Color mintDark = Color(0xFF006D77);
+  static const Color coralColor = Color(0xFFFF7657);
+  static const Color warmCream = Color(0xFFFFF3E0);
+  static const Color amberAccent = Color(0xFFF59E0B);
+
   // Classic slate & legacy aliases
   static const Color navy = Color(0xFF092D39);
   static const Color accentOrange = Color(0xFFFF7657);
