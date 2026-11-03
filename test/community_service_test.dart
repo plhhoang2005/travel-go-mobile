@@ -7,6 +7,7 @@ import 'package:http/testing.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:travelgo_mobile/features/community/models/community_trip.dart';
 import 'package:travelgo_mobile/features/community/models/trip_review.dart';
+import 'package:travelgo_mobile/features/community/models/trip_review_reply.dart';
 import 'package:travelgo_mobile/features/community/services/community_service.dart';
 import 'package:travelgo_mobile/features/trips/models/trip_payload_codec.dart';
 
@@ -567,6 +568,74 @@ void main() {
         () => service.cloneTrip(sourceTrip: trip),
         throwsA(anything),
       );
+    });
+     test('deleteTripReview deletes review by id and userId', () async {
+      String? sentMethod;
+      String? sentPath;
+
+      final client = createMockSupabaseClient(
+        userId: testUserIdB,
+        restHandler: (req) async {
+          sentMethod = req.method;
+          sentPath = req.url.path;
+          return http.Response('', 204, request: req);
+        },
+      );
+      await client.auth.signInWithPassword(email: 'b@example.com', password: 'pass');
+
+      final service = CommunityService(client: client);
+      await service.deleteTripReview(tripId: testTripId, reviewId: 'r-123');
+
+      expect(sentMethod, 'DELETE');
+      expect(sentPath, '/rest/v1/trip_reviews');
+    });
+
+    test('submitReviewReply inserts reply and returns TripReviewReply', () async {
+      String? sentBody;
+      final client = createMockSupabaseClient(
+        userId: testUserIdB,
+        restHandler: (req) async {
+          sentBody = req.body;
+          final json = jsonDecode(req.body);
+          return http.Response(
+            jsonEncode(json),
+            201,
+            request: req,
+            headers: {'content-type': 'application/json'},
+          );
+        },
+      );
+      await client.auth.signInWithPassword(email: 'b@example.com', password: 'pass');
+
+      final service = CommunityService(client: client);
+      final TripReviewReply reply = await service.submitReviewReply(
+        tripId: testTripId,
+        reviewId: 'r-123',
+        comment: 'Cảm ơn bạn đã phản hồi!',
+        userName: 'Tác giả',
+      );
+
+      expect(sentBody, contains('Cảm ơn bạn đã phản hồi!'));
+      expect(reply.comment, 'Cảm ơn bạn đã phản hồi!');
+      expect(reply.userName, 'Tác giả');
+      expect(reply.reviewId, 'r-123');
+    });
+
+    test('deleteReviewReply sends DELETE to trip_review_replies', () async {
+      String? sentMethod;
+      final client = createMockSupabaseClient(
+        userId: testUserIdB,
+        restHandler: (req) async {
+          sentMethod = req.method;
+          return http.Response('', 204, request: req);
+        },
+      );
+      await client.auth.signInWithPassword(email: 'b@example.com', password: 'pass');
+
+      final service = CommunityService(client: client);
+      await service.deleteReviewReply(replyId: 'rep-001');
+
+      expect(sentMethod, 'DELETE');
     });
   });
 }

@@ -8,6 +8,7 @@ import '../../../auth/providers/auth_provider.dart';
 import '../../../trips/providers/saved_trips_provider.dart';
 import '../../models/community_trip.dart';
 import '../../models/trip_review.dart';
+import '../../models/trip_review_reply.dart';
 import '../../services/community_service.dart';
 import '../../../../core/presentation/travel_image.dart';
 import '../widgets/community_trip_card.dart';
@@ -38,13 +39,15 @@ class _SharedTripDetailScreenState extends State<SharedTripDetailScreen> {
   late CommunityTrip _trip;
 
   List<TripReview> _reviews = [];
+  List<TripReviewReply> _replies = [];
   bool _isLoadingReviews = true;
   String? _reviewsError;
 
-  // Trạng thái cho form đánh giá
+  // Trạng thái cho form đánh giá & chỉnh sửa
   int _userRating = 5;
   final TextEditingController _commentController = TextEditingController();
   bool _isSubmittingReview = false;
+  bool _isEditingReview = false;
 
   // Trạng thái cho nút vàng Clone Trip
   bool _isCloning = false;
@@ -81,10 +84,14 @@ class _SharedTripDetailScreenState extends State<SharedTripDetailScreen> {
     });
 
     try {
-      final reviews = await _service.fetchTripReviews(_trip.id);
+      final reviewsFuture = _service.fetchTripReviews(_trip.id);
+      final repliesFuture = _service.fetchTripReviewReplies(_trip.id);
+      final results = await Future.wait([reviewsFuture, repliesFuture]);
+
       if (mounted) {
         setState(() {
-          _reviews = reviews;
+          _reviews = results[0] as List<TripReview>;
+          _replies = results[1] as List<TripReviewReply>;
           _isLoadingReviews = false;
         });
       }
@@ -94,6 +101,282 @@ class _SharedTripDetailScreenState extends State<SharedTripDetailScreen> {
           _reviewsError = 'Không thể tải danh sách nhận xét: $e';
           _isLoadingReviews = false;
         });
+      }
+    }
+  }
+
+  void _startEditReview(TripReview review) {
+    setState(() {
+      _isEditingReview = true;
+      _userRating = review.rating;
+      _commentController.text = review.comment ?? '';
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Đang sửa đánh giá. Vui lòng chỉnh sửa và bấm Cập nhật.'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _cancelEditReview() {
+    setState(() {
+      _isEditingReview = false;
+      _userRating = 5;
+      _commentController.clear();
+    });
+  }
+
+  Future<void> _confirmDeleteReview(TripReview review) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Xóa đánh giá?'),
+        content: const Text(
+          'Bạn có chắc chắn muốn xóa đánh giá của mình không? Điểm đánh giá trung bình sẽ được tính lại.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Xóa'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await _service.deleteTripReview(tripId: _trip.id, reviewId: review.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Đã xóa đánh giá thành công.'),
+            backgroundColor: AppTheme.accentEmerald,
+          ),
+        );
+        final updated = _reviews.where((r) => r.id != review.id).toList();
+        final newCount = updated.length;
+        final newAvg = newCount > 0
+            ? updated.fold<double>(0, (sum, r) => sum + r.rating) / newCount
+            : 0.0;
+        setState(() {
+          _reviews = updated;
+          _trip = _trip.copyWith(
+            reviewCount: newCount,
+            averageRating: double.parse(newAvg.toStringAsFixed(1)),
+          );
+          if (_isEditingReview) {
+            _isEditingReview = false;
+            _userRating = 5;
+            _commentController.clear();
+          }
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Không thể xóa đánh giá: $e'),
+            backgroundColor: const Color(0xFFEF4444),
+          ),
+        );
+      }
+    }
+  }
+
+  void _openReplySheet(TripReview review) {
+    final replyController = TextEditingController();
+    bool isSending = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          final bottomInset = MediaQuery.of(ctx).viewInsets.bottom;
+          return Padding(
+            padding: EdgeInsets.fromLTRB(16, 20, 16, 16 + bottomInset),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Phản hồi cho ${review.userName}',
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.slate800,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded, size: 20),
+                      onPressed: () => Navigator.of(ctx).pop(),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '"${review.comment ?? 'Đánh giá ${review.rating} sao'}"',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppTheme.slate500,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  key: const ValueKey('reply-comment-input'),
+                  controller: replyController,
+                  maxLines: 3,
+                  minLines: 2,
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    hintText: 'Nhập câu trả lời của bạn…',
+                    hintStyle: const TextStyle(fontSize: 13),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: AppTheme.border),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(
+                        color: AppTheme.primaryColor,
+                        width: 1.5,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    key: const ValueKey('reply-submit-btn'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppTheme.primaryColor,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onPressed: isSending
+                        ? null
+                        : () async {
+                            final text = replyController.text.trim();
+                            if (text.isEmpty) return;
+                            setSheetState(() => isSending = true);
+                            try {
+                              final newReply = await _service.submitReviewReply(
+                                tripId: _trip.id,
+                                reviewId: review.id,
+                                comment: text,
+                              );
+                              if (ctx.mounted) Navigator.of(ctx).pop();
+                              if (mounted) {
+                                setState(() {
+                                  _replies = [..._replies, newReply];
+                                });
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Đã gửi phản hồi thành công!'),
+                                    backgroundColor: AppTheme.accentEmerald,
+                                  ),
+                                );
+                              }
+                            } catch (e) {
+                              setSheetState(() => isSending = false);
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Không thể gửi phản hồi: $e'),
+                                    backgroundColor: const Color(0xFFEF4444),
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                    child: isSending
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text('Gửi phản hồi'),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _confirmDeleteReply(TripReviewReply reply) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Xóa phản hồi?'),
+        content: const Text('Bạn có chắc chắn muốn xóa phản hồi này không?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Xóa'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await _service.deleteReviewReply(replyId: reply.id);
+      if (mounted) {
+        setState(() {
+          _replies = _replies.where((r) => r.id != reply.id).toList();
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Đã xóa phản hồi.'),
+            backgroundColor: AppTheme.accentEmerald,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Không thể xóa phản hồi: $e'),
+            backgroundColor: const Color(0xFFEF4444),
+          ),
+        );
       }
     }
   }
@@ -127,10 +410,19 @@ class _SharedTripDetailScreenState extends State<SharedTripDetailScreen> {
       );
 
       if (mounted) {
+        final wasEditing = _isEditingReview;
         _commentController.clear();
+        setState(() {
+          _isEditingReview = false;
+        });
+
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Đã gửi đánh giá thành công! Cảm ơn bạn.'),
+          SnackBar(
+            content: Text(
+              wasEditing
+                  ? 'Đã cập nhật đánh giá thành công!'
+                  : 'Đã gửi đánh giá thành công! Cảm ơn bạn.',
+            ),
             backgroundColor: AppTheme.accentEmerald,
           ),
         );
@@ -323,6 +615,10 @@ class _SharedTripDetailScreenState extends State<SharedTripDetailScreen> {
         : 'Thành viên TravelGO';
 
     final itineraryDays = _extractItineraryDays();
+    final currentUserId = context.watch<AuthProvider?>()?.currentUser?.id ?? _service.currentUserId;
+    final myReview = (currentUserId != null && currentUserId.isNotEmpty)
+        ? _reviews.where((r) => r.userId == currentUserId).firstOrNull
+        : null;
 
     return Scaffold(
       backgroundColor: AppTheme.slate50,
@@ -653,14 +949,49 @@ class _SharedTripDetailScreenState extends State<SharedTripDetailScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Chia sẻ cảm nhận về chuyến đi này:',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.slate800,
-                          ),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              _isEditingReview
+                                  ? 'Chỉnh sửa đánh giá của bạn:'
+                                  : 'Chia sẻ cảm nhận về chuyến đi này:',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: _isEditingReview
+                                    ? AppTheme.primaryColor
+                                    : AppTheme.slate800,
+                              ),
+                            ),
+                            if (_isEditingReview)
+                              TextButton(
+                                onPressed: _cancelEditReview,
+                                style: TextButton.styleFrom(
+                                  padding: EdgeInsets.zero,
+                                  minimumSize: Size.zero,
+                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                child: const Text(
+                                  'Hủy sửa',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: AppTheme.slate500,
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
+                        if (!_isEditingReview && myReview != null) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            'Bạn đã đánh giá chuyến đi này (${myReview.rating} sao). Bạn có thể chỉnh sửa lại bất cứ lúc nào.',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: AppTheme.slate500,
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 8),
                         Center(
                           child: RatingStarsWidget(
@@ -737,7 +1068,13 @@ class _SharedTripDetailScreenState extends State<SharedTripDetailScreen> {
                                   color: Colors.white,
                                 ),
                               )
-                            : const Text('Gửi nhận xét'),
+                            : Text(
+                                _isEditingReview
+                                    ? 'Cập nhật đánh giá'
+                                    : (myReview != null
+                                        ? 'Cập nhật nhận xét'
+                                        : 'Gửi nhận xét'),
+                              ),
                       ),
                     ),
                   ],
@@ -777,48 +1114,346 @@ class _SharedTripDetailScreenState extends State<SharedTripDetailScreen> {
               )
             else
               for (final review in _reviews) ...[
-                Card(
-                  elevation: 0,
-                  margin: const EdgeInsets.only(bottom: 8),
-                  color: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: const BorderSide(color: AppTheme.slate100),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            RatingStarsWidget(
-                              rating: review.rating.toDouble(),
-                              size: 16,
-                            ),
-                            if (review.createdAt != null)
-                              Text(
-                                DateFormat('dd/MM/yyyy')
-                                    .format(review.createdAt!.toLocal()),
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  color: AppTheme.slate400,
+                () {
+                  final isMyReview = currentUserId != null &&
+                      review.userId.isNotEmpty &&
+                      review.userId == currentUserId;
+                  final reviewReplies = _replies
+                      .where((r) => r.reviewId == review.id)
+                      .toList();
+
+                  final initialLetter = review.userName.trim().isNotEmpty
+                      ? review.userName.trim()[0].toUpperCase()
+                      : 'U';
+
+                  return Card(
+                    elevation: 0,
+                    margin: const EdgeInsets.only(bottom: 12),
+                    color: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      side: BorderSide(
+                        color: isMyReview
+                            ? AppTheme.primaryColor.withValues(alpha: 0.3)
+                            : AppTheme.slate200,
+                        width: isMyReview ? 1.2 : 1.0,
+                      ),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // 1. Header: Avatar + Tên + Badge Bạn + Điểm sao + Ngày giờ + Nút sửa/xóa
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              CircleAvatar(
+                                radius: 18,
+                                backgroundColor: isMyReview
+                                    ? AppTheme.primaryColor.withValues(alpha: 0.15)
+                                    : AppTheme.slate100,
+                                child: Text(
+                                  initialLetter,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                    color: isMyReview
+                                        ? AppTheme.primaryColor
+                                        : AppTheme.slate700,
+                                  ),
                                 ),
                               ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Wrap(
+                                      crossAxisAlignment:
+                                          WrapCrossAlignment.center,
+                                      spacing: 6,
+                                      runSpacing: 2,
+                                      children: [
+                                        Text(
+                                          review.userName,
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                            color: AppTheme.slate800,
+                                          ),
+                                        ),
+                                        if (isMyReview)
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 6,
+                                              vertical: 1,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: AppTheme.primaryColor
+                                                  .withValues(alpha: 0.1),
+                                              borderRadius:
+                                                  BorderRadius.circular(6),
+                                            ),
+                                            child: const Text(
+                                              'Bạn',
+                                              style: TextStyle(
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.bold,
+                                                color: AppTheme.primaryColor,
+                                              ),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Row(
+                                      children: [
+                                        RatingStarsWidget(
+                                          rating: review.rating.toDouble(),
+                                          size: 14,
+                                        ),
+                                        const SizedBox(width: 6),
+                                        if (review.createdAt != null)
+                                          Text(
+                                            DateFormat('dd/MM/yyyy HH:mm')
+                                                .format(review.createdAt!.toLocal()),
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              color: AppTheme.slate400,
+                                            ),
+                                          ),
+                                        if (review.updatedAt != null &&
+                                            review.createdAt != null &&
+                                            review.updatedAt!
+                                                    .difference(review.createdAt!)
+                                                    .inSeconds
+                                                    .abs() >
+                                                60) ...[
+                                          const SizedBox(width: 4),
+                                          const Text(
+                                            '(Đã sửa)',
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              color: AppTheme.slate400,
+                                              fontStyle: FontStyle.italic,
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              // Nút Sửa / Xóa cho chủ đánh giá
+                              if (isMyReview)
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      key: const ValueKey('edit-my-review-btn'),
+                                      icon: const Icon(
+                                        Icons.edit_outlined,
+                                        size: 18,
+                                      ),
+                                      color: AppTheme.slate600,
+                                      tooltip: 'Chỉnh sửa đánh giá',
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                      onPressed: () => _startEditReview(review),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    IconButton(
+                                      key: const ValueKey('delete-my-review-btn'),
+                                      icon: const Icon(
+                                        Icons.delete_outline,
+                                        size: 18,
+                                      ),
+                                      color: const Color(0xFFEF4444),
+                                      tooltip: 'Xóa đánh giá',
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                      onPressed: () => _confirmDeleteReview(review),
+                                    ),
+                                  ],
+                                ),
+                            ],
+                          ),
+
+                          // 2. Nội dung nhận xét
+                          if (review.comment != null &&
+                              review.comment!.trim().isNotEmpty) ...[
+                            const SizedBox(height: 10),
+                            _ExpandableReviewComment(
+                              comment: review.comment!.trim(),
+                            ),
                           ],
-                        ),
-                        if (review.comment != null &&
-                            review.comment!.trim().isNotEmpty) ...[
+
+                          // 3. Danh sách phản hồi (Replies)
+                          if (reviewReplies.isNotEmpty) ...[
+                            const SizedBox(height: 10),
+                            for (final reply in reviewReplies) ...[
+                              Container(
+                                margin: const EdgeInsets.only(top: 6),
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.slate50,
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: AppTheme.slate200),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        CircleAvatar(
+                                          radius: 11,
+                                          backgroundColor: AppTheme.primaryColor
+                                              .withValues(alpha: 0.1),
+                                          child: Text(
+                                            reply.userName.trim().isNotEmpty
+                                                ? reply.userName.trim()[0].toUpperCase()
+                                                : 'U',
+                                            style: const TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.bold,
+                                              color: AppTheme.primaryColor,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Expanded(
+                                          child: Wrap(
+                                            crossAxisAlignment:
+                                                WrapCrossAlignment.center,
+                                            spacing: 4,
+                                            runSpacing: 2,
+                                            children: [
+                                              Text(
+                                                reply.userName,
+                                                style: const TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: AppTheme.slate800,
+                                                ),
+                                              ),
+                                              if (reply.userId == _trip.authorId)
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(
+                                                    horizontal: 5,
+                                                    vertical: 1,
+                                                  ),
+                                                  decoration: BoxDecoration(
+                                                    color: AppTheme.primaryColor,
+                                                    borderRadius:
+                                                        BorderRadius.circular(4),
+                                                  ),
+                                                  child: const Text(
+                                                    'Tác giả',
+                                                    style: TextStyle(
+                                                      fontSize: 9,
+                                                      fontWeight: FontWeight.bold,
+                                                      color: Colors.white,
+                                                    ),
+                                                  ),
+                                                ),
+                                              if (reply.userId == currentUserId)
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(
+                                                    horizontal: 5,
+                                                    vertical: 1,
+                                                  ),
+                                                  decoration: BoxDecoration(
+                                                    color: AppTheme.primaryColor
+                                                        .withValues(alpha: 0.1),
+                                                    borderRadius:
+                                                        BorderRadius.circular(4),
+                                                  ),
+                                                  child: const Text(
+                                                    'Bạn',
+                                                    style: TextStyle(
+                                                      fontSize: 9,
+                                                      fontWeight: FontWeight.bold,
+                                                      color: AppTheme.primaryColor,
+                                                    ),
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                        ),
+                                        Text(
+                                          DateFormat('dd/MM HH:mm')
+                                              .format(reply.createdAt.toLocal()),
+                                          style: const TextStyle(
+                                            fontSize: 10,
+                                            color: AppTheme.slate400,
+                                          ),
+                                        ),
+                                        if (reply.userId == currentUserId)
+                                          Padding(
+                                            padding: const EdgeInsets.only(left: 4),
+                                            child: IconButton(
+                                              key: ValueKey('delete-reply-${reply.id}'),
+                                              icon: const Icon(
+                                                Icons.close_rounded,
+                                                size: 14,
+                                              ),
+                                              color: AppTheme.slate400,
+                                              padding: EdgeInsets.zero,
+                                              constraints: const BoxConstraints(),
+                                              tooltip: 'Xóa phản hồi',
+                                              onPressed: () =>
+                                                  _confirmDeleteReply(reply),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Padding(
+                                      padding: const EdgeInsets.only(left: 28),
+                                      child: Text(
+                                        reply.comment,
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          color: AppTheme.slate700,
+                                          height: 1.3,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ],
+
+                          // 4. Nút bấm "Trả lời"
                           const SizedBox(height: 6),
-                          _ExpandableReviewComment(
-                            comment: review.comment!.trim(),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton.icon(
+                              key: ValueKey('reply-btn-${review.id}'),
+                              onPressed: () => _openReplySheet(review),
+                              icon: const Icon(Icons.reply_rounded, size: 16),
+                              label: const Text(
+                                'Trả lời',
+                                style: TextStyle(fontSize: 12),
+                              ),
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                foregroundColor: AppTheme.primaryColor,
+                              ),
+                            ),
                           ),
                         ],
-                      ],
+                      ),
                     ),
-                  ),
-                ),
+                  );
+                }(),
               ],
 
             // Khoảng trống dưới cùng để không bị nút đáy che khuất
