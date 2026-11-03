@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:travelgo_mobile/features/ai_chat/models/ai_chat_session.dart';
 import 'package:travelgo_mobile/features/ai_chat/presentation/screens/ai_chatbot_screen.dart';
 import 'package:travelgo_mobile/features/ai_chat/presentation/widgets/ai_markdown_text.dart';
 import 'package:travelgo_mobile/features/ai_chat/providers/ai_chat_provider.dart';
