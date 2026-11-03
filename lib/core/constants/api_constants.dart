@@ -29,7 +29,7 @@ class ApiConstants {
   static const String health = '/health';
 
   // Local Ollama AI Constants
-  static const String localOllamaHost = 'https://relief-retrieve-robertson-nextel.trycloudflare.com';
+  static const String localOllamaHost = 'https://knife-considers-cookbook-incomplete.trycloudflare.com';
   static const String localOllamaModel = 'qwen3:4b-instruct-2507-q4_K_M';
 
   static const Duration connectTimeout = Duration(seconds: 15);
